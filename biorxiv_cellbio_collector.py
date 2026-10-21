@@ -16,19 +16,16 @@ OUTPUT_FILE = Path(__file__).with_name("biorxiv_cellbio_researchers.csv")
 
 # Categories to target
 TARGET_CATEGORIES = {
-    "cell biology",
-    "molecular biology",
-    "cancer biology",
-    "developmental biology",
-    "biochemistry",
+    "cell biology"
 }
 
-# Date window: recent 2024-2026 preprints
-START_DATE = "2024-01-01"
+# Date window: 2026 preprints only
+START_DATE = "2026-01-01"
 END_DATE = "2026-10-21"
 
-# How many bioRxiv preprints to fetch (100 per API page)
-MAX_PREPRINTS_TO_SCAN = 1000
+# How many bioRxiv preprints to fetch (30 per API page)
+MAX_PREPRINTS_TO_SCAN = 15000
+TARGET_MATCHING_PAPERS = 500
 
 MAX_WORKERS = 10
 
@@ -62,42 +59,67 @@ def clean_email(email_str):
     return email
 
 
-def get_email_from_epmc_preprint(session, doi, author_name):
-    """Fetch preprint XML from Europe PMC to extract corresponding author email."""
-    if not doi:
-        return None
-    clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
-    url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-    params = {
-        "query": f'DOI:"{clean_doi}"',
-        "format": "json",
-        "pageSize": 2
-    }
-    try:
-        res = session.get(url, params=params, headers=HEADERS, timeout=12)
-        if res.status_code == 200:
-            results = res.json().get("resultList", {}).get("result", [])
-            for r in results:
-                # Check author list affiliation strings
-                for a in r.get("authorList", {}).get("author", []):
-                    aff = a.get("affiliation", "") or ""
-                    for raw in EMAIL_RE.findall(aff):
-                        email = clean_email(raw)
-                        if email:
-                            return email, f"https://doi.org/{clean_doi}"
-                # Check PMC fullTextXML if available
-                pmcid = r.get("pmcid")
-                if pmcid and re.fullmatch(r"PMC\d+", pmcid.strip(), flags=re.IGNORECASE):
-                    xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid.strip()}/fullTextXML"
-                    xml_res = session.get(xml_url, headers=HEADERS, timeout=12)
-                    if xml_res.status_code == 200:
-                        for raw in EMAIL_RE.findall(xml_res.text):
+def get_email_from_paper(session, paper):
+    """
+    Extract author email directly from bioRxiv JATS XML,
+    with fallback to Europe PMC search.
+    """
+    # 1. Primary method: Direct bioRxiv JATS XML (highest accuracy & availability)
+    jatsxml = paper.get("jatsxml")
+    if jatsxml:
+        try:
+            res = session.get(jatsxml, headers=HEADERS, timeout=12)
+            if res.status_code == 200:
+                # First look for <email> tags
+                tagged_emails = re.findall(r"<email[^>]*>(.*?)</email>", res.text, re.IGNORECASE)
+                for raw in tagged_emails:
+                    email = clean_email(raw)
+                    if email:
+                        return email, jatsxml
+
+                # Fallback to general regex in XML
+                for raw in EMAIL_RE.findall(res.text):
+                    email = clean_email(raw)
+                    if email:
+                        return email, jatsxml
+        except Exception:
+            pass
+
+    # 2. Fallback: Europe PMC with resultType=core
+    doi = paper.get("doi", "")
+    if doi:
+        clean_doi = doi.replace("https://doi.org/", "").replace("http://doi.org/", "").strip()
+        url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+        params = {
+            "query": f'DOI:"{clean_doi}"',
+            "format": "json",
+            "resultType": "core",
+            "pageSize": 2
+        }
+        try:
+            res = session.get(url, params=params, headers=HEADERS, timeout=12)
+            if res.status_code == 200:
+                results = res.json().get("resultList", {}).get("result", [])
+                for r in results:
+                    for a in r.get("authorList", {}).get("author", []):
+                        aff = a.get("affiliation", "") or ""
+                        for raw in EMAIL_RE.findall(aff):
                             email = clean_email(raw)
                             if email:
                                 return email, f"https://doi.org/{clean_doi}"
-    except Exception:
-        pass
-    return None
+                    pmcid = r.get("pmcid")
+                    if pmcid and re.fullmatch(r"PMC\d+", pmcid.strip(), flags=re.IGNORECASE):
+                        xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid.strip()}/fullTextXML"
+                        xml_res = session.get(xml_url, headers=HEADERS, timeout=12)
+                        if xml_res.status_code == 200:
+                            for raw in EMAIL_RE.findall(xml_res.text):
+                                email = clean_email(raw)
+                                if email:
+                                    return email, f"https://doi.org/{clean_doi}"
+        except Exception:
+            pass
+
+    return "", ""
 
 
 def fetch_biorxiv_preprints():
@@ -109,7 +131,7 @@ def fetch_biorxiv_preprints():
 
     session = requests.Session()
 
-    while cursor < MAX_PREPRINTS_TO_SCAN:
+    while cursor < MAX_PREPRINTS_TO_SCAN and len(collected) < TARGET_MATCHING_PAPERS:
         url = f"{base_url}/{cursor}"
         try:
             res = session.get(url, headers=HEADERS, timeout=20)
@@ -118,6 +140,11 @@ def fetch_biorxiv_preprints():
                 break
 
             data = res.json()
+            if cursor == 0:
+                msgs = data.get("messages", [])
+                if msgs and "total" in msgs[0]:
+                    print(f"  [i] Total bioRxiv preprints in 2026: {int(msgs[0]['total']):,} papers available\n")
+
             collection = data.get("collection", [])
             if not collection:
                 break
@@ -127,18 +154,15 @@ def fetch_biorxiv_preprints():
                 if cat in TARGET_CATEGORIES:
                     collected.append(paper)
 
-            print(f"  Scanned {cursor + len(collection)} preprints | Found {len(collected)} in {TARGET_CATEGORIES}...")
             cursor += len(collection)
+            print(f"  Scanned {cursor} preprints | Found {len(collected)} in {TARGET_CATEGORIES}...")
 
-            if len(collection) < 100:
-                break
-
-            time.sleep(0.3)
+            time.sleep(0.2)
         except Exception as e:
             print(f"  Error querying bioRxiv: {e}")
             break
 
-    print(f"Total matching CellBio/MolBio preprints collected: {len(collected)}\n")
+    print(f"\nTotal matching CellBio/MolBio preprints collected: {len(collected)}\n")
     return collected
 
 
@@ -158,13 +182,7 @@ def process_paper(paper):
         authors_list = [a.strip() for a in paper.get("authors", "").split(";") if a.strip()]
         author_corr = authors_list[0] if authors_list else "Unknown"
 
-    email = ""
-    source_url = ""
-
-    # Query Europe PMC / BioRxiv XML for the corresponding email
-    res = get_email_from_epmc_preprint(session, doi, author_corr)
-    if res:
-        email, source_url = res
+    email, source_url = get_email_from_paper(session, paper)
 
     return {
         "researcher_name": author_corr,
@@ -238,17 +256,28 @@ def main():
                 pct = len(results) / total * 100
                 print(f"Progress: {len(results)}/{total} ({pct:.1f}%) | Emails found: {found_count} | Elapsed: {elapsed:.1f}s")
 
-    # Write output to CSV
-    with OUTPUT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(results)
+    # Write output to CSV (safe against Excel locks)
+    save_path = OUTPUT_FILE
+    try:
+        with OUTPUT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(results)
+    except PermissionError:
+        fallback_path = OUTPUT_FILE.with_name(f"{OUTPUT_FILE.stem}_2026.csv")
+        print(f"\n[!] Notice: '{OUTPUT_FILE.name}' is currently open in Excel.")
+        print(f"    Saved records to: '{fallback_path.name}' instead.")
+        with fallback_path.open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(results)
+        save_path = fallback_path
 
     print("\n=========================================================")
     print(f"Completed in {time.time() - start_time:.1f}s!")
     print(f"Total Preprints Analyzed: {total}")
     print(f"Researchers with Verified Email: {found_count} (Hit Rate: {found_count/total*100:.1f}%)")
-    print(f"Saved to: {OUTPUT_FILE}")
+    print(f"Saved to: {save_path}")
     print("=========================================================")
 
 

@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 
 FOLDER = Path(__file__).parent
-DEFAULT_FILE = FOLDER / "researchers_with_emails.csv"
+DEFAULT_FILE = FOLDER / "biorxiv_cellbio_researchers.csv"
 
 EMAIL_RE = re.compile(
     r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b"
@@ -109,11 +109,22 @@ def process_csv(csv_path):
         if i % 250 == 0 or i == total:
             print(f"Processed {i}/{total} ({i/total*100:.1f}%) | Active Valid: {verified_valid} | Dead/Bounce: {bouncing_count}")
 
-    # Save verified results back to the CSV
-    with target.open("w", encoding="utf-8-sig", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
+    # Save verified results back to the CSV (with fallback if locked in Excel)
+    save_path = target
+    try:
+        with target.open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+    except PermissionError:
+        fallback_path = target.with_name(f"{target.stem}_verified.csv")
+        print(f"\n[!] Notice: '{target.name}' is currently open in Excel.")
+        print(f"    Saved verified data to: '{fallback_path.name}' instead.")
+        with fallback_path.open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        save_path = fallback_path
 
     elapsed = time.time() - start_time
     emails_checked = verified_valid + bouncing_count
@@ -124,7 +135,7 @@ def process_csv(csv_path):
     print(f"Emails checked: {emails_checked}")
     print(f"Verified Active & Deliverable: {verified_valid} ({verified_valid/max(emails_checked, 1)*100:.1f}%)")
     print(f"Dead / Bouncing Domains Flagged: {bouncing_count}")
-    print(f"Updated File: {target}")
+    print(f"Updated File: {save_path}")
     print("=========================================================\n")
 
 
