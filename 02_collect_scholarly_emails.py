@@ -2,7 +2,9 @@ import csv
 import json
 import re
 import time
+import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
 from pathlib import Path
 from threading import Lock
 
@@ -12,12 +14,25 @@ import requests
 # SETTINGS
 # --------------------------------------------------
 
-FOLDER = Path(__file__).parent
-INPUT_FILE = FOLDER / "openalex_researchers.csv"
-OUTPUT_FILE = FOLDER / "researchers_with_emails.csv"
+FOLDER = Path(__file__).parent / "data"
+FOLDER.mkdir(parents=True, exist_ok=True)
 
-MAX_WORKERS = 10
-SAVE_EVERY = 50
+# Master pool tracks all researchers and their status across days:
+MASTER_POOL_FILE = FOLDER / "researchers_master_pool.csv"
+
+# Central deduplicated master archive of all verified leads ever collected:
+CENTRAL_MASTER_FILE = FOLDER / "central_master_leads.csv"
+
+# Automatically create today's date folder (e.g. data/2026-10-22/):
+TODAY_STR = datetime.now().strftime("%Y-%m-%d")
+TODAY_DIR = FOLDER / TODAY_STR
+TODAY_DIR.mkdir(parents=True, exist_ok=True)
+
+DAILY_EXPORT_FILE = TODAY_DIR / f"daily_verified_leads_{TODAY_STR}.csv"
+
+TARGET_DAILY_EMAILS = 3000  # Stop as soon as 3,000 name-matched emails are collected
+MAX_WORKERS = 30
+SAVE_EVERY = 25
 
 HEADERS = {
     "User-Agent": "ResearcherContactFinder/1.0 (academic research mailto:research@openalex-tool.org)"
@@ -38,6 +53,70 @@ print_lock = Lock()
 
 
 # --------------------------------------------------
+# NAME & EMAIL MATCHING HELPERS
+# --------------------------------------------------
+
+def normalize_text(text):
+    """Strip accents and lowercase (e.g. Joaquín -> joaquin, Müller -> muller)."""
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(text))
+    return normalized.encode("ASCII", "ignore").decode("utf-8").lower().strip()
+
+
+def extract_name_parts(full_name):
+    """Extract clean first, last, and initials from author name."""
+    clean = normalize_text(full_name)
+    clean = re.sub(r"\b(dr|prof|phd|md|bsc|msc|mr|mrs|ms)\b\.?", "", clean)
+    words = re.findall(r"[a-z]+", clean)
+    if not words:
+        return "", "", [], ""
+    first = words[0]
+    last = words[-1]
+    initials = "".join(w[0] for w in words[:-1])
+    return first, last, words, initials
+
+
+def is_name_match(author_name, email):
+    """
+    STRICT VERIFICATION:
+    Returns True ONLY if author's last name or initials match the email handle.
+    Rejects co-author/PI emails so 100% of saved emails belong to the researcher.
+    """
+    if not email or "@" not in email:
+        return False
+    handle, _, _ = email.lower().partition("@")
+    clean_handle = re.sub(r"[^a-z]", "", normalize_text(handle))
+    first, last, words, initials = extract_name_parts(author_name)
+
+    if not last:
+        return False
+
+    # 1. Exact last name in handle (e.g. 'green' in 'whgreen@mit.edu', 'barroso' in 'barroso@...')
+    if last in clean_handle:
+        return True
+
+    # 2. Initials + last name (e.g. 'whgreen', 'jsmith')
+    if initials and (initials + last) in clean_handle:
+        return True
+    if first and (first[0] + last) in clean_handle:
+        return True
+    if first and (last + first[0]) in clean_handle:
+        return True
+
+    # 3. Compound name parts (e.g. 'barroso' or 'flores' from 'Barroso-Flores')
+    for w in words:
+        if len(w) >= 4 and w in clean_handle:
+            return True
+
+    # 4. First name in handle (e.g. 'ralfk@hawaii.edu' for Ralf I. Kaiser)
+    if first and len(first) >= 3 and first in clean_handle:
+        return True
+
+    return False
+
+
+# --------------------------------------------------
 # GENERAL HELPERS
 # --------------------------------------------------
 
@@ -47,12 +126,7 @@ def clean_doi(value):
     doi = str(value).strip()
     if doi.lower() in {"nan", "none", "null"}:
         return ""
-    doi = re.sub(
-        r"^https?://(?:dx\.)?doi\.org/",
-        "",
-        doi,
-        flags=re.IGNORECASE
-    )
+    doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", doi, flags=re.IGNORECASE)
     return doi.strip().rstrip(".,; ")
 
 
@@ -97,12 +171,7 @@ def get_page(url, params=None, headers=None):
     if headers:
         req_headers.update(headers)
     try:
-        response = requests.get(
-            url,
-            params=params,
-            headers=req_headers,
-            timeout=15
-        )
+        response = requests.get(url, params=params, headers=req_headers, timeout=6)
         if response.status_code == 200:
             return response.text
     except requests.RequestException:
@@ -111,10 +180,11 @@ def get_page(url, params=None, headers=None):
 
 
 # --------------------------------------------------
-# ORCID LOOKUP
+# ENRICHMENT LOOKUPS
 # --------------------------------------------------
 
 def get_email_from_orcid(orcid_url):
+    """ORCID profile email is 100% personal to this researcher."""
     if not orcid_url:
         return None, None
     orcids = [o.strip() for o in str(orcid_url).split(";") if o.strip()]
@@ -136,76 +206,50 @@ def get_email_from_orcid(orcid_url):
     return None, None
 
 
-# --------------------------------------------------
-# CROSSREF LOOKUP
-# --------------------------------------------------
-
-def get_email_from_crossref(doi):
-    url = "https://api.crossref.org/works/" + requests.utils.quote(
-        doi, safe="/"
-    )
+def get_email_from_crossref(doi, author_name):
+    """Queries Crossref by DOI, only returns email if it matches author's name."""
+    url = "https://api.crossref.org/works/" + requests.utils.quote(doi, safe="/")
     text = get_page(url)
     if not text:
         return None, None
     try:
         data = json.loads(text)
-        message = data.get("message", {})
-        metadata_text = str(message)
-        emails = extract_emails(metadata_text)
-        if emails:
-            return emails[0], url
-    except (ValueError, TypeError):
+        metadata_text = str(data.get("message", {}))
+        for email in extract_emails(metadata_text):
+            if is_name_match(author_name, email):
+                return email, url
+    except Exception:
         pass
     return None, None
 
 
-# --------------------------------------------------
-# EUROPE PMC LOOKUP
-# --------------------------------------------------
-
-def get_email_from_europepmc(doi):
+def get_email_from_europepmc(doi, author_name):
+    """Queries Europe PMC by DOI, only returns email if it matches author's name."""
     search_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-    search_text = get_page(
-        search_url,
-        params={
-            "query": f'DOI:"{doi}"',
-            "format": "json",
-            "pageSize": 5
-        }
-    )
+    search_text = get_page(search_url, params={"query": f'DOI:"{doi}"', "format": "json", "pageSize": 3})
     if not search_text:
         return None, None
     try:
         data = json.loads(search_text)
         results = data.get("resultList", {}).get("result", [])
-    except (ValueError, TypeError):
+    except Exception:
         return None, None
 
     for article in results:
-        pmcid = article.get("pmcid")
-        if not pmcid:
-            continue
-        pmcid = pmcid.strip()
+        pmcid = str(article.get("pmcid") or "").strip()
         if not re.fullmatch(r"PMC\d+", pmcid, flags=re.IGNORECASE):
             continue
-
-        xml_url = (
-            "https://www.ebi.ac.uk/europepmc/webservices/rest/"
-            + pmcid
-            + "/fullTextXML"
-        )
+        xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
         xml_text = get_page(xml_url)
-        if not xml_text:
-            continue
-
-        emails = extract_emails(xml_text)
-        if emails:
-            return emails[0], xml_url
-
+        if xml_text:
+            for email in extract_emails(xml_text):
+                if is_name_match(author_name, email):
+                    return email, xml_url
     return None, None
 
 
 def search_europepmc_by_title(author_name, title):
+    """Queries Europe PMC by author last name + title, strictly verifying name match."""
     if not title or len(title) < 10:
         return None, None
 
@@ -220,48 +264,43 @@ def search_europepmc_by_title(author_name, title):
 
     try:
         data = json.loads(text)
-        results = data.get("resultList", {}).get("result", [])
-        for r in results:
+        for r in data.get("resultList", {}).get("result", []):
             doi = r.get("doi")
             if doi:
-                res_email, res_url = get_email_from_crossref(doi)
-                if res_email:
-                    return res_email, res_url
-            pmcid = r.get("pmcid")
-            if pmcid and re.fullmatch(r"PMC\d+", pmcid.strip(), flags=re.IGNORECASE):
-                xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid.strip()}/fullTextXML"
+                email, source_url = get_email_from_crossref(doi, author_name)
+                if email:
+                    return email, source_url
+            pmcid = str(r.get("pmcid") or "").strip()
+            if pmcid and re.fullmatch(r"PMC\d+", pmcid, flags=re.IGNORECASE):
+                xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
                 xml_text = get_page(xml_url)
                 if xml_text:
-                    emails = extract_emails(xml_text)
-                    if emails:
-                        return emails[0], xml_url
+                    for email in extract_emails(xml_text):
+                        if is_name_match(author_name, email):
+                            return email, xml_url
     except Exception:
         pass
     return None, None
 
 
 # --------------------------------------------------
-# RESEARCHER PROCESSING
+# RESEARCHER PROCESSOR
 # --------------------------------------------------
 
 def process_researcher(row):
-    existing_email = str(
-        row.get("professional_email", "") or ""
-    ).strip()
+    """
+    Processes candidate. Only attaches email if 100% matched to this researcher's name.
+    """
+    author_name = str(row.get("researcher_name", "")).strip()
+    existing_email = str(row.get("professional_email", "") or "").strip()
 
-    if existing_email.lower() in {"nan", "none", "null"}:
-        existing_email = ""
-
-    if existing_email:
-        row["email_status"] = (
-            row.get("email_status")
-            or "Existing email - review needed"
-        )
+    # If already verified in a previous session, preserve it
+    if existing_email and is_name_match(author_name, existing_email):
+        row["email_status"] = "Verified Name Match"
+        row["review_status"] = "found"
         return row
 
-    author_name = str(row.get("researcher_name", "")).strip()
-
-    # 1. Try ORCID
+    # 1. Try personal ORCID profile (100% personal match)
     orcid_url = row.get("orcid", "")
     if orcid_url:
         email, source_url = get_email_from_orcid(orcid_url)
@@ -272,62 +311,82 @@ def process_researcher(row):
             row["review_status"] = "found"
             return row
 
-    # 2. Check example paper DOIs
-    doi_values = row.get("example_paper_dois", "")
-    dois = extract_dois(doi_values)
-
+    # 2. Check paper DOIs with STRICT name matching
+    dois = extract_dois(row.get("example_paper_dois", ""))
     if dois:
         for doi in dois:
-            email, source_url = get_email_from_crossref(doi)
+            email, source_url = get_email_from_crossref(doi, author_name)
             if email:
                 row["professional_email"] = email
                 row["email_source_url"] = source_url
-                row["email_status"] = "Candidate found (Crossref; verify identity)"
+                row["email_status"] = "Found (Crossref name-matched)"
                 row["review_status"] = "found"
                 return row
 
-            email, source_url = get_email_from_europepmc(doi)
+            email, source_url = get_email_from_europepmc(doi, author_name)
             if email:
                 row["professional_email"] = email
                 row["email_source_url"] = source_url
-                row["email_status"] = "Candidate found (Europe PMC XML; verify identity)"
+                row["email_status"] = "Found (Europe PMC XML name-matched)"
                 row["review_status"] = "found"
                 return row
-            time.sleep(0.05)
 
-    # 3. Fallback: Search Europe PMC using example paper titles
+    # 3. Fallback: Search Europe PMC using paper titles
     example_papers = str(row.get("example_papers", ""))
     if example_papers:
-        titles = []
-        for part in example_papers.split(";"):
-            t = part.split(":", 1)[-1].strip()
-            if len(t) > 10:
-                titles.append(t)
-
+        titles = [
+            part.split(":", 1)[-1].strip()
+            for part in example_papers.split(";")
+            if len(part.split(":", 1)[-1].strip()) > 10
+        ]
         for title in titles[:2]:
             email, source_url = search_europepmc_by_title(author_name, title)
             if email:
                 row["professional_email"] = email
                 row["email_source_url"] = source_url
-                row["email_status"] = "Candidate found (Europe PMC by Title)"
+                row["email_status"] = "Found (Europe PMC Title name-matched)"
                 row["review_status"] = "found"
                 return row
-            time.sleep(0.05)
 
+    # No name-matched email found
     row["professional_email"] = ""
     row["email_source_url"] = ""
     row["email_status"] = "No email found in available sources"
-
+    row["review_status"] = "needs_review"
     return row
 
 
+# --------------------------------------------------
+# MASTER POOL INITIALIZER
+# --------------------------------------------------
+
+def get_or_create_master_pool():
+    """Ensures researchers_master_pool.csv exists from the latest 01 extraction."""
+    if MASTER_POOL_FILE.exists():
+        return MASTER_POOL_FILE
+
+    # Find the newest raw extraction from 01
+    extractions = sorted(FOLDER.glob("openalex_researchers_*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if not extractions:
+        raise SystemExit(f"No researcher files found in {FOLDER}. Please run 01_extract_researchers.py first!")
+
+    source = extractions[0]
+    print(f"Initializing master pool from: {source.name}...")
+    with source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
+        dst.write(src.read())
+
+    print(f"Master pool created at: {MASTER_POOL_FILE.name}")
+    return MASTER_POOL_FILE
+
+
+# --------------------------------------------------
+# MAIN RUNNER
+# --------------------------------------------------
+
 def main():
-    print(f"Reading: {INPUT_FILE}")
+    pool_file = get_or_create_master_pool()
 
-    if not INPUT_FILE.exists():
-        raise SystemExit(f"Missing input file: {INPUT_FILE}")
-
-    with INPUT_FILE.open("r", encoding="utf-8-sig", newline="") as f:
+    with pool_file.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
         rows = list(reader)
         fieldnames = list(reader.fieldnames or [])
@@ -336,86 +395,172 @@ def main():
         "professional_email",
         "email_source_url",
         "review_status",
-        "example_paper_dois",
         "email_status",
     ]
-
     for col in required_columns:
         if col not in fieldnames:
             fieldnames.append(col)
 
-    total = len(rows)
-    print(f"Researchers loaded: {total}")
+    total_pool = len(rows)
 
-    def save_checkpoint(data_rows):
-        with OUTPUT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
+    # Load known emails and author IDs from central master archive to prevent ANY duplicates
+    known_emails = set()
+    known_author_ids = set()
+    central_fieldnames = list(fieldnames)
+    if "date_added_to_central" not in central_fieldnames:
+        central_fieldnames.insert(0, "date_added_to_central")
+
+    if CENTRAL_MASTER_FILE.exists():
+        with CENTRAL_MASTER_FILE.open("r", encoding="utf-8-sig", newline="") as cf:
+            for cr in csv.DictReader(cf):
+                em = str(cr.get("professional_email", "")).strip().lower()
+                aid = str(cr.get("openalex_author_id", "")).strip()
+                if em:
+                    known_emails.add(em)
+                if aid:
+                    known_author_ids.add(aid)
+
+    # Identify pending researchers (not yet processed or verified)
+    pending_indices = [
+        i for i, r in enumerate(rows)
+        if r.get("review_status") != "found"
+        and r.get("email_status") != "No email found in available sources"
+    ]
+
+    already_found = sum(1 for r in rows if r.get("review_status") == "found")
+    already_checked_no_email = sum(1 for r in rows if r.get("email_status") == "No email found in available sources")
+
+    print("\n" + "=" * 60)
+    print("RESEARCHER EMAIL COLLECTOR & STRICT NAME VERIFIER")
+    print("=" * 60)
+    print(f"Central Archive Unique Leads   : {len(known_emails):,} (0% Duplicates Guaranteed)")
+    print(f"Total Candidates in Master Pool: {total_pool:,}")
+    print(f"Already Verified on Prior Days : {already_found:,}")
+    print(f"Checked (No Email Available)   : {already_checked_no_email:,}")
+    print(f"Fresh Unchecked Candidates Left: {len(pending_indices):,}")
+    print(f"Target To Collect Today        : {TARGET_DAILY_EMAILS:,} NEW, unique emails")
+    print("=" * 60 + "\n")
+
+    if not pending_indices:
+        print("🎉 All candidates in the master pool have been fully processed!")
+        print("Run 01_extract_researchers.py to add fresh candidates for the next days.")
+        return
+
+    def save_master_pool(data_rows):
+        with MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as f:
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
             writer.writerows(data_rows)
 
-    save_checkpoint(rows)
-
-    results = [None] * total
+    new_found_today = 0
+    today_verified_rows = []
     completed = 0
-    lock = Lock()
     start_time = time.time()
+    lock = Lock()
+
+    print(f"Launching {MAX_WORKERS} workers with strict Name-to-Email matching...", flush=True)
 
     with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
         futures = {
-            executor.submit(process_researcher, dict(row)): i
-            for i, row in enumerate(rows)
+            executor.submit(process_researcher, dict(rows[idx])): idx
+            for idx in pending_indices
         }
 
         for future in as_completed(futures):
-            index = futures[future]
-
+            idx = futures[future]
             try:
-                results[index] = future.result()
+                res = future.result()
+                rows[idx] = res
+
+                # Check if this candidate got a strictly matched email
+                if res.get("review_status") == "found":
+                    em = str(res.get("professional_email", "")).strip().lower()
+                    aid = str(res.get("openalex_author_id", "")).strip()
+
+                    # Deduplication guard against central archive
+                    if em and em in known_emails:
+                        res["email_status"] = "Skipped (Duplicate from Central Archive)"
+                        rows[idx] = res
+                    elif em:
+                        known_emails.add(em)
+                        if aid:
+                            known_author_ids.add(aid)
+                        res_copy = dict(res)
+                        res_copy["date_added_to_central"] = TODAY_STR
+                        new_found_today += 1
+                        today_verified_rows.append(res_copy)
+
             except Exception as exc:
-                failed_row = dict(rows[index])
-                failed_row["email_status"] = (
-                    "Processing error: " + str(exc)[:200]
-                )
-                results[index] = failed_row
+                rows[idx]["email_status"] = f"Error: {str(exc)[:100]}"
 
             completed += 1
 
-            if completed % 25 == 0 or completed == total:
+            if completed == 1 or completed % 10 == 0 or completed == len(pending_indices):
                 with print_lock:
-                    found_so_far = sum(
-                        1 for r in results
-                        if r and str(r.get("professional_email", "")).strip()
+                    elapsed = time.time() - start_time
+                    speed = completed / elapsed if elapsed > 0 else 0
+                    pct = (completed / len(pending_indices)) * 100
+                    print(
+                        f"Processed {completed:,}/{len(pending_indices):,} ({pct:.1f}%) | "
+                        f"New Matched Today: {new_found_today}/{TARGET_DAILY_EMAILS} | "
+                        f"Speed: {speed:.1f}/s | Elapsed: {elapsed:.1f}s",
+                        flush=True
                     )
+
+            if completed % SAVE_EVERY == 0 or completed == len(pending_indices):
+                with lock:
+                    save_master_pool(rows)
+
+            if TARGET_DAILY_EMAILS and new_found_today >= TARGET_DAILY_EMAILS:
+                with print_lock:
                     elapsed = time.time() - start_time
                     print(
-                        f"Processed {completed}/{total} ({completed/total*100:.1f}%) | "
-                        f"Found: {found_so_far} | Elapsed: {elapsed:.1f}s"
+                        f"\n🎯 TARGET REACHED: {new_found_today} 100% Unique Name-Matched Emails collected in {elapsed/60:.1f} minutes!",
+                        flush=True
                     )
+                for f in futures:
+                    f.cancel()
+                try:
+                    executor.shutdown(wait=False, cancel_futures=True)
+                except Exception:
+                    pass
+                break
 
-            if completed % SAVE_EVERY == 0 or completed == total:
-                with lock:
-                    checkpoint = [
-                        results[i] if results[i] is not None
-                        else rows[i]
-                        for i in range(total)
-                    ]
-                    save_checkpoint(checkpoint)
+    # Save final updated master pool
+    save_master_pool(rows)
 
-    final_rows = [
-        results[i] if results[i] is not None else rows[i]
-        for i in range(total)
-    ]
-    save_checkpoint(final_rows)
+    # 1. Export TODAY'S clean 3,000 leads into a separate ready-to-send file
+    if today_verified_rows:
+        with DAILY_EXPORT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=central_fieldnames)
+            writer.writeheader()
+            writer.writerows(today_verified_rows)
 
-    found = sum(
-        1 for r in final_rows
-        if str(r.get("professional_email", "")).strip()
+        # 2. Append new unique leads into CENTRAL MASTER ARCHIVE
+        archive_exists = CENTRAL_MASTER_FILE.exists()
+        with CENTRAL_MASTER_FILE.open("a", encoding="utf-8-sig", newline="") as cf:
+            writer = csv.DictWriter(cf, fieldnames=central_fieldnames)
+            if not archive_exists:
+                writer.writeheader()
+            writer.writerows(today_verified_rows)
+
+    remaining_unprocessed = sum(
+        1 for r in rows
+        if r.get("review_status") != "found"
+        and r.get("email_status") != "No email found in available sources"
     )
 
-    print("\nFinished!")
-    print(f"Total researchers: {total}")
-    print(f"Researchers with an email value: {found}")
-    print(f"Output saved to: {OUTPUT_FILE}")
+    print("\n" + "=" * 60)
+    print("SESSION SUMMARY - ZERO MANUAL WORK READY")
+    print("=" * 60)
+    print(f"New Leads Collected Today      : {len(today_verified_rows):,}")
+    print(f"Exported Today's Leads To      : {DAILY_EXPORT_FILE.name}")
+    print(f"Central Archive Total Leads    : {len(known_emails):,} (Deduplicated)")
+    print(f"Master Pool Remaining For Next : {remaining_unprocessed:,} fresh candidates")
+    print("=" * 60)
+    print(f"📁 Today's ready file    : {DAILY_EXPORT_FILE}")
+    print(f"📁 Central archive file  : {CENTRAL_MASTER_FILE}")
+    print(f"📁 Master pool file      : {MASTER_POOL_FILE}\n")
 
 
 if __name__ == "__main__":

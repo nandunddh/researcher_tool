@@ -2,27 +2,27 @@ import csv
 import os
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 
 import requests
 
-# 1. Customize these terms for your conference (e.g. CellBio, Polymers, AI).
 SEARCH_TERMS = [
-    "cell biology",
-    "molecular and cellular biology",
-    "cellular senescence and aging",
-    "stem cell biology",
-    "cell signaling and pathways",
-    "mitochondrial dynamics and autophagy",
+    "Physical Chemistry",
 ]
 
-# Focus on recent work.
-START_YEAR = 2021
-END_YEAR = 2026
+# # Focus on recent work.
+# START_YEAR = 2026
+# END_YEAR = 2026
+
+# Date filter (YYYY-MM-DD) - January 2026
+FROM_DATE = "2026-01-01"
+TO_DATE = "2026-01-31"
+
 
 # Scale settings:
-PER_PAGE = 100
-MAX_PAGES_PER_TERM = 3
+PER_PAGE = 200
+MAX_PAGES_PER_TERM = 25
 
 ENRICH_EMAILS_ONLINE = True
 MAX_ENRICH_CANDIDATES = 50
@@ -30,9 +30,11 @@ MAX_ENRICH_CANDIDATES = 50
 BASE_URL = "https://api.openalex.org/works"
 API_KEY = "5h8s0xhGxE1uL0ZJ5CdsT5"
 
-OUTPUT_FILE = Path(__file__).with_name(
-    "openalex_researchers.csv"
-)
+DATA_DIR = Path(__file__).resolve().parent / "data"
+TODAY_DIR = DATA_DIR / datetime.now().strftime("%Y-%m-%d")
+TODAY_DIR.mkdir(parents=True, exist_ok=True)
+TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+OUTPUT_FILE = TODAY_DIR / f"openalex_researchers_{TIMESTAMP}.csv"
 
 EMAIL_REGEX = re.compile(
     r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"
@@ -110,19 +112,19 @@ def fetch_email_from_europepmc(session, doi, author_name):
 
 
 def get_works(session, term):
+    date_filter = f"from_publication_date:{FROM_DATE},to_publication_date:{TO_DATE}"
+
     for page in range(1, MAX_PAGES_PER_TERM + 1):
         params = {
             "search": term,
-            "filter": (
-                f"publication_year:{START_YEAR}-{END_YEAR}"
-            ),
+            "filter": date_filter,
             "per-page": PER_PAGE,
             "page": page,
             "select": (
                 "id,title,publication_year,doi,"
                 "authorships,topics"
             ),
-            "email": "research_contact_team@gmail.com",
+            "mailto": "research_contact_team@gmail.com",
         }
 
         if API_KEY:
@@ -157,7 +159,6 @@ def get_works(session, term):
             break
 
         time.sleep(0.3)
-
 
 def main():
     researchers = {}
