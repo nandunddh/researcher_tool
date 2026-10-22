@@ -20,6 +20,7 @@ Workflow:
 import csv
 import json
 import re
+import sys
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -33,13 +34,11 @@ import requests
 # CONFIGURATION
 # ----------------------------------------------------------------------
 KEYWORDS = [
-    "Physical Chemistry",
-    "Nanotechnology",
-    "Biophysical Chemistry",
+    "cell biology",
 ]
 
 # Fiscal years with active funding
-FISCAL_YEARS = [2024, 2025, 2026]
+FISCAL_YEARS = [2026]
 
 # Target leads to collect
 TARGET_LEADS = 500
@@ -114,7 +113,26 @@ def parse_nih_name(raw_name):
     return full_name, first, last
 
 
-def is_name_match(author_name, email):
+def is_same_person(author_name, candidate_name):
+    """Checks if two author names refer to the same person."""
+    if not author_name or not candidate_name:
+        return False
+    norm1 = normalize_text(author_name)
+    norm2 = normalize_text(candidate_name)
+    if norm1 == norm2:
+        return True
+    parts1 = [p for p in re.split(r"[^a-z0-9]+", norm1) if len(p) >= 2]
+    parts2 = [p for p in re.split(r"[^a-z0-9]+", norm2) if len(p) >= 2]
+    if not parts1 or not parts2:
+        return False
+    if parts1[-1] == parts2[-1]:
+        if len(parts1[0]) >= 1 and len(parts2[0]) >= 1:
+            if parts1[0][0] == parts2[0][0]:
+                return True
+    return False
+
+
+def is_email_match(author_name, email):
     """Verifies that the extracted email belongs to the PI."""
     if not email or "@" not in email:
         return False
@@ -146,6 +164,22 @@ def is_name_match(author_name, email):
         return True
         
     return False
+
+
+def get_author_affiliations(author_dict):
+    """Extracts all affiliation strings for an author from Europe PMC."""
+    affs = []
+    if author_dict.get("affiliation"):
+        affs.append(author_dict.get("affiliation"))
+    details = author_dict.get("authorAffiliationDetailsList", {})
+    if isinstance(details, dict):
+        aff_list = details.get("authorAffiliation", [])
+        for item in aff_list:
+            if isinstance(item, dict) and item.get("affiliation"):
+                affs.append(item.get("affiliation"))
+            elif isinstance(item, str):
+                affs.append(item)
+    return affs
 
 
 # ----------------------------------------------------------------------
@@ -180,7 +214,8 @@ def fetch_nih_projects(keyword, limit=500):
     offset = 0
     page_size = 50
 
-    print(f"\n[NIH] Querying grants for keyword: '{keyword}'...")
+    clean_keyword = keyword.replace("_", " ")
+    print(f"\n[NIH] Querying grants for keyword: '{clean_keyword}'...")
     
     while offset < limit:
         payload = {
@@ -188,7 +223,7 @@ def fetch_nih_projects(keyword, limit=500):
                 "advanced_text_search": {
                     "operator": "and",
                     "search_field": "terms",
-                    "search_text": keyword
+                    "search_text": clean_keyword
                 },
                 "fiscal_years": FISCAL_YEARS,
                 "include_active_projects": True
@@ -237,7 +272,7 @@ def fetch_nih_projects(keyword, limit=500):
                     "project_num": r.get("project_num", ""),
                     "project_title": r.get("project_title", ""),
                     "fiscal_year": r.get("fiscal_year", ""),
-                    "keyword": keyword
+                    "keyword": clean_keyword
                 })
                 
             offset += page_size
@@ -261,45 +296,69 @@ def fetch_nih_projects(keyword, limit=500):
 def find_pi_email(pi):
     """
     Looks up verified institutional email for the Principal Investigator
-    using scholarly records (EuropePMC / Crossref) linked to their recent papers.
+    using scholarly records (EuropePMC / OpenAlex / ORCID) linked to their recent papers.
     """
     author = pi["full_name"]
-    org = pi["organization"]
+    first_name = pi.get("first_name", "")
+    last_name = pi.get("last_name", "")
+    org = pi.get("organization", "")
     
     # 1. Search EuropePMC for corresponding author email
     try:
-        query = f'AUTH:"{author}"'
+        query = f'AUTH:"{last_name} {first_name}"' if last_name and first_name else f'AUTH:"{author}"'
         if org:
-            query += f' AND AFF:"{org.split()[0]}"'
+            meaningful_words = [w for w in org.split() if len(w) > 3 and w.lower() not in {"the", "and", "for", "with"}]
+            if meaningful_words:
+                query += f' AND AFF:"{meaningful_words[0]}"'
         url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
         params = {"query": query, "format": "json", "pageSize": 5, "resultType": "core"}
         res = requests.get(url, params=params, headers=HEADERS, timeout=8)
         if res.status_code == 200:
             entries = res.json().get("resultList", {}).get("result", [])
             for e in entries:
-                # Check author list & affiliation
                 author_list = e.get("authorList", {}).get("author", [])
                 for a in author_list:
-                    a_name = f"{a.get('firstName', '')} {a.get('lastName', '')}".strip()
-                    aff = a.get("affiliation", "")
-                    if is_name_match(author, a_name):
-                        found_emails = EMAIL_PATTERN.findall(aff)
-                        for em in found_emails:
-                            em = em.lower().strip(".,;")
-                            if is_name_match(author, em) and em.split("@")[-1] not in IGNORED_DOMAINS:
-                                return em
+                    a_name = f"{a.get('firstName', '')} {a.get('lastName', '')}".strip() or a.get("fullName", "")
+                    if is_same_person(author, a_name):
+                        for aff in get_author_affiliations(a):
+                            found_emails = EMAIL_PATTERN.findall(aff)
+                            for em in found_emails:
+                                em = em.lower().strip(".,;")
+                                if is_email_match(author, em) and em.split("@")[-1] not in IGNORED_DOMAINS:
+                                    return em
     except Exception:
         pass
 
-    # 2. Search OpenAlex author profile
+    # 2. Search OpenAlex author profile & recent works
     try:
         url = f"https://api.openalex.org/authors?search={requests.utils.quote(author)}&per-page=3"
         res = requests.get(url, headers=HEADERS, timeout=8)
         if res.status_code == 200:
             results = res.json().get("results", [])
             for r in results:
-                last_work = r.get("last_known_institutions", [])
-                # If OpenAlex has direct works with email
+                display_name = r.get("display_name", "")
+                if not is_same_person(author, display_name):
+                    continue
+
+                # Check public ORCID email
+                orcid_url = r.get("orcid")
+                if orcid_url:
+                    orcid_id = orcid_url.rstrip("/").split("/")[-1]
+                    try:
+                        o_res = requests.get(
+                            f"https://pub.orcid.org/v3.0/{orcid_id}/email",
+                            headers={"Accept": "application/json"},
+                            timeout=5
+                        )
+                        if o_res.status_code == 200:
+                            for entry in o_res.json().get("email", []):
+                                em = (entry.get("email") or "").strip().lower()
+                                if em and is_email_match(author, em) and em.split("@")[-1] not in IGNORED_DOMAINS:
+                                    return em
+                    except Exception:
+                        pass
+
+                # Check OpenAlex works raw affiliation strings
                 works_url = r.get("works_api_url")
                 if works_url:
                     w_res = requests.get(f"{works_url}?per-page=3", headers=HEADERS, timeout=8)
@@ -307,10 +366,17 @@ def find_pi_email(pi):
                         works = w_res.json().get("results", [])
                         for w in works:
                             for auth in w.get("authorships", []):
-                                if is_name_match(author, auth.get("author", {}).get("display_name", "")):
-                                    for em in auth.get("author", {}).get("emails", []) or []:
-                                        if is_name_match(author, em):
-                                            return em
+                                a_disp = auth.get("author", {}).get("display_name", "")
+                                if is_same_person(author, a_disp):
+                                    raw_affils = auth.get("raw_affiliation_strings") or []
+                                    single = auth.get("raw_affiliation_string")
+                                    if single and single not in raw_affils:
+                                        raw_affils.append(single)
+                                    for aff in raw_affils:
+                                        for em in EMAIL_PATTERN.findall(aff):
+                                            em = em.lower().strip(".,;")
+                                            if is_email_match(author, em) and em.split("@")[-1] not in IGNORED_DOMAINS:
+                                                return em
     except Exception:
         pass
 
@@ -418,4 +484,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        KEYWORDS = [sys.argv[1].strip()]
+    if len(sys.argv) > 2 and sys.argv[2].isdigit():
+        TARGET_LEADS = int(sys.argv[2])
     main()

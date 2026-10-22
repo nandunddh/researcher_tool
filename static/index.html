@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Researcher Tool - Academic Outreach & Grant PI Hub</title>
+  <meta name="description" content="Production-grade scholarly pipeline and researcher lead management dashboard for conference outreach and academic engagement.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="index.css">
+</head>
+<body>
+  <!-- Toast notification -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Header / Nav -->
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1>Researcher Tool</h1>
+          <span class="badge-tag">Academic Outreach Suite</span>
+        </div>
+      </div>
+
+      <nav class="nav-tabs" role="tablist">
+        <button class="nav-tab active" data-tab="pipeline" id="tab-btn-pipeline">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          Pipeline & Console
+        </button>
+        <button class="nav-tab" data-tab="explorer" id="tab-btn-explorer">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+          Leads Explorer
+        </button>
+        <button class="nav-tab" data-tab="datasets" id="tab-btn-datasets">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          Datasets Archive
+        </button>
+      </nav>
+
+      <div class="header-status">
+        <div class="system-indicator" id="system-status-indicator">
+          <span class="pulse-dot idle"></span>
+          <span id="system-status-text">System Ready</span>
+        </div>
+        <button class="btn-refresh" id="btn-refresh-all" title="Refresh metrics and datasets">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Wrapper -->
+  <main class="main-container">
+    <!-- Top Metrics Overview -->
+    <section class="stats-grid" id="stats-overview">
+      <div class="stat-card card-glow-indigo">
+        <div class="stat-header">
+          <span class="stat-title">Central Master Archive</span>
+          <span class="stat-icon indigo">🏛️</span>
+        </div>
+        <div class="stat-value" id="stat-central-leads">0</div>
+        <div class="stat-footer">
+          <span class="pill-badge green">0% Duplicates</span>
+          <span class="stat-meta">Lifetime unique contacts</span>
+        </div>
+      </div>
+
+      <div class="stat-card card-glow-emerald">
+        <div class="stat-header">
+          <span class="stat-title">Today's Verified Leads</span>
+          <span class="stat-icon emerald">✨</span>
+        </div>
+        <div class="stat-value" id="stat-today-leads">0</div>
+        <div class="stat-footer">
+          <span class="pill-badge emerald" id="stat-today-date">Today</span>
+          <span class="stat-meta">Send-ready verified emails</span>
+        </div>
+      </div>
+
+      <div class="stat-card card-glow-amber">
+        <div class="stat-header">
+          <span class="stat-title">NIH Funded PI Grants</span>
+          <span class="stat-icon amber">💰</span>
+        </div>
+        <div class="stat-value" id="stat-nih-leads">0</div>
+        <div class="stat-footer">
+          <span class="pill-badge amber">$250k - $2M+ Grants</span>
+          <span class="stat-meta">Active fiscal year PIs</span>
+        </div>
+      </div>
+
+      <div class="stat-card card-glow-cyan">
+        <div class="stat-header">
+          <span class="stat-title">Active Master Pool</span>
+          <span class="stat-icon cyan">⚡</span>
+        </div>
+        <div class="stat-value" id="stat-pool-leads">0</div>
+        <div class="stat-footer">
+          <span class="pill-badge cyan" id="stat-pool-unprocessed">0 pending</span>
+          <span class="stat-meta">Ready for enrichment</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 1: PIPELINE CONTROLLER & LIVE CONSOLE -->
+    <section class="tab-view active" id="view-pipeline">
+      <div class="pipeline-layout">
+        <!-- Left: Tool Execution Control Deck -->
+        <div class="deck-column">
+          <div class="section-title-wrap">
+            <h2>Pipeline Tool Deck</h2>
+            <p class="section-subtitle">Trigger automated discovery, scholarly verification, and grant extraction.</p>
+          </div>
+
+          <!-- Tool Card 1: OpenAlex -->
+          <div class="tool-card" id="card-openalex">
+            <div class="tool-card-header">
+              <div class="tool-badge-wrap">
+                <span class="tool-num">01</span>
+                <div>
+                  <h3>OpenAlex Discovery</h3>
+                  <span class="tool-tag">Stage 1: Papers & Researchers</span>
+                </div>
+              </div>
+            </div>
+            <p class="tool-desc">Searches 40,000+ papers for your conference topic, extracts researchers, deduplicates names, and finds direct corresponding emails.</p>
+            
+            <div class="form-row">
+              <div class="form-group flex-2">
+                <label for="openalex-keyword">Conference Keyword</label>
+                <input type="text" id="openalex-keyword" value="cell biology" placeholder="e.g. cell biology, immunology">
+              </div>
+              <div class="form-group flex-1">
+                <label for="openalex-pages">Max Pages (200/p)</label>
+                <input type="number" id="openalex-pages" value="25" min="1" max="50">
+              </div>
+            </div>
+
+            <div class="tool-card-actions">
+              <button class="btn btn-primary" id="btn-run-openalex">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Run OpenAlex Discovery
+              </button>
+            </div>
+          </div>
+
+          <!-- Tool Card 2: Scholarly Email Enrichment -->
+          <div class="tool-card" id="card-scholarly">
+            <div class="tool-card-header">
+              <div class="tool-badge-wrap">
+                <span class="tool-num">02</span>
+                <div>
+                  <h3>Scholarly Email Enrichment</h3>
+                  <span class="tool-tag">Stage 2: Strict Name Matching</span>
+                </div>
+              </div>
+            </div>
+            <p class="tool-desc">Multithreaded lookup across public ORCID profiles and Europe PMC core metadata. Guarantees 100% researcher name-to-email verification.</p>
+
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="scholarly-target">Target Daily Emails</label>
+                <input type="number" id="scholarly-target" value="3000" min="50" max="10000" step="100">
+              </div>
+              <div class="form-group flex-2">
+                <label for="scholarly-file">Source File (Optional)</label>
+                <input type="text" id="scholarly-file" placeholder="Auto-detects latest extraction" readonly>
+              </div>
+            </div>
+
+            <div class="tool-card-actions">
+              <button class="btn btn-accent" id="btn-run-scholarly">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Run Scholarly Enrichment
+              </button>
+            </div>
+          </div>
+
+          <!-- Tool Card 3: NIH RePORTER PI Extractor -->
+          <div class="tool-card" id="card-nih">
+            <div class="tool-card-header">
+              <div class="tool-badge-wrap">
+                <span class="tool-num">04</span>
+                <div>
+                  <h3>NIH RePORTER Funded PIs</h3>
+                  <span class="tool-tag">High-Value Grant Holders</span>
+                </div>
+              </div>
+            </div>
+            <p class="tool-desc">Directly extracts Professors and Lab Heads holding active $250k–$2M+ government grants, then enriches their institutional emails.</p>
+
+            <div class="form-row">
+              <div class="form-group flex-2">
+                <label for="nih-keyword">Scientific Keyword</label>
+                <input type="text" id="nih-keyword" value="cell biology" placeholder="e.g. cell biology, cancer genetics">
+              </div>
+              <div class="form-group flex-1">
+                <label for="nih-leads">Target Leads</label>
+                <input type="number" id="nih-leads" value="500" min="50" max="2000" step="50">
+              </div>
+            </div>
+
+            <div class="tool-card-actions">
+              <button class="btn btn-emerald" id="btn-run-nih">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Extract NIH Funded PIs
+              </button>
+            </div>
+          </div>
+
+          <!-- Tool Card 4: bioRxiv Collector -->
+          <div class="tool-card" id="card-biorxiv">
+            <div class="tool-card-header">
+              <div class="tool-badge-wrap">
+                <span class="tool-num">bioRxiv</span>
+                <div>
+                  <h3>bioRxiv CellBio Preprints</h3>
+                  <span class="tool-tag">Active Working Researchers</span>
+                </div>
+              </div>
+            </div>
+            <p class="tool-desc">Scans bioRxiv JATS XML preprint feeds for corresponding author emails and validates domain MX delivery records.</p>
+
+            <div class="tool-card-actions">
+              <button class="btn btn-secondary" id="btn-run-biorxiv">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                Run bioRxiv Collector
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: Real-time Terminal & Streaming Console -->
+        <div class="console-column">
+          <div class="console-card">
+            <div class="console-header">
+              <div class="console-title-wrap">
+                <span class="console-dot-indicator"></span>
+                <span class="console-title">Live Execution Console</span>
+                <span class="console-running-script" id="console-script-label">Idle</span>
+              </div>
+              <div class="console-actions">
+                <label class="toggle-wrap" title="Auto-scroll console to bottom">
+                  <input type="checkbox" id="chk-autoscroll" checked>
+                  <span>Auto-scroll</span>
+                </label>
+                <button class="btn-sm btn-ghost" id="btn-clear-console" title="Clear console output">Clear</button>
+                <button class="btn-sm btn-ghost" id="btn-copy-console" title="Copy console logs">Copy Logs</button>
+                <button class="btn-sm btn-danger" id="btn-stop-pipeline" title="Stop running process" disabled>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  Stop
+                </button>
+              </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="pipeline-progress-bar"></div>
+            </div>
+
+            <!-- Terminal Output Area -->
+            <div class="terminal-body" id="terminal-body" role="log" aria-live="polite">
+              <div class="terminal-welcome">
+                <div class="welcome-ascii">
+  ____                               _               _____             _ 
+ |  _ \ ___  ___  ___  __ _ _ __ ___| |__   ___ _ __|_   _|__   ___ | |
+ | |_) / _ \/ __|/ _ \/ _` | '__/ __| '_ \ / _ \ '__| | |/ _ \ / _ \| |
+ |  _ <  __/\__ \  __/ (_| | | | (__| | | |  __/ |    | | (_) | (_) | |
+ |_| \_\___||___/\___|\__,_|_|  \___|_| |_|\___|_|    |_|\___/ \___/|_|
+                </div>
+                <p>Welcome to Researcher Tool Outreach Suite. Select a tool on the left to start automated data discovery.</p>
+                <p class="text-dim">Real-time output stream will appear below.</p>
+              </div>
+            </div>
+
+            <!-- Console Footer -->
+            <div class="console-footer">
+              <span id="console-line-count">0 lines</span>
+              <span id="console-elapsed">Duration: 0s</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: LEADS EXPLORER & DATA TABLE -->
+    <section class="tab-view" id="view-explorer">
+      <div class="explorer-card">
+        <!-- Controls Bar -->
+        <div class="explorer-toolbar">
+          <div class="toolbar-left">
+            <div class="form-group-compact">
+              <label for="dataset-select">Active Dataset:</label>
+              <select id="dataset-select" class="select-dataset">
+                <option value="">Loading datasets...</option>
+              </select>
+            </div>
+
+            <div class="search-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input type="text" id="leads-search-input" placeholder="Search by name, email, university, grant...">
+            </div>
+          </div>
+
+          <div class="toolbar-right">
+            <div class="filter-pills" role="radiogroup">
+              <button class="filter-pill active" data-status="all">All Rows</button>
+              <button class="filter-pill" data-status="verified">Verified Emails</button>
+              <button class="filter-pill" data-status="has_email">Any Email</button>
+            </div>
+
+            <button class="btn btn-primary btn-export" id="btn-export-csv">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+              Download CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- Table Summary Bar -->
+        <div class="table-summary-bar">
+          <span id="table-results-count">Showing 0 leads</span>
+          <div class="table-summary-right">
+            <label for="page-size-select">Per page:</label>
+            <select id="page-size-select">
+              <option value="25">25</option>
+              <option value="50" selected>50</option>
+              <option value="100">100</option>
+              <option value="250">250</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Responsive Data Table -->
+        <div class="table-container">
+          <table class="leads-table" id="leads-table">
+            <thead>
+              <tr id="leads-table-head">
+                <th>#</th>
+                <th>Researcher Name</th>
+                <th>Professional Email</th>
+                <th>Institution / University</th>
+                <th>Status</th>
+                <th>Field / Keyword</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="leads-table-body">
+              <tr>
+                <td colspan="7" class="empty-state">Select a dataset to load leads</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Pagination Bar -->
+        <div class="pagination-bar" id="pagination-bar">
+          <button class="btn-page" id="btn-prev-page" disabled>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+            Previous
+          </button>
+          <div class="page-numbers" id="page-numbers-container">
+            <span class="page-current">Page 1</span>
+          </div>
+          <button class="btn-page" id="btn-next-page" disabled>
+            Next
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: DATASETS ARCHIVE -->
+    <section class="tab-view" id="view-datasets">
+      <div class="datasets-card">
+        <div class="section-title-wrap">
+          <h2>Datasets Archive</h2>
+          <p class="section-subtitle">Directly browse, view, and export all generated candidate CSVs and master archives.</p>
+        </div>
+
+        <div class="datasets-grid" id="datasets-grid">
+          <div class="empty-state">Scanning data files...</div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Row Detail Modal -->
+  <div class="modal-overlay" id="detail-modal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <h3 id="modal-title">Researcher Details</h3>
+        <button class="modal-close" id="modal-close-btn">&times;</button>
+      </div>
+      <div class="modal-body" id="modal-body">
+        <!-- Injected dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

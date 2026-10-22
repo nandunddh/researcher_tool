@@ -1,6 +1,7 @@
 import csv
 import json
 import re
+import sys
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -32,7 +33,7 @@ DAILY_EXPORT_FILE = TODAY_DIR / f"daily_verified_leads_{TODAY_STR}.csv"
 
 TARGET_DAILY_EMAILS = 3000  # Stop as soon as 3,000 name-matched emails are collected
 MAX_WORKERS = 30
-SAVE_EVERY = 25
+SAVE_EVERY = 100
 
 HEADERS = {
     "User-Agent": "ResearcherContactFinder/1.0 (academic research mailto:research@openalex-tool.org)"
@@ -223,10 +224,29 @@ def get_email_from_crossref(doi, author_name):
     return None, None
 
 
+def get_author_affiliations(author_dict):
+    """Extracts all affiliation strings for an author from Europe PMC."""
+    affs = []
+    if author_dict.get("affiliation"):
+        affs.append(author_dict.get("affiliation"))
+    details = author_dict.get("authorAffiliationDetailsList", {})
+    if isinstance(details, dict):
+        aff_list = details.get("authorAffiliation", [])
+        for item in aff_list:
+            if isinstance(item, dict) and item.get("affiliation"):
+                affs.append(item.get("affiliation"))
+            elif isinstance(item, str):
+                affs.append(item)
+    return affs
+
+
 def get_email_from_europepmc(doi, author_name):
-    """Queries Europe PMC by DOI, only returns email if it matches author's name."""
+    """Queries Europe PMC by DOI, checks core metadata affiliations and fallback PMC XML."""
     search_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-    search_text = get_page(search_url, params={"query": f'DOI:"{doi}"', "format": "json", "pageSize": 3})
+    search_text = get_page(
+        search_url,
+        params={"query": f'DOI:"{doi}"', "format": "json", "pageSize": 3, "resultType": "core"}
+    )
     if not search_text:
         return None, None
     try:
@@ -236,15 +256,22 @@ def get_email_from_europepmc(doi, author_name):
         return None, None
 
     for article in results:
+        # 1. Fast check: author affiliations in the core JSON response
+        for a in article.get("authorList", {}).get("author", []):
+            for aff in get_author_affiliations(a):
+                for email in extract_emails(aff):
+                    if is_name_match(author_name, email):
+                        return email, f"https://doi.org/{doi}"
+
+        # 2. Fallback: Full-text XML if PMC ID is present
         pmcid = str(article.get("pmcid") or "").strip()
-        if not re.fullmatch(r"PMC\d+", pmcid, flags=re.IGNORECASE):
-            continue
-        xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
-        xml_text = get_page(xml_url)
-        if xml_text:
-            for email in extract_emails(xml_text):
-                if is_name_match(author_name, email):
-                    return email, xml_url
+        if re.fullmatch(r"PMC\d+", pmcid, flags=re.IGNORECASE):
+            xml_url = f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
+            xml_text = get_page(xml_url)
+            if xml_text:
+                for email in extract_emails(xml_text):
+                    if is_name_match(author_name, email):
+                        return email, xml_url
     return None, None
 
 
@@ -258,13 +285,24 @@ def search_europepmc_by_title(author_name, title):
     query = f'AUTH:"{last_name}" AND "{clean_title}"' if last_name else f'"{clean_title}"'
 
     search_url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
-    text = get_page(search_url, params={"query": query, "format": "json", "pageSize": 3})
+    text = get_page(
+        search_url,
+        params={"query": query, "format": "json", "pageSize": 3, "resultType": "core"}
+    )
     if not text:
         return None, None
 
     try:
         data = json.loads(text)
         for r in data.get("resultList", {}).get("result", []):
+            # Check authorList affiliations in JSON
+            for a in r.get("authorList", {}).get("author", []):
+                for aff in get_author_affiliations(a):
+                    for email in extract_emails(aff):
+                        if is_name_match(author_name, email):
+                            doi = r.get("doi")
+                            return email, f"https://doi.org/{doi}" if doi else "Europe PMC"
+
             doi = r.get("doi")
             if doi:
                 email, source_url = get_email_from_crossref(doi, author_name)
@@ -294,11 +332,14 @@ def process_researcher(row):
     author_name = str(row.get("researcher_name", "")).strip()
     existing_email = str(row.get("professional_email", "") or "").strip()
 
-    # If already verified in a previous session, preserve it
-    if existing_email and is_name_match(author_name, existing_email):
-        row["email_status"] = "Verified Name Match"
-        row["review_status"] = "found"
-        return row
+    # If already verified in a previous session or attached in extraction, verify it
+    if existing_email:
+        matched = [e.strip() for e in existing_email.split(";") if is_name_match(author_name, e.strip())]
+        if matched:
+            row["professional_email"] = matched[0]
+            row["email_status"] = "Verified Name Match"
+            row["review_status"] = "found"
+            return row
 
     # 1. Try personal ORCID profile (100% personal match)
     orcid_url = row.get("orcid", "")
@@ -361,21 +402,35 @@ def process_researcher(row):
 # --------------------------------------------------
 
 def get_or_create_master_pool():
-    """Ensures researchers_master_pool.csv exists from the latest 01 extraction."""
-    if MASTER_POOL_FILE.exists():
+    """Ensures researchers_master_pool.csv exists and is synced with the latest extraction."""
+    # 1. Check if user passed a specific extraction file via CLI
+    if len(sys.argv) > 1 and Path(sys.argv[1]).exists():
+        source = Path(sys.argv[1])
+        print(f"Using specified extraction file: {source}")
+        with source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
+            dst.write(src.read())
+        print(f"Master pool initialized from: {source.name}")
         return MASTER_POOL_FILE
 
-    # Find the newest raw extraction from 01
-    extractions = sorted(FOLDER.glob("openalex_researchers_*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    # 2. Find the newest raw extraction from 01 across all subfolders (e.g. data/2026-10-22/...)
+    extractions = sorted(FOLDER.rglob("openalex_researchers_*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
     if not extractions:
+        if MASTER_POOL_FILE.exists():
+            return MASTER_POOL_FILE
         raise SystemExit(f"No researcher files found in {FOLDER}. Please run 01_extract_researchers.py first!")
 
-    source = extractions[0]
-    print(f"Initializing master pool from: {source.name}...")
-    with source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
-        dst.write(src.read())
+    latest_source = extractions[0]
 
-    print(f"Master pool created at: {MASTER_POOL_FILE.name}")
+    if MASTER_POOL_FILE.exists():
+        print(f"Resuming existing master pool: {MASTER_POOL_FILE.name}")
+        return MASTER_POOL_FILE
+
+    # If master pool does not exist, initialize from latest extraction
+    latest_source = extractions[0]
+    print(f"Loading latest extraction into master pool: {latest_source.name}...")
+    with latest_source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
+        dst.write(src.read())
+    print(f"Master pool initialized from: {latest_source.name}")
     return MASTER_POOL_FILE
 
 
@@ -423,8 +478,7 @@ def main():
     # Identify pending researchers (not yet processed or verified)
     pending_indices = [
         i for i, r in enumerate(rows)
-        if r.get("review_status") != "found"
-        and r.get("email_status") != "No email found in available sources"
+        if r.get("email_status") not in {"Verified Name Match", "No email found in available sources", "Skipped (Duplicate from Central Archive)"}
     ]
 
     already_found = sum(1 for r in rows if r.get("review_status") == "found")
@@ -447,10 +501,17 @@ def main():
         return
 
     def save_master_pool(data_rows):
-        with MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            writer.writerows(data_rows)
+        temp_file = MASTER_POOL_FILE.with_suffix(".tmp")
+        for attempt in range(5):
+            try:
+                with temp_file.open("w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(data_rows)
+                os.replace(temp_file, MASTER_POOL_FILE)
+                break
+            except Exception:
+                time.sleep(0.3)
 
     new_found_today = 0
     today_verified_rows = []
@@ -458,91 +519,96 @@ def main():
     start_time = time.time()
     lock = Lock()
 
-    print(f"Launching {MAX_WORKERS} workers with strict Name-to-Email matching...", flush=True)
+    def save_all_progress():
+        with lock:
+            save_master_pool(rows)
+            if today_verified_rows:
+                # 1. Export TODAY'S clean leads
+                with DAILY_EXPORT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.DictWriter(f, fieldnames=central_fieldnames)
+                    writer.writeheader()
+                    writer.writerows(today_verified_rows)
 
-    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
-        futures = {
-            executor.submit(process_researcher, dict(rows[idx])): idx
-            for idx in pending_indices
-        }
+                # 2. Append new unique leads into CENTRAL MASTER ARCHIVE
+                archive_exists = CENTRAL_MASTER_FILE.exists()
+                with CENTRAL_MASTER_FILE.open("a", encoding="utf-8-sig", newline="") as cf:
+                    writer = csv.DictWriter(cf, fieldnames=central_fieldnames)
+                    if not archive_exists:
+                        writer.writeheader()
+                    writer.writerows(today_verified_rows)
 
-        for future in as_completed(futures):
-            idx = futures[future]
-            try:
-                res = future.result()
-                rows[idx] = res
+    try:
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            futures = {
+                executor.submit(process_researcher, dict(rows[idx])): idx
+                for idx in pending_indices
+            }
 
-                # Check if this candidate got a strictly matched email
-                if res.get("review_status") == "found":
-                    em = str(res.get("professional_email", "")).strip().lower()
-                    aid = str(res.get("openalex_author_id", "")).strip()
-
-                    # Deduplication guard against central archive
-                    if em and em in known_emails:
-                        res["email_status"] = "Skipped (Duplicate from Central Archive)"
-                        rows[idx] = res
-                    elif em:
-                        known_emails.add(em)
-                        if aid:
-                            known_author_ids.add(aid)
-                        res_copy = dict(res)
-                        res_copy["date_added_to_central"] = TODAY_STR
-                        new_found_today += 1
-                        today_verified_rows.append(res_copy)
-
-            except Exception as exc:
-                rows[idx]["email_status"] = f"Error: {str(exc)[:100]}"
-
-            completed += 1
-
-            if completed == 1 or completed % 10 == 0 or completed == len(pending_indices):
-                with print_lock:
-                    elapsed = time.time() - start_time
-                    speed = completed / elapsed if elapsed > 0 else 0
-                    pct = (completed / len(pending_indices)) * 100
-                    print(
-                        f"Processed {completed:,}/{len(pending_indices):,} ({pct:.1f}%) | "
-                        f"New Matched Today: {new_found_today}/{TARGET_DAILY_EMAILS} | "
-                        f"Speed: {speed:.1f}/s | Elapsed: {elapsed:.1f}s",
-                        flush=True
-                    )
-
-            if completed % SAVE_EVERY == 0 or completed == len(pending_indices):
-                with lock:
-                    save_master_pool(rows)
-
-            if TARGET_DAILY_EMAILS and new_found_today >= TARGET_DAILY_EMAILS:
-                with print_lock:
-                    elapsed = time.time() - start_time
-                    print(
-                        f"\n🎯 TARGET REACHED: {new_found_today} 100% Unique Name-Matched Emails collected in {elapsed/60:.1f} minutes!",
-                        flush=True
-                    )
-                for f in futures:
-                    f.cancel()
+            for future in as_completed(futures):
+                idx = futures[future]
                 try:
-                    executor.shutdown(wait=False, cancel_futures=True)
-                except Exception:
-                    pass
-                break
+                    res = future.result()
+                    rows[idx] = res
 
-    # Save final updated master pool
-    save_master_pool(rows)
+                    # Check if this candidate got a strictly matched email
+                    if res.get("review_status") == "found":
+                        em = str(res.get("professional_email", "")).strip().lower()
+                        aid = str(res.get("openalex_author_id", "")).strip()
 
-    # 1. Export TODAY'S clean 3,000 leads into a separate ready-to-send file
-    if today_verified_rows:
-        with DAILY_EXPORT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=central_fieldnames)
-            writer.writeheader()
-            writer.writerows(today_verified_rows)
+                        # Deduplication guard against central archive
+                        if em and em in known_emails:
+                            res["email_status"] = "Skipped (Duplicate from Central Archive)"
+                            rows[idx] = res
+                        elif em:
+                            known_emails.add(em)
+                            if aid:
+                                known_author_ids.add(aid)
+                            res_copy = dict(res)
+                            res_copy["date_added_to_central"] = TODAY_STR
+                            new_found_today += 1
+                            today_verified_rows.append(res_copy)
 
-        # 2. Append new unique leads into CENTRAL MASTER ARCHIVE
-        archive_exists = CENTRAL_MASTER_FILE.exists()
-        with CENTRAL_MASTER_FILE.open("a", encoding="utf-8-sig", newline="") as cf:
-            writer = csv.DictWriter(cf, fieldnames=central_fieldnames)
-            if not archive_exists:
-                writer.writeheader()
-            writer.writerows(today_verified_rows)
+                except Exception as exc:
+                    rows[idx]["email_status"] = f"Error: {str(exc)[:100]}"
+
+                completed += 1
+
+                if completed == 1 or completed % 10 == 0 or completed == len(pending_indices):
+                    with print_lock:
+                        elapsed = time.time() - start_time
+                        speed = completed / elapsed if elapsed > 0 else 0
+                        pct = (completed / len(pending_indices)) * 100
+                        print(
+                            f"Processed {completed:,}/{len(pending_indices):,} ({pct:.1f}%) | "
+                            f"New Matched Today: {new_found_today}/{TARGET_DAILY_EMAILS} | "
+                            f"Speed: {speed:.1f}/s | Elapsed: {elapsed:.1f}s",
+                            flush=True
+                        )
+
+                if completed % SAVE_EVERY == 0 or completed == len(pending_indices):
+                    save_all_progress()
+
+                if TARGET_DAILY_EMAILS and new_found_today >= TARGET_DAILY_EMAILS:
+                    with print_lock:
+                        elapsed = time.time() - start_time
+                        print(
+                            f"\n🎯 TARGET REACHED: {new_found_today} 100% Unique Name-Matched Emails collected in {elapsed/60:.1f} minutes!",
+                            flush=True
+                        )
+                    for f in futures:
+                        f.cancel()
+                    try:
+                        executor.shutdown(wait=False, cancel_futures=True)
+                    except Exception:
+                        pass
+                    break
+
+    except KeyboardInterrupt:
+        print("\n[INFO] Interrupted by user. Safely persisting all progress...")
+    except Exception as e:
+        print(f"\n[ERROR] Unexpected error: {e}. Persisting progress...")
+    finally:
+        save_all_progress()
 
     remaining_unprocessed = sum(
         1 for r in rows

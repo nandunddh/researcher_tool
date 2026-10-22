@@ -1,6 +1,7 @@
 import csv
 import os
 import re
+import sys
 import time
 from datetime import datetime
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 import requests
 
 SEARCH_TERMS = [
-    "Physical Chemistry",
+    "cell biology",
 ]
 
 # # Focus on recent work.
@@ -113,10 +114,12 @@ def fetch_email_from_europepmc(session, doi, author_name):
 
 def get_works(session, term):
     date_filter = f"from_publication_date:{FROM_DATE},to_publication_date:{TO_DATE}"
+    clean_term = term.replace("_", " ")
 
     for page in range(1, MAX_PAGES_PER_TERM + 1):
+        print(f"  [OpenAlex] Fetching page {page}/{MAX_PAGES_PER_TERM} for '{clean_term}'...", flush=True)
         params = {
-            "search": term,
+            "search": clean_term,
             "filter": date_filter,
             "per-page": PER_PAGE,
             "page": page,
@@ -383,4 +386,8 @@ def main():
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        SEARCH_TERMS = [sys.argv[1].strip()]
+    if len(sys.argv) > 2 and sys.argv[2].isdigit():
+        MAX_PAGES_PER_TERM = int(sys.argv[2])
     main()
