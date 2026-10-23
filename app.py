@@ -214,20 +214,23 @@ async def get_dashboard_stats():
                 pass
 
     # 3. Topic queue or master pool file
-    queue_files = list(DATA_DIR.glob("*_needto_extract.csv"))
-    pool_file = queue_files[0] if queue_files else (DATA_DIR / "researchers_master_pool.csv")
-    if pool_file.exists():
+    available_queues = []
+    total_pool = 0
+    for qf in DATA_DIR.glob("*_needto_extract.csv"):
         try:
-            with open(pool_file, "r", encoding="utf-8", errors="replace") as f:
-                reader = csv.DictReader(f)
-                rows = list(reader)
-                stats["master_pool_total"] = len(rows)
-                stats["master_pool_unprocessed"] = sum(
-                    1 for r in rows
-                    if r.get("review_status") != "found" and r.get("email_status") != "Verified Name Match"
-                )
+            with open(qf, "r", encoding="utf-8", errors="replace") as f:
+                c = max(0, sum(1 for _ in f) - 1)
+            if c > 0:
+                rel = str(qf.relative_to(BASE_DIR)).replace("\\", "/")
+                topic_label = qf.stem.replace("_needto_extract", "").replace("_", " ")
+                available_queues.append({"path": rel, "name": qf.name, "topic": topic_label, "count": c})
+                total_pool += c
         except Exception:
             pass
+
+    stats["available_queues"] = available_queues
+    stats["master_pool_total"] = total_pool
+    stats["master_pool_unprocessed"] = total_pool
 
     return stats
 

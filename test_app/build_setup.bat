@@ -39,6 +39,7 @@ echo [Step 2/3] Compiling SciNexus into standalone Windows executable...
   --add-data "..\static;static" ^
   --add-data "01_extract_researchers_test.py;." ^
   --add-data "02_collect_scholarly_emails_test.py;." ^
+  --add-data "04_extract_nih_researchers_test.py;." ^
   --add-data "trial_manager.py;." ^
   --add-data "app.py;." ^
   --hidden-import "app" ^

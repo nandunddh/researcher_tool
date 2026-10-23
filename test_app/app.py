@@ -137,11 +137,17 @@ async def get_stats():
             except Exception:
                 pass
 
+    queue_files = []
     pool_count = 0
     for qf in DATA_DIR.glob("*_needto_extract.csv"):
         try:
             with open(qf, "r", encoding="utf-8", errors="replace") as cf:
-                pool_count += max(0, sum(1 for _ in cf) - 1)
+                c = max(0, sum(1 for _ in cf) - 1)
+            pool_count += c
+            if c > 0:
+                rel = str(qf.relative_to(BASE_DIR)).replace("\\", "/")
+                topic_label = qf.stem.replace("_needto_extract", "").replace("_", " ")
+                queue_files.append({"path": rel, "name": qf.name, "topic": topic_label, "count": c})
         except Exception:
             pass
 
@@ -150,6 +156,7 @@ async def get_stats():
         "today_verified_leads": verified_count,
         "master_pool_total": pool_count,
         "master_pool_unprocessed": pool_count,
+        "available_queues": queue_files,
         "today_date": today_str,
         "trial_days_left": status.get("days_left", 0),
         "trial_expires_on": status.get("expires_on", ""),
@@ -230,7 +237,7 @@ async def start_pipeline(request: Request):
     body = await request.json()
     action = body.get("action", "openalex")
     keyword = body.get("keyword", "Physical Chemistry").strip()
-    pages = str(body.get("pages", 35)).strip()
+    pages = str(body.get("pages", 25)).strip()
     from_date = body.get("from_date", "2026-01-01").strip()
     to_date = body.get("to_date", "2026-01-31").strip()
 
@@ -239,7 +246,7 @@ async def start_pipeline(request: Request):
     if action == "openalex":
         cmd = [py_exe, "-u", "01_extract_researchers_test.py", keyword, pages, from_date, to_date]
         script_name = "01_extract_researchers_test.py"
-        stage_name = f"OpenAlex Discovery ({keyword} | 5k–10k pool)"
+        stage_name = f"OpenAlex Discovery ({keyword} | 5k-10k pool)"
 
     elif action == "scholarly":
         rem = status["remaining_verified_today"]
@@ -248,9 +255,24 @@ async def start_pipeline(request: Request):
                 status_code=429,
                 detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
             )
-        cmd = [py_exe, "-u", "02_collect_scholarly_emails_test.py"]
+        target_leads = str(min(int(body.get("target_leads", 1000)), rem))
+        input_file = body.get("input_file", "").strip()
+        cmd = [py_exe, "-u", "02_collect_scholarly_emails_test.py", input_file, target_leads]
         script_name = "02_collect_scholarly_emails_test.py"
         stage_name = f"Scholarly Verification (Remaining Today: {rem} leads)"
+
+    elif action == "nih":
+        rem = status["remaining_verified_today"]
+        if rem <= 0:
+            raise HTTPException(
+                status_code=429,
+                detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
+            )
+        keyword = body.get("keyword", "cell biology").strip()
+        leads = str(min(int(body.get("target_leads", 100)), rem))
+        cmd = [py_exe, "-u", "04_extract_nih_researchers_test.py", keyword, leads]
+        script_name = "04_extract_nih_researchers_test.py"
+        stage_name = f"NIH Funded PIs ({keyword} | Target: {leads})"
     else:
         raise HTTPException(status_code=400, detail=f"Action '{action}' is disabled in trial edition.")
 

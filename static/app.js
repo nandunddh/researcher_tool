@@ -36,6 +36,15 @@ document.addEventListener("DOMContentLoaded", () => {
   const statNih = document.getElementById("stat-nih-leads");
   const statPool = document.getElementById("stat-pool-leads");
   const statPoolUnprocessed = document.getElementById("stat-pool-unprocessed");
+  const headerTrialText = document.getElementById("header-trial-text");
+  const statTrialDays = document.getElementById("stat-trial-days");
+  const statTrialQuota = document.getElementById("stat-trial-quota");
+
+  // Dynamic Candidate Pool Alerts in Tool 02
+  const poolEmptyAlert = document.getElementById("pool-empty-alert");
+  const poolActiveAlert = document.getElementById("pool-active-alert");
+  const poolActiveText = document.getElementById("pool-active-text");
+  const btnScholarlyLabel = document.getElementById("btn-scholarly-label");
 
   // Pipeline Buttons & Inputs
   const btnRunOpenalex = document.getElementById("btn-run-openalex");
@@ -142,12 +151,59 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) return;
       const data = await res.json();
 
-      statCentral.textContent = Number(data.central_master_leads || 0).toLocaleString();
-      statToday.textContent = Number(data.today_verified_leads || 0).toLocaleString();
-      statTodayDate.textContent = data.today_date || "Today";
-      statNih.textContent = Number(data.nih_leads_total || 0).toLocaleString();
-      statPool.textContent = Number(data.master_pool_total || 0).toLocaleString();
-      statPoolUnprocessed.textContent = `${Number(data.master_pool_unprocessed || 0).toLocaleString()} pending`;
+      if (statCentral) statCentral.textContent = Number(data.central_master_leads || 0).toLocaleString();
+      if (statToday) statToday.textContent = Number(data.today_verified_leads || 0).toLocaleString();
+      if (statTodayDate) statTodayDate.textContent = data.today_date || "Today";
+      if (statNih) statNih.textContent = Number(data.nih_leads_total || 0).toLocaleString();
+      if (statPool) statPool.textContent = Number(data.master_pool_total || 0).toLocaleString();
+      if (statPoolUnprocessed) statPoolUnprocessed.textContent = `${Number(data.master_pool_total || 0).toLocaleString()} Candidates`;
+
+      // Trial metrics
+      if (headerTrialText) {
+        const days = data.trial_days_left !== undefined ? data.trial_days_left : 7.0;
+        const used = data.today_verified_used || 0;
+        const limit = data.today_verified_limit || 1000;
+        headerTrialText.textContent = `${days} Days Left (${used}/${limit} Today)`;
+      }
+      if (statTrialDays) statTrialDays.textContent = `${data.trial_days_left !== undefined ? data.trial_days_left : 7.0} d`;
+      if (statTrialQuota) {
+        const limit = data.today_verified_limit || 1000;
+        const used = data.today_verified_used || 0;
+        statTrialQuota.textContent = `${Math.max(0, limit - used)} leads left`;
+      }
+
+      // Dynamic Candidate Pool State for Tool 02
+      const queues = data.available_queues || [];
+      const poolTotal = Number(data.master_pool_total || 0);
+
+      if (poolTotal === 0 || queues.length === 0) {
+        // Empty pool state: disable Tool 02
+        if (poolEmptyAlert) poolEmptyAlert.style.display = "flex";
+        if (poolActiveAlert) poolActiveAlert.style.display = "none";
+        if (selectScholarlyFile) {
+          selectScholarlyFile.disabled = true;
+          selectScholarlyFile.innerHTML = '<option value="" disabled selected>No candidate pool available (Run Stage 1)</option>';
+        }
+        if (btnRunScholarly) btnRunScholarly.disabled = true;
+        if (btnScholarlyLabel) btnScholarlyLabel.textContent = "Waiting for Stage 1 Extraction";
+      } else {
+        // Active pool state: enable Tool 02
+        if (poolEmptyAlert) poolEmptyAlert.style.display = "none";
+        if (poolActiveAlert) {
+          poolActiveAlert.style.display = "flex";
+          if (poolActiveText) {
+            poolActiveText.innerHTML = `<strong>Pool Ready:</strong> ${poolTotal.toLocaleString()} candidates waiting for verified enrichment.`;
+          }
+        }
+        if (selectScholarlyFile) {
+          selectScholarlyFile.disabled = false;
+          selectScholarlyFile.innerHTML = queues.map(q => 
+            `<option value="${q.path}">${q.topic} (${Number(q.count).toLocaleString()} candidates)</option>`
+          ).join("");
+        }
+        if (btnRunScholarly) btnRunScholarly.disabled = false;
+        if (btnScholarlyLabel) btnScholarlyLabel.textContent = "Run Scholarly Enrichment";
+      }
     } catch (e) {
       console.warn("Failed to fetch dashboard stats", e);
     }
@@ -334,15 +390,20 @@ document.addEventListener("DOMContentLoaded", () => {
     triggerRun("scholarly", { target_leads: target, input_file: selectedFile });
   });
 
-  btnRunNih.addEventListener("click", () => {
-    const keyword = inputNihKeyword.value.trim() || "cell biology";
-    const leads = parseInt(inputNihLeads.value) || 500;
-    triggerRun("nih", { keyword, target_leads: leads });
-  });
+  if (btnRunNih) {
+    btnRunNih.addEventListener("click", () => {
+      const keyword = inputNihKeyword ? (inputNihKeyword.value.trim() || "cell biology") : "cell biology";
+      const leads = inputNihLeads ? (parseInt(inputNihLeads.value) || 100) : 100;
+      triggerRun("nih", { keyword, target_leads: leads });
+    });
+  }
 
-  btnRunBiorxiv.addEventListener("click", () => {
-    triggerRun("biorxiv");
-  });
+  if (btnRunBiorxiv) {
+    btnRunBiorxiv.addEventListener("click", () => {
+      triggerRun("biorxiv");
+    });
+  }
+
 
   btnStopPipeline.addEventListener("click", async () => {
     try {

@@ -50,16 +50,40 @@ if remaining_today <= 0:
 # Settings
 FOLDER = Path(__file__).parent / "data"
 FOLDER.mkdir(parents=True, exist_ok=True)
-MASTER_POOL_FILE = FOLDER / "Physical_Chemistry_needto_extract.csv"
+
+MASTER_POOL_FILE = None
+if len(sys.argv) > 1 and sys.argv[1].strip():
+    cand_arg = Path(sys.argv[1].strip())
+    if not cand_arg.is_absolute():
+        cand_arg = (Path(__file__).parent / cand_arg).resolve()
+    if cand_arg.exists():
+        MASTER_POOL_FILE = cand_arg
+
+if not MASTER_POOL_FILE:
+    queues = sorted(FOLDER.glob("*_needto_extract.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+    if queues:
+        MASTER_POOL_FILE = queues[0]
+
+if not MASTER_POOL_FILE or not MASTER_POOL_FILE.exists():
+    print("\n" + "=" * 65)
+    print("❌ NO CANDIDATE POOL FOUND IN DATA/.")
+    print("Please run Stage 1 (OpenAlex Discovery) first to collect researcher candidates!")
+    print("=" * 65 + "\n")
+    sys.exit(1)
+
 CENTRAL_MASTER_FILE = FOLDER / "central_master_leads.csv"
 
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 TODAY_DIR = FOLDER / TODAY_STR
 TODAY_DIR.mkdir(parents=True, exist_ok=True)
 
-TARGET_DAILY_EMAILS = remaining_today  # Cap at exactly the remaining quota (up to 1,000)
+TARGET_DAILY_EMAILS = remaining_today
+if len(sys.argv) > 2 and sys.argv[2].isdigit():
+    TARGET_DAILY_EMAILS = min(int(sys.argv[2]), remaining_today)
+
 MAX_WORKERS = 15
 SAVE_EVERY = 25
+
 
 HEADERS = {
     "User-Agent": "ResearcherContactFinder-Trial/1.0 (academic mailto:trial@openalex-tool.org)"
