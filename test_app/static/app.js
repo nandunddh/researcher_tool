@@ -288,24 +288,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateProcessUIState(status, stage) {
     const isRunning = status === "running";
-    btnStopPipeline.disabled = !isRunning;
-    progressBar.classList.toggle("active", isRunning);
+    if (btnStopPipeline) btnStopPipeline.disabled = !isRunning;
+    if (progressBar) progressBar.classList.toggle("active", isRunning);
 
-    const pulse = systemStatusIndicator.querySelector(".pulse-dot");
+    if (systemStatusIndicator) {
+      const pulse = systemStatusIndicator.querySelector(".pulse-dot");
+      if (pulse) {
+        pulse.className = isRunning ? "pulse-dot running" : "pulse-dot idle";
+      }
+    }
+
+    if (systemStatusText) {
+      if (isRunning) {
+        systemStatusText.textContent = stage ? `Running: ${stage}` : "Running Pipeline";
+      } else {
+        systemStatusText.textContent = status === "completed" ? "Pipeline Completed" : "System Ready";
+      }
+    }
+
+    if (consoleScriptLabel) {
+      consoleScriptLabel.textContent = isRunning ? (stage || "Running") : (status === "completed" ? "Completed" : "Idle");
+    }
+
     if (isRunning) {
-      pulse.className = "pulse-dot running";
-      systemStatusText.textContent = stage ? `Running: ${stage}` : "Running Pipeline";
-      consoleScriptLabel.textContent = stage || "Running";
       if (!runStartTime) {
         runStartTime = Date.now();
         startElapsedTimer();
       }
     } else {
-      pulse.className = "pulse-dot idle";
-      systemStatusText.textContent = status === "completed" ? "Pipeline Completed" : "System Ready";
-      consoleScriptLabel.textContent = status === "completed" ? "Completed" : "Idle";
       stopElapsedTimer();
-      // Refresh stats when completed
       if (status === "completed") {
         fetchStats();
       }
