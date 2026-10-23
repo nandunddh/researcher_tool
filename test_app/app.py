@@ -1,0 +1,313 @@
+"""
+app.py (Evaluation Edition)
+===========================
+FastAPI backend for local testing with strict 7-day trial and 1,000/day email verification enforcement.
+"""
+
+import asyncio
+import csv
+import json
+import os
+import subprocess
+import sys
+import threading
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
+
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+
+from trial_manager import trial_engine
+
+BASE_DIR = Path(__file__).resolve().parent
+ROOT_DIR = BASE_DIR.parent
+DATA_DIR = BASE_DIR / "data"
+
+# Auto-detect static folder whether running as source or packaged executable
+if (BASE_DIR / "static").exists():
+    STATIC_DIR = BASE_DIR / "static"
+elif (ROOT_DIR / "static").exists():
+    STATIC_DIR = ROOT_DIR / "static"
+else:
+    STATIC_DIR = BASE_DIR / "static"
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+app = FastAPI(title="SciNexus - Academic Lead Intelligence (7-Day Evaluation Edition)")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+current_process: Optional[subprocess.Popen] = None
+process_lock = threading.Lock()
+log_queue = asyncio.Queue()
+process_state = {
+    "status": "idle",
+    "current_stage": "",
+    "script_name": "",
+    "start_time": None,
+    "exit_code": None,
+    "lines": [],
+}
+
+
+def broadcast_log(line: str, stage: str = "", status: str = "running"):
+    timestamp = datetime.now().strftime("%H:%M:%S")
+    entry = {"time": timestamp, "text": line, "stage": stage, "status": status}
+    process_state["lines"].append(entry)
+    if len(process_state["lines"]) > 1500:
+        process_state["lines"].pop(0)
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.run_coroutine_threadsafe(log_queue.put(entry), loop)
+    except Exception:
+        pass
+
+
+def run_pipeline_worker(cmd: list, script_name: str, stage_name: str):
+    global current_process
+    process_state["status"] = "running"
+    process_state["script_name"] = script_name
+    process_state["current_stage"] = stage_name
+    process_state["start_time"] = datetime.now().isoformat()
+    process_state["lines"] = []
+    process_state["exit_code"] = None
+
+    broadcast_log(f"Starting {stage_name}...", stage=stage_name, status="running")
+
+    try:
+        current_process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+            cwd=str(BASE_DIR),
+            universal_newlines=True,
+        )
+
+        for line in iter(current_process.stdout.readline, ""):
+            clean = line.rstrip()
+            if clean:
+                broadcast_log(clean, stage=stage_name, status="running")
+
+        current_process.stdout.close()
+        code = current_process.wait()
+        process_state["exit_code"] = code
+        process_state["status"] = "completed" if code == 0 else "error"
+        broadcast_log(f"Stage ended (code: {code})", stage=stage_name, status=process_state["status"])
+    except Exception as e:
+        process_state["status"] = "error"
+        broadcast_log(f"Execution failed: {e}", stage=stage_name, status="error")
+    finally:
+        current_process = None
+
+
+# -----------------------------------------------------------------------------
+# Trial Endpoints
+# -----------------------------------------------------------------------------
+
+@app.get("/api/trial/status")
+async def get_trial_status():
+    """Returns trial countdown, today's verified quota, and active limits."""
+    return trial_engine.check_status()
+
+
+@app.get("/api/stats")
+async def get_stats():
+    status = trial_engine.check_status()
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_dir = DATA_DIR / today_str
+
+    verified_count = 0
+    if today_dir.exists():
+        for f in today_dir.glob("*found*.csv"):
+            try:
+                with open(f, "r", encoding="utf-8", errors="replace") as cf:
+                    verified_count += max(0, sum(1 for _ in cf) - 1)
+            except Exception:
+                pass
+
+    pool_count = 0
+    for qf in DATA_DIR.glob("*_needto_extract.csv"):
+        try:
+            with open(qf, "r", encoding="utf-8", errors="replace") as cf:
+                pool_count += max(0, sum(1 for _ in cf) - 1)
+        except Exception:
+            pass
+
+    return {
+        "central_master_leads": verified_count,
+        "today_verified_leads": verified_count,
+        "master_pool_total": pool_count,
+        "master_pool_unprocessed": pool_count,
+        "today_date": today_str,
+        "trial_days_left": status.get("days_left", 0),
+        "trial_expires_on": status.get("expires_on", ""),
+        "today_verified_used": status.get("today_verified", 0),
+        "today_verified_limit": status.get("daily_verified_limit", 1000),
+    }
+
+
+@app.get("/api/datasets")
+async def list_datasets():
+    files = []
+    for p in sorted(DATA_DIR.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True):
+        try:
+            stat = p.stat()
+            rel_path = str(p.relative_to(BASE_DIR)).replace("\\", "/")
+            files.append({
+                "path": rel_path,
+                "name": p.name,
+                "size_kb": round(stat.st_size / 1024, 1),
+                "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "is_queue": "_needto_extract" in p.name,
+            })
+        except Exception:
+            continue
+    return {"datasets": files}
+
+
+@app.get("/api/leads")
+async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1), page_size: int = Query(50, ge=10, le=100)):
+    target = None
+    if file:
+        cand = (BASE_DIR / file).resolve()
+        if cand.exists() and cand.is_relative_to(BASE_DIR):
+            target = cand
+
+    if not target:
+        csvs = sorted(DATA_DIR.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+        if csvs:
+            target = csvs[0]
+
+    if not target or not target.exists():
+        return {"rows": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "file": None}
+
+    rows = []
+    with open(target, "r", encoding="utf-8-sig", errors="replace") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            rows.append(r)
+
+    total = len(rows)
+    start = (page - 1) * page_size
+    end = start + page_size
+    paged_rows = rows[start:end]
+
+    return {
+        "rows": paged_rows,
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": max(1, (total + page_size - 1) // page_size),
+        "file": str(target.relative_to(BASE_DIR)).replace("\\", "/")
+    }
+
+
+@app.post("/api/pipeline/start")
+async def start_pipeline(request: Request):
+    status = trial_engine.check_status()
+    if not status["active"]:
+        raise HTTPException(
+            status_code=403,
+            detail="Your 7-day evaluation trial has ended. Please contact support to upgrade."
+        )
+
+    with process_lock:
+        if current_process is not None and current_process.poll() is None:
+            raise HTTPException(status_code=400, detail="A task is already actively running.")
+
+    body = await request.json()
+    action = body.get("action", "openalex")
+    keyword = body.get("keyword", "Physical Chemistry").strip()
+    pages = str(body.get("pages", 35)).strip()
+    from_date = body.get("from_date", "2026-01-01").strip()
+    to_date = body.get("to_date", "2026-01-31").strip()
+
+    py_exe = sys.executable
+
+    if action == "openalex":
+        cmd = [py_exe, "-u", "01_extract_researchers_test.py", keyword, pages, from_date, to_date]
+        script_name = "01_extract_researchers_test.py"
+        stage_name = f"OpenAlex Discovery ({keyword} | 5k–10k pool)"
+
+    elif action == "scholarly":
+        rem = status["remaining_verified_today"]
+        if rem <= 0:
+            raise HTTPException(
+                status_code=429,
+                detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
+            )
+        cmd = [py_exe, "-u", "02_collect_scholarly_emails_test.py"]
+        script_name = "02_collect_scholarly_emails_test.py"
+        stage_name = f"Scholarly Verification (Remaining Today: {rem} leads)"
+    else:
+        raise HTTPException(status_code=400, detail=f"Action '{action}' is disabled in trial edition.")
+
+    worker = threading.Thread(target=run_pipeline_worker, args=(cmd, script_name, stage_name), daemon=True)
+    worker.start()
+    return {"status": "started", "stage": stage_name, "script": script_name}
+
+
+@app.post("/api/pipeline/stop")
+async def stop_pipeline():
+    global current_process
+    with process_lock:
+        if current_process is not None and current_process.poll() is None:
+            try:
+                current_process.terminate()
+                process_state["status"] = "stopped"
+                broadcast_log("Pipeline stopped by user request.", status="stopped")
+                return {"status": "stopped"}
+            except Exception as e:
+                return {"status": "error", "error": str(e)}
+    return {"status": "not_running"}
+
+
+@app.get("/api/pipeline/status")
+async def get_pipeline_status():
+    return {
+        "status": process_state["status"],
+        "stage": process_state["current_stage"],
+        "script": process_state["script_name"],
+        "recent_logs": process_state["lines"][-80:],
+    }
+
+
+@app.get("/api/pipeline/stream")
+async def stream_logs():
+    async def event_generator():
+        for entry in process_state["lines"][-30:]:
+            yield f"data: {json.dumps(entry)}\n\n"
+        while True:
+            try:
+                entry = await asyncio.wait_for(log_queue.get(), timeout=2.0)
+                yield f"data: {json.dumps(entry)}\n\n"
+            except asyncio.TimeoutError:
+                yield f"data: {json.dumps({'type': 'heartbeat', 'status': process_state['status']})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
+    )
+
+
+# Mount static assets
+if STATIC_DIR.exists():
+    app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="127.0.0.1", port=8000, reload=False)
