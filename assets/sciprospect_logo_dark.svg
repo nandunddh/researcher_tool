@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1120 360" width="100%" height="100%">
+  <defs>
+    <linearGradient id="d-sci-cyan-blue" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F2FE" />
+      <stop offset="50%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#38BDF8" />
+    </linearGradient>
+    <linearGradient id="d-sci-prospect" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="60%" stop-color="#00F2FE" />
+      <stop offset="100%" stop-color="#67E8F9" />
+    </linearGradient>
+    <linearGradient id="d-sci-lens-glass" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1E293B" stop-opacity="0.85" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0.95" />
+    </linearGradient>
+    <filter id="d-sci-glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="5" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Left Side: Research Data Icon (Styled for Dark Background) -->
+  <g transform="translate(15, 10) scale(0.68)">
+    <!-- Orbits -->
+    <ellipse cx="140" cy="230" rx="175" ry="72" transform="rotate(-30 140 230)"
+      fill="none" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" opacity="0.75" />
+    <ellipse cx="140" cy="230" rx="175" ry="72" transform="rotate(30 140 230)"
+      fill="none" stroke="#0284C7" stroke-width="6" stroke-linecap="round" opacity="0.75" />
+    
+    <!-- Orbit Nodes -->
+    <circle cx="-15" cy="180" r="10" fill="#00F2FE" filter="url(#d-sci-glow)" />
+    <circle cx="-15" cy="180" r="5" fill="#FFFFFF" />
+    <circle cx="285" cy="300" r="10" fill="#00F2FE" filter="url(#d-sci-glow)" />
+    <circle cx="285" cy="300" r="5" fill="#FFFFFF" />
+
+    <!-- Paper Base Card -->
+    <path d="M 40,40 L 195,40 L 255,100 L 255,410 L 40,410 Z"
+      fill="#1E293B" stroke="#64748B" stroke-width="13" stroke-linejoin="round" />
+    <!-- Folded Corner -->
+    <path d="M 195,40 L 195,100 L 255,100 Z"
+      fill="#334155" stroke="#64748B" stroke-width="13" stroke-linejoin="round" />
+
+    <!-- Document Thumbnail Box -->
+    <rect x="70" y="85" width="48" height="52" rx="4" fill="#334155" stroke="#475569" stroke-width="4" />
+    <!-- Document Lines -->
+    <line x1="130" y1="92" x2="185" y2="92" stroke="#94A3B8" stroke-width="7" stroke-linecap="round" />
+    <line x1="130" y1="112" x2="185" y2="112" stroke="#94A3B8" stroke-width="7" stroke-linecap="round" />
+    <line x1="130" y1="132" x2="175" y2="132" stroke="#64748B" stroke-width="6" stroke-linecap="round" />
+
+    <line x1="70" y1="168" x2="180" y2="168" stroke="#64748B" stroke-width="7" stroke-linecap="round" />
+    <line x1="70" y1="192" x2="140" y2="192" stroke="#64748B" stroke-width="7" stroke-linecap="round" />
+    <line x1="70" y1="216" x2="120" y2="216" stroke="#475569" stroke-width="7" stroke-linecap="round" />
+    <line x1="70" y1="360" x2="225" y2="360" stroke="#475569" stroke-width="7" stroke-linecap="round" />
+    <line x1="70" y1="384" x2="175" y2="384" stroke="#475569" stroke-width="7" stroke-linecap="round" />
+
+    <!-- Magnifying Glass -->
+    <circle cx="210" cy="255" r="95" fill="url(#d-sci-lens-glass)" stroke="#38BDF8" stroke-width="14" />
+    <circle cx="210" cy="255" r="84" fill="none" stroke="url(#d-sci-cyan-blue)" stroke-width="6" opacity="0.8" />
+
+    <!-- Handle -->
+    <line x1="280" y1="325" x2="365" y2="410" stroke="#0F172A" stroke-width="26" stroke-linecap="round" />
+    <line x1="280" y1="325" x2="360" y2="405" stroke="#0284C7" stroke-width="16" stroke-linecap="round" />
+    <line x1="286" y1="331" x2="350" y2="395" stroke="#38BDF8" stroke-width="6" stroke-linecap="round" />
+
+    <!-- Scholar Network Nodes Inside Lens -->
+    <line x1="165" y1="280" x2="195" y2="235" stroke="#38BDF8" stroke-width="5" />
+    <line x1="195" y1="235" x2="250" y2="215" stroke="#38BDF8" stroke-width="5" />
+    <line x1="195" y1="235" x2="225" y2="285" stroke="#38BDF8" stroke-width="5" />
+    <line x1="225" y1="285" x2="260" y2="260" stroke="#38BDF8" stroke-width="5" />
+
+    <circle cx="165" cy="280" r="11" fill="#0284C7" />
+    <circle cx="165" cy="280" r="5" fill="#FFFFFF" />
+
+    <circle cx="195" cy="235" r="15" fill="#00F2FE" filter="url(#d-sci-glow)" />
+    <circle cx="195" cy="235" r="7" fill="#FFFFFF" />
+
+    <circle cx="250" cy="215" r="12" fill="#0284C7" />
+    <circle cx="250" cy="215" r="5.5" fill="#FFFFFF" />
+
+    <circle cx="225" cy="285" r="13" fill="#38BDF8" />
+    <circle cx="225" cy="285" r="6" fill="#FFFFFF" />
+
+    <circle cx="260" cy="260" r="10" fill="#00F2FE" />
+    <circle cx="260" cy="260" r="4.5" fill="#FFFFFF" />
+  </g>
+
+  <!-- Cyan Data Pipeline Cable -->
+  <path d="M 235,160 Q 265,145 285,165 T 325,185 Q 355,190 380,120 L 492,120 L 492,152"
+    fill="none" stroke="url(#d-sci-cyan-blue)" stroke-width="7" stroke-linecap="round" />
+  <circle cx="310" cy="180" r="8" fill="#00F2FE" filter="url(#d-sci-glow)" />
+  <circle cx="310" cy="180" r="4" fill="#FFFFFF" />
+
+  <!-- Typography Right Side: Crisp White & Radiant Cyan on Dark -->
+  <!-- Main Title: SciProspect -->
+  <text x="390" y="210" font-family="'Segoe UI', 'Outfit', 'Inter', -apple-system, sans-serif" font-size="98" font-weight="800" letter-spacing="-1px">
+    <tspan fill="#FFFFFF">Sci</tspan><tspan fill="url(#d-sci-prospect)">Prospect</tspan>
+  </text>
+
+  <!-- Connecting dot at the top of the 'i' -->
+  <circle cx="492" cy="152" r="10" fill="#00F2FE" filter="url(#d-sci-glow)" />
+  <circle cx="492" cy="152" r="5" fill="#FFFFFF" />
+
+  <!-- Subtitle: LEAD INTELLIGENCE -->
+  <text x="396" y="268" font-family="'Segoe UI', 'Inter', sans-serif" font-size="28" font-weight="700" fill="#94A3B8" letter-spacing="10px">
+    LEAD INTELLIGENCE
+  </text>
+</svg>
