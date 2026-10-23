@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 
 SEARCH_TERMS = [
-    "cell biology",
+    "Physical Chemistry",
 ]
 
 # # Focus on recent work.
