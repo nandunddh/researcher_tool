@@ -15,3 +15,10 @@ env/
 
 # Large local raw data (optional - uncomment if you do not want data/ pushed)
 # data/
+
+# Local trial cache & builds
+.license_cache
+*.spec
+test_app/dist/
+test_app/build/
+test_app/dist_installer/

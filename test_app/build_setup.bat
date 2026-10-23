@@ -40,7 +40,14 @@ echo [Step 2/3] Compiling SciNexus into standalone Windows executable...
   --add-data "01_extract_researchers_test.py;." ^
   --add-data "02_collect_scholarly_emails_test.py;." ^
   --add-data "trial_manager.py;." ^
+  --add-data "app.py;." ^
+  --hidden-import "app" ^
+  --hidden-import "uvicorn" ^
+  --hidden-import "fastapi" ^
+  --collect-all "webview" ^
   run_trial_dashboard.py
+
+
 
 if %ERRORLEVEL% NEQ 0 (
     color 0C
@@ -54,31 +61,25 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo [Step 3/3] Packaging into Windows Setup Wizard...
 set "ISCC_PATH="
-
-if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
-    set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-) else if exist "C:\Program Files\Inno Setup 6\ISCC.exe" (
-    set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
-) else if exist "C:\Program Files (x86)\Inno Setup 5\ISCC.exe" (
-    set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 5\ISCC.exe"
-) else (
-    where ISCC.exe >nul 2>nul
-    if %ERRORLEVEL% EQU 0 (
-        set "ISCC_PATH=ISCC.exe"
-    )
+if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+if exist "C:\Program Files\Inno Setup 6\ISCC.exe" set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
+if exist "C:\Program Files (x86)\Inno Setup 5\ISCC.exe" set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 5\ISCC.exe"
+if not defined ISCC_PATH (
+    for /f "tokens=*" %%i in ('where iscc.exe 2^>nul') do set "ISCC_PATH=%%i"
 )
+
 
 if "%ISCC_PATH%"=="" (
     color 0E
     echo.
     echo =====================================================================
-    echo [NOTICE] Inno Setup compiler (ISCC.exe) was not found.
+    echo [NOTICE] Inno Setup compiler ISCC.exe was not found.
     echo.
     echo Your standalone application was built successfully in:
     echo   dist\SciNexus\
     echo.
-    echo To turn it into a single "SciNexus_Setup.exe" with folder chooser ^& desktop icon:
-    echo 1. Download Inno Setup (Free) from: https://jrsoftware.org/isdl.php
+    echo To turn it into a single SciNexus_Setup.exe wizard:
+    echo 1. Download Inno Setup from: https://jrsoftware.org/isdl.php
     echo 2. Run this build_setup.bat again!
     echo =====================================================================
     echo.
