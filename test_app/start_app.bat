@@ -1,9 +1,9 @@
 @echo off
-title SciNexus - Evaluation Edition
+title SciProspect - Evaluation Edition
 color 0A
 
 echo ===================================================================
-echo           SCINEXUS - 7-DAY EVALUATION EDITION
+echo           SCIPROSPECT - 7-DAY EVALUATION EDITION
 echo ===================================================================
 echo.
 
@@ -13,7 +13,7 @@ if %ERRORLEVEL% NEQ 0 (
     if %ERRORLEVEL% NEQ 0 (
         color 0C
         echo [ERROR] Python is not installed on this system.
-        echo Please install Python 3.10+ from python.org to run SciNexus.
+        echo Please install Python 3.10+ from python.org to run SciProspect.
         echo.
         pause
         exit /b 1
@@ -23,7 +23,7 @@ if %ERRORLEVEL% NEQ 0 (
     set PY_CMD=python
 )
 
-echo Starting SciNexus...
+echo Starting SciProspect...
 %PY_CMD% run_trial_dashboard.py
 
 if %ERRORLEVEL% NEQ 0 (

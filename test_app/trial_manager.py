@@ -1,13 +1,13 @@
-"""
+r"""
 trial_manager.py
 ================
-Enterprise-grade 7-Day Evaluation Trial Controller for SciNexus.
+Enterprise-grade 7-Day Evaluation Trial Controller for SciProspect.
 
 Anti-Abuse Protections:
 1. Anti-Reinstall: Persists across app uninstallation and directory deletion via:
-   - Windows Registry (HKCU\\Software\\SciNexus)
-   - Hidden LocalAppData storage (%LOCALAPPDATA%\\SciNexus\\.scinexus_token)
-   - Hidden ProgramData storage (C:\\ProgramData\\SciNexus\\.scinexus_sys)
+   - Windows Registry (HKCU\Software\SciProspect)
+   - Hidden LocalAppData storage (%LOCALAPPDATA%\SciProspect\.sciprospect_token)
+   - Hidden ProgramData storage (C:\ProgramData\SciProspect\.sciprospect_sys)
 2. Hardware Locking: Cryptographically bound to the computer's unique MachineGuid / MAC.
 3. Anti-Tamper: SHA-256 HMAC-style signature verification.
 4. Anti-Rollback: Real network UTC time verification against Google/NTP header.
@@ -32,8 +32,8 @@ TRIAL_DURATION_DAYS = 7
 TOOL_01_MAX_TOTAL_RECORDS = 10000
 TOOL_02_DAILY_VERIFIED_LIMIT = 1000
 
-SECRET_SALT = "SciNexus_2026_EnterpriseAntiAbuse_v3"
-REG_SUBKEY = r"Software\SciNexus"
+SECRET_SALT = "SciProspect_2026_EnterpriseAntiAbuse_v4"
+REG_SUBKEY = r"Software\SciProspect"
 
 BASE_DIR = Path(__file__).resolve().parent
 LOCAL_STATE_FILE = BASE_DIR / ".license_cache"
@@ -112,21 +112,21 @@ def _write_registry_token(payload: dict):
 def _get_appdata_file() -> Path:
     local_app = os.environ.get("LOCALAPPDATA")
     if local_app:
-        folder = Path(local_app) / "SciNexus"
+        folder = Path(local_app) / "SciProspect"
     else:
-        folder = Path.home() / ".scinexus"
+        folder = Path.home() / ".sciprospect"
     folder.mkdir(parents=True, exist_ok=True)
-    return folder / ".scinexus_token"
+    return folder / ".sciprospect_token"
 
 
 def _get_programdata_file() -> Path:
     prog_data = os.environ.get("PROGRAMDATA", "C:\\ProgramData")
-    folder = Path(prog_data) / "SciNexus"
+    folder = Path(prog_data) / "SciProspect"
     try:
         folder.mkdir(parents=True, exist_ok=True)
     except Exception:
         pass
-    return folder / ".scinexus_sys"
+    return folder / ".sciprospect_sys"
 
 
 # ---------------------------------------------------------------------------

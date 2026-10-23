@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 STATIC_DIR = BASE_DIR / "static"
 
-app = FastAPI(title="Researcher Tool - Academic Outreach Hub")
+app = FastAPI(title="SciProspect - Scientific Lead Prospecting & Data Suite")
 
 app.add_middleware(
     CORSMiddleware,

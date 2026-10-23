@@ -36,7 +36,7 @@ else:
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="SciNexus - Academic Lead Intelligence (7-Day Evaluation Edition)")
+app = FastAPI(title="SciProspect - Scientific Lead Prospecting (7-Day Evaluation Edition)")
 
 app.add_middleware(
     CORSMiddleware,

@@ -1,0 +1,72 @@
+================================================================================
+                    SCIPROSPECT - EVALUATION EDITION & GIT GUIDE
+================================================================================
+
+--------------------------------------------------------------------------------
+PART 1: GIT COMMANDS TO SAVE & PUSH YOUR WORK
+--------------------------------------------------------------------------------
+
+Open your terminal / PowerShell in d:\NANDU\researcher_tool and run:
+
+1. Stage all test_app files:
+   git add test_app/ static/ app.py
+
+2. Commit the changes:
+   git commit -m "Update branding to SciProspect with light executive theme and standalone desktop installer"
+
+3. Push to your repository:
+   git push origin main
+
+
+--------------------------------------------------------------------------------
+PART 2: STEP-BY-STEP TESTING & INSTALLER GUIDE
+--------------------------------------------------------------------------------
+
+Step 1: Test the App on Your Own PC First (30 Seconds)
+------------------------------------------------------
+1. Open your Windows File Explorer and navigate to:
+   d:\NANDU\researcher_tool\test_app
+2. Double-click start_app.bat
+3. A native application window will open with SciProspect.
+4. Try running a search to confirm that the SciProspect dashboard and trial countdown are working smoothly.
+
+
+Step 2: Install Inno Setup (To Build the Single .exe)
+-----------------------------------------------------
+To turn the app into the single SciProspect_Setup.exe wizard:
+1. Download Inno Setup (Free, 3 MB) from their official site:
+   https://jrsoftware.org/isdl.php
+2. Click the downloaded installer and finish the quick setup (just keep clicking Next -> Install).
+
+
+Step 3: Generate the Final SciProspect_Setup.exe
+---------------------------------------------
+1. In the d:\NANDU\researcher_tool\test_app folder, double-click:
+   build_setup.bat
+2. It will compile your Python files and bundle everything automatically.
+3. When it finishes, you will see your finished installer:
+   d:\NANDU\researcher_tool\test_app\dist_installer\SciProspect_Setup.exe
+
+
+Step 4: Send to Your Client!
+----------------------------
+- SciProspect_Setup.exe is the ONLY file you need to send to your client/tester.
+- When they double-click it, the wizard will:
+  * Ask them where they want to install it (they choose their folder).
+  * Create a "SciProspect" desktop icon.
+  * Launch the tool with the 7-day / 1,000 daily verified lead limits active.
+
+
+--------------------------------------------------------------------------------
+PART 3: ANTIVIRUS & SMARTSCREEN NOTE (FOR TESTERS)
+--------------------------------------------------------------------------------
+
+* When your client runs SciProspect_Setup.exe for the first time, Windows SmartScreen 
+  may show a blue warning: "Windows protected your PC".
+* What they should do:
+  1. Click "More info"
+  2. Click "Run anyway"
+* Tip: Send the file inside a .zip file or via a Google Drive/Dropbox link. 
+  Do not attach raw .exe files directly into an email (Gmail/Outlook blocks .exe).
+
+================================================================================

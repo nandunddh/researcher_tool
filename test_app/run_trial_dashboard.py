@@ -1,7 +1,7 @@
 """
 run_trial_dashboard.py
 ======================
-Launches SciNexus - 7-Day Evaluation Edition as a NATIVE DESKTOP WINDOW
+Launches SciProspect - 7-Day Evaluation Edition as a NATIVE DESKTOP WINDOW
 (No browser address bar, no tabs, standalone window).
 """
 
@@ -47,7 +47,7 @@ def run_server():
 
 def open_native_desktop_window():
     """
-    Opens SciNexus inside a dedicated, borderless native application window.
+    Opens SciProspect inside a dedicated, borderless native application window.
     Priority 1: pywebview (true embedded WebView2 native window).
     Priority 2: Microsoft Edge App Mode (--app, borderless standalone window).
     Priority 3: Default system browser fallback.
@@ -56,7 +56,7 @@ def open_native_desktop_window():
     try:
         import webview
         window = webview.create_window(
-            title="SciNexus - Academic Lead Intelligence (Evaluation Edition)",
+            title="SciProspect - Scientific Lead Prospecting (Evaluation Edition)",
             url=APP_URL,
             width=1340,
             height=860,
@@ -81,7 +81,7 @@ def open_native_desktop_window():
                 edge_exe,
                 f"--app={APP_URL}",
                 "--window-size=1340,860",
-                "--app-title=SciNexus"
+                "--app-title=SciProspect"
             ])
             proc.wait()
             sys.exit(0)
@@ -105,7 +105,7 @@ if __name__ == "__main__":
             ctypes.windll.user32.MessageBoxW(
                 0,
                 f"Your 7-day evaluation trial has ended.\n\nReason: {status.get('reason')}\n\nPlease contact support to upgrade.",
-                "SciNexus Trial Expired",
+                "SciProspect Trial Expired",
                 0x10  # MB_ICONERROR
             )
         except Exception:

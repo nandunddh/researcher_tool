@@ -1,10 +1,10 @@
 @echo off
 setlocal enabledelayedexpansion
-title Build SciNexus Setup.exe
+title Build SciProspect Setup.exe
 color 0B
 
 echo =====================================================================
-echo    BUILDING SCINEXUS - WINDOWS SETUP WIZARD
+echo    BUILDING SCIPROSPECT - WINDOWS SETUP WIZARD
 echo =====================================================================
 echo.
 
@@ -31,12 +31,14 @@ if %ERRORLEVEL% NEQ 0 (
     %PY_CMD% -m pip install pyinstaller
 )
 
-:: 3. Compile Python code into binary folder (dist/SciNexus)
+:: 3. Compile Python code into binary folder (dist/SciProspect)
 echo.
-echo [Step 2/3] Compiling SciNexus into standalone Windows executable...
+echo [Step 2/3] Compiling SciProspect into standalone Windows executable...
 %PY_CMD% -m PyInstaller --noconfirm --onedir --windowed ^
-  --name "SciNexus" ^
+  --name "SciProspect" ^
+  --icon "..\static\favicon.ico" ^
   --add-data "..\static;static" ^
+  --add-data "..\assets;assets" ^
   --add-data "01_extract_researchers_test.py;." ^
   --add-data "02_collect_scholarly_emails_test.py;." ^
   --add-data "04_extract_nih_researchers_test.py;." ^
@@ -47,8 +49,6 @@ echo [Step 2/3] Compiling SciNexus into standalone Windows executable...
   --hidden-import "fastapi" ^
   --collect-all "webview" ^
   run_trial_dashboard.py
-
-
 
 if %ERRORLEVEL% NEQ 0 (
     color 0C
@@ -69,7 +69,6 @@ if not defined ISCC_PATH (
     for /f "tokens=*" %%i in ('where iscc.exe 2^>nul') do set "ISCC_PATH=%%i"
 )
 
-
 if "%ISCC_PATH%"=="" (
     color 0E
     echo.
@@ -77,9 +76,9 @@ if "%ISCC_PATH%"=="" (
     echo [NOTICE] Inno Setup compiler ISCC.exe was not found.
     echo.
     echo Your standalone application was built successfully in:
-    echo   dist\SciNexus\
+    echo   dist\SciProspect\
     echo.
-    echo To turn it into a single SciNexus_Setup.exe wizard:
+    echo To turn it into a single SciProspect_Setup.exe wizard:
     echo 1. Download Inno Setup from: https://jrsoftware.org/isdl.php
     echo 2. Run this build_setup.bat again!
     echo =====================================================================
@@ -97,10 +96,10 @@ if %ERRORLEVEL% EQU 0 (
     echo =====================================================================
     echo SUCCESS! Your client installer has been built:
     echo.
-    echo    📁 dist_installer\SciNexus_Setup.exe
+    echo    📁 dist_installer\SciProspect_Setup.exe
     echo.
     echo This is the ONLY file you need to send to your client/tester!
-    echo They will double-click it, choose their folder, and get a SciNexus desktop icon.
+    echo They will double-click it, choose their folder, and get a SciProspect desktop icon.
     echo =====================================================================
     echo.
 ) else (

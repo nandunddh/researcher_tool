@@ -1,7 +1,7 @@
 ; =====================================================================
-; Inno Setup Script: SciNexus (Evaluation Edition)
+; Inno Setup Script: SciProspect (Evaluation Edition)
 ; =====================================================================
-; Generates a single SciNexus_Setup.exe that:
+; Generates a single SciProspect_Setup.exe that:
 ; 1. Asks user to choose their destination folder.
 ; 2. Installs all required files and assets.
 ; 3. Creates a Desktop Shortcut icon.
@@ -9,20 +9,21 @@
 ; =====================================================================
 
 [Setup]
-AppName=SciNexus
+AppName=SciProspect
 AppVersion=1.0 Evaluation (7-Day Trial)
-AppPublisher=SciNexus Intelligence Team
-DefaultDirName={autopf}\SciNexus
+AppPublisher=SciProspect Data Intelligence
+DefaultDirName={autopf}\SciProspect
 ; DisableDirPage=no ensures the user is ALWAYS prompted to select their folder:
 DisableDirPage=no
-DefaultGroupName=SciNexus
+DefaultGroupName=SciProspect
 OutputDir=dist_installer
-OutputBaseFilename=SciNexus_Setup
+OutputBaseFilename=SciProspect_Setup
 Compression=lzma2/max
 SolidCompression=yes
 ; PrivilegesRequired=lowest allows normal non-admin user installation:
 PrivilegesRequired=lowest
-UninstallDisplayIcon={app}\SciNexus.exe
+UninstallDisplayIcon={app}\SciProspect.exe
+SetupIconFile=..\static\favicon.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -32,15 +33,15 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Packages the entire compiled dist directory into the setup:
-Source: "dist\SciNexus\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist\SciProspect\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 ; Creates Desktop icon:
-Name: "{autodesktop}\SciNexus"; Filename: "{app}\SciNexus.exe"; Tasks: desktopicon
+Name: "{autodesktop}\SciProspect"; Filename: "{app}\SciProspect.exe"; Tasks: desktopicon
 ; Creates Start Menu icons:
-Name: "{group}\SciNexus"; Filename: "{app}\SciNexus.exe"
-Name: "{group}\Uninstall SciNexus"; Filename: "{uninstallexe}"
+Name: "{group}\SciProspect"; Filename: "{app}\SciProspect.exe"
+Name: "{group}\Uninstall SciProspect"; Filename: "{uninstallexe}"
 
 [Run]
 ; Auto-launch after finish:
-Filename: "{app}\SciNexus.exe"; Description: "Launch SciNexus now"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\SciProspect.exe"; Description: "Launch SciProspect now"; Flags: nowait postinstall skipifsilent
