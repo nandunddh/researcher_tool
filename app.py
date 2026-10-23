@@ -31,6 +31,52 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def ensure_initial_topic_queue():
+    """Initializes Physical_Chemistry_needto_extract.csv from existing extraction if not yet created."""
+    pc_queue = DATA_DIR / "Physical_Chemistry_needto_extract.csv"
+    if not pc_queue.exists():
+        pc_raw = DATA_DIR / "2026-10-22" / "openalex_researchers_2026-10-22_16-02-49.csv"
+        central_file = DATA_DIR / "central_master_leads.csv"
+        if pc_raw.exists():
+            try:
+                central_leads = {}
+                if central_file.exists():
+                    with open(central_file, "r", encoding="utf-8", errors="replace") as cf:
+                        for row in csv.DictReader(cf):
+                            aid = (row.get("openalex_author_id") or "").strip()
+                            em = (row.get("professional_email") or row.get("email") or "").strip().lower()
+                            if aid:
+                                central_leads[aid] = row
+                            elif em:
+                                central_leads[em] = row
+                
+                with open(pc_raw, "r", encoding="utf-8", errors="replace") as rf, open(pc_queue, "w", encoding="utf-8-sig", newline="") as qf:
+                    reader = csv.DictReader(rf)
+                    fieldnames = list(reader.fieldnames or [])
+                    for extra in ["professional_email", "email_source_url", "review_status", "email_status"]:
+                        if extra not in fieldnames:
+                            fieldnames.append(extra)
+                    writer = csv.DictWriter(qf, fieldnames=fieldnames)
+                    writer.writeheader()
+                    for r in reader:
+                        aid = (r.get("openalex_author_id") or "").strip()
+                        em = (r.get("professional_email") or "").strip().lower()
+                        match_row = central_leads.get(aid) or (central_leads.get(em) if em else None)
+                        if match_row:
+                            r["professional_email"] = match_row.get("professional_email") or match_row.get("email") or em
+                            r["email_source_url"] = match_row.get("email_source_url") or ""
+                            r["review_status"] = "found"
+                            r["email_status"] = "Verified Name Match"
+                        else:
+                            if not r.get("review_status"):
+                                r["review_status"] = "needs_review"
+                        writer.writerow(r)
+            except Exception as e:
+                print(f"[Init] Could not auto-initialize pc_queue: {e}")
+
+ensure_initial_topic_queue()
+
+
 # -----------------------------------------------------------------------------
 # Global Process State for Pipeline Execution & SSE Streaming
 # -----------------------------------------------------------------------------
@@ -138,13 +184,21 @@ async def get_dashboard_stats():
     today_str = datetime.now().strftime("%Y-%m-%d")
     today_dir = DATA_DIR / today_str
     if today_dir.exists():
-        daily_files = list(today_dir.glob("daily_verified_leads_*.csv")) + list(today_dir.glob("*verified*.csv"))
+        daily_files = (
+            list(today_dir.glob("*found*.csv"))
+            + list(today_dir.glob("daily_verified_leads_*.csv"))
+            + list(today_dir.glob("*verified*.csv"))
+        )
+        seen_daily_emails = set()
         for df in daily_files:
             try:
                 with open(df, "r", encoding="utf-8", errors="replace") as f:
-                    reader = csv.reader(f)
-                    next(reader, None)
-                    stats["today_verified_leads"] += sum(1 for _ in reader)
+                    reader = csv.DictReader(f)
+                    for r in reader:
+                        em = (r.get("professional_email") or r.get("email") or "").strip().lower()
+                        if em and em not in seen_daily_emails:
+                            seen_daily_emails.add(em)
+                            stats["today_verified_leads"] += 1
             except Exception:
                 pass
 
@@ -159,8 +213,9 @@ async def get_dashboard_stats():
             except Exception:
                 pass
 
-    # 3. Master pool file
-    pool_file = DATA_DIR / "researchers_master_pool.csv"
+    # 3. Topic queue or master pool file
+    queue_files = list(DATA_DIR.glob("*_needto_extract.csv"))
+    pool_file = queue_files[0] if queue_files else (DATA_DIR / "researchers_master_pool.csv")
     if pool_file.exists():
         try:
             with open(pool_file, "r", encoding="utf-8", errors="replace") as f:
@@ -169,7 +224,7 @@ async def get_dashboard_stats():
                 stats["master_pool_total"] = len(rows)
                 stats["master_pool_unprocessed"] = sum(
                     1 for r in rows
-                    if r.get("email_status") not in {"Verified Name Match", "No email found in available sources", "Skipped (Duplicate from Central Archive)"}
+                    if r.get("review_status") != "found" and r.get("email_status") != "Verified Name Match"
                 )
         except Exception:
             pass
@@ -179,10 +234,12 @@ async def get_dashboard_stats():
 
 @app.get("/api/datasets")
 async def list_datasets():
-    """Lists all available CSV files in the data directory."""
+    """Lists all available CSV files in the data directory with live candidate counts."""
+    ensure_initial_topic_queue()
     files = []
     all_csvs = sorted(DATA_DIR.rglob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
-    
+
+
     # Also check root level CSVs if any
     for root_csv in BASE_DIR.glob("*.csv"):
         all_csvs.append(root_csv)
@@ -191,16 +248,40 @@ async def list_datasets():
         try:
             stat = p.stat()
             rel_path = str(p.relative_to(BASE_DIR)).replace("\\", "/")
+
+            # Calculate live candidate counts for queues and extractions
+            total_rows = 0
+            found_count = 0
+            is_queue = ("_needto_extract" in p.name) or ("master_pool" in p.name) or p.name.startswith("openalex_") or ("Physical_Chemistry" in p.name and "_found_" not in p.name)
+            clean_topic = p.name.replace("_needto_extract.csv", "").replace("_master_pool.csv", "").replace(".csv", "").replace("_", " ")
+
+            if is_queue and stat.st_size < 50 * 1024 * 1024:
+                try:
+                    with open(p, "r", encoding="utf-8", errors="replace") as qf:
+                        reader = csv.DictReader(qf)
+                        for r in reader:
+                            total_rows += 1
+                            if r.get("review_status") == "found" or r.get("email_status") == "Verified Name Match":
+                                found_count += 1
+                except Exception:
+                    pass
+
             files.append({
                 "path": rel_path,
                 "name": p.name,
+                "topic": clean_topic,
                 "size_kb": round(stat.st_size / 1024, 1),
                 "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
+                "total": total_rows,
+                "found": found_count,
+                "needto_extract": max(0, total_rows - found_count) if is_queue else 0,
+                "is_queue": is_queue,
             })
         except Exception:
             continue
 
     return {"datasets": files}
+
 
 
 @app.get("/api/leads")
@@ -315,24 +396,32 @@ async def trigger_pipeline(request: Request):
 
     body = await request.json()
     action = body.get("action", "openalex")
-    keyword = body.get("keyword", "cell biology").strip()
+    keyword = body.get("keyword", "Physical Chemistry").strip()
     pages = str(body.get("pages", 25)).strip()
+    from_date = body.get("from_date", "2026-01-01").strip()
+    to_date = body.get("to_date", "2026-01-31").strip()
     target_leads = str(body.get("target_leads", 500)).strip()
     input_file = body.get("input_file", "").strip()
 
     py_exe = sys.executable
 
     if action == "openalex":
-        cmd = [py_exe, "-u", "01_extract_researchers.py", keyword, pages]
+        cmd = [py_exe, "-u", "01_extract_researchers.py", keyword, pages, from_date, to_date]
         script_name = "01_extract_researchers.py"
-        stage_name = f"OpenAlex Discovery ({keyword})"
+        stage_name = f"OpenAlex Discovery ({keyword} | {from_date} to {to_date})"
+
 
     elif action == "scholarly":
         cmd = [py_exe, "-u", "02_collect_scholarly_emails.py"]
         if input_file:
             cmd.append(input_file)
+        else:
+            cmd.append("")
+        cmd.append(target_leads)
         script_name = "02_collect_scholarly_emails.py"
-        stage_name = "Scholarly Email Enrichment (Europe PMC + ORCID)"
+        file_desc = Path(input_file).name if input_file else "Active Master Pool"
+        stage_name = f"Scholarly Email Enrichment ({file_desc} | Target: {target_leads})"
+
 
     elif action == "nih":
         cmd = [py_exe, "-u", "04_extract_nih_researchers.py", keyword, target_leads]

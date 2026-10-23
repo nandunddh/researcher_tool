@@ -1,3 +1,4 @@
+import calendar
 import csv
 import os
 import re
@@ -12,13 +13,41 @@ SEARCH_TERMS = [
     "Physical Chemistry",
 ]
 
-# # Focus on recent work.
-# START_YEAR = 2026
-# END_YEAR = 2026
-
-# Date filter (YYYY-MM-DD) - January 2026
+# Date filter: Can be YYYY-MM-DD to YYYY-MM-DD, a month (YYYY-MM), or a year (YYYY)
 FROM_DATE = "2026-01-01"
 TO_DATE = "2026-01-31"
+
+
+def build_date_filter(from_d, to_d=""):
+    """
+    Constructs an OpenAlex filter string supporting:
+    - Specific Year (e.g. 2026 -> publication_year:2026)
+    - Specific Month (e.g. 2026-01 -> 2026-01-01 to 2026-01-31)
+    - Custom Date Range (e.g. 2026-01-01 to 2026-03-31)
+    """
+    from_str = str(from_d).strip() if from_d else ""
+    to_str = str(to_d).strip() if to_d else ""
+
+    # 1. Whole Year check (e.g. "2026")
+    if re.fullmatch(r"\d{4}", from_str):
+        y1 = int(from_str)
+        if not to_str or to_str == from_str:
+            return f"publication_year:{y1}"
+        if re.fullmatch(r"\d{4}", to_str):
+            y2 = int(to_str)
+            return f"from_publication_date:{min(y1, y2)}-01-01,to_publication_date:{max(y1, y2)}-12-31"
+
+    # 2. Month check (e.g. "2026-01")
+    if re.fullmatch(r"\d{4}-\d{2}", from_str):
+        y, m = map(int, from_str.split("-"))
+        _, last_day = calendar.monthrange(y, m)
+        return f"from_publication_date:{y:04d}-{m:02d}-01,to_publication_date:{y:04d}-{m:02d}-{last_day:02d}"
+
+    # 3. Standard YYYY-MM-DD range
+    if not to_str:
+        to_str = from_str
+    return f"from_publication_date:{from_str},to_publication_date:{to_str}"
+
 
 
 # Scale settings:
@@ -113,8 +142,10 @@ def fetch_email_from_europepmc(session, doi, author_name):
 
 
 def get_works(session, term):
-    date_filter = f"from_publication_date:{FROM_DATE},to_publication_date:{TO_DATE}"
+    date_filter = build_date_filter(FROM_DATE, TO_DATE)
     clean_term = term.replace("_", " ")
+    print(f"  [OpenAlex] Using date filter: {date_filter}", flush=True)
+
 
     for page in range(1, MAX_PAGES_PER_TERM + 1):
         print(f"  [OpenAlex] Fetching page {page}/{MAX_PAGES_PER_TERM} for '{clean_term}'...", flush=True)
@@ -322,12 +353,19 @@ def main():
         "review_status",
     ]
 
-    with OUTPUT_FILE.open(
-        "w", newline="", encoding="utf-8-sig"
-    ) as file:
-        writer = csv.DictWriter(
-            file, fieldnames=columns
-        )
+    topic_raw = SEARCH_TERMS[0] if SEARCH_TERMS else "researchers"
+    topic_slug = re.sub(r"[^A-Za-z0-9]+", "_", topic_raw).strip("_") or "researchers"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+
+    # 1. Output file for this specific extraction: data/YYYY-MM-DD/{Topic}_{YYYY-MM-DD}.csv
+    output_file = TODAY_DIR / f"{topic_slug}_{today_str}.csv"
+
+    # 2. Topic queue: data/{Topic}_needto_extract.csv
+    needto_file = DATA_DIR / f"{topic_slug}_needto_extract.csv"
+
+    written_rows = []
+    with output_file.open("w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=columns)
         writer.writeheader()
 
         for author_id, record in sorted_records:
@@ -360,29 +398,52 @@ def main():
                 p["doi"] for p in papers[:5] if p.get("doi")
             )
 
-            writer.writerow({
+            row_data = {
                 "researcher_name": record["name"],
                 "openalex_author_id": author_id,
-                "orcid": "; ".join(
-                    sorted(record["orcid"])
-                ),
-                "affiliations_seen_on_matching_papers":
-                    "; ".join(sorted(record["institutions"])),
-                "matched_search_terms": "; ".join(
-                    sorted(record["search_terms"])
-                ),
+                "orcid": "; ".join(sorted(record["orcid"])),
+                "affiliations_seen_on_matching_papers": "; ".join(sorted(record["institutions"])),
+                "matched_search_terms": "; ".join(sorted(record["search_terms"])),
                 "matching_paper_count": len(papers),
-                "latest_matching_paper_year":
-                    latest_year or "",
+                "latest_matching_paper_year": latest_year or "",
                 "example_papers": examples,
                 "example_paper_dois": dois,
                 "professional_email": primary_email,
                 "email_source_url": email_source,
                 "review_status": status,
-            })
+            }
+            writer.writerow(row_data)
+            written_rows.append(row_data)
 
     print(f"\nUnique researcher candidates: {len(researchers)}")
-    print(f"Output saved to: {OUTPUT_FILE}")
+    print(f"📁 Daily extraction saved to: {output_file}")
+
+    # Synchronize with topic queue: data/{Topic}_needto_extract.csv
+    existing_ids = set()
+    if needto_file.exists():
+        try:
+            with needto_file.open("r", encoding="utf-8-sig") as nf:
+                for r in csv.DictReader(nf):
+                    aid = r.get("openalex_author_id")
+                    if aid:
+                        existing_ids.add(aid)
+        except Exception:
+            pass
+
+    needto_exists = needto_file.exists()
+    added_to_needto = 0
+    with needto_file.open("a" if needto_exists else "w", newline="", encoding="utf-8-sig") as nf:
+        writer_need = csv.DictWriter(nf, fieldnames=columns)
+        if not needto_exists:
+            writer_need.writeheader()
+
+        for r in written_rows:
+            if r["openalex_author_id"] not in existing_ids:
+                writer_need.writerow(r)
+                existing_ids.add(r["openalex_author_id"])
+                added_to_needto += 1
+
+    print(f"📁 Topic queue updated: {needto_file.name} (Added {added_to_needto:,} fresh candidates, Total: {len(existing_ids):,})")
 
 
 if __name__ == "__main__":
@@ -390,4 +451,10 @@ if __name__ == "__main__":
         SEARCH_TERMS = [sys.argv[1].strip()]
     if len(sys.argv) > 2 and sys.argv[2].isdigit():
         MAX_PAGES_PER_TERM = int(sys.argv[2])
+    if len(sys.argv) > 3 and sys.argv[3].strip():
+        FROM_DATE = sys.argv[3].strip()
+    if len(sys.argv) > 4 and sys.argv[4].strip():
+        TO_DATE = sys.argv[4].strip()
     main()
+
+

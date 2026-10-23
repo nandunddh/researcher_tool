@@ -135,11 +135,49 @@
             <div class="form-row">
               <div class="form-group flex-2">
                 <label for="openalex-keyword">Conference Keyword</label>
-                <input type="text" id="openalex-keyword" value="cell biology" placeholder="e.g. cell biology, immunology">
+                <input type="text" id="openalex-keyword" value="Physical Chemistry" placeholder="e.g. Physical Chemistry, Nanotechnology">
               </div>
               <div class="form-group flex-1">
                 <label for="openalex-pages">Max Pages (200/p)</label>
                 <input type="number" id="openalex-pages" value="25" min="1" max="50">
+              </div>
+            </div>
+
+            <!-- Date Filter Selector: Month / Year / Custom -->
+            <div class="form-row">
+              <div class="form-group flex-1">
+                <label for="openalex-date-mode">Date Filter Type</label>
+                <select id="openalex-date-mode" class="select-date-mode">
+                  <option value="month" selected>Specific Month</option>
+                  <option value="year">Full Year</option>
+                  <option value="custom">Custom Date Range</option>
+                </select>
+              </div>
+
+              <!-- Month Panel (Default) -->
+              <div class="form-group flex-1 date-mode-panel" id="panel-date-month">
+                <label for="openalex-month-select">Select Month</label>
+                <input type="month" id="openalex-month-select" value="2026-01">
+              </div>
+
+              <!-- Full Year Panel -->
+              <div class="form-group flex-1 date-mode-panel" id="panel-date-year" style="display: none;">
+                <label for="openalex-year-select">Select Year</label>
+                <select id="openalex-year-select">
+                  <option value="2026" selected>2026</option>
+                  <option value="2025">2025</option>
+                  <option value="2024">2024</option>
+                  <option value="2023">2023</option>
+                </select>
+              </div>
+
+              <!-- Custom Range Panel -->
+              <div class="form-group flex-2 date-mode-panel" id="panel-date-custom" style="display: none;">
+                <label>From - To Dates</label>
+                <div style="display: flex; gap: 8px;">
+                  <input type="date" id="openalex-custom-from" value="2026-01-01" style="flex: 1;">
+                  <input type="date" id="openalex-custom-to" value="2026-01-31" style="flex: 1;">
+                </div>
               </div>
             </div>
 
@@ -170,10 +208,13 @@
                 <input type="number" id="scholarly-target" value="3000" min="50" max="10000" step="100">
               </div>
               <div class="form-group flex-2">
-                <label for="scholarly-file">Source File (Optional)</label>
-                <input type="text" id="scholarly-file" placeholder="Auto-detects latest extraction" readonly>
+                <label for="scholarly-file-select">Source Candidate File</label>
+                <select id="scholarly-file-select">
+                  <option value="" selected>Active Master Pool (data/researchers_master_pool.csv)</option>
+                </select>
               </div>
             </div>
+
 
             <div class="tool-card-actions">
               <button class="btn btn-accent" id="btn-run-scholarly">

@@ -19,17 +19,15 @@ FOLDER = Path(__file__).parent / "data"
 FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Master pool tracks all researchers and their status across days:
-MASTER_POOL_FILE = FOLDER / "researchers_master_pool.csv"
+MASTER_POOL_FILE = FOLDER / "Physical_Chemistry_needto_extract.csv"
 
 # Central deduplicated master archive of all verified leads ever collected:
 CENTRAL_MASTER_FILE = FOLDER / "central_master_leads.csv"
 
-# Automatically create today's date folder (e.g. data/2026-10-22/):
+# Automatically create today's date folder (e.g. data/2026-10-23/):
 TODAY_STR = datetime.now().strftime("%Y-%m-%d")
 TODAY_DIR = FOLDER / TODAY_STR
 TODAY_DIR.mkdir(parents=True, exist_ok=True)
-
-DAILY_EXPORT_FILE = TODAY_DIR / f"daily_verified_leads_{TODAY_STR}.csv"
 
 TARGET_DAILY_EMAILS = 3000  # Stop as soon as 3,000 name-matched emails are collected
 MAX_WORKERS = 30
@@ -402,36 +400,49 @@ def process_researcher(row):
 # --------------------------------------------------
 
 def get_or_create_master_pool():
-    """Ensures researchers_master_pool.csv exists and is synced with the latest extraction."""
-    # 1. Check if user passed a specific extraction file via CLI
-    if len(sys.argv) > 1 and Path(sys.argv[1]).exists():
-        source = Path(sys.argv[1])
-        print(f"Using specified extraction file: {source}")
-        with source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
-            dst.write(src.read())
-        print(f"Master pool initialized from: {source.name}")
-        return MASTER_POOL_FILE
+    """Ensures a valid candidate waiting list (*_needto_extract.csv or pool) is active."""
+    # 1. User specified a file via CLI (e.g. data/Physical_Chemistry_needto_extract.csv)
+    if len(sys.argv) > 1 and sys.argv[1].strip():
+        raw_arg = sys.argv[1].strip()
+        arg_path = Path(raw_arg)
+        if not arg_path.is_absolute():
+            base_dir = Path(__file__).resolve().parent
+            if (base_dir / arg_path).exists():
+                arg_path = base_dir / arg_path
+            elif (FOLDER / arg_path).exists():
+                arg_path = FOLDER / arg_path
 
-    # 2. Find the newest raw extraction from 01 across all subfolders (e.g. data/2026-10-22/...)
-    extractions = sorted(FOLDER.rglob("openalex_researchers_*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
-    if not extractions:
-        if MASTER_POOL_FILE.exists():
-            return MASTER_POOL_FILE
-        raise SystemExit(f"No researcher files found in {FOLDER}. Please run 01_extract_researchers.py first!")
+        if arg_path.exists():
+            print(f"Using specified candidate file: {arg_path.name}")
+            return arg_path
 
-    latest_source = extractions[0]
+    # 2. Look for any active *_needto_extract.csv files in data/
+    needto_files = sorted(FOLDER.glob("*_needto_extract.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    if needto_files:
+        print(f"Resuming active queue: {needto_files[0].name}")
+        return needto_files[0]
 
+    # 3. If master pool already exists, resume it
     if MASTER_POOL_FILE.exists():
         print(f"Resuming existing master pool: {MASTER_POOL_FILE.name}")
         return MASTER_POOL_FILE
 
-    # If master pool does not exist, initialize from latest extraction
-    latest_source = extractions[0]
-    print(f"Loading latest extraction into master pool: {latest_source.name}...")
-    with latest_source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
-        dst.write(src.read())
-    print(f"Master pool initialized from: {latest_source.name}")
-    return MASTER_POOL_FILE
+    # 4. Otherwise find the newest raw extraction from 01 across all subfolders
+    extractions = sorted(FOLDER.rglob("*.csv"), key=lambda p: p.stat().st_mtime, reverse=True)
+    candidate_extractions = [
+        e for e in extractions 
+        if e.name.startswith("openalex_") or "Physical_Chemistry" in e.name
+    ]
+    if candidate_extractions:
+        latest_source = candidate_extractions[0]
+        print(f"Loading latest extraction into master pool: {latest_source.name}...")
+        with latest_source.open("r", encoding="utf-8-sig", newline="") as src, MASTER_POOL_FILE.open("w", encoding="utf-8-sig", newline="") as dst:
+            dst.write(src.read())
+        print(f"Master pool initialized from: {latest_source.name}")
+        return MASTER_POOL_FILE
+
+    raise SystemExit(f"No candidate files found in {FOLDER}. Please run 01_extract_researchers.py first!")
+
 
 
 # --------------------------------------------------
@@ -439,7 +450,12 @@ def get_or_create_master_pool():
 # --------------------------------------------------
 
 def main():
+    global TARGET_DAILY_EMAILS
+    if len(sys.argv) > 2 and sys.argv[2].strip().isdigit():
+        TARGET_DAILY_EMAILS = int(sys.argv[2].strip())
+
     pool_file = get_or_create_master_pool()
+
 
     with pool_file.open("r", encoding="utf-8-sig", newline="") as f:
         reader = csv.DictReader(f)
@@ -500,15 +516,30 @@ def main():
         print("Run 01_extract_researchers.py to add fresh candidates for the next days.")
         return
 
+    # Determine topic slug and output file: {Topic}_found_{Date}.csv
+    topic_slug = "Physical_Chemistry"
+    base_name = pool_file.name
+    if "_needto_extract" in base_name:
+        topic_slug = base_name.replace("_needto_extract.csv", "").replace("_needto_extract", "")
+    elif base_name.endswith(".csv"):
+        topic_slug = base_name.replace(".csv", "")
+
+    if rows and rows[0].get("matched_search_terms"):
+        first_term = rows[0]["matched_search_terms"].split(";")[0].strip()
+        if first_term:
+            topic_slug = re.sub(r"[^A-Za-z0-9]+", "_", first_term).strip("_")
+
+    topic_found_file = TODAY_DIR / f"{topic_slug}_found_{TODAY_STR}.csv"
+
     def save_master_pool(data_rows):
-        temp_file = MASTER_POOL_FILE.with_suffix(".tmp")
+        temp_file = pool_file.with_suffix(".tmp")
         for attempt in range(5):
             try:
                 with temp_file.open("w", encoding="utf-8-sig", newline="") as f:
                     writer = csv.DictWriter(f, fieldnames=fieldnames)
                     writer.writeheader()
                     writer.writerows(data_rows)
-                os.replace(temp_file, MASTER_POOL_FILE)
+                os.replace(temp_file, pool_file)
                 break
             except Exception:
                 time.sleep(0.3)
@@ -523,8 +554,8 @@ def main():
         with lock:
             save_master_pool(rows)
             if today_verified_rows:
-                # 1. Export TODAY'S clean leads
-                with DAILY_EXPORT_FILE.open("w", encoding="utf-8-sig", newline="") as f:
+                # 1. Export TODAY'S clean leads to {Topic}_found_{Date}.csv
+                with topic_found_file.open("w", encoding="utf-8-sig", newline="") as f:
                     writer = csv.DictWriter(f, fieldnames=central_fieldnames)
                     writer.writeheader()
                     writer.writerows(today_verified_rows)
@@ -536,6 +567,7 @@ def main():
                     if not archive_exists:
                         writer.writeheader()
                     writer.writerows(today_verified_rows)
+
 
     try:
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
@@ -620,13 +652,13 @@ def main():
     print("SESSION SUMMARY - ZERO MANUAL WORK READY")
     print("=" * 60)
     print(f"New Leads Collected Today      : {len(today_verified_rows):,}")
-    print(f"Exported Today's Leads To      : {DAILY_EXPORT_FILE.name}")
+    print(f"Exported Today's Leads To      : {topic_found_file.name}")
     print(f"Central Archive Total Leads    : {len(known_emails):,} (Deduplicated)")
-    print(f"Master Pool Remaining For Next : {remaining_unprocessed:,} fresh candidates")
+    print(f"Queue Remaining For Next Run   : {remaining_unprocessed:,} fresh candidates")
     print("=" * 60)
-    print(f"📁 Today's ready file    : {DAILY_EXPORT_FILE}")
+    print(f"📁 Today's ready file    : {topic_found_file}")
     print(f"📁 Central archive file  : {CENTRAL_MASTER_FILE}")
-    print(f"📁 Master pool file      : {MASTER_POOL_FILE}\n")
+    print(f"📁 Queue file            : {pool_file}\n")
 
 
 if __name__ == "__main__":

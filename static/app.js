@@ -41,10 +41,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnRunOpenalex = document.getElementById("btn-run-openalex");
   const inputOpenalexKeyword = document.getElementById("openalex-keyword");
   const inputOpenalexPages = document.getElementById("openalex-pages");
+  const selectDateMode = document.getElementById("openalex-date-mode");
+  const panelDateMonth = document.getElementById("panel-date-month");
+  const panelDateYear = document.getElementById("panel-date-year");
+  const panelDateCustom = document.getElementById("panel-date-custom");
+  const inputMonthSelect = document.getElementById("openalex-month-select");
+  const inputYearSelect = document.getElementById("openalex-year-select");
+  const inputCustomFrom = document.getElementById("openalex-custom-from");
+  const inputCustomTo = document.getElementById("openalex-custom-to");
 
   const btnRunScholarly = document.getElementById("btn-run-scholarly");
   const inputScholarlyTarget = document.getElementById("scholarly-target");
-  const inputScholarlyFile = document.getElementById("scholarly-file");
+  const selectScholarlyFile = document.getElementById("scholarly-file-select");
 
   const btnRunNih = document.getElementById("btn-run-nih");
   const inputNihKeyword = document.getElementById("nih-keyword");
@@ -277,16 +285,53 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  // Date mode switcher (Month / Year / Custom Range)
+  if (selectDateMode) {
+    selectDateMode.addEventListener("change", () => {
+      const mode = selectDateMode.value;
+      if (panelDateMonth) panelDateMonth.style.display = mode === "month" ? "flex" : "none";
+      if (panelDateYear) panelDateYear.style.display = mode === "year" ? "flex" : "none";
+      if (panelDateCustom) panelDateCustom.style.display = mode === "custom" ? "flex" : "none";
+    });
+  }
+
   // Bind Buttons
   btnRunOpenalex.addEventListener("click", () => {
-    const keyword = inputOpenalexKeyword.value.trim() || "cell biology";
+    const keyword = inputOpenalexKeyword.value.trim() || "Physical Chemistry";
     const pages = parseInt(inputOpenalexPages.value) || 25;
-    triggerRun("openalex", { keyword, pages });
+    
+    // Calculate From and To dates based on selected mode
+    let fromDate = "2026-01-01";
+    let toDate = "2026-01-31";
+    const mode = selectDateMode ? selectDateMode.value : "month";
+
+    if (mode === "month" && inputMonthSelect) {
+      const ym = inputMonthSelect.value || "2026-01";
+      fromDate = `${ym}-01`;
+      const [y, m] = ym.split("-").map(Number);
+      const lastDay = new Date(y, m, 0).getDate();
+      toDate = `${ym}-${String(lastDay).padStart(2, "0")}`;
+    } else if (mode === "year" && inputYearSelect) {
+      const yr = inputYearSelect.value || "2026";
+      fromDate = `${yr}-01-01`;
+      toDate = `${yr}-12-31`;
+    } else if (mode === "custom" && inputCustomFrom && inputCustomTo) {
+      fromDate = inputCustomFrom.value || "2026-01-01";
+      toDate = inputCustomTo.value || "2026-01-31";
+    }
+
+    triggerRun("openalex", { 
+      keyword, 
+      pages,
+      from_date: fromDate,
+      to_date: toDate
+    });
   });
 
   btnRunScholarly.addEventListener("click", () => {
     const target = parseInt(inputScholarlyTarget.value) || 3000;
-    triggerRun("scholarly", { target_leads: target });
+    const selectedFile = selectScholarlyFile ? selectScholarlyFile.value.trim() : "";
+    triggerRun("scholarly", { target_leads: target, input_file: selectedFile });
   });
 
   btnRunNih.addEventListener("click", () => {
@@ -357,10 +402,66 @@ document.addEventListener("DOMContentLoaded", () => {
         datasetSelect.value = preferred.path;
       }
       activeDataset = datasetSelect.value;
+
+      // Populate Tool 02 Candidate Source File dropdown with rich counts
+      if (selectScholarlyFile) {
+        selectScholarlyFile.innerHTML = "";
+
+        // 1. Topic Queues (*_needto_extract.csv and master pools)
+        const queueFiles = datasets.filter(
+          (d) => d.name.includes("_needto_extract") || d.name.includes("master_pool")
+        );
+
+        if (queueFiles.length > 0) {
+          queueFiles.forEach((q) => {
+            const opt = document.createElement("option");
+            opt.value = q.path;
+            const topic = q.topic || q.name.replace("_needto_extract.csv", "").replace("_", " ");
+            if (q.total > 0) {
+              opt.textContent = `⭐ ${topic} — ${q.total.toLocaleString()} total (${q.found.toLocaleString()} found | ${q.needto_extract.toLocaleString()} need to extract)`;
+            } else {
+              opt.textContent = `⭐ ${topic} (${q.name})`;
+            }
+            selectScholarlyFile.appendChild(opt);
+          });
+        } else {
+          const defOpt = document.createElement("option");
+          defOpt.value = "";
+          defOpt.textContent = "⭐ Active Queue (Auto-detects latest needto_extract file)";
+          selectScholarlyFile.appendChild(defOpt);
+        }
+
+        // 2. Individual Dated Candidate Extractions (data/YYYY-MM-DD/{Topic}_{Date}.csv)
+        const extractions = datasets.filter(
+          (d) => !queueFiles.includes(d) && 
+                 !d.name.includes("_found_") && 
+                 !d.name.includes("daily_verified") && 
+                 !d.name.includes("central_master") &&
+                 !d.name.includes("today_completed")
+        );
+
+        if (extractions.length > 0) {
+          const optGroup = document.createElement("optgroup");
+          optGroup.label = "Individual Dated Extractions";
+          extractions.forEach((e) => {
+            const opt = document.createElement("option");
+            opt.value = e.path;
+            if (e.total > 0) {
+              opt.textContent = `📁 ${e.name} — ${e.total.toLocaleString()} candidates`;
+            } else {
+              opt.textContent = `📁 ${e.name} (${e.size_kb} KB)`;
+            }
+            optGroup.appendChild(opt);
+          });
+          selectScholarlyFile.appendChild(optGroup);
+        }
+      }
+
     } catch (e) {
       console.warn("Failed to load datasets list", e);
     }
   }
+
 
   datasetSelect.addEventListener("change", () => {
     activeDataset = datasetSelect.value;
