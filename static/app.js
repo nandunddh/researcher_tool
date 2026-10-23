@@ -117,6 +117,15 @@ document.addEventListener("DOMContentLoaded", () => {
     navTabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-tab") === tabName));
     tabViews.forEach((v) => v.classList.toggle("active", v.id === `view-${tabName}`));
 
+    const titleMap = {
+      pipeline: "Scholarly Pipeline",
+      nih: "NIH Grant PIs",
+      explorer: "Leads Explorer",
+      datasets: "Datasets Archive"
+    };
+    const titleEl = document.getElementById("topbar-view-title");
+    if (titleEl && titleMap[tabName]) titleEl.textContent = titleMap[tabName];
+
     if (tabName === "explorer") {
       loadLeads();
     } else if (tabName === "datasets") {
