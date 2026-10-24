@@ -99,6 +99,93 @@
             <span class="breadcrumb-separator">/</span>
             <span class="breadcrumb-active" id="topbar-view-title">Dashboard</span>
           </div>
+
+          <!-- Top Desktop Application Menus -->
+          <nav class="desktop-menubar" id="desktop-menubar">
+            <div class="menubar-item" data-menu="file">
+              <button class="menubar-btn" type="button">File <span class="menu-arrow">▾</span></button>
+              <div class="menubar-dropdown">
+                <button class="dropdown-item" id="menu-open-folder" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                  <span>Open Lead Data Folder</span>
+                </button>
+                <button class="dropdown-item" id="menu-change-folder" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <span>Change Storage Folder...</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item" id="menu-export-master" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  <span>Export Master Dataset (CSV)</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="menubar-item" data-menu="pipeline">
+              <button class="menubar-btn" type="button">Pipeline <span class="menu-arrow">▾</span></button>
+              <div class="menubar-dropdown">
+                <button class="dropdown-item" id="menu-nav-stage1" type="button">
+                  <span class="step-num-badge">01</span>
+                  <span>OpenAlex Discovery (Stage 1)</span>
+                </button>
+                <button class="dropdown-item" id="menu-nav-stage2" type="button">
+                  <span class="step-num-badge">02</span>
+                  <span>Scholarly Email Enrichment (Stage 2)</span>
+                </button>
+                <button class="dropdown-item" id="menu-nav-nih" type="button">
+                  <span class="step-num-badge">$</span>
+                  <span>NIH Grant Funded PIs</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item text-danger" id="menu-stop-pipeline" type="button">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                  <span>Stop Active Execution</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="menubar-item" data-menu="tools">
+              <button class="menubar-btn" type="button">Data & Tools <span class="menu-arrow">▾</span></button>
+              <div class="menubar-dropdown">
+                <button class="dropdown-item highlight-item" id="menu-merge-dedup" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+                  <span>Merge & Deduplicate All Leads...</span>
+                </button>
+                <button class="dropdown-item" id="menu-check-stats" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span>Check Data & Duplicate Analysis</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item" id="menu-clear-logs" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                  <span>Clear Execution Console Logs</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="menubar-item" data-menu="help">
+              <button class="menubar-btn" type="button">Help <span class="menu-arrow">▾</span></button>
+              <div class="menubar-dropdown">
+                <button class="dropdown-item" id="menu-help-license" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span>Evaluation License & Quotas</span>
+                </button>
+                <button class="dropdown-item" id="menu-help-guide" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  <span>User Quickstart Guide</span>
+                </button>
+                <div class="dropdown-divider"></div>
+                <button class="dropdown-item highlight-item" id="menu-help-update" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Check for Updates...</span>
+                </button>
+                <button class="dropdown-item" id="menu-help-about" type="button">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                  <span>About SciProspect</span>
+                </button>
+              </div>
+            </div>
+          </nav>
         </div>
 
         <div class="topbar-right">
@@ -315,7 +402,7 @@
               </label>
               <button class="btn-tool" id="btn-clear-console" title="Clear console output">Clear</button>
               <button class="btn-tool" id="btn-copy-console" title="Copy logs to clipboard">Copy Logs</button>
-              <button class="btn-tool btn-stop" id="btn-stop-pipeline" title="Stop running process" disabled>
+              <button class="btn-tool btn-stop" id="btn-stop-pipeline" title="Stop running process" disabled style="display: none;">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
                 Stop
               </button>
@@ -427,6 +514,10 @@
               <button class="filter-pill" data-filter="found">With Email</button>
               <button class="filter-pill" data-filter="needs_review">Needs Review</button>
             </div>
+            <button class="btn btn-outline" id="btn-merge-dedup-explorer" title="Merge and eliminate duplicates across all datasets">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+              <span>Merge & Deduplicate</span>
+            </button>
             <button class="btn btn-export" id="btn-export-csv" title="Download filtered leads as CSV">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export CSV
@@ -504,10 +595,20 @@
           <span class="storage-label">Lead Data Folder:</span>
           <span class="storage-path" id="archive-data-folder-path" title="Current lead data directory">Loading...</span>
         </div>
-        <button class="btn-change-storage" id="btn-change-data-folder" title="Change lead data storage directory">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          <span>Change Folder</span>
-        </button>
+        <div class="storage-actions">
+          <button class="btn-storage-tool" id="btn-open-explorer-archive" title="Open lead data storage folder in Windows File Explorer">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            <span>Open in Explorer</span>
+          </button>
+          <button class="btn-storage-tool btn-merge-highlight" id="btn-merge-dedup-archive" title="Merge and eliminate duplicates across all datasets">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+            <span>Merge & Deduplicate All</span>
+          </button>
+          <button class="btn-change-storage" id="btn-change-data-folder" title="Change lead data storage directory">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            <span>Change Folder</span>
+          </button>
+        </div>
       </div>
 
       <!-- Search Data based on Date & Topic Toolbar -->

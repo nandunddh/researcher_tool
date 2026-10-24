@@ -298,7 +298,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function updateProcessUIState(status, stage) {
     const isRunning = status === "running";
-    if (btnStopPipeline) btnStopPipeline.disabled = !isRunning;
+    if (btnStopPipeline) {
+      btnStopPipeline.disabled = !isRunning;
+      btnStopPipeline.style.display = isRunning ? "inline-flex" : "none";
+    }
     if (progressBar) progressBar.classList.toggle("active", isRunning);
 
     if (systemStatusIndicator) {
@@ -334,17 +337,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function startElapsedTimer() {
-    stopElapsedTimer();
+    if (timerInterval) clearInterval(timerInterval);
+    if (!runStartTime) runStartTime = Date.now();
     timerInterval = setInterval(() => {
-      if (runStartTime) {
+      if (runStartTime && consoleElapsed) {
         const elapsedSec = Math.floor((Date.now() - runStartTime) / 1000);
-        consoleElapsed.textContent = `Duration: ${elapsedSec}s`;
+        const mins = Math.floor(elapsedSec / 60);
+        const secs = elapsedSec % 60;
+        const formatted = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`;
+        consoleElapsed.textContent = `Duration: ${formatted}`;
       }
     }, 1000);
   }
 
   function stopElapsedTimer() {
-    if (timerInterval) clearInterval(timerInterval);
+    if (timerInterval) {
+      clearInterval(timerInterval);
+      timerInterval = null;
+    }
     runStartTime = null;
   }
 
@@ -622,10 +632,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const data = await res.json();
 
       totalLeadsCount = data.total || 0;
-      renderTable(data.leads || [], (currentPage - 1) * currentPageSize + 1);
+      const leadsList = data.leads || data.rows || [];
+      renderTable(leadsList, (currentPage - 1) * currentPageSize + 1);
       renderPagination(data.total || 0, currentPage, currentPageSize);
 
-      tableResultsCount.textContent = `Showing ${Math.min(data.leads.length, currentPageSize)} of ${totalLeadsCount.toLocaleString()} leads (${data.current_file || "Dataset"})`;
+      if (tableResultsCount) {
+        tableResultsCount.textContent = `Showing ${Math.min(leadsList.length, currentPageSize)} of ${totalLeadsCount.toLocaleString()} leads (${data.current_file || data.file || "Dataset"})`;
+      }
     } catch (e) {
       leadsTableBody.innerHTML = `<tr><td colspan="7" class="empty-state text-error">Failed to load dataset: ${e.message}</td></tr>`;
     }
@@ -971,6 +984,418 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentTab === "datasets") loadDatasetsArchive();
     showToast("Dashboard metrics refreshed");
   });
+
+  // ---------------------------------------------------------------------------
+  // Desktop Menubar & Data Management Actions
+  // ---------------------------------------------------------------------------
+  const menubarItems = document.querySelectorAll(".menubar-item");
+  menubarItems.forEach(item => {
+    const btn = item.querySelector(".menubar-btn");
+    if (!btn) return;
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isOpen = item.classList.contains("open");
+      menubarItems.forEach(i => i.classList.remove("open"));
+      if (!isOpen) item.classList.add("open");
+    });
+  });
+
+  document.addEventListener("click", () => {
+    menubarItems.forEach(i => i.classList.remove("open"));
+  });
+
+  function showInfoModal(title, contentHtml) {
+    modalTitle.textContent = title;
+    modalBody.innerHTML = contentHtml;
+    detailModal.classList.add("active");
+  }
+
+  async function openDataFolderInExplorer() {
+    try {
+      const res = await fetch("/api/open-folder", { method: "POST" });
+      const data = await res.json();
+      if (data.status === "success") {
+        showToast("Opened data folder in Windows Explorer");
+      } else {
+        showToast(data.error || "Failed to open folder", "error");
+      }
+    } catch (e) {
+      showToast(`Network error: ${e.message}`, "error");
+    }
+  }
+
+  async function executeMergeDeduplicate() {
+    showToast("Scanning datasets, normalizing emails & merging...", "info");
+    try {
+      const res = await fetch("/api/leads/merge-deduplicate", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to merge datasets");
+
+      fetchStats();
+      loadDatasetsDropdown();
+      if (currentTab === "datasets") loadDatasetsArchive();
+
+      showInfoModal(
+        "Lead Deduplication & Merger Complete",
+        `
+        <div style="padding: 0.5rem 0;">
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.25rem;">
+            <h4 style="color: #15803d; margin: 0 0 0.4rem 0; font-size: 1rem;">✔ All Datasets Unified Successfully</h4>
+            <p style="color: #166534; font-size: 0.85rem; margin: 0;">Unique verified researcher leads have been compiled into <strong>central_master_leads.csv</strong> with 0% duplicates.</p>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+              <div style="font-size: 0.75rem; color: #64748b;">Datasets Scanned</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">${data.files_scanned} files</div>
+            </div>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+              <div style="font-size: 0.75rem; color: #64748b;">Total Leads Analyzed</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: #0f172a;">${data.total_leads_scanned.toLocaleString()}</div>
+            </div>
+            <div style="background: #fff1f2; border: 1px solid #fecdd3; border-radius: 6px; padding: 0.75rem;">
+              <div style="font-size: 0.75rem; color: #e11d48;">Duplicates Removed</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: #be123c;">${data.duplicates_removed.toLocaleString()}</div>
+            </div>
+            <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 6px; padding: 0.75rem;">
+              <div style="font-size: 0.75rem; color: #0284c7;">Net Unique Master Leads</div>
+              <div style="font-size: 1.25rem; font-weight: 700; color: #0369a1;">${data.unique_master_leads.toLocaleString()}</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+            <button class="btn btn-secondary" onclick="document.getElementById('detail-modal').classList.remove('active')">Close</button>
+            <button class="btn btn-primary" id="btn-modal-view-master">View Master in Explorer</button>
+          </div>
+        </div>
+        `
+      );
+
+      const btnViewMaster = document.getElementById("btn-modal-view-master");
+      if (btnViewMaster) {
+        btnViewMaster.addEventListener("click", () => {
+          detailModal.classList.remove("active");
+          datasetSelect.value = "central_master_leads.csv";
+          activeDataset = "central_master_leads.csv";
+          currentPage = 1;
+          switchTab("explorer");
+        });
+      }
+    } catch (err) {
+      showToast(`Deduplication error: ${err.message}`, "error");
+    }
+  }
+
+  // Hook Menu Actions
+  const menuOpenFolder = document.getElementById("menu-open-folder");
+  if (menuOpenFolder) menuOpenFolder.addEventListener("click", openDataFolderInExplorer);
+
+  const btnOpenArchive = document.getElementById("btn-open-explorer-archive");
+  if (btnOpenArchive) btnOpenArchive.addEventListener("click", openDataFolderInExplorer);
+
+  const menuChangeFolder = document.getElementById("menu-change-folder");
+  if (menuChangeFolder) {
+    menuChangeFolder.addEventListener("click", () => {
+      switchTab("datasets");
+      if (btnChangeDataFolder) btnChangeDataFolder.click();
+    });
+  }
+
+  const menuExportMaster = document.getElementById("menu-export-master");
+  if (menuExportMaster) {
+    menuExportMaster.addEventListener("click", () => {
+      window.open("/api/leads/export?file=central_master_leads.csv", "_blank");
+    });
+  }
+
+  // Navigation Menus
+  const menuNavStage1 = document.getElementById("menu-nav-stage1");
+  if (menuNavStage1) menuNavStage1.addEventListener("click", () => switchTab("pipeline"));
+
+  const menuNavStage2 = document.getElementById("menu-nav-stage2");
+  if (menuNavStage2) menuNavStage2.addEventListener("click", () => switchTab("pipeline"));
+
+  const menuNavNih = document.getElementById("menu-nav-nih");
+  if (menuNavNih) menuNavNih.addEventListener("click", () => switchTab("nih"));
+
+  const menuStopPipeline = document.getElementById("menu-stop-pipeline");
+  if (menuStopPipeline && btnStopPipeline) {
+    menuStopPipeline.addEventListener("click", () => btnStopPipeline.click());
+  }
+
+  // Data & Tools
+  const menuMergeDedup = document.getElementById("menu-merge-dedup");
+  if (menuMergeDedup) menuMergeDedup.addEventListener("click", executeMergeDeduplicate);
+
+  const btnMergeDedupExplorer = document.getElementById("btn-merge-dedup-explorer");
+  if (btnMergeDedupExplorer) btnMergeDedupExplorer.addEventListener("click", executeMergeDeduplicate);
+
+  const btnMergeDedupArchive = document.getElementById("btn-merge-dedup-archive");
+  if (btnMergeDedupArchive) btnMergeDedupArchive.addEventListener("click", executeMergeDeduplicate);
+
+  const menuClearLogs = document.getElementById("menu-clear-logs");
+  if (menuClearLogs && btnClearConsole) menuClearLogs.addEventListener("click", () => btnClearConsole.click());
+
+  // Check Data & Duplicate Stats Modal
+  const menuCheckStats = document.getElementById("menu-check-stats");
+  if (menuCheckStats) {
+    menuCheckStats.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+        showInfoModal(
+          "Data Analysis & Storage Summary",
+          `
+          <div style="padding: 0.5rem 0;">
+            <p style="font-size: 0.85rem; color: #64748b; margin-top: 0;">Overview of your lead pipeline metrics, active datasets, and storage paths.</p>
+            <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.72rem; color: #64748b; font-weight: 600; text-transform: uppercase;">Lead Storage Location</div>
+              <div style="font-size: 0.88rem; font-weight: 600; color: #0284c7; word-break: break-all; margin-top: 0.25rem;">${escapeHtml(data.data_dir)}</div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem; margin-bottom: 1.25rem;">
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+                <div style="font-size: 0.72rem; color: #64748b;">Verified Leads Today</div>
+                <div style="font-size: 1.2rem; font-weight: 700; color: #0f172a;">${Number(data.today_verified_leads || 0).toLocaleString()}</div>
+              </div>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+                <div style="font-size: 0.72rem; color: #64748b;">Central Master Leads</div>
+                <div style="font-size: 1.2rem; font-weight: 700; color: #0f172a;">${Number(data.central_master_leads || 0).toLocaleString()}</div>
+              </div>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+                <div style="font-size: 0.72rem; color: #64748b;">Candidate Discovery Pool</div>
+                <div style="font-size: 1.2rem; font-weight: 700; color: #0f172a;">${Number(data.master_pool_total || 0).toLocaleString()}</div>
+              </div>
+              <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+                <div style="font-size: 0.72rem; color: #64748b;">Today's Verified Quota</div>
+                <div style="font-size: 1.2rem; font-weight: 700; color: #0f172a;">${data.today_verified_used || 0} / ${data.today_verified_limit || 1000}</div>
+              </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+              <button class="btn btn-secondary" onclick="document.getElementById('detail-modal').classList.remove('active')">Close</button>
+              <button class="btn btn-primary" id="btn-stats-open-folder">Open Data Folder</button>
+            </div>
+          </div>
+          `
+        );
+        const btnOpen = document.getElementById("btn-stats-open-folder");
+        if (btnOpen) btnOpen.addEventListener("click", openDataFolderInExplorer);
+      } catch (e) {
+        showToast("Failed to fetch data stats", "error");
+      }
+    });
+  }
+
+  // Help Menu Modals
+  const menuHelpLicense = document.getElementById("menu-help-license");
+  if (menuHelpLicense) {
+    menuHelpLicense.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/trial/status");
+        const st = await res.json();
+        showInfoModal(
+          "Evaluation License & Quotas",
+          `
+          <div style="padding: 0.5rem 0;">
+            <div style="background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: #854d0e;">Evaluation Edition (7-Day Trial)</div>
+              <div style="font-size: 0.78rem; color: #a16207; margin-top: 0.2rem;">Full-featured evaluation license with 1,000 verified leads per day.</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem;">
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
+                <span style="color: #64748b;">Trial Days Remaining:</span>
+                <span style="font-weight: 700; color: #0f172a;">${st.days_left} Days</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
+                <span style="color: #64748b;">Expiration Date:</span>
+                <span style="font-weight: 600; color: #0f172a;">${st.expires_on}</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
+                <span style="color: #64748b;">Daily Verified Quota:</span>
+                <span style="font-weight: 600; color: #0f172a;">1,000 Verified Leads / Day</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; padding-bottom: 0.4rem;">
+                <span style="color: #64748b;">Used Today:</span>
+                <span style="font-weight: 600; color: #0284c7;">${st.today_verified} / 1,000</span>
+              </div>
+            </div>
+          </div>
+          `
+        );
+      } catch (e) {
+        showToast("Failed to fetch license details", "error");
+      }
+    });
+  }
+
+  const menuHelpGuide = document.getElementById("menu-help-guide");
+  if (menuHelpGuide) {
+    menuHelpGuide.addEventListener("click", () => {
+      showInfoModal(
+        "SciProspect Quickstart Guide",
+        `
+        <div style="padding: 0.5rem 0; font-size: 0.85rem; line-height: 1.5; color: #334155;">
+          <h4 style="color: #0f172a; margin: 0 0 0.4rem 0;">Two-Stage Scientific Prospecting Workflow</h4>
+          <ol style="padding-left: 1.25rem; margin-bottom: 1rem;">
+            <li style="margin-bottom: 0.4rem;"><strong>Stage 01: OpenAlex Discovery</strong> — Scans worldwide scientific research papers for your target keyword/topic and populates a candidate author pool.</li>
+            <li style="margin-bottom: 0.4rem;"><strong>Stage 02: Scholarly Verification</strong> — Cross-references candidate names against official ORCID profiles and Europe PMC records to extract validated institutional emails.</li>
+            <li style="margin-bottom: 0.4rem;"><strong>Leads Explorer</strong> — Search, filter, and inspect verified contacts. Use <em>Merge & Deduplicate</em> to unify separate searches with 0% duplicates.</li>
+          </ol>
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 0.75rem;">
+            <strong>Data Storage:</strong> All CSV files are saved in your chosen folder without cluttering the app install directory.
+          </div>
+        </div>
+        `
+      );
+    });
+  }
+
+  const menuHelpAbout = document.getElementById("menu-help-about");
+  if (menuHelpAbout) {
+    menuHelpAbout.addEventListener("click", () => {
+      showInfoModal(
+        "About SciProspect",
+        `
+        <div style="padding: 0.5rem 0; text-align: center;">
+          <div style="font-size: 1.2rem; font-weight: 700; color: #0f172a; margin-bottom: 0.25rem;">SciProspect Lead Intelligence</div>
+          <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 1rem;">Version 1.0 (Evaluation Edition)</div>
+          <p style="font-size: 0.85rem; color: #334155; line-height: 1.5; margin-bottom: 1rem;">
+            AI-driven scientific researcher extraction, ORCID profile resolution, and verified institutional email prospecting system.
+          </p>
+          <div style="font-size: 0.75rem; color: #94a3b8;">
+            © 2026 SciProspect Lead Intelligence. All rights reserved.
+          </div>
+        </div>
+        `
+      );
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Auto-Updater Flow
+  // ---------------------------------------------------------------------------
+  async function checkForUpdates(isManual = false) {
+    if (isManual) showToast("Checking for updates...", "info");
+    try {
+      const res = await fetch("/api/update/check");
+      const info = await res.json();
+
+      if (!res.ok || info.error) {
+        if (isManual) showToast(info.error || "Failed to check for updates", "warning");
+        return;
+      }
+
+      if (!info.update_available) {
+        if (isManual) {
+          showInfoModal(
+            "SciProspect is Up to Date",
+            `
+            <div style="padding: 0.5rem 0; text-align: center;">
+              <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🎉</div>
+              <h4 style="color: #0f172a; margin: 0 0 0.5rem 0;">You have the latest version!</h4>
+              <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 1.25rem 0;">SciProspect <strong>v${escapeHtml(info.current_version)}</strong> is currently the newest release.</p>
+              <button class="btn btn-primary" onclick="document.getElementById('detail-modal').classList.remove('active')">Got it</button>
+            </div>
+            `
+          );
+        }
+        return;
+      }
+
+      // Update is available!
+      const changelogHtml = (info.changelog || [])
+        .map(item => `<li style="margin-bottom: 0.35rem;">${escapeHtml(item)}</li>`)
+        .join("");
+
+      showInfoModal(
+        `✨ New Update Available: v${info.latest_version}`,
+        `
+        <div style="padding: 0.5rem 0;">
+          <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+            <div style="font-size: 0.85rem; font-weight: 700; color: #15803d;">SciProspect v${escapeHtml(info.latest_version)} is ready to install!</div>
+            <div style="font-size: 0.78rem; color: #166534; margin-top: 0.2rem;">Current version: v${escapeHtml(info.current_version)} ${info.release_date ? `• Released: ${escapeHtml(info.release_date)}` : ""}</div>
+          </div>
+
+          <h5 style="margin: 0 0 0.4rem 0; font-size: 0.85rem; color: #334155;">What's New in this release:</h5>
+          <ul style="padding-left: 1.2rem; font-size: 0.82rem; color: #475569; margin: 0 0 1.25rem 0; line-height: 1.45;">
+            ${changelogHtml || "<li>Performance optimizations and bug fixes.</li>"}
+          </ul>
+
+          <div id="update-progress-wrap" style="display: none; margin-bottom: 1.25rem;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.78rem; color: #64748b; margin-bottom: 0.35rem;">
+              <span id="update-status-msg">Downloading update...</span>
+              <span id="update-percent-label">0%</span>
+            </div>
+            <div style="height: 6px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+              <div id="update-download-bar" style="height: 100%; width: 0%; background: #0284c7; transition: width 0.2s ease;"></div>
+            </div>
+          </div>
+
+          <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+            <button class="btn btn-secondary" id="btn-cancel-update" onclick="document.getElementById('detail-modal').classList.remove('active')">Later</button>
+            <button class="btn btn-primary" id="btn-start-download-update">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download & Install Update</span>
+            </button>
+          </div>
+        </div>
+        `
+      );
+
+      const btnDownload = document.getElementById("btn-start-download-update");
+      const progressWrap = document.getElementById("update-progress-wrap");
+      const progressBar = document.getElementById("update-download-bar");
+      const percentLabel = document.getElementById("update-percent-label");
+      const statusMsg = document.getElementById("update-status-msg");
+
+      if (btnDownload) {
+        btnDownload.addEventListener("click", async () => {
+          btnDownload.disabled = true;
+          if (progressWrap) progressWrap.style.display = "block";
+
+          const dlRes = await fetch("/api/update/download", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ download_url: info.download_url })
+          });
+
+          if (!dlRes.ok) {
+            showToast("Failed to start update download", "error");
+            btnDownload.disabled = false;
+            return;
+          }
+
+          const pollTimer = setInterval(async () => {
+            const pRes = await fetch("/api/update/progress");
+            const pData = await pRes.json();
+
+            if (progressBar) progressBar.style.width = `${pData.percent}%`;
+            if (percentLabel) percentLabel.textContent = `${pData.percent}%`;
+
+            if (pData.status === "ready") {
+              clearInterval(pollTimer);
+              if (statusMsg) statusMsg.textContent = "Download complete! Ready to install.";
+              btnDownload.disabled = false;
+              btnDownload.innerHTML = `<span>Launch Installer & Upgrade</span>`;
+              btnDownload.onclick = async () => {
+                showToast("Launching installer... SciProspect will close to complete the update.");
+                await fetch("/api/update/install", { method: "POST" });
+              };
+            } else if (pData.status === "error") {
+              clearInterval(pollTimer);
+              if (statusMsg) statusMsg.textContent = `Download failed: ${pData.error}`;
+              btnDownload.disabled = false;
+            }
+          }, 600);
+        });
+      }
+
+    } catch (e) {
+      if (isManual) showToast(`Update check failed: ${e.message}`, "error");
+    }
+  }
+
+  const menuHelpUpdate = document.getElementById("menu-help-update");
+  if (menuHelpUpdate) {
+    menuHelpUpdate.addEventListener("click", () => checkForUpdates(true));
+  }
 
   // ---------------------------------------------------------------------------
   // Initialization

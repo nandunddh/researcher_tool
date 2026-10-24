@@ -48,6 +48,17 @@ DATA_DIR = get_data_dir()
 TODAY_DIR = DATA_DIR / datetime.now().strftime("%Y-%m-%d")
 TODAY_DIR.mkdir(parents=True, exist_ok=True)
 TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+STOP_REQUESTED = False
+
+
+def request_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+
+
+def reset_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
 
 
 def build_date_filter(from_d, to_d=""):
@@ -73,6 +84,7 @@ def build_date_filter(from_d, to_d=""):
 
 
 def main():
+    reset_stop()
     print("=" * 65)
     print("STAGE 1: RESEARCHER CANDIDATE EXTRACTION (EVALUATION BUILD)")
     print(f"Trial Remaining: {status['days_left']} days (Expires: {status['expires_on']})")
@@ -94,24 +106,44 @@ def main():
         page = 1
 
         while page <= MAX_PAGES_PER_TERM:
+            if STOP_REQUESTED:
+                print("\n[Stopped] Discovery halted by user request.")
+                break
+
             params = {
                 "search": term,
                 "filter": date_filter,
                 "per-page": PER_PAGE,
                 "cursor": cursor,
             }
-            try:
-                resp = requests.get(BASE_URL, headers=headers, params=params, timeout=20)
-                if resp.status_code != 200:
-                    print(f"[Warn] OpenAlex responded with status {resp.status_code}")
-                    break
-                data = resp.json()
-            except Exception as e:
-                print(f"[Error] Request failed: {e}")
+            data = None
+            max_retries = 3
+            for attempt in range(1, max_retries + 1):
+                try:
+                    resp = requests.get(BASE_URL, headers=headers, params=params, timeout=45)
+                    if resp.status_code == 200:
+                        data = resp.json()
+                        break
+                    elif resp.status_code == 429:
+                        print(f"  [Rate Limit] OpenAlex 429 received. Backing off (attempt {attempt}/{max_retries})...")
+                        time.sleep(attempt * 4)
+                    else:
+                        print(f"  [Warn] OpenAlex responded with status {resp.status_code} (attempt {attempt}/{max_retries})")
+                        time.sleep(attempt * 2)
+                except requests.exceptions.Timeout:
+                    print(f"  [Warn] Request timed out on page {page} (attempt {attempt}/{max_retries}). Retrying...")
+                    time.sleep(attempt * 3)
+                except Exception as e:
+                    print(f"  [Warn] Request connection issue (attempt {attempt}/{max_retries}): {e}")
+                    time.sleep(attempt * 2)
+
+            if not data:
+                print(f"[Error] Unable to retrieve page {page} from OpenAlex after {max_retries} attempts.")
                 break
 
             results = data.get("results", [])
             if not results:
+                print(f"No further results found for '{term}' at page {page}.")
                 break
 
             for work in results:
@@ -223,12 +255,20 @@ def main():
 
     trial_engine.record_extracted_candidates(added)
     print("\n" + "=" * 65)
-    print("STAGE 1 COMPLETED SUCCESSFULLY")
-    print(f"Added {added:,} new candidate researchers to the pool.")
-    print(f"Total candidates ready for verification: {len(existing_ids):,}")
-    print(f"Saved to: {needto_file.name}")
-    print("=" * 65)
-    print("\n👉 Next Step: Run Tool 02 to enrich with verified scholarly emails (1,000/day trial allowance).\n")
+    if len(existing_ids) == 0 and added == 0:
+        print("⚠️ STAGE 1 WARNING: 0 CANDIDATES EXTRACTED")
+        print("No candidates were added to the pool.")
+        print("This typically happens if the OpenAlex API connection timed out")
+        print("or if no publications matched your date range/keyword.")
+        print("👉 Please check your network connection and click 'Run OpenAlex Discovery' again.")
+        print("=" * 65 + "\n")
+    else:
+        print("STAGE 1 COMPLETED SUCCESSFULLY")
+        print(f"Added {added:,} new candidate researchers to the pool.")
+        print(f"Total candidates ready for verification: {len(existing_ids):,}")
+        print(f"Saved to: {needto_file.name}")
+        print("=" * 65)
+        print("\n👉 Next Step: Run Tool 02 to enrich with verified scholarly emails (1,000/day trial allowance).\n")
 
 
 def run(keyword="Physical Chemistry", pages=25, from_date="2026-01-01", to_date="2026-01-31"):

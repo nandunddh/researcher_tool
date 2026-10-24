@@ -64,6 +64,18 @@ HEADERS = {
     "Accept": "application/json",
 }
 
+STOP_REQUESTED = False
+
+
+def request_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+
+
+def reset_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
+
 EMAIL_PATTERN = re.compile(
     r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}",
     re.IGNORECASE
@@ -181,6 +193,9 @@ def fetch_nih_projects(keyword, limit=300):
     print(f"\n[NIH] Querying grants for keyword: '{clean_keyword}'...", flush=True)
 
     while offset < limit:
+        if STOP_REQUESTED:
+            print("\n[Stopped] NIH extraction halted by user request.")
+            break
         payload = {
             "criteria": {
                 "advanced_text_search": {
@@ -302,6 +317,7 @@ def find_pi_email(pi):
 
 
 def main():
+    reset_stop()
     print("=" * 70, flush=True)
     print("🚀 NIH RePORTER GRANT INVESTIGATOR EXTRACTOR (TRIAL EDITION)", flush=True)
     print(f"Target Keywords : {', '.join(KEYWORDS)}", flush=True)

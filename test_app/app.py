@@ -8,6 +8,7 @@ import asyncio
 import csv
 import json
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -279,7 +280,7 @@ async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1
             target = csvs[0]
 
     if not target or not target.exists():
-        return {"rows": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "file": None, "data_dir": str(data_dir)}
+        return {"leads": [], "rows": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "file": None, "current_file": None, "data_dir": str(data_dir)}
 
     rows = []
     with open(target, "r", encoding="utf-8-sig", errors="replace") as f:
@@ -295,12 +296,14 @@ async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1
     file_label = str(target.relative_to(data_dir)).replace("\\", "/") if target.is_relative_to(data_dir) else target.name
 
     return {
+        "leads": paged_rows,
         "rows": paged_rows,
         "total": total,
         "page": page,
         "page_size": page_size,
         "total_pages": max(1, (total + page_size - 1) // page_size),
         "file": file_label,
+        "current_file": file_label,
         "data_dir": str(data_dir)
     }
 
@@ -314,6 +317,79 @@ async def export_leads(file: Optional[str] = Query(None)):
     if not target.exists() or not target.is_relative_to(data_dir):
         raise HTTPException(status_code=404, detail="Dataset not found")
     return FileResponse(target, filename=target.name, media_type="text/csv")
+
+
+@app.post("/api/open-folder")
+async def open_data_folder():
+    data_dir = get_data_dir()
+    try:
+        import subprocess
+        subprocess.Popen(["explorer.exe", str(data_dir)])
+        return {"status": "success", "path": str(data_dir)}
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@app.post("/api/leads/merge-deduplicate")
+async def merge_and_deduplicate_endpoint():
+    data_dir = get_data_dir()
+    target_files = []
+    for p in data_dir.rglob("*.csv"):
+        if "_needto_extract" in p.name:
+            continue
+        if any(token in p.name.lower() for token in ["found", "verified", "nih", "master", "send_ready"]):
+            target_files.append(p)
+
+    unified = {}
+    total_scanned = 0
+    duplicates_count = 0
+
+    preferred_fields = [
+        "researcher_name", "professional_email", "affiliations_seen_on_matching_papers",
+        "matched_search_terms", "orcid", "example_papers", "example_paper_dois",
+        "email_source_url", "review_status", "email_status"
+    ]
+
+    for f in target_files:
+        try:
+            with open(f, "r", encoding="utf-8-sig", errors="replace") as cf:
+                reader = csv.DictReader(cf)
+                for row in reader:
+                    email = (row.get("professional_email") or row.get("email") or "").strip().lower()
+                    if not email or "@" not in email:
+                        continue
+                    total_scanned += 1
+
+                    if email in unified:
+                        duplicates_count += 1
+                        existing = unified[email]
+                        for k in ["orcid", "affiliations_seen_on_matching_papers", "example_paper_dois", "example_papers"]:
+                            if not existing.get(k) and row.get(k):
+                                existing[k] = row.get(k)
+                    else:
+                        unified[email] = {k: row.get(k, "") for k in preferred_fields}
+                        unified[email]["professional_email"] = email
+                        if not unified[email]["review_status"]:
+                            unified[email]["review_status"] = "found"
+        except Exception:
+            continue
+
+    master_path = data_dir / "central_master_leads.csv"
+    if unified:
+        with open(master_path, "w", encoding="utf-8-sig", newline="") as mf:
+            writer = csv.DictWriter(mf, fieldnames=preferred_fields)
+            writer.writeheader()
+            for r in unified.values():
+                writer.writerow(r)
+
+    return {
+        "status": "success",
+        "files_scanned": len(target_files),
+        "total_leads_scanned": total_scanned,
+        "duplicates_removed": duplicates_count,
+        "unique_master_leads": len(unified),
+        "output_file": master_path.name,
+    }
 
 
 @app.post("/api/pipeline/run")
@@ -389,16 +465,23 @@ async def start_pipeline(request: Request):
 @app.post("/api/pipeline/stop")
 async def stop_pipeline():
     global current_process
+    try:
+        import sys
+        for mod_name in ["01_extract_researchers_test", "02_collect_scholarly_emails_test", "04_extract_nih_researchers_test"]:
+            if mod_name in sys.modules and hasattr(sys.modules[mod_name], "request_stop"):
+                sys.modules[mod_name].request_stop()
+    except Exception:
+        pass
+
     with process_lock:
         if current_process is not None and current_process.poll() is None:
             try:
                 current_process.terminate()
-                process_state["status"] = "stopped"
-                broadcast_log("Pipeline stopped by user request.", status="stopped")
-                return {"status": "stopped"}
-            except Exception as e:
-                return {"status": "error", "error": str(e)}
-    return {"status": "not_running"}
+            except Exception:
+                pass
+    process_state["status"] = "stopped"
+    broadcast_log("Pipeline stopped by user request.", status="stopped")
+    return {"status": "stopped"}
 
 
 @app.get("/api/pipeline/status")
@@ -428,6 +511,165 @@ async def stream_logs():
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"}
     )
+
+
+# -----------------------------------------------------------------------------
+# GitHub Auto-Updater Endpoints
+# -----------------------------------------------------------------------------
+CURRENT_VERSION = "1.0.0"
+GITHUB_REPO = "nandunddh/researcher_tool"
+
+download_state = {
+    "status": "idle",
+    "percent": 0,
+    "downloaded_bytes": 0,
+    "total_bytes": 0,
+    "file_path": None,
+    "error": None,
+}
+
+
+def parse_version_tuple(v_str: str):
+    clean = re.sub(r"[^\d.]", "", str(v_str).strip())
+    parts = [int(p) for p in clean.split(".") if p.isdigit()]
+    while len(parts) < 3:
+        parts.append(0)
+    return tuple(parts[:3])
+
+
+@app.get("/api/update/check")
+async def check_for_updates():
+    raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json"
+    api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+
+    manifest = None
+    try:
+        r = requests.get(raw_url, timeout=5)
+        if r.status_code == 200:
+            manifest = r.json()
+    except Exception:
+        pass
+
+    if not manifest:
+        try:
+            r = requests.get(api_url, timeout=5)
+            if r.status_code == 200:
+                rel = r.json()
+                tag = rel.get("tag_name", "").lstrip("v")
+                dl_url = f"https://github.com/{GITHUB_REPO}/releases/latest/download/SciProspect_Setup.exe"
+                for asset in rel.get("assets", []):
+                    if asset.get("name") == "SciProspect_Setup.exe":
+                        dl_url = asset.get("browser_download_url")
+                        break
+                manifest = {
+                    "latest_version": tag,
+                    "release_date": rel.get("published_at", "")[:10],
+                    "download_url": dl_url,
+                    "changelog": [line.strip("- ") for line in rel.get("body", "").split("\n") if line.strip()],
+                    "mandatory": False,
+                }
+        except Exception:
+            pass
+
+    # Fallback to local version.json for testing if offline
+    if not manifest:
+        for p in [BASE_DIR / "version.json", ROOT_DIR / "version.json"]:
+            if p.exists():
+                try:
+                    manifest = json.loads(p.read_text(encoding="utf-8"))
+                    break
+                except Exception:
+                    pass
+
+    if not manifest:
+        return {
+            "current_version": CURRENT_VERSION,
+            "latest_version": CURRENT_VERSION,
+            "update_available": False,
+            "error": "Could not connect to update server. Please check your internet connection.",
+        }
+
+    latest_ver = manifest.get("latest_version", CURRENT_VERSION)
+    current_tuple = parse_version_tuple(CURRENT_VERSION)
+    latest_tuple = parse_version_tuple(latest_ver)
+
+    is_newer = latest_tuple > current_tuple
+
+    return {
+        "current_version": CURRENT_VERSION,
+        "latest_version": latest_ver,
+        "update_available": is_newer,
+        "release_date": manifest.get("release_date", ""),
+        "download_url": manifest.get("download_url", ""),
+        "changelog": manifest.get("changelog", []),
+        "mandatory": manifest.get("mandatory", False),
+    }
+
+
+@app.post("/api/update/download")
+async def download_update(request: Request):
+    body = await request.json()
+    url = body.get("download_url")
+    if not url:
+        raise HTTPException(status_code=400, detail="Missing download_url")
+
+    def download_worker(dl_url):
+        import tempfile
+        download_state["status"] = "downloading"
+        download_state["percent"] = 0
+        download_state["error"] = None
+        try:
+            temp_dir = Path(tempfile.gettempdir()) / "SciProspectUpdate"
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            installer_path = temp_dir / "SciProspect_Setup.exe"
+
+            # If download URL is local or remote
+            if dl_url.startswith("http"):
+                resp = requests.get(dl_url, stream=True, timeout=60)
+                total_size = int(resp.headers.get("content-length", 0))
+                download_state["total_bytes"] = total_size
+
+                downloaded = 0
+                with open(installer_path, "wb") as f:
+                    for chunk in resp.iter_content(chunk_size=65536):
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            download_state["downloaded_bytes"] = downloaded
+                            if total_size > 0:
+                                download_state["percent"] = min(99, int((downloaded / total_size) * 100))
+            else:
+                src = Path(dl_url)
+                if src.exists():
+                    import shutil
+                    shutil.copyfile(src, installer_path)
+
+            download_state["percent"] = 100
+            download_state["file_path"] = str(installer_path)
+            download_state["status"] = "ready"
+        except Exception as e:
+            download_state["status"] = "error"
+            download_state["error"] = str(e)
+
+    threading.Thread(target=download_worker, args=(url,), daemon=True).start()
+    return {"status": "started"}
+
+
+@app.get("/api/update/progress")
+async def get_update_progress():
+    return download_state
+
+
+@app.post("/api/update/install")
+async def launch_installer():
+    path = download_state.get("file_path")
+    if not path or not Path(path).exists():
+        raise HTTPException(status_code=400, detail="No downloaded installer found.")
+    try:
+        subprocess.Popen([path])
+        return {"status": "launched"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 # Mount static assets

@@ -103,6 +103,17 @@ IGNORED_DOMAINS = {
 }
 
 print_lock = Lock()
+STOP_REQUESTED = False
+
+
+def request_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+
+
+def reset_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
 
 
 def normalize_text(text):
@@ -193,6 +204,7 @@ def process_candidate(row):
 
 
 def main():
+    reset_stop()
     print("=" * 65)
     print("STAGE 2: SCHOLARLY EMAIL ENRICHMENT (EVALUATION BUILD)")
     print(f"Trial Days Left: {status['days_left']} (Expires: {status['expires_on']})")
@@ -254,6 +266,12 @@ def main():
             future_to_idx = {executor.submit(process_candidate, rows[i]): i for i in pending}
 
             for future in as_completed(future_to_idx):
+                if STOP_REQUESTED:
+                    print("\n[Stopped] Scholarly email verification stopped by user request.")
+                    for f in future_to_idx:
+                        f.cancel()
+                    break
+
                 idx = future_to_idx[future]
                 email, source, status_str = future.result()
 

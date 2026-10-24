@@ -802,6 +802,12 @@ select:disabled {
   background: #be123c;
 }
 
+.btn-stop:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .progress-bar-track {
   height: 3px;
   background: #e2e8f0;
@@ -1660,5 +1666,161 @@ select:disabled {
 
 .splash-meta-sep {
   color: #334155;
+}
+
+/* ==========================================================================
+   DESKTOP MENUBAR SYSTEM
+   ========================================================================== */
+
+.desktop-menubar {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-left: 1.5rem;
+}
+
+.menubar-item {
+  position: relative;
+}
+
+.menubar-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 500;
+  padding: 0.3rem 0.65rem;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  transition: all 0.15s ease;
+}
+
+.menubar-btn:hover,
+.menubar-item.open .menubar-btn {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-color: #e2e8f0;
+}
+
+.menu-arrow {
+  font-size: 0.65rem;
+  opacity: 0.7;
+}
+
+.menubar-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 240px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+  padding: 0.4rem;
+  z-index: 1000;
+}
+
+.menubar-item.open .menubar-dropdown {
+  display: block;
+}
+
+.dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #334155;
+  background: transparent;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.12s ease;
+}
+
+.dropdown-item:hover {
+  background: #f8fafc;
+  color: #0284c7;
+}
+
+.dropdown-item.highlight-item {
+  color: #0284c7;
+  font-weight: 600;
+}
+
+.dropdown-item.highlight-item:hover {
+  background: #f0f9ff;
+}
+
+.dropdown-item.text-danger {
+  color: #e11d48;
+}
+
+.dropdown-item.text-danger:hover {
+  background: #fff1f2;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: #f1f5f9;
+  margin: 0.35rem 0;
+}
+
+.step-num-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #e0f2fe;
+  color: #0284c7;
+  border-radius: 4px;
+}
+
+.storage-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-storage-tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.78rem;
+  font-weight: 500;
+  background: #ffffff;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-storage-tool:hover {
+  background: #f8fafc;
+  border-color: #94a3b8;
+}
+
+.btn-storage-tool.btn-merge-highlight {
+  background: #f0fdf4;
+  color: #15803d;
+  border-color: #bbf7d0;
+  font-weight: 600;
+}
+
+.btn-storage-tool.btn-merge-highlight:hover {
+  background: #dcfce7;
+  border-color: #86efac;
 }
 
