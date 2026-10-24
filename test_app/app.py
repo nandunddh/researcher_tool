@@ -20,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+import requests
 from app_config import get_data_dir, set_data_dir
 from trial_manager import trial_engine
 
@@ -47,6 +48,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+main_loop: Optional[asyncio.AbstractEventLoop] = None
+
+@app.on_event("startup")
+async def on_startup():
+    global main_loop
+    main_loop = asyncio.get_running_loop()
+
 current_process: Optional[subprocess.Popen] = None
 process_lock = threading.Lock()
 log_queue = asyncio.Queue()
@@ -66,12 +74,11 @@ def broadcast_log(line: str, stage: str = "", status: str = "running"):
     process_state["lines"].append(entry)
     if len(process_state["lines"]) > 1500:
         process_state["lines"].pop(0)
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.run_coroutine_threadsafe(log_queue.put(entry), loop)
-    except Exception:
-        pass
+    if main_loop and main_loop.is_running():
+        try:
+            asyncio.run_coroutine_threadsafe(log_queue.put(entry), main_loop)
+        except Exception:
+            pass
 
 
 class LogStream:

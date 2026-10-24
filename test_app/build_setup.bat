@@ -46,8 +46,14 @@ echo [Step 2/3] Compiling SciProspect into standalone Windows executable...
   --add-data "app_config.py;." ^
   --add-data "app.py;." ^
   --hidden-import "app" ^
+  --hidden-import "app_config" ^
   --hidden-import "uvicorn" ^
   --hidden-import "fastapi" ^
+  --hidden-import "requests" ^
+  --hidden-import "urllib3" ^
+  --hidden-import "certifi" ^
+  --hidden-import "charset_normalizer" ^
+  --hidden-import "idna" ^
   --collect-all "webview" ^
   run_trial_dashboard.py
 
@@ -92,10 +98,13 @@ echo Found Inno Setup at: "%ISCC_PATH%"
 "%ISCC_PATH%" installer.iss
 
 if %ERRORLEVEL% EQU 0 (
+    echo.
+    echo Signing installer with Authenticode certificate...
+    powershell -ExecutionPolicy Bypass -File "%~dp0sign_installer.ps1"
     color 0A
     echo.
     echo =====================================================================
-    echo SUCCESS! Your client installer has been built:
+    echo SUCCESS! Your client installer has been built and signed:
     echo.
     echo    📁 dist_installer\SciProspect_Setup.exe
     echo.
