@@ -47,8 +47,10 @@ if remaining_today <= 0:
     print("=" * 65 + "\n")
     sys.exit(0)
 
+from app_config import get_data_dir
+
 # Settings
-FOLDER = Path(__file__).parent / "data"
+FOLDER = get_data_dir()
 FOLDER.mkdir(parents=True, exist_ok=True)
 
 MASTER_POOL_FILE = None

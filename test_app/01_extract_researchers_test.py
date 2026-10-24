@@ -42,7 +42,9 @@ MAX_PAGES_PER_TERM = 35  # ~7,000 candidates per term
 BASE_URL = "https://api.openalex.org/works"
 API_KEY = "5h8s0xhGxE1uL0ZJ5CdsT5"
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+from app_config import get_data_dir
+
+DATA_DIR = get_data_dir()
 TODAY_DIR = DATA_DIR / datetime.now().strftime("%Y-%m-%d")
 TODAY_DIR.mkdir(parents=True, exist_ok=True)
 TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

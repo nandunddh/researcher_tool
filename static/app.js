@@ -93,8 +93,18 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnNextPage = document.getElementById("btn-next-page");
   const pageNumbersContainer = document.getElementById("page-numbers-container");
 
-  // Datasets Grid
+  // Datasets Grid & Storage Bar
   const datasetsGrid = document.getElementById("datasets-grid");
+  const archiveDataFolderPath = document.getElementById("archive-data-folder-path");
+  const btnChangeDataFolder = document.getElementById("btn-change-data-folder");
+  const datasetTopicSearch = document.getElementById("dataset-topic-search");
+  const datasetDateFilter = document.getElementById("dataset-date-filter");
+  const btnRefreshDatasets = document.getElementById("btn-refresh-datasets");
+
+  let allDatasets = [];
+  let currentLeadDataDir = "";
+  let activeTopicFilter = "";
+  let activeDateFilter = "all";
 
   // Modal
   const detailModal = document.getElementById("detail-modal");
@@ -727,61 +737,172 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   // Datasets Archive View
   // ---------------------------------------------------------------------------
+  if (btnRefreshDatasets) {
+    btnRefreshDatasets.addEventListener("click", () => {
+      loadDatasetsArchive();
+    });
+  }
+
+  if (datasetTopicSearch) {
+    datasetTopicSearch.addEventListener("input", (e) => {
+      activeTopicFilter = e.target.value.trim().toLowerCase();
+      renderDatasetsGrid();
+    });
+  }
+
+  if (datasetDateFilter) {
+    datasetDateFilter.addEventListener("change", (e) => {
+      activeDateFilter = e.target.value;
+      renderDatasetsGrid();
+    });
+  }
+
+  if (btnChangeDataFolder) {
+    btnChangeDataFolder.addEventListener("click", async () => {
+      const current = currentLeadDataDir || "C:\\SciProspect Data";
+      const userChoice = prompt("Enter the new Lead Data Folder directory path:\n(SciProspect will save and search all lead datasets in this folder)", current);
+      if (userChoice && userChoice.trim() && userChoice.trim() !== current) {
+        try {
+          const res = await fetch("/api/config/data-dir", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ data_dir: userChoice.trim() })
+          });
+          const resData = await res.json();
+          if (res.ok) {
+            showToast("Lead Data Folder updated successfully!", "success");
+            loadDatasetsArchive();
+            fetchStats();
+            loadDatasetSelect();
+          } else {
+            showToast(resData.detail || "Failed to update folder", "error");
+          }
+        } catch (err) {
+          showToast(`Error: ${err.message}`, "error");
+        }
+      }
+    });
+  }
+
   async function loadDatasetsArchive() {
-    datasetsGrid.innerHTML = `<div class="empty-state">Scanning CSV files in data directory...</div>`;
+    datasetsGrid.innerHTML = `<div class="empty-state">Scanning lead datasets...</div>`;
     try {
       const res = await fetch("/api/datasets");
       if (!res.ok) throw new Error("Failed to list datasets");
       const data = await res.json();
-      const list = data.datasets || [];
+      allDatasets = data.datasets || [];
+      currentLeadDataDir = data.data_dir || "";
 
-      if (list.length === 0) {
-        datasetsGrid.innerHTML = `<div class="empty-state">No dataset CSVs generated yet.</div>`;
-        return;
+      if (archiveDataFolderPath) {
+        archiveDataFolderPath.textContent = currentLeadDataDir || "Documents/SciProspect Data";
+        archiveDataFolderPath.title = currentLeadDataDir;
       }
 
-      datasetsGrid.innerHTML = "";
-      list.forEach((item) => {
-        const card = document.createElement("div");
-        card.className = "dataset-card";
-        card.innerHTML = `
-          <div class="dataset-card-top">
-            <div class="dataset-icon-wrap">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-            </div>
-            <div class="dataset-details">
-              <h4 class="dataset-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
-              <div class="dataset-meta-row">
-                <span class="meta-tag meta-size">${item.size_kb} KB</span>
-                <span class="meta-sep">•</span>
-                <span class="meta-date">Modified ${item.modified}</span>
-              </div>
-            </div>
-          </div>
-          <div class="dataset-actions-row">
-            <button class="btn-action btn-open-leads btn-open-in-table" data-path="${item.path}">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-              <span>View Leads</span>
-            </button>
-            <a href="/api/leads/export?file=${encodeURIComponent(item.path)}" target="_blank" class="btn-action btn-download-leads">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-              <span>Download</span>
-            </a>
-          </div>
-        `;
-
-        card.querySelector(".btn-open-in-table").addEventListener("click", () => {
-          datasetSelect.value = item.path;
-          activeDataset = item.path;
-          currentPage = 1;
-          switchTab("explorer");
+      // Populate distinct dates in Date filter dropdown
+      if (datasetDateFilter) {
+        const prevSelected = activeDateFilter;
+        const distinctDates = Array.from(new Set(allDatasets.map(d => d.date).filter(Boolean))).sort().reverse();
+        datasetDateFilter.innerHTML = `<option value="all">All Dates</option>`;
+        distinctDates.forEach(d => {
+          const opt = document.createElement("option");
+          opt.value = d;
+          opt.textContent = `📅 ${d}`;
+          if (d === prevSelected) opt.selected = true;
+          datasetDateFilter.appendChild(opt);
         });
+        if (datasetDateFilter.value) {
+          activeDateFilter = datasetDateFilter.value;
+        }
+      }
 
-        datasetsGrid.appendChild(card);
-      });
+      renderDatasetsGrid();
     } catch (e) {
       datasetsGrid.innerHTML = `<div class="empty-state text-error">Failed: ${e.message}</div>`;
     }
+  }
+
+  function renderDatasetsGrid() {
+    if (allDatasets.length === 0) {
+      datasetsGrid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1; padding: 2.8rem 1.5rem; text-align: center;">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.8" style="margin: 0 auto 0.75rem auto; display: block;"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          <h4 style="font-size: 1.05rem; font-weight: 600; color: #0f172a; margin-bottom: 0.35rem;">Lead Data Folder is Empty</h4>
+          <p style="color: #64748b; font-size: 0.85rem; max-width: 480px; margin: 0 auto;">No lead datasets or candidate queues found in your folder yet. Run OpenAlex Discovery or NIH Extraction to generate researcher datasets.</p>
+        </div>
+      `;
+      return;
+    }
+
+    // Filter by Topic and Date
+    const filtered = allDatasets.filter((item) => {
+      // 1. Topic filter
+      if (activeTopicFilter) {
+        const tMatch = (item.topic || "").toLowerCase().includes(activeTopicFilter);
+        const nMatch = (item.name || "").toLowerCase().includes(activeTopicFilter);
+        if (!tMatch && !nMatch) return false;
+      }
+      // 2. Date filter
+      if (activeDateFilter && activeDateFilter !== "all") {
+        if (item.date !== activeDateFilter) return false;
+      }
+      return true;
+    });
+
+    if (filtered.length === 0) {
+      datasetsGrid.innerHTML = `
+        <div class="empty-state" style="grid-column: 1 / -1; padding: 2.2rem 1rem; text-align: center;">
+          <p style="color: #64748b; font-size: 0.88rem;">No datasets found matching your search criteria.</p>
+        </div>
+      `;
+      return;
+    }
+
+    datasetsGrid.innerHTML = "";
+    filtered.forEach((item) => {
+      const card = document.createElement("div");
+      card.className = "dataset-card";
+      const topicLabel = item.topic || "General";
+      const dateLabel = item.date || "";
+
+      card.innerHTML = `
+        <div class="dataset-card-top">
+          <div class="dataset-icon-wrap">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+          </div>
+          <div class="dataset-details">
+            <h4 class="dataset-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
+            <div class="dataset-meta-row" style="margin-top: 0.35rem; margin-bottom: 0.25rem;">
+              <span class="badge-topic">${escapeHtml(topicLabel)}</span>
+              ${dateLabel ? `<span class="chip-date">📅 ${escapeHtml(dateLabel)}</span>` : ""}
+            </div>
+            <div class="dataset-meta-row">
+              <span class="meta-tag meta-size">${item.size_kb} KB</span>
+              <span class="meta-sep">•</span>
+              <span class="meta-date">Modified ${item.modified}</span>
+            </div>
+          </div>
+        </div>
+        <div class="dataset-actions-row">
+          <button class="btn-action btn-open-leads btn-open-in-table" data-path="${item.path}">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+            <span>View Leads</span>
+          </button>
+          <a href="/api/leads/export?file=${encodeURIComponent(item.path)}" target="_blank" class="btn-action btn-download-leads">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Download</span>
+          </a>
+        </div>
+      `;
+
+      card.querySelector(".btn-open-in-table").addEventListener("click", () => {
+        datasetSelect.value = item.path;
+        activeDataset = item.path;
+        currentPage = 1;
+        switchTab("explorer");
+      });
+
+      datasetsGrid.appendChild(card);
+    });
   }
 
   // ---------------------------------------------------------------------------

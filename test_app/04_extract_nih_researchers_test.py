@@ -47,7 +47,9 @@ TARGET_LEADS = min(100, remaining_today)
 MAX_RESULTS_PER_KEYWORD = 300
 MAX_WORKERS = 15
 
-FOLDER = Path(__file__).parent / "data"
+from app_config import get_data_dir
+
+FOLDER = get_data_dir()
 FOLDER.mkdir(parents=True, exist_ok=True)
 CENTRAL_MASTER_FILE = FOLDER / "central_master_leads.csv"
 

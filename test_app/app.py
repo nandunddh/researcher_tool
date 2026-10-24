@@ -20,11 +20,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from app_config import get_data_dir, set_data_dir
 from trial_manager import trial_engine
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = get_data_dir()
 
 # Auto-detect static folder whether running as source or packaged executable
 if (BASE_DIR / "static").exists():
@@ -122,11 +123,28 @@ async def get_trial_status():
     return trial_engine.check_status()
 
 
+@app.get("/api/config")
+async def get_app_config():
+    data_dir = get_data_dir()
+    return {"data_dir": str(data_dir)}
+
+
+@app.post("/api/config/data-dir")
+async def update_data_dir(request: Request):
+    body = await request.json()
+    new_dir = body.get("data_dir", "").strip()
+    if not new_dir:
+        raise HTTPException(status_code=400, detail="Data directory cannot be empty.")
+    saved = set_data_dir(new_dir)
+    return {"status": "ok", "data_dir": str(saved)}
+
+
 @app.get("/api/stats")
 async def get_stats():
     status = trial_engine.check_status()
     today_str = datetime.now().strftime("%Y-%m-%d")
-    today_dir = DATA_DIR / today_str
+    data_dir = get_data_dir()
+    today_dir = data_dir / today_str
 
     verified_count = 0
     if today_dir.exists():
@@ -139,13 +157,13 @@ async def get_stats():
 
     queue_files = []
     pool_count = 0
-    for qf in DATA_DIR.glob("*_needto_extract.csv"):
+    for qf in data_dir.glob("*_needto_extract.csv"):
         try:
             with open(qf, "r", encoding="utf-8", errors="replace") as cf:
                 c = max(0, sum(1 for _ in cf) - 1)
             pool_count += c
             if c > 0:
-                rel = str(qf.relative_to(BASE_DIR)).replace("\\", "/")
+                rel = qf.name
                 topic_label = qf.stem.replace("_needto_extract", "").replace("_", " ")
                 queue_files.append({"path": rel, "name": qf.name, "topic": topic_label, "count": c})
         except Exception:
@@ -162,43 +180,64 @@ async def get_stats():
         "trial_expires_on": status.get("expires_on", ""),
         "today_verified_used": status.get("today_verified", 0),
         "today_verified_limit": status.get("daily_verified_limit", 1000),
+        "data_dir": str(data_dir),
     }
 
 
 @app.get("/api/datasets")
 async def list_datasets():
+    data_dir = get_data_dir()
     files = []
-    for p in sorted(DATA_DIR.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True):
+    import re
+    for p in sorted(data_dir.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True):
         try:
             stat = p.stat()
-            rel_path = str(p.relative_to(BASE_DIR)).replace("\\", "/")
+            rel_path = str(p.relative_to(data_dir)).replace("\\", "/")
+            
+            # Topic & Date identification
+            stem = p.stem
+            topic = stem.replace("_needto_extract", "").replace("_found", "").replace("_", " ")
+            parent_name = p.parent.name
+            if re.match(r"^\d{4}-\d{2}-\d{2}$", parent_name):
+                date_str = parent_name
+            else:
+                date_str = datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d")
+
             files.append({
                 "path": rel_path,
                 "name": p.name,
+                "topic": topic,
+                "date": date_str,
                 "size_kb": round(stat.st_size / 1024, 1),
                 "modified": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M"),
                 "is_queue": "_needto_extract" in p.name,
             })
         except Exception:
             continue
-    return {"datasets": files}
+    return {
+        "datasets": files,
+        "data_dir": str(data_dir)
+    }
 
 
 @app.get("/api/leads")
 async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1), page_size: int = Query(50, ge=10, le=100)):
+    data_dir = get_data_dir()
     target = None
     if file:
-        cand = (BASE_DIR / file).resolve()
-        if cand.exists() and cand.is_relative_to(BASE_DIR):
+        cand = (data_dir / file).resolve()
+        if cand.exists() and cand.is_relative_to(data_dir):
             target = cand
+        elif Path(file).exists():
+            target = Path(file).resolve()
 
     if not target:
-        csvs = sorted(DATA_DIR.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
+        csvs = sorted(data_dir.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
         if csvs:
             target = csvs[0]
 
     if not target or not target.exists():
-        return {"rows": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "file": None}
+        return {"rows": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "file": None, "data_dir": str(data_dir)}
 
     rows = []
     with open(target, "r", encoding="utf-8-sig", errors="replace") as f:
@@ -211,14 +250,28 @@ async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1
     end = start + page_size
     paged_rows = rows[start:end]
 
+    file_label = str(target.relative_to(data_dir)).replace("\\", "/") if target.is_relative_to(data_dir) else target.name
+
     return {
         "rows": paged_rows,
         "total": total,
         "page": page,
         "page_size": page_size,
         "total_pages": max(1, (total + page_size - 1) // page_size),
-        "file": str(target.relative_to(BASE_DIR)).replace("\\", "/")
+        "file": file_label,
+        "data_dir": str(data_dir)
     }
+
+
+@app.get("/api/leads/export")
+async def export_leads(file: Optional[str] = Query(None)):
+    data_dir = get_data_dir()
+    if not file:
+        raise HTTPException(status_code=400, detail="Missing file parameter")
+    target = (data_dir / file).resolve()
+    if not target.exists() or not target.is_relative_to(data_dir):
+        raise HTTPException(status_code=404, detail="Dataset not found")
+    return FileResponse(target, filename=target.name, media_type="text/csv")
 
 
 @app.post("/api/pipeline/start")
