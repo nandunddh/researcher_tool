@@ -58,7 +58,7 @@ ENRICH_EMAILS_ONLINE = True
 MAX_ENRICH_CANDIDATES = 50
 
 BASE_URL = "https://api.openalex.org/works"
-API_KEY = "5h8s0xhGxE1uL0ZJ5CdsT5"
+API_KEY = os.environ.get("OPENALEX_API_KEY", "")
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 TODAY_DIR = DATA_DIR / datetime.now().strftime("%Y-%m-%d")

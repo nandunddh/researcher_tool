@@ -40,7 +40,7 @@ PER_PAGE = 200
 MAX_PAGES_PER_TERM = 35  # ~7,000 candidates per term
 
 BASE_URL = "https://api.openalex.org/works"
-API_KEY = "5h8s0xhGxE1uL0ZJ5CdsT5"
+API_KEY = os.environ.get("OPENALEX_API_KEY", "")
 
 from app_config import get_data_dir
 

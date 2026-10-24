@@ -66,5 +66,5 @@ In `biorxiv_cellbio_collector.py` (line 30):
 ## Important Rules:
 1. **Close CSVs in Excel Before Running:** Windows locks CSV files while open in Excel. Close `biorxiv_cellbio_researchers.csv` and `researchers_with_emails.csv` in Excel before running scripts to avoid `PermissionError`.
 2. **API Keys:**
-   * OpenAlex uses your configured API key (`5h8s0xhGxE1uL0ZJ5CdsT5`).
+   * OpenAlex queries are free and use the standard polite pool (or optional `OPENALEX_API_KEY` environment variable).
    * bioRxiv and the email verification tool are 100% free and anonymous (no keys needed).
