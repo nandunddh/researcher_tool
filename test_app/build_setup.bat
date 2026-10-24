@@ -45,6 +45,7 @@ echo [Step 2/3] Compiling SciProspect into standalone Windows executable...
   --add-data "trial_manager.py;." ^
   --add-data "app_config.py;." ^
   --add-data "app.py;." ^
+  --add-data "version.json;." ^
   --hidden-import "app" ^
   --hidden-import "app_config" ^
   --hidden-import "uvicorn" ^

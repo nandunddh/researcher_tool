@@ -542,9 +542,11 @@ async def check_for_updates():
     raw_url = f"https://raw.githubusercontent.com/{GITHUB_REPO}/main/version.json"
     api_url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
 
+    headers = {"User-Agent": "SciProspect-Updater/1.0"}
+
     manifest = None
     try:
-        r = requests.get(raw_url, timeout=5)
+        r = requests.get(raw_url, headers=headers, timeout=5)
         if r.status_code == 200:
             manifest = r.json()
     except Exception:
@@ -552,7 +554,7 @@ async def check_for_updates():
 
     if not manifest:
         try:
-            r = requests.get(api_url, timeout=5)
+            r = requests.get(api_url, headers=headers, timeout=5)
             if r.status_code == 200:
                 rel = r.json()
                 tag = rel.get("tag_name", "").lstrip("v")
@@ -573,7 +575,18 @@ async def check_for_updates():
 
     # Fallback to local version.json for testing if offline
     if not manifest:
-        for p in [BASE_DIR / "version.json", ROOT_DIR / "version.json"]:
+        candidate_paths = [
+            BASE_DIR / "version.json",
+            ROOT_DIR / "version.json",
+            Path("version.json").resolve(),
+        ]
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).parent
+            candidate_paths.extend([
+                exe_dir / "version.json",
+                exe_dir / "_internal" / "version.json"
+            ])
+        for p in candidate_paths:
             if p.exists():
                 try:
                     manifest = json.loads(p.read_text(encoding="utf-8"))

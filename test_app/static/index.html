@@ -45,163 +45,184 @@
   <!-- Desktop App Shell (Fixed 100vh / 100vw Native Container) -->
   <div class="app-shell">
     
-    <!-- Left Navigation Sidebar (Dark Slate Theme) -->
-    <aside class="app-sidebar">
-      <div class="sidebar-brand">
-        <img src="sciprospect_logo_transparent.png" alt="SciProspect Lead Intelligence" class="sidebar-logo">
-      </div>
+    <!-- 1. Real Native Desktop Top Menu Bar across 100% Window Width -->
+    <header class="app-desktop-titlebar" id="app-desktop-titlebar">
+      <div class="titlebar-left">
+        <div class="titlebar-brand">
+          <svg class="titlebar-brand-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" stroke-width="2.2">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <path d="M11 8v6M8 11h6"/>
+          </svg>
+          <span class="titlebar-app-name">SciProspect</span>
+        </div>
+        <div class="titlebar-sep"></div>
 
-      <div class="sidebar-section">
-        <div class="sidebar-heading">NAVIGATION</div>
-        <nav class="sidebar-nav" role="tablist">
-          <button class="nav-tab active" data-tab="pipeline" id="tab-btn-pipeline">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-            <span class="nav-label">Dashboard</span>
-          </button>
-          <button class="nav-tab" data-tab="nih" id="tab-btn-nih">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-            <span class="nav-label">NIH Grant PIs</span>
-          </button>
-          <button class="nav-tab" data-tab="explorer" id="tab-btn-explorer">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-            <span class="nav-label">Leads Explorer</span>
-          </button>
-          <button class="nav-tab" data-tab="datasets" id="tab-btn-datasets">
-            <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-            <span class="nav-label">Datasets Archive</span>
-          </button>
+        <!-- Top Desktop Application Menus -->
+        <nav class="desktop-menubar" id="desktop-menubar">
+          <div class="menubar-item" data-menu="file">
+            <button class="menubar-btn" type="button">File <span class="menu-arrow">▾</span></button>
+            <div class="menubar-dropdown">
+              <button class="dropdown-item" id="menu-open-folder" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                <span>Open Lead Data Folder</span>
+              </button>
+              <button class="dropdown-item" id="menu-change-folder" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <span>Change Storage Folder...</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item" id="menu-export-master" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Export Master Dataset (CSV)</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="menubar-item" data-menu="pipeline">
+            <button class="menubar-btn" type="button">Pipeline <span class="menu-arrow">▾</span></button>
+            <div class="menubar-dropdown">
+              <button class="dropdown-item" id="menu-nav-stage1" type="button">
+                <span class="step-num-badge">01</span>
+                <span>OpenAlex Discovery (Stage 1)</span>
+              </button>
+              <button class="dropdown-item" id="menu-nav-stage2" type="button">
+                <span class="step-num-badge">02</span>
+                <span>Scholarly Email Enrichment (Stage 2)</span>
+              </button>
+              <button class="dropdown-item" id="menu-nav-nih" type="button">
+                <span class="step-num-badge">$</span>
+                <span>NIH Grant Funded PIs</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item text-danger" id="menu-stop-pipeline" type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+                <span>Stop Active Execution</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="menubar-item" data-menu="tools">
+            <button class="menubar-btn" type="button">Data & Tools <span class="menu-arrow">▾</span></button>
+            <div class="menubar-dropdown">
+              <button class="dropdown-item highlight-item" id="menu-merge-dedup" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
+                <span>Merge & Deduplicate All Leads...</span>
+              </button>
+              <button class="dropdown-item" id="menu-check-stats" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>Check Data & Duplicate Analysis</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item" id="menu-clear-logs" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                <span>Clear Execution Console Logs</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="menubar-item" data-menu="help">
+            <button class="menubar-btn" type="button">Help <span class="menu-arrow">▾</span></button>
+            <div class="menubar-dropdown">
+              <button class="dropdown-item" id="menu-help-license" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span>Evaluation License & Quotas</span>
+              </button>
+              <button class="dropdown-item" id="menu-help-guide" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>User Quickstart Guide</span>
+              </button>
+              <div class="dropdown-divider"></div>
+              <button class="dropdown-item highlight-item" id="menu-help-update" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>Check for Updates...</span>
+              </button>
+              <button class="dropdown-item" id="menu-help-about" type="button">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+                <span>About SciProspect</span>
+              </button>
+            </div>
+          </div>
         </nav>
       </div>
 
-      <!-- Pinned Evaluation Meter Card at Bottom of Sidebar -->
-      <div class="sidebar-bottom">
-        <div class="sidebar-eval-card" id="header-trial-pill" title="Evaluation license countdown">
-          <div class="eval-card-header">
-            <span class="trial-dot"></span>
-            <span class="eval-card-title">EVALUATION LICENSE</span>
-          </div>
-          <div class="eval-card-quota" id="header-trial-text">7.0 Days Left (0/1,000 Today)</div>
-          <div class="eval-card-bar">
-            <div class="eval-card-bar-fill"></div>
-          </div>
+      <div class="titlebar-right">
+        <div class="topbar-indicator" id="system-status-indicator">
+          <span class="pulse-indicator-dot"></span>
+          <span class="indicator-text" id="system-status-text">Engine Online</span>
         </div>
+        <button class="btn-refresh" id="btn-refresh-all" title="Refresh metrics and data">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <span>Sync</span>
+        </button>
       </div>
-    </aside>
+    </header>
 
-    <!-- Main Desktop Workspace (Right Pane) -->
-    <div class="app-workspace">
+    <!-- 2. Main Body Container (Sidebar + Workspace) -->
+    <div class="app-body-container">
       
-      <!-- Top Desktop Control / Breadcrumb Bar -->
-      <header class="app-topbar">
-        <div class="topbar-left">
-          <div class="breadcrumb">
-            <span class="breadcrumb-app">SciProspect</span>
-            <span class="breadcrumb-separator">/</span>
-            <span class="breadcrumb-active" id="topbar-view-title">Dashboard</span>
-          </div>
+      <!-- Left Navigation Sidebar (Dark Slate Theme) -->
+      <aside class="app-sidebar">
+        <div class="sidebar-brand">
+          <img src="sciprospect_logo_transparent.png" alt="SciProspect Lead Intelligence" class="sidebar-logo">
+        </div>
 
-          <!-- Top Desktop Application Menus -->
-          <nav class="desktop-menubar" id="desktop-menubar">
-            <div class="menubar-item" data-menu="file">
-              <button class="menubar-btn" type="button">File <span class="menu-arrow">▾</span></button>
-              <div class="menubar-dropdown">
-                <button class="dropdown-item" id="menu-open-folder" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-                  <span>Open Lead Data Folder</span>
-                </button>
-                <button class="dropdown-item" id="menu-change-folder" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                  <span>Change Storage Folder...</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item" id="menu-export-master" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                  <span>Export Master Dataset (CSV)</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="menubar-item" data-menu="pipeline">
-              <button class="menubar-btn" type="button">Pipeline <span class="menu-arrow">▾</span></button>
-              <div class="menubar-dropdown">
-                <button class="dropdown-item" id="menu-nav-stage1" type="button">
-                  <span class="step-num-badge">01</span>
-                  <span>OpenAlex Discovery (Stage 1)</span>
-                </button>
-                <button class="dropdown-item" id="menu-nav-stage2" type="button">
-                  <span class="step-num-badge">02</span>
-                  <span>Scholarly Email Enrichment (Stage 2)</span>
-                </button>
-                <button class="dropdown-item" id="menu-nav-nih" type="button">
-                  <span class="step-num-badge">$</span>
-                  <span>NIH Grant Funded PIs</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item text-danger" id="menu-stop-pipeline" type="button">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
-                  <span>Stop Active Execution</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="menubar-item" data-menu="tools">
-              <button class="menubar-btn" type="button">Data & Tools <span class="menu-arrow">▾</span></button>
-              <div class="menubar-dropdown">
-                <button class="dropdown-item highlight-item" id="menu-merge-dedup" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><line x1="6" y1="9" x2="6" y2="21"/></svg>
-                  <span>Merge & Deduplicate All Leads...</span>
-                </button>
-                <button class="dropdown-item" id="menu-check-stats" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  <span>Check Data & Duplicate Analysis</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item" id="menu-clear-logs" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                  <span>Clear Execution Console Logs</span>
-                </button>
-              </div>
-            </div>
-
-            <div class="menubar-item" data-menu="help">
-              <button class="menubar-btn" type="button">Help <span class="menu-arrow">▾</span></button>
-              <div class="menubar-dropdown">
-                <button class="dropdown-item" id="menu-help-license" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  <span>Evaluation License & Quotas</span>
-                </button>
-                <button class="dropdown-item" id="menu-help-guide" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                  <span>User Quickstart Guide</span>
-                </button>
-                <div class="dropdown-divider"></div>
-                <button class="dropdown-item highlight-item" id="menu-help-update" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                  <span>Check for Updates...</span>
-                </button>
-                <button class="dropdown-item" id="menu-help-about" type="button">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-                  <span>About SciProspect</span>
-                </button>
-              </div>
-            </div>
+        <div class="sidebar-section">
+          <div class="sidebar-heading">NAVIGATION</div>
+          <nav class="sidebar-nav" role="tablist">
+            <button class="nav-tab active" data-tab="pipeline" id="tab-btn-pipeline">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+              <span class="nav-label">Dashboard</span>
+            </button>
+            <button class="nav-tab" data-tab="nih" id="tab-btn-nih">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+              <span class="nav-label">NIH Grant PIs</span>
+            </button>
+            <button class="nav-tab" data-tab="explorer" id="tab-btn-explorer">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <span class="nav-label">Leads Explorer</span>
+            </button>
+            <button class="nav-tab" data-tab="datasets" id="tab-btn-datasets">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+              <span class="nav-label">Datasets Archive</span>
+            </button>
           </nav>
         </div>
 
-        <div class="topbar-right">
-          <div class="topbar-indicator">
-            <span class="pulse-indicator-dot"></span>
-            <span class="indicator-text">Engine Online</span>
+        <!-- Pinned Evaluation Meter Card at Bottom of Sidebar -->
+        <div class="sidebar-bottom">
+          <div class="sidebar-eval-card" id="header-trial-pill" title="Evaluation license countdown">
+            <div class="eval-card-header">
+              <span class="trial-dot"></span>
+              <span class="eval-card-title">EVALUATION LICENSE</span>
+            </div>
+            <div class="eval-card-quota" id="header-trial-text">7.0 Days Left (0/1,000 Today)</div>
+            <div class="eval-card-bar">
+              <div class="eval-card-bar-fill"></div>
+            </div>
           </div>
-          <button class="btn-refresh" id="btn-refresh-all" title="Refresh metrics and data">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-            <span>Sync</span>
-          </button>
         </div>
-      </header>
+      </aside>
 
-      <!-- Scrollable Main Viewport -->
-      <main class="workspace-viewport">
+      <!-- Main Desktop Workspace (Right Pane) -->
+      <div class="app-workspace">
+        
+        <!-- Top Desktop Control / Breadcrumb Bar -->
+        <header class="app-topbar">
+          <div class="topbar-left">
+            <div class="breadcrumb">
+              <span class="breadcrumb-app">SciProspect</span>
+              <span class="breadcrumb-separator">/</span>
+              <span class="breadcrumb-active" id="topbar-view-title">Dashboard</span>
+            </div>
+          </div>
+          <div class="topbar-right">
+            <span class="badge-subtle" id="view-context-badge">Lead Intelligence Console</span>
+          </div>
+        </header>
+
+        <!-- Scrollable Main Viewport -->
+        <main class="workspace-viewport">
 
     <!-- =================================================================== -->
     <!-- TAB 1: DASHBOARD (Metrics + Stepped 2-Stage Workflow + Live Monitor) -->
@@ -634,14 +655,23 @@
       </div>
     </section>
   </main>
+    </div><!-- .app-workspace -->
+  </div><!-- .app-body-container -->
 
-  <!-- Desktop Footer Status Bar (Copyright) -->
+  <!-- Full-width Desktop Footer Status Bar (shows Version & Data Storage) -->
   <footer class="app-status-bar">
-    <div class="status-bar-copyright">
-      <span>© 2026 SciProspect Lead Intelligence. All rights reserved.</span>
+    <div class="status-bar-left">
+      <span class="status-item">
+        <span class="status-dot"></span>
+        <span id="footer-version-display">SciProspect v1.0.1 (Evaluation Edition)</span>
+      </span>
+      <span class="status-sep">•</span>
+      <span class="status-item" id="footer-storage-path">Data Folder: D:\SciProspect Data</span>
+    </div>
+    <div class="status-bar-right">
+      <span class="status-bar-copyright">© 2026 SciProspect Lead Intelligence. All rights reserved.</span>
     </div>
   </footer>
-</div><!-- .app-workspace -->
 </div><!-- .app-shell -->
 
 

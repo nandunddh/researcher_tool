@@ -136,6 +136,17 @@ document.addEventListener("DOMContentLoaded", () => {
     const titleEl = document.getElementById("topbar-view-title");
     if (titleEl && titleMap[tabName]) titleEl.textContent = titleMap[tabName];
 
+    const badgeEl = document.getElementById("view-context-badge");
+    if (badgeEl) {
+      const badgeMap = {
+        pipeline: "2-Stage Lead Prospecting",
+        nih: "NIH Grant Intelligence",
+        explorer: "Verified Lead Management",
+        datasets: "Central Dataset Storage"
+      };
+      badgeEl.textContent = badgeMap[tabName] || "Lead Intelligence Console";
+    }
+
     if (tabName === "explorer") {
       loadLeads();
     } else if (tabName === "datasets") {
@@ -222,6 +233,15 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (btnRunScholarly) btnRunScholarly.disabled = false;
         if (btnScholarlyLabel) btnScholarlyLabel.textContent = "Run Scholarly Enrichment";
+      }
+
+      const footerStoragePath = document.getElementById("footer-storage-path");
+      if (footerStoragePath && data.data_dir) {
+        footerStoragePath.textContent = `Data Folder: ${data.data_dir}`;
+      }
+      const footerVersionDisplay = document.getElementById("footer-version-display");
+      if (footerVersionDisplay) {
+        footerVersionDisplay.textContent = `SciProspect v1.0.1 (Evaluation Edition)`;
       }
     } catch (e) {
       console.warn("Failed to fetch dashboard stats", e);
@@ -676,10 +696,10 @@ document.addEventListener("DOMContentLoaded", () => {
         <td class="cell-name">${escapeHtml(name)}</td>
         <td>
           ${email ? `
-            <div class="email-pill-wrap">
+            <div class="email-pill-wrap" title="Click to copy: ${escapeHtml(email)}">
               <span class="email-text">${escapeHtml(email)}</span>
-              <button class="btn-copy" data-email="${escapeHtml(email)}" title="Copy email">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <button class="btn-copy" data-email="${escapeHtml(email)}" title="Copy email address" type="button">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
             </div>
           ` : `<span style="color: var(--text-dim); font-style: italic;">No email found</span>`}
@@ -688,27 +708,73 @@ document.addEventListener("DOMContentLoaded", () => {
         <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
         <td><span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(award ? `${topic} (${award})` : topic)}</span></td>
         <td style="text-align: center;">
-          <button class="btn-view-profile btn-view-row" title="View researcher full profile">
+          <button class="btn-view-profile btn-view-row" title="View researcher full profile dossier" type="button">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             <span>View Profile</span>
           </button>
         </td>
       `;
 
-      // Copy email action
+      // Copy email action with checkmark feedback
+      const pillWrap = tr.querySelector(".email-pill-wrap");
       const copyBtn = tr.querySelector(".btn-copy");
-      if (copyBtn) {
-        copyBtn.addEventListener("click", (e) => {
+      if (pillWrap && copyBtn && email) {
+        pillWrap.addEventListener("click", (e) => {
           e.stopPropagation();
-          const em = copyBtn.getAttribute("data-email");
-          navigator.clipboard.writeText(em).then(() => showToast(`Copied: ${em}`));
+          handleCopyEmailClick(copyBtn, email);
         });
       }
 
       // Inspect detail action
-      tr.querySelector(".btn-view-row").addEventListener("click", () => openDetailModal(row));
+      const viewBtn = tr.querySelector(".btn-view-row");
+      if (viewBtn) {
+        viewBtn.addEventListener("click", () => openDetailModal(row));
+      }
 
       leadsTableBody.appendChild(tr);
+    });
+  }
+
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text);
+    }
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    return new Promise((resolve, reject) => {
+      try {
+        const ok = document.execCommand("copy");
+        document.body.removeChild(textArea);
+        if (ok) resolve();
+        else reject(new Error("Copy command failed"));
+      } catch (err) {
+        document.body.removeChild(textArea);
+        reject(err);
+      }
+    });
+  }
+
+  function handleCopyEmailClick(btnEl, email) {
+    if (!email) return;
+    copyTextToClipboard(email).then(() => {
+      showToast(`Copied: ${email}`);
+      if (btnEl) {
+        btnEl.classList.add("copied");
+        const origSvg = btnEl.innerHTML;
+        btnEl.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>`;
+        setTimeout(() => {
+          btnEl.classList.remove("copied");
+          btnEl.innerHTML = origSvg;
+        }, 1800);
+      }
+    }).catch(() => {
+      showToast("Unable to copy to clipboard", "error");
     });
   }
 
@@ -720,24 +786,113 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ---------------------------------------------------------------------------
-  // Row Detail Modal
+  // Row Detail Modal (Rich Scientific Researcher Profile)
   // ---------------------------------------------------------------------------
   function openDetailModal(row) {
-    const name = row.researcher_name || row.full_name || "Researcher";
-    modalTitle.textContent = name;
-    modalBody.innerHTML = "";
+    const name = row.researcher_name || row.full_name || row.author_name || "Unknown Researcher";
+    const email = row.professional_email || row.email || "";
+    const inst = row.affiliations_seen_on_matching_papers || row.organization || "Academic Institution";
+    const topic = row.matched_search_terms || row.field_keyword || row.keyword || "Scientific Research";
+    const orcid = row.orcid || "";
+    const papers = row.example_papers || "";
+    const dois = row.example_paper_dois || "";
+    const status = row.email_status || row.review_status || (email ? "Verified" : "Needs Review");
+    const source = row.email_source_url || "ORCID / Europe PMC";
 
-    const entries = Object.entries(row);
-    entries.forEach(([key, val]) => {
-      if (!val) return;
-      const div = document.createElement("div");
-      div.className = "detail-row";
-      div.innerHTML = `
-        <span class="detail-label">${escapeHtml(key.replace(/_/g, " "))}</span>
-        <span class="detail-value">${escapeHtml(String(val))}</span>
-      `;
-      modalBody.appendChild(div);
-    });
+    const initials = name.split(" ").map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "SC";
+
+    modalTitle.innerHTML = `
+      <div style="display: flex; align-items: center; gap: 0.65rem;">
+        <div style="width: 32px; height: 32px; border-radius: 8px; background: #0284c7; color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.85rem;">
+          ${escapeHtml(initials)}
+        </div>
+        <div>
+          <div style="font-size: 1.05rem; font-weight: 700; color: #0f172a; line-height: 1.2;">${escapeHtml(name)}</div>
+          <div style="font-size: 0.74rem; color: #64748b; font-weight: 500;">Researcher Profile Dossier</div>
+        </div>
+      </div>
+    `;
+
+    modalBody.innerHTML = `
+      <div style="display: flex; flex-direction: column; gap: 0.9rem;">
+        <!-- Status Box -->
+        <div style="display: flex; align-items: center; justify-content: space-between; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.6rem 0.85rem;">
+          <div style="display: flex; align-items: center; gap: 0.45rem;">
+            <span style="font-size: 0.74rem; color: #64748b; font-weight: 600;">VERIFICATION:</span>
+            <span class="status-badge ${status.toLowerCase().includes('verif') ? 'verified' : 'found'}">${escapeHtml(status)}</span>
+          </div>
+          <div style="font-size: 0.74rem; color: #64748b;">
+            Field: <strong style="color: #0f172a;">${escapeHtml(topic)}</strong>
+          </div>
+        </div>
+
+        <!-- Contact & Identifiers -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+          <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.04em;">Contact & Identifiers</div>
+          <div style="display: flex; flex-direction: column; gap: 0.45rem; font-size: 0.84rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
+              <span style="color: #64748b;">Professional Email:</span>
+              ${email ? `
+                <div class="email-pill-wrap" style="margin: 0;" title="Click to copy">
+                  <span class="email-text">${escapeHtml(email)}</span>
+                  <button class="btn-copy" id="modal-email-copy-btn" data-email="${escapeHtml(email)}" title="Copy email" type="button">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                  </button>
+                </div>
+              ` : `<span style="color: #94a3b8; font-style: italic;">No verified email</span>`}
+            </div>
+            ${orcid ? `
+              <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
+                <span style="color: #64748b;">ORCID Registry:</span>
+                <span style="font-family: monospace; font-size: 0.8rem; font-weight: 600; color: #0284c7;">${escapeHtml(orcid)}</span>
+              </div>
+            ` : ""}
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="color: #64748b;">Resolution Source:</span>
+              <span style="color: #0f172a; font-weight: 500;">${escapeHtml(source)}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Academic Affiliation -->
+        <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+          <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 0.35rem; letter-spacing: 0.04em;">Academic Affiliations</div>
+          <div style="font-size: 0.84rem; color: #0f172a; line-height: 1.45;">
+            ${escapeHtml(inst || "Academic Institution")}
+          </div>
+        </div>
+
+        <!-- Publications & Research Evidence -->
+        ${papers || dois ? `
+          <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.85rem;">
+            <div style="font-size: 0.72rem; font-weight: 700; color: #64748b; text-transform: uppercase; margin-bottom: 0.35rem; letter-spacing: 0.04em;">Matched Publications</div>
+            <div style="font-size: 0.8rem; color: #334155; line-height: 1.45; max-height: 130px; overflow-y: auto;">
+              ${escapeHtml(papers || dois)}
+            </div>
+          </div>
+        ` : ""}
+
+        <!-- Modal Footer Actions -->
+        <div style="display: flex; justify-content: flex-end; gap: 0.6rem; padding-top: 0.5rem; border-top: 1px solid #f1f5f9;">
+          <button class="btn btn-secondary" type="button" onclick="closeDetailModal()">Close</button>
+          ${email ? `
+            <button class="btn btn-primary" id="modal-copy-footer-btn" type="button">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Copy Email</span>
+            </button>
+          ` : ""}
+        </div>
+      </div>
+    `;
+
+    const modalCopyBtn = modalBody.querySelector("#modal-copy-footer-btn");
+    if (modalCopyBtn) {
+      modalCopyBtn.addEventListener("click", () => handleCopyEmailClick(modalCopyBtn, email));
+    }
+    const innerPill = modalBody.querySelector("#modal-email-copy-btn");
+    if (innerPill) {
+      innerPill.addEventListener("click", () => handleCopyEmailClick(innerPill, email));
+    }
 
     detailModal.style.display = "flex";
     detailModal.classList.add("active");
