@@ -739,12 +739,18 @@ document.addEventListener("DOMContentLoaded", () => {
       modalBody.appendChild(div);
     });
 
+    detailModal.style.display = "flex";
     detailModal.classList.add("active");
   }
 
-  modalCloseBtn.addEventListener("click", () => detailModal.classList.remove("active"));
+  function closeDetailModal() {
+    detailModal.classList.remove("active");
+    detailModal.style.display = "none";
+  }
+
+  modalCloseBtn.addEventListener("click", closeDetailModal);
   detailModal.addEventListener("click", (e) => {
-    if (e.target === detailModal) detailModal.classList.remove("active");
+    if (e.target === detailModal) closeDetailModal();
   });
 
   // ---------------------------------------------------------------------------
@@ -1007,8 +1013,16 @@ document.addEventListener("DOMContentLoaded", () => {
   function showInfoModal(title, contentHtml) {
     modalTitle.textContent = title;
     modalBody.innerHTML = contentHtml;
+    detailModal.style.display = "flex";
     detailModal.classList.add("active");
   }
+  window.closeDetailModal = closeDetailModal;
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && detailModal && detailModal.classList.contains("active")) {
+      closeDetailModal();
+    }
+  });
 
   async function openDataFolderInExplorer() {
     try {
@@ -1291,7 +1305,7 @@ document.addEventListener("DOMContentLoaded", () => {
               <div style="font-size: 2.2rem; margin-bottom: 0.5rem;">🎉</div>
               <h4 style="color: #0f172a; margin: 0 0 0.5rem 0;">You have the latest version!</h4>
               <p style="color: #64748b; font-size: 0.85rem; margin: 0 0 1.25rem 0;">SciProspect <strong>v${escapeHtml(info.current_version)}</strong> is currently the newest release.</p>
-              <button class="btn btn-primary" onclick="document.getElementById('detail-modal').classList.remove('active')">Got it</button>
+              <button class="btn btn-primary" onclick="closeDetailModal()">Got it</button>
             </div>
             `
           );
@@ -1329,7 +1343,7 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
 
           <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
-            <button class="btn btn-secondary" id="btn-cancel-update" onclick="document.getElementById('detail-modal').classList.remove('active')">Later</button>
+            <button class="btn btn-secondary" id="btn-cancel-update" onclick="closeDetailModal()">Later</button>
             <button class="btn btn-primary" id="btn-start-download-update">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Download & Install Update</span>
