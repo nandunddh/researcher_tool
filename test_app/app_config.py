@@ -43,6 +43,8 @@ def get_data_dir() -> Path:
                     d = cfg.get("data_dir")
                     if d:
                         target = Path(d).resolve()
+                        if str(target).rstrip("\\/").endswith(":") or target == Path(target.anchor):
+                            target = target / "SciProspect Data"
                         target.mkdir(parents=True, exist_ok=True)
                         return target
             except Exception:
@@ -62,6 +64,8 @@ def get_data_dir() -> Path:
 def set_data_dir(new_path: str) -> Path:
     """Updates and saves the user-selected data directory."""
     target = Path(new_path).resolve()
+    if str(target).rstrip("\\/").endswith(":") or target == Path(target.anchor):
+        target = target / "SciProspect Data"
     target.mkdir(parents=True, exist_ok=True)
     cfg_data = {"data_dir": str(target)}
 

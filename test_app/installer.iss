@@ -72,8 +72,12 @@ begin
     SelectedDataDir := Trim(DataDirPage.Values[0]);
     if SelectedDataDir = '' then
       SelectedDataDir := ExpandConstant('{userdocs}\SciProspect Data');
+
+    // If user selected root drive like D: or D:\, create dedicated SciProspect Data folder
+    if (Length(SelectedDataDir) <= 3) and (Pos(':', SelectedDataDir) > 0) then
+      SelectedDataDir := AddBackslash(SelectedDataDir) + 'SciProspect Data';
     
-    // Ensure the data directory exists
+    // Ensure the data directory exists immediately
     ForceDirectories(SelectedDataDir);
 
     // Escape backslashes for valid JSON

@@ -295,5 +295,20 @@ def main():
     print("=" * 65 + "\n")
 
 
-if __name__ == "__main__":
+def run(input_file=None, target_leads=1000):
+    global MASTER_POOL_FILE, TARGET_DAILY_EMAILS
+    if input_file:
+        cand_arg = Path(str(input_file).strip())
+        if not cand_arg.is_absolute():
+            cand_arg = (get_data_dir() / cand_arg).resolve()
+        if cand_arg.exists():
+            MASTER_POOL_FILE = cand_arg
+    if target_leads:
+        TARGET_DAILY_EMAILS = min(int(target_leads), status["remaining_verified_today"])
     main()
+
+
+if __name__ == "__main__":
+    inp = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].strip() else None
+    tgt = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 1000
+    run(inp, tgt)

@@ -74,8 +74,29 @@ def broadcast_log(line: str, stage: str = "", status: str = "running"):
         pass
 
 
-def run_pipeline_worker(cmd: list, script_name: str, stage_name: str):
-    global current_process
+class LogStream:
+    def __init__(self, stage):
+        self.stage = stage
+        self.buf = ""
+
+    def write(self, s):
+        if not s:
+            return 0
+        self.buf += str(s)
+        while "\n" in self.buf:
+            line, self.buf = self.buf.split("\n", 1)
+            clean = line.rstrip()
+            if clean:
+                broadcast_log(clean, stage=self.stage, status="running")
+        return len(s)
+
+    def flush(self):
+        if self.buf.strip():
+            broadcast_log(self.buf.strip(), stage=self.stage, status="running")
+            self.buf = ""
+
+
+def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name: str):
     process_state["status"] = "running"
     process_state["script_name"] = script_name
     process_state["current_stage"] = stage_name
@@ -85,32 +106,46 @@ def run_pipeline_worker(cmd: list, script_name: str, stage_name: str):
 
     broadcast_log(f"Starting {stage_name}...", stage=stage_name, status="running")
 
+    old_stdout = sys.stdout
+    old_stderr = sys.stderr
+    stream = LogStream(stage_name)
+    sys.stdout = stream
+    sys.stderr = stream
+
     try:
-        current_process = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            cwd=str(BASE_DIR),
-            universal_newlines=True,
-        )
-
-        for line in iter(current_process.stdout.readline, ""):
-            clean = line.rstrip()
-            if clean:
-                broadcast_log(clean, stage=stage_name, status="running")
-
-        current_process.stdout.close()
-        code = current_process.wait()
-        process_state["exit_code"] = code
-        process_state["status"] = "completed" if code == 0 else "error"
-        broadcast_log(f"Stage ended (code: {code})", stage=stage_name, status=process_state["status"])
+        import importlib
+        if action == "openalex":
+            mod = importlib.import_module("01_extract_researchers_test")
+            mod.run(
+                keyword=params.get("keyword", "Physical Chemistry"),
+                pages=params.get("pages", 25),
+                from_date=params.get("from_date", "2026-01-01"),
+                to_date=params.get("to_date", "2026-01-31"),
+            )
+        elif action == "scholarly":
+            mod = importlib.import_module("02_collect_scholarly_emails_test")
+            mod.run(
+                input_file=params.get("input_file"),
+                target_leads=params.get("target_leads", 1000),
+            )
+        elif action == "nih":
+            mod = importlib.import_module("04_extract_nih_researchers_test")
+            mod.run(
+                keyword=params.get("keyword", "cell biology"),
+                target_leads=params.get("target_leads", 100),
+            )
+        stream.flush()
+        process_state["status"] = "completed"
+        process_state["exit_code"] = 0
+        broadcast_log(f"{stage_name} completed successfully.", stage=stage_name, status="completed")
     except Exception as e:
+        stream.flush()
         process_state["status"] = "error"
+        process_state["exit_code"] = 1
         broadcast_log(f"Execution failed: {e}", stage=stage_name, status="error")
     finally:
-        current_process = None
+        sys.stdout = old_stdout
+        sys.stderr = old_stderr
 
 
 # -----------------------------------------------------------------------------
@@ -274,6 +309,7 @@ async def export_leads(file: Optional[str] = Query(None)):
     return FileResponse(target, filename=target.name, media_type="text/csv")
 
 
+@app.post("/api/pipeline/run")
 @app.post("/api/pipeline/start")
 async def start_pipeline(request: Request):
     status = trial_engine.check_status()
@@ -283,21 +319,24 @@ async def start_pipeline(request: Request):
             detail="Your 7-day evaluation trial has ended. Please contact support to upgrade."
         )
 
-    with process_lock:
-        if current_process is not None and current_process.poll() is None:
-            raise HTTPException(status_code=400, detail="A task is already actively running.")
+    if process_state["status"] == "running":
+        raise HTTPException(status_code=400, detail="A task is already actively running.")
 
     body = await request.json()
     action = body.get("action", "openalex")
     keyword = body.get("keyword", "Physical Chemistry").strip()
-    pages = str(body.get("pages", 25)).strip()
+    pages = int(body.get("pages", 25))
     from_date = body.get("from_date", "2026-01-01").strip()
     to_date = body.get("to_date", "2026-01-31").strip()
 
-    py_exe = sys.executable
+    params = {
+        "keyword": keyword,
+        "pages": pages,
+        "from_date": from_date,
+        "to_date": to_date,
+    }
 
     if action == "openalex":
-        cmd = [py_exe, "-u", "01_extract_researchers_test.py", keyword, pages, from_date, to_date]
         script_name = "01_extract_researchers_test.py"
         stage_name = f"OpenAlex Discovery ({keyword} | 5k-10k pool)"
 
@@ -308,9 +347,10 @@ async def start_pipeline(request: Request):
                 status_code=429,
                 detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
             )
-        target_leads = str(min(int(body.get("target_leads", 1000)), rem))
+        target_leads = min(int(body.get("target_leads", 1000)), rem)
         input_file = body.get("input_file", "").strip()
-        cmd = [py_exe, "-u", "02_collect_scholarly_emails_test.py", input_file, target_leads]
+        params["input_file"] = input_file
+        params["target_leads"] = target_leads
         script_name = "02_collect_scholarly_emails_test.py"
         stage_name = f"Scholarly Verification (Remaining Today: {rem} leads)"
 
@@ -322,14 +362,19 @@ async def start_pipeline(request: Request):
                 detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
             )
         keyword = body.get("keyword", "cell biology").strip()
-        leads = str(min(int(body.get("target_leads", 100)), rem))
-        cmd = [py_exe, "-u", "04_extract_nih_researchers_test.py", keyword, leads]
+        leads = min(int(body.get("target_leads", 100)), rem)
+        params["keyword"] = keyword
+        params["target_leads"] = leads
         script_name = "04_extract_nih_researchers_test.py"
         stage_name = f"NIH Funded PIs ({keyword} | Target: {leads})"
     else:
         raise HTTPException(status_code=400, detail=f"Action '{action}' is disabled in trial edition.")
 
-    worker = threading.Thread(target=run_pipeline_worker, args=(cmd, script_name, stage_name), daemon=True)
+    worker = threading.Thread(
+        target=run_pipeline_worker,
+        args=(action, params, script_name, stage_name),
+        daemon=True
+    )
     worker.start()
     return {"status": "started", "stage": stage_name, "script": script_name}
 

@@ -231,13 +231,22 @@ def main():
     print("\n👉 Next Step: Run Tool 02 to enrich with verified scholarly emails (1,000/day trial allowance).\n")
 
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1].strip():
-        SEARCH_TERMS = [sys.argv[1].strip()]
-    if len(sys.argv) > 2 and sys.argv[2].isdigit():
-        MAX_PAGES_PER_TERM = int(sys.argv[2])
-    if len(sys.argv) > 3 and sys.argv[3].strip():
-        FROM_DATE = sys.argv[3].strip()
-    if len(sys.argv) > 4 and sys.argv[4].strip():
-        TO_DATE = sys.argv[4].strip()
+def run(keyword="Physical Chemistry", pages=25, from_date="2026-01-01", to_date="2026-01-31"):
+    global SEARCH_TERMS, MAX_PAGES_PER_TERM, FROM_DATE, TO_DATE
+    if keyword:
+        SEARCH_TERMS = [str(keyword).strip()]
+    if pages:
+        MAX_PAGES_PER_TERM = int(pages)
+    if from_date:
+        FROM_DATE = str(from_date).strip()
+    if to_date:
+        TO_DATE = str(to_date).strip()
     main()
+
+
+if __name__ == "__main__":
+    k = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].strip() else "Physical Chemistry"
+    p = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 25
+    f = sys.argv[3].strip() if len(sys.argv) > 3 and sys.argv[3].strip() else "2026-01-01"
+    t = sys.argv[4].strip() if len(sys.argv) > 4 and sys.argv[4].strip() else "2026-01-31"
+    run(k, p, f, t)

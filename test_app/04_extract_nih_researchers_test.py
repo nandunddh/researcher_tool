@@ -387,9 +387,16 @@ def main():
         print("\n[INFO] No verified emails found for this batch. Try different keywords.", flush=True)
 
 
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1].strip():
-        KEYWORDS = [sys.argv[1].strip()]
-    if len(sys.argv) > 2 and sys.argv[2].isdigit():
-        TARGET_LEADS = min(int(sys.argv[2]), remaining_today)
+def run(keyword="cell biology", target_leads=100):
+    global KEYWORDS, TARGET_LEADS
+    if keyword:
+        KEYWORDS = [str(keyword).strip()]
+    if target_leads:
+        TARGET_LEADS = min(int(target_leads), remaining_today)
     main()
+
+
+if __name__ == "__main__":
+    kw = sys.argv[1].strip() if len(sys.argv) > 1 and sys.argv[1].strip() else "cell biology"
+    tgt = int(sys.argv[2]) if len(sys.argv) > 2 and sys.argv[2].isdigit() else 100
+    run(kw, tgt)
