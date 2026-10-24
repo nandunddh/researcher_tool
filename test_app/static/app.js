@@ -782,6 +782,78 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#039;");
   }
 
+  // ---------------------------------------------------------------------------
+  // Startup Splash Screen & Progress Bar Animation
+  // ---------------------------------------------------------------------------
+  function initSplashScreen() {
+    const splash = document.getElementById("app-splash");
+    const bar = document.getElementById("splash-progress-bar");
+    const statusText = document.getElementById("splash-status-text");
+    const percentText = document.getElementById("splash-percent-text");
+
+    if (!splash || !bar) return;
+
+    const stages = [
+      { pct: 15, msg: "Initializing SciProspect Desktop Engine..." },
+      { pct: 38, msg: "Connecting to OpenAlex & CrossRef Scholar APIs..." },
+      { pct: 68, msg: "Connecting to Europe PMC & ORCID validation network..." },
+      { pct: 88, msg: "Synchronizing SQLite Central Leads Repository..." },
+      { pct: 100, msg: "Lead Intelligence Suite Ready!" }
+    ];
+
+    let currentStageIndex = 0;
+
+    function advanceStage() {
+      if (currentStageIndex >= stages.length) {
+        setTimeout(() => {
+          splash.classList.add("fade-out");
+          setTimeout(() => {
+            if (splash.parentNode) splash.remove();
+          }, 600);
+        }, 220);
+        return;
+      }
+
+      const stage = stages[currentStageIndex];
+      bar.style.width = `${stage.pct}%`;
+      if (percentText) percentText.textContent = `${stage.pct}%`;
+      if (statusText) statusText.textContent = stage.msg;
+
+      currentStageIndex++;
+      const nextDelay = currentStageIndex === stages.length ? 320 : Math.floor(Math.random() * 140) + 240;
+      setTimeout(advanceStage, nextDelay);
+    }
+
+    // Start progression smoothly after initial paint
+    setTimeout(advanceStage, 80);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Welcome Hero Animated Typography Cycling
+  // ---------------------------------------------------------------------------
+  function initDynamicWelcomeText() {
+    const dynamicEl = document.getElementById("dynamic-welcome-text");
+    if (!dynamicEl) return;
+
+    const phrases = [
+      "Principal Investigators & Lead Authors",
+      "NIH Grant-Funded Project Leaders",
+      "Verified Institutional Academic Contacts",
+      "Department Chairs & Faculty Researchers",
+      "High-Impact Publication First Authors"
+    ];
+
+    let phraseIndex = 0;
+    setInterval(() => {
+      dynamicEl.classList.add("fade-text");
+      setTimeout(() => {
+        phraseIndex = (phraseIndex + 1) % phrases.length;
+        dynamicEl.textContent = phrases[phraseIndex];
+        dynamicEl.classList.remove("fade-text");
+      }, 350);
+    }, 3200);
+  }
+
   btnRefreshAll.addEventListener("click", () => {
     fetchStats();
     loadDatasetsDropdown();
@@ -793,7 +865,10 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   // Initialization
   // ---------------------------------------------------------------------------
+  initSplashScreen();
+  initDynamicWelcomeText();
   fetchStats();
   connectLogStream();
   loadDatasetsDropdown();
 });
+

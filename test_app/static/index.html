@@ -15,6 +15,33 @@
   <!-- Toast notification -->
   <div id="toast-container" class="toast-container"></div>
 
+  <!-- App Launch Starting Splash Screen Overlay -->
+  <div id="app-splash" class="app-splash-screen">
+    <div class="splash-card">
+      <div class="splash-logo-wrap">
+        <img src="sciprospect_logo_transparent.png" alt="SciProspect Lead Intelligence" class="splash-logo">
+        <div class="splash-glow"></div>
+      </div>
+      
+      <!-- Starting Progress Bar & Animated Status Text -->
+      <div class="splash-progress-container">
+        <div class="splash-progress-track">
+          <div id="splash-progress-bar" class="splash-progress-fill"></div>
+        </div>
+        <div class="splash-progress-info">
+          <span id="splash-status-text" class="splash-status-text">Initializing SciProspect Engine...</span>
+          <span id="splash-percent-text" class="splash-percent-text">0%</span>
+        </div>
+      </div>
+
+      <div class="splash-footer-meta">
+        <span class="splash-meta-badge">Desktop Edition v1.0</span>
+        <span class="splash-meta-sep">•</span>
+        <span>Lead Intelligence Platform</span>
+      </div>
+    </div>
+  </div>
+
   <!-- Desktop App Shell (Fixed 100vh / 100vw Native Container) -->
   <div class="app-shell">
     
@@ -153,6 +180,36 @@
     <section class="tab-view active" id="view-pipeline">
       <div class="pipeline-flow-container">
         
+        <!-- Welcome Hero Banner with Animated Typography -->
+        <div class="welcome-hero-banner">
+          <div class="hero-left">
+            <div class="hero-badge">
+              <span class="hero-badge-dot"></span>
+              <span class="hero-badge-text">SCHOLARLY DATA INTELLIGENCE</span>
+            </div>
+            <h2 class="hero-title">
+              Academic Researcher Discovery & Email Verification
+            </h2>
+            <div class="hero-dynamic-row">
+              <span class="dynamic-lead">Targeting:</span>
+              <span class="dynamic-rotating-text" id="dynamic-welcome-text">Principal Investigators & Lead Authors</span>
+            </div>
+            <p class="hero-desc">
+              Extract high-impact scientific authors across 250M+ global publications, cross-reference institutional ORCID records, and discover NIH grant-funded project leaders.
+            </p>
+          </div>
+          <div class="hero-right">
+            <div class="hero-stat-card">
+              <span class="hero-stat-value">250M+</span>
+              <span class="hero-stat-label">Publications Scanned</span>
+            </div>
+            <div class="hero-stat-card">
+              <span class="hero-stat-value">Europe PMC</span>
+              <span class="hero-stat-label">ORCID & CrossRef APIs</span>
+            </div>
+          </div>
+        </div>
+
         <!-- Workflow Cards Row (Step 1 -> Step 2) -->
         <div class="stepped-cards-grid">
           
