@@ -115,71 +115,72 @@
 
       <!-- Scrollable Main Viewport -->
       <main class="workspace-viewport">
-        <!-- Top Metrics Overview (Clean Light Cards) -->
-        <section class="stats-grid" id="stats-overview">
-      <div class="stat-card">
-        <div class="stat-top">
-          <span class="stat-title">Verified Master Leads</span>
-          <div class="stat-icon-wrap icon-indigo">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          </div>
-        </div>
-        <div class="stat-value" id="stat-central-leads">0</div>
-        <div class="stat-footer">
-          <span class="pill-badge pill-indigo">Central Archive</span>
-          <span class="stat-meta">Lifetime deduplicated leads</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-top">
-          <span class="stat-title">Today's Verified Leads</span>
-          <div class="stat-icon-wrap icon-emerald">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-        </div>
-        <div class="stat-value" id="stat-today-leads">0</div>
-        <div class="stat-footer">
-          <span class="pill-badge pill-emerald" id="stat-today-date">Today</span>
-          <span class="stat-meta">Send-ready verified emails</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-top">
-          <span class="stat-title">Active Candidate Pool</span>
-          <div class="stat-icon-wrap icon-cyan">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-          </div>
-        </div>
-        <div class="stat-value" id="stat-pool-leads">0</div>
-        <div class="stat-footer">
-          <span class="pill-badge pill-cyan" id="stat-pool-unprocessed">0 Candidates</span>
-          <span class="stat-meta">Ready for Stage 2 enrichment</span>
-        </div>
-      </div>
-
-      <div class="stat-card">
-        <div class="stat-top">
-          <span class="stat-title">Evaluation Allowance</span>
-          <div class="stat-icon-wrap icon-amber">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-          </div>
-        </div>
-        <div class="stat-value" id="stat-trial-days">7.0 d</div>
-        <div class="stat-footer">
-          <span class="pill-badge pill-amber" id="stat-trial-quota">1,000 / day</span>
-          <span class="stat-meta">Remaining daily quota</span>
-        </div>
-      </div>
-    </section>
 
     <!-- =================================================================== -->
-    <!-- TAB 1: SCHOLARLY PIPELINE (Stepped 2-Stage Workflow + Live Monitor) -->
+    <!-- TAB 1: DASHBOARD (Metrics + Stepped 2-Stage Workflow + Live Monitor) -->
     <!-- =================================================================== -->
     <section class="tab-view active" id="view-pipeline">
       <div class="pipeline-flow-container">
         
+        <!-- Top Metrics Overview (Exclusive to Dashboard) -->
+        <section class="stats-grid" id="stats-overview">
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-title">Verified Master Leads</span>
+              <div class="stat-icon-wrap icon-indigo">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-central-leads">0</div>
+            <div class="stat-footer">
+              <span class="pill-badge pill-indigo">Central Archive</span>
+              <span class="stat-meta">Lifetime deduplicated leads</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-title">Today's Verified Leads</span>
+              <div class="stat-icon-wrap icon-emerald">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-today-leads">0</div>
+            <div class="stat-footer">
+              <span class="pill-badge pill-emerald" id="stat-today-date">Today</span>
+              <span class="stat-meta">Send-ready verified emails</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-title">Active Candidate Pool</span>
+              <div class="stat-icon-wrap icon-cyan">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-pool-leads">0</div>
+            <div class="stat-footer">
+              <span class="pill-badge pill-cyan" id="stat-pool-unprocessed">0 Candidates</span>
+              <span class="stat-meta">Ready for Stage 2 enrichment</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-top">
+              <span class="stat-title">Evaluation Allowance</span>
+              <div class="stat-icon-wrap icon-amber">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              </div>
+            </div>
+            <div class="stat-value" id="stat-trial-days">7.0 d</div>
+            <div class="stat-footer">
+              <span class="pill-badge pill-amber" id="stat-trial-quota">1,000 / day</span>
+              <span class="stat-meta">Remaining daily quota</span>
+            </div>
+          </div>
+        </section>
+
         <!-- Workflow Cards Row (Step 1 -> Step 2) -->
         <div class="stepped-cards-grid">
           
