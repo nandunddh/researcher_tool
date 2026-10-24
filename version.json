@@ -3,11 +3,11 @@
   "release_date": "2026-10-24",
   "download_url": "https://github.com/nandunddh/researcher_tool/releases/latest/download/SciProspect_Setup.exe",
   "changelog": [
-    "Added Top Desktop Application Menu Bar (File, Pipeline, Data & Tools, Help)",
-    "Added Lead Merger & Zero-Duplicate Cleaner tool",
-    "Added OpenAlex 45s timeout with automatic 3x retry mechanism",
-    "Fixed Live Execution duration timer and Leads Explorer pagination",
-    "Integrated 1-Click GitHub Auto-Updater"
+    "Native Full-Width Desktop Menu Bar (File, Pipeline, Data & Tools, Help)",
+    "Fixed email copy alignment with instant green checkmark feedback",
+    "Rich Scientific Researcher Profile Dossier modal",
+    "Full-width footer status bar with app version & data storage directory",
+    "Integrated 1-Click GitHub Auto-Updater with live progress"
   ],
   "mandatory": false
 }
