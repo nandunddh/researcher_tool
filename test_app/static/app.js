@@ -118,7 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
     tabViews.forEach((v) => v.classList.toggle("active", v.id === `view-${tabName}`));
 
     const titleMap = {
-      pipeline: "Scholarly Pipeline",
+      pipeline: "Dashboard",
       nih: "NIH Grant PIs",
       explorer: "Leads Explorer",
       datasets: "Datasets Archive"
@@ -649,7 +649,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
-        <td style="color: var(--text-dim);">${startIdx + i}</td>
+        <td style="text-align: center; color: var(--text-dim); font-size: 0.8rem;">${startIdx + i}</td>
         <td class="cell-name">${escapeHtml(name)}</td>
         <td>
           ${email ? `
@@ -664,8 +664,11 @@ document.addEventListener("DOMContentLoaded", () => {
         <td>${escapeHtml(inst ? inst.substring(0, 50) + (inst.length > 50 ? "..." : "") : "—")}</td>
         <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
         <td><span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(award ? `${topic} (${award})` : topic)}</span></td>
-        <td>
-          <button class="btn-sm btn-ghost btn-view-row" title="View details">Inspect</button>
+        <td style="text-align: center;">
+          <button class="btn-view-profile btn-view-row" title="View researcher full profile">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            <span>View Profile</span>
+          </button>
         </td>
       `;
 
@@ -740,18 +743,30 @@ document.addEventListener("DOMContentLoaded", () => {
       datasetsGrid.innerHTML = "";
       list.forEach((item) => {
         const card = document.createElement("div");
-        card.className = "dataset-file-card";
+        card.className = "dataset-card";
         card.innerHTML = `
-          <div class="dataset-file-header">
-            <span class="dataset-file-icon">📊</span>
-            <div class="dataset-file-info">
-              <h4>${escapeHtml(item.name)}</h4>
-              <span class="dataset-file-meta">${item.size_kb} KB • Modified ${item.modified}</span>
+          <div class="dataset-card-top">
+            <div class="dataset-icon-wrap">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            </div>
+            <div class="dataset-details">
+              <h4 class="dataset-title" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</h4>
+              <div class="dataset-meta-row">
+                <span class="meta-tag meta-size">${item.size_kb} KB</span>
+                <span class="meta-sep">•</span>
+                <span class="meta-date">Modified ${item.modified}</span>
+              </div>
             </div>
           </div>
-          <div class="dataset-file-actions">
-            <button class="btn-sm btn-ghost btn-open-in-table" data-path="${item.path}">View Leads</button>
-            <a href="/api/leads/export?file=${encodeURIComponent(item.path)}" target="_blank" class="btn-sm btn-secondary" style="text-decoration: none;">Download</a>
+          <div class="dataset-actions-row">
+            <button class="btn-action btn-open-leads btn-open-in-table" data-path="${item.path}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+              <span>View Leads</span>
+            </button>
+            <a href="/api/leads/export?file=${encodeURIComponent(item.path)}" target="_blank" class="btn-action btn-download-leads">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download</span>
+            </a>
           </div>
         `;
 
@@ -828,32 +843,6 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(advanceStage, 80);
   }
 
-  // ---------------------------------------------------------------------------
-  // Welcome Hero Animated Typography Cycling
-  // ---------------------------------------------------------------------------
-  function initDynamicWelcomeText() {
-    const dynamicEl = document.getElementById("dynamic-welcome-text");
-    if (!dynamicEl) return;
-
-    const phrases = [
-      "Principal Investigators & Lead Authors",
-      "NIH Grant-Funded Project Leaders",
-      "Verified Institutional Academic Contacts",
-      "Department Chairs & Faculty Researchers",
-      "High-Impact Publication First Authors"
-    ];
-
-    let phraseIndex = 0;
-    setInterval(() => {
-      dynamicEl.classList.add("fade-text");
-      setTimeout(() => {
-        phraseIndex = (phraseIndex + 1) % phrases.length;
-        dynamicEl.textContent = phrases[phraseIndex];
-        dynamicEl.classList.remove("fade-text");
-      }, 350);
-    }, 3200);
-  }
-
   btnRefreshAll.addEventListener("click", () => {
     fetchStats();
     loadDatasetsDropdown();
@@ -866,7 +855,6 @@ document.addEventListener("DOMContentLoaded", () => {
   // Initialization
   // ---------------------------------------------------------------------------
   initSplashScreen();
-  initDynamicWelcomeText();
   fetchStats();
   connectLogStream();
   loadDatasetsDropdown();
