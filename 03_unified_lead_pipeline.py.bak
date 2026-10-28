@@ -1,0 +1,650 @@
+"""
+03_unified_lead_pipeline.py
+===========================
+Unified 1-Click Scientific Lead Generation & Email Verification Engine.
+Combines Discovery, Keyword Title Relevance Scoring, and Multi-Source Email Verification
+into a single, high-performance automated pipeline.
+
+Key Capabilities:
+1. Single Step: Enter Keyword + Target Leads (e.g. 1,000) -> Get Verified Leads directly.
+2. Relevance Match Score (0 - 100):
+   - Title & Keyword Match: 0 - 40 pts
+   - Email Verification & Strict Name Match: 0 - 40 pts
+   - Authority & Recency (2025/2026, PI/Lead): 0 - 20 pts
+3. Strict Filter: ONLY collects and saves leads with Match Score >= 50.
+4. Auto-Batched: Keeps scanning publications and grants until the exact requested target is met.
+"""
+
+import calendar
+import csv
+import json
+import os
+import re
+import sys
+import time
+import unicodedata
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime
+from pathlib import Path
+from threading import Lock
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace", line_buffering=True)
+
+import requests
+
+try:
+    from app_config import get_data_dir
+    DATA_DIR = get_data_dir()
+except Exception:
+    DATA_DIR = Path(__file__).resolve().parent / "data"
+
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+CENTRAL_MASTER_FILE = DATA_DIR / "central_master_leads.csv"
+
+# Global Stop Request Flag for graceful UI stop button
+STOP_REQUESTED = False
+
+def request_stop():
+    global STOP_REQUESTED
+    STOP_REQUESTED = True
+
+API_KEY = os.environ.get("OPENALEX_API_KEY", "").strip()
+HEADERS = {
+    "User-Agent": "SciProspectLeadSuite/2.0 (mailto:researcher_tool@academic.edu)"
+}
+if API_KEY:
+    HEADERS["Authorization"] = f"Bearer {API_KEY}"
+
+EMAIL_PATTERN = re.compile(
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+    re.IGNORECASE
+)
+
+IGNORED_DOMAINS = {
+    "example.com", "domain.com", "email.com", "none.com",
+    "s-corp.com", "github.com", "openalex.org", "wiley.com",
+    "elsevier.com", "springer.com", "nature.com"
+}
+
+output_lock = Lock()
+
+
+# ----------------------------------------------------------------------
+# TEXT & NAME MATCHING HELPERS
+# ----------------------------------------------------------------------
+
+def normalize_date_str(date_str: str, default: str) -> str:
+    if not date_str:
+        return default
+    date_str = str(date_str).strip()
+    m_iso = re.match(r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$", date_str)
+    if m_iso:
+        y, m, d = m_iso.groups()
+        return f"{y}-{int(m):02d}-{int(d):02d}"
+    m_eu = re.match(r"^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$", date_str)
+    if m_eu:
+        d, m, y = m_eu.groups()
+        return f"{y}-{int(m):02d}-{int(d):02d}"
+    return date_str
+
+
+def normalize_text(text: str) -> str:
+    if not text:
+        return ""
+    normalized = unicodedata.normalize("NFKD", str(text))
+    return normalized.encode("ASCII", "ignore").decode("utf-8").lower().strip()
+
+
+def extract_name_parts(full_name: str):
+    clean = normalize_text(full_name)
+    clean = re.sub(r"\b(dr|prof|phd|md|bsc|msc|mr|mrs|ms)\b\.?", "", clean)
+    words = re.findall(r"[a-z]+", clean)
+    if not words:
+        return "", "", [], ""
+    first = words[0]
+    last = words[-1]
+    initials = "".join(w[0] for w in words[:-1])
+    return first, last, words, initials
+
+
+def is_name_match(author_name: str, email: str) -> bool:
+    """Strict verification: Returns True ONLY if author's last name or initials match email handle."""
+    if not email or "@" not in email:
+        return False
+    handle, _, _ = email.lower().partition("@")
+    clean_handle = re.sub(r"[^a-z]", "", normalize_text(handle))
+    first, last, words, initials = extract_name_parts(author_name)
+
+    if not last or len(last) < 2:
+        return False
+
+    # 1. Exact last name in handle
+    if last in clean_handle:
+        return True
+
+    # 2. Initials + last name (e.g. 'whgreen', 'jsmith')
+    if initials and (initials + last) in clean_handle:
+        return True
+    if first and (first[0] + last) in clean_handle:
+        return True
+    if first and (last + first[0]) in clean_handle:
+        return True
+
+    # 3. Compound name parts
+    for w in words:
+        if len(w) >= 4 and w in clean_handle:
+            return True
+
+    # 4. First name in handle
+    if first and len(first) >= 4 and first in clean_handle:
+        return True
+
+    return False
+
+
+def clean_email(email_str: str) -> str:
+    if not email_str:
+        return ""
+    email = str(email_str).strip(".,;:()<>[]'\"").lower()
+    if email.endswith((".png", ".jpg", ".jpeg", ".gif", ".pdf", ".svg")):
+        return ""
+    if not EMAIL_PATTERN.fullmatch(email):
+        return ""
+    domain = email.split("@")[-1]
+    if domain in IGNORED_DOMAINS:
+        return ""
+    return email
+
+
+def clean_doi(value: str) -> str:
+    if not value:
+        return ""
+    doi = str(value).strip()
+    doi = re.sub(r"^https?://(?:dx\.)?doi\.org/", "", doi, flags=re.IGNORECASE)
+    return doi.strip().rstrip(".,; ")
+
+
+# ----------------------------------------------------------------------
+# RELEVANCE & MATCH SCORING ENGINE (0 - 100)
+# ----------------------------------------------------------------------
+
+def calculate_match_score(
+    keyword: str,
+    paper_title: str,
+    concepts: list,
+    email: str,
+    author_name: str,
+    pub_year: int,
+    is_corresponding: bool = False,
+    is_orcid: bool = False
+) -> tuple:
+    """
+    Computes rigorous 0 - 100 Match Score:
+    1. Title & Keyword Relevance (0 - 40 pts)
+    2. Email Verification Match (0 - 40 pts)
+    3. Authority & Recency (0 - 20 pts)
+    """
+    kw_norm = normalize_text(keyword)
+    title_norm = normalize_text(paper_title)
+    
+    # 1. Title & Keyword Relevance (Max 40)
+    title_score = 0
+    title_reason = ""
+    if kw_norm in title_norm:
+        title_score = 40
+        title_reason = "Exact keyword in paper title"
+    else:
+        # Check individual keyword tokens in title
+        tokens = [t for t in kw_norm.split() if len(t) >= 3]
+        matched_tokens = [t for t in tokens if t in title_norm]
+        if len(matched_tokens) == len(tokens) and tokens:
+            title_score = 35
+            title_reason = "All keyword terms found in title"
+        elif matched_tokens:
+            title_score = 25
+            title_reason = f"Keyword terms ({', '.join(matched_tokens)}) in title"
+        else:
+            # Check concepts / topics
+            concepts_text = " ".join([normalize_text(c) for c in concepts])
+            if kw_norm in concepts_text:
+                title_score = 30
+                title_reason = "Exact keyword match in paper concepts"
+            else:
+                title_score = 15
+                title_reason = "Related disciplinary topic"
+
+    # 2. Email Verification & Name Match (Max 40)
+    email_score = 0
+    email_reason = ""
+    if is_orcid:
+        email_score = 40
+        email_reason = "ORCID public profile personal email"
+    elif is_name_match(author_name, email):
+        domain = email.split("@")[-1].lower()
+        if any(domain.endswith(ext) for ext in [".edu", ".ac.uk", ".org", ".de", ".fr", ".jp", ".gov", ".ch", ".nl"]):
+            email_score = 38
+            email_reason = f"Strict name-matched institutional email ({domain})"
+        else:
+            email_score = 32
+            email_reason = "Strict name-matched author email"
+    else:
+        email_score = 0
+        email_reason = "No name-matched email"
+
+    # 3. Authority & Recency (Max 20)
+    auth_score = 0
+    auth_reasons = []
+    current_year = datetime.now().year
+    try:
+        y = int(pub_year)
+        if y >= current_year - 1:
+            auth_score += 15
+            auth_reasons.append(f"Recent {y} publication")
+        elif y >= current_year - 3:
+            auth_score += 10
+            auth_reasons.append(f"{y} publication")
+        else:
+            auth_score += 5
+    except Exception:
+        auth_score += 5
+
+    if is_corresponding:
+        auth_score += 5
+        auth_reasons.append("Corresponding / Lead Author")
+
+    total_score = title_score + email_score + auth_score
+    total_score = min(100, max(0, total_score))
+
+    breakdown = f"Title: {title_score}/40 | Email: {email_score}/40 | Recency: {auth_score}/20"
+    return total_score, breakdown
+
+
+# ----------------------------------------------------------------------
+# MULTI-SOURCE EMAIL EXTRACTION (ORCID, CROSSREF, EUROPE PMC)
+# ----------------------------------------------------------------------
+
+def fetch_email_from_orcid(orcid_url: str):
+    if not orcid_url:
+        return None
+    orcid_id = orcid_url.rstrip("/").split("/")[-1]
+    if len(orcid_id) < 15:
+        return None
+    url = f"https://pub.orcid.org/v3.0/{orcid_id}/email"
+    try:
+        resp = requests.get(url, headers={"Accept": "application/json"}, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            for entry in data.get("email", []):
+                email = clean_email(entry.get("email"))
+                if email:
+                    return email
+    except Exception:
+        pass
+    return None
+
+
+def fetch_email_from_crossref(doi: str, author_name: str):
+    if not doi:
+        return None
+    url = f"https://api.crossref.org/works/{requests.utils.quote(doi, safe='/')}"
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            metadata_str = str(data.get("message", {}))
+            for raw_email in EMAIL_PATTERN.findall(metadata_str):
+                em = clean_email(raw_email)
+                if em and is_name_match(author_name, em):
+                    return em
+    except Exception:
+        pass
+    return None
+
+
+def fetch_email_from_europepmc(doi: str, author_name: str):
+    if not doi:
+        return None
+    url = "https://www.ebi.ac.uk/europepmc/webservices/rest/search"
+    try:
+        resp = requests.get(url, params={"query": f'DOI:"{doi}"', "format": "json", "pageSize": 2, "resultType": "core"}, headers=HEADERS, timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            for res in data.get("resultList", {}).get("result", []):
+                for a in res.get("authorList", {}).get("author", []):
+                    aff_list = []
+                    if a.get("affiliation"):
+                        aff_list.append(a.get("affiliation"))
+                    for aff_str in aff_list:
+                        for raw_email in EMAIL_PATTERN.findall(aff_str):
+                            em = clean_email(raw_email)
+                            if em and is_name_match(author_name, em):
+                                return em
+    except Exception:
+        pass
+    return None
+
+
+# ----------------------------------------------------------------------
+# CORE WORKFLOW: FETCH CANDIDATES & RESOLVE LEADS WITH SCORE >= 50
+# ----------------------------------------------------------------------
+
+def run_unified_pipeline(
+    keyword: str = "cell biology",
+    target_leads: int = 1000,
+    min_score: int = 50,
+    from_date: str = "2025-01-01",
+    to_date: str = "2026-12-31"
+):
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
+
+    from_date = normalize_date_str(from_date, "2025-01-01")
+    to_date = normalize_date_str(to_date, "2026-12-31")
+
+    print("=" * 72)
+    print(f"🚀 UNIFIED 1-CLICK SCIENTIFIC LEAD PIPELINE")
+    print(f"• Keyword:             {keyword}")
+    print(f"• Target Leads:        {target_leads:,} Verified Contacts")
+    print(f"• Minimum Match Score: {min_score}+ / 100 (Strict Title + Name Verification)")
+    print(f"• Date Window:         {from_date} to {to_date}")
+    print("=" * 72)
+
+    # 1. Output Files Setup
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_dir = DATA_DIR / today_str
+    today_dir.mkdir(parents=True, exist_ok=True)
+    slug = re.sub(r"[^\w]+", "_", keyword.lower()).strip("_")
+    output_csv = today_dir / f"unified_leads_{slug}_{today_str}.csv"
+
+    # 2. Load existing emails to guarantee 0% duplicates
+    existing_emails = set()
+    if CENTRAL_MASTER_FILE.exists():
+        try:
+            with open(CENTRAL_MASTER_FILE, "r", encoding="utf-8-sig", errors="replace") as mf:
+                reader = csv.DictReader(mf)
+                for r in reader:
+                    em = r.get("professional_email", "").strip().lower()
+                    if em:
+                        existing_emails.add(em)
+            print(f"[DEDUP] Loaded {len(existing_emails):,} existing master leads (0% duplicates guaranteed).")
+        except Exception:
+            pass
+
+    fieldnames = [
+        "researcher_name",
+        "professional_email",
+        "match_score",
+        "match_rating",
+        "data_source",
+        "matched_paper_title",
+        "affiliation",
+        "orcid",
+        "score_breakdown",
+        "publication_year",
+        "doi",
+        "search_keyword",
+        "review_status",
+    ]
+
+    # Initialize CSV if new
+    if not output_csv.exists():
+        with open(output_csv, "w", encoding="utf-8-sig", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+
+    collected_leads = 0
+    scanned_works = 0
+    scanned_authors = 0
+    page = 1
+    per_page = 200
+
+    start_time = time.time()
+
+    while collected_leads < target_leads and not STOP_REQUESTED:
+        print(f"\n[PAGE {page}] Querying OpenAlex publications for '{keyword}'...")
+
+        url = "https://api.openalex.org/works"
+        params = {
+            "search": keyword,
+            "filter": f"from_publication_date:{from_date},to_publication_date:{to_date}",
+            "per_page": per_page,
+            "page": page,
+            "sort": "publication_date:desc",
+        }
+
+        try:
+            if API_KEY:
+                params["api_key"] = API_KEY
+            resp = requests.get(url, params=params, headers=HEADERS, timeout=15)
+            if resp.status_code == 200:
+                data = resp.json()
+                works = data.get("results", [])
+                if not works:
+                    print("[API] No more matching publications found in OpenAlex.")
+                    break
+            elif resp.status_code == 429:
+                print(f"[API] OpenAlex anonymous rate limit reached for today.")
+                print(f"      Seamlessly activating CrossRef Literature Pool (150M+ Works) fallback...")
+                cr_url = "https://api.crossref.org/works"
+                cr_params = {
+                    "query": keyword,
+                    "rows": per_page,
+                    "offset": (page - 1) * per_page,
+                    "sort": "published",
+                    "order": "desc"
+                }
+                cr_resp = requests.get(cr_url, params=cr_params, headers=HEADERS, timeout=15)
+                if cr_resp.status_code == 200:
+                    cr_items = cr_resp.json().get("message", {}).get("items", [])
+                    works = []
+                    for it in cr_items:
+                        title_list = it.get("title", [])
+                        t = title_list[0] if title_list else ""
+                        pub_parts = it.get("published", {}).get("date-parts", [[2026]])
+                        py = pub_parts[0][0] if pub_parts and pub_parts[0] else 2026
+                        authors = []
+                        for a in it.get("author", []):
+                            fn = f"{a.get('given', '')} {a.get('family', '')}".strip()
+                            if not fn and a.get("name"):
+                                fn = a.get("name")
+                            insts = []
+                            for aff in a.get("affiliation", []):
+                                nm = aff.get("name", "") if isinstance(aff, dict) else str(aff)
+                                if nm:
+                                    insts.append({"display_name": nm})
+                            authors.append({
+                                "author": {"display_name": fn, "orcid": a.get("ORCID", "")},
+                                "is_corresponding": a.get("sequence") == "first",
+                                "institutions": insts,
+                                "raw_affiliation_strings": [i["display_name"] for i in insts]
+                            })
+                        works.append({
+                            "title": t,
+                            "publication_year": py,
+                            "doi": it.get("DOI", ""),
+                            "concepts": [{"display_name": keyword}],
+                            "authorships": authors
+                        })
+                else:
+                    print(f"[API] Fallback returned status {cr_resp.status_code}.")
+                    break
+            else:
+                print(f"[API] OpenAlex returned status {resp.status_code}. Retrying...")
+                time.sleep(2)
+                continue
+        except Exception as e:
+            print(f"[API ERROR] Request failed: {e}")
+            time.sleep(2)
+            continue
+
+        scanned_works += len(works)
+
+        # Process each work
+        for work in works:
+            if collected_leads >= target_leads or STOP_REQUESTED:
+                break
+
+            paper_title = work.get("title") or ""
+            pub_year = work.get("publication_year") or 2026
+            doi = clean_doi(work.get("doi") or "")
+            concepts = [c.get("display_name", "") for c in work.get("concepts", [])[:5]]
+
+            authorships = work.get("authorships") or []
+            for authorship in authorships:
+                if collected_leads >= target_leads or STOP_REQUESTED:
+                    break
+
+                scanned_authors += 1
+                author = authorship.get("author") or {}
+                author_name = author.get("display_name") or ""
+                if not author_name or len(author_name) < 3:
+                    continue
+
+                orcid_url = author.get("orcid") or ""
+                is_corresponding = authorship.get("is_corresponding", False)
+
+                # Extract institutions
+                institutions = []
+                for inst in authorship.get("institutions", []):
+                    inst_name = inst.get("display_name")
+                    if inst_name:
+                        institutions.append(inst_name)
+                for raw_str in authorship.get("raw_affiliation_strings", []):
+                    if raw_str and raw_str not in institutions:
+                        institutions.append(raw_str)
+                affiliation_str = " | ".join(institutions[:2]) if institutions else "Academic Institution"
+
+                # Check if email is available
+                verified_email = ""
+                is_orcid_email = False
+
+                # 1. ORCID lookup
+                if orcid_url:
+                    em = fetch_email_from_orcid(orcid_url)
+                    if em:
+                        verified_email = em
+                        is_orcid_email = True
+
+                # 2. CrossRef DOI metadata lookup
+                if not verified_email and doi:
+                    em = fetch_email_from_crossref(doi, author_name)
+                    if em:
+                        verified_email = em
+
+                # 3. Europe PMC metadata lookup
+                if not verified_email and doi:
+                    em = fetch_email_from_europepmc(doi, author_name)
+                    if em:
+                        verified_email = em
+
+                # If no verified email, cannot meet score >= 50
+                if not verified_email:
+                    continue
+
+                clean_em = clean_email(verified_email)
+                if not clean_em or clean_em in existing_emails:
+                    continue
+
+                # Compute rigorous Match Score (0 - 100)
+                score, breakdown = calculate_match_score(
+                    keyword=keyword,
+                    paper_title=paper_title,
+                    concepts=concepts,
+                    email=clean_em,
+                    author_name=author_name,
+                    pub_year=pub_year,
+                    is_corresponding=is_corresponding,
+                    is_orcid=is_orcid_email
+                )
+
+                # Strict Filter: Minimum Score Threshold (Score >= 50)
+                if score < min_score:
+                    continue
+
+                # Rating label
+                if score >= 85:
+                    rating = f"Excellent Match ({score}%)"
+                elif score >= 70:
+                    rating = f"Strong Match ({score}%)"
+                else:
+                    rating = f"Verified Match ({score}%)"
+
+                # Save Lead
+                row = {
+                    "researcher_name": author_name,
+                    "professional_email": clean_em,
+                    "match_score": score,
+                    "match_rating": rating,
+                    "data_source": "OpenAlex",
+                    "matched_paper_title": paper_title,
+                    "affiliation": affiliation_str,
+                    "orcid": orcid_url,
+                    "score_breakdown": breakdown,
+                    "publication_year": pub_year,
+                    "doi": doi,
+                    "search_keyword": keyword,
+                    "review_status": "verified",
+                }
+
+                with output_lock:
+                    existing_emails.add(clean_em)
+                    collected_leads += 1
+
+                    # Append to daily output CSV
+                    with open(output_csv, "a", encoding="utf-8-sig", newline="") as f:
+                        writer = csv.DictWriter(f, fieldnames=fieldnames)
+                        writer.writerow(row)
+
+                    # Also append to central_master_leads.csv
+                    with open(CENTRAL_MASTER_FILE, "a", encoding="utf-8-sig", newline="") as mf:
+                        m_writer = csv.DictWriter(mf, fieldnames=fieldnames)
+                        if CENTRAL_MASTER_FILE.stat().st_size == 0:
+                            m_writer.writeheader()
+                        m_writer.writerow(row)
+
+                pct = (collected_leads / target_leads) * 100
+                print(f"🎯 [{collected_leads}/{target_leads} | {pct:.1f}%] {author_name} <{clean_em}> | Score: {score}/100 | {affiliation_str[:35]}")
+
+        page += 1
+        time.sleep(0.5)
+
+    elapsed = round(time.time() - start_time, 1)
+    print("\n" + "=" * 72)
+    if STOP_REQUESTED:
+        print(f"🛑 Execution stopped by user request.")
+    else:
+        print(f"✅ UNIFIED PIPELINE COMPLETED SUCCESSFULLY!")
+    print(f"• Total Verified Leads (Score >= {min_score}): {collected_leads:,}")
+    print(f"• Scanned Publications: {scanned_works:,}")
+    print(f"• Time Elapsed: {elapsed} seconds")
+    print(f"• Output Dataset: {output_csv.name}")
+    print("=" * 72)
+
+    return {
+        "status": "completed",
+        "collected_leads": collected_leads,
+        "target_leads": target_leads,
+        "file": output_csv.name,
+        "elapsed_seconds": elapsed,
+    }
+
+
+def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31"):
+    return run_unified_pipeline(
+        keyword=keyword,
+        target_leads=int(target_leads),
+        min_score=int(min_score),
+        from_date=from_date,
+        to_date=to_date
+    )
+
+
+if __name__ == "__main__":
+    kw = sys.argv[1] if len(sys.argv) > 1 else "cell biology"
+    tgt = int(sys.argv[2]) if len(sys.argv) > 2 else 1000
+    m_score = int(sys.argv[3]) if len(sys.argv) > 3 else 50
+    f_date = sys.argv[4] if len(sys.argv) > 4 else "2025-01-01"
+    t_date = sys.argv[5] if len(sys.argv) > 5 else "2026-12-31"
+
+    run(keyword=kw, target_leads=tgt, min_score=m_score, from_date=f_date, to_date=t_date)

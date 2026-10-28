@@ -45,7 +45,11 @@ TARGET_LEADS = 500
 MAX_RESULTS_PER_KEYWORD = 500
 MAX_WORKERS = 20
 
-FOLDER = Path(__file__).parent / "data"
+try:
+    from app_config import get_data_dir
+    FOLDER = get_data_dir()
+except Exception:
+    FOLDER = Path(__file__).parent / "data"
 FOLDER.mkdir(parents=True, exist_ok=True)
 
 CENTRAL_MASTER_FILE = FOLDER / "central_master_leads.csv"
@@ -397,11 +401,13 @@ def main():
     print(f"[DEDUP] Loaded {len(dedup):,} existing leads to guarantee 0% duplicates.\n")
 
     # Step 1: Collect PIs from NIH API
+    # Scale grant search limit dynamically based on requested TARGET_LEADS (with ~10-15% verified email yield)
+    scan_limit = max(500, TARGET_LEADS * 12)
     all_pis = []
     for kw in KEYWORDS:
-        pis = fetch_nih_projects(kw, limit=MAX_RESULTS_PER_KEYWORD)
+        pis = fetch_nih_projects(kw, limit=scan_limit)
         all_pis.extend(pis)
-        if len(all_pis) >= TARGET_LEADS * 2:
+        if len(all_pis) >= scan_limit:
             break
 
     # Deduplicate PI list

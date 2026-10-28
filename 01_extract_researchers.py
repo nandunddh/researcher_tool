@@ -60,7 +60,11 @@ MAX_ENRICH_CANDIDATES = 50
 BASE_URL = "https://api.openalex.org/works"
 API_KEY = os.environ.get("OPENALEX_API_KEY", "")
 
-DATA_DIR = Path(__file__).resolve().parent / "data"
+try:
+    from app_config import get_data_dir
+    DATA_DIR = get_data_dir()
+except Exception:
+    DATA_DIR = Path(__file__).resolve().parent / "data"
 TODAY_DIR = DATA_DIR / datetime.now().strftime("%Y-%m-%d")
 TODAY_DIR.mkdir(parents=True, exist_ok=True)
 TIMESTAMP = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")

@@ -1153,14 +1153,48 @@ select:disabled {
   border-color: var(--accent-indigo);
 }
 
-/* Data Table */
-.table-container {
-  overflow-x: auto;
-  max-height: 520px;
+/* Data Table & Horizontal Scroll Engine */
+.table-container,
+.table-responsive {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto !important;
+  overflow-y: auto;
+  max-height: 560px;
+  -webkit-overflow-scrolling: touch;
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+
+/* Custom styled horizontal and vertical scrollbars */
+.table-container::-webkit-scrollbar,
+.table-responsive::-webkit-scrollbar {
+  height: 9px;
+  width: 9px;
+}
+
+.table-container::-webkit-scrollbar-track,
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.table-container::-webkit-scrollbar-thumb,
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 4px;
+  border: 2px solid #f1f5f9;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover,
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
 }
 
 .leads-table {
   width: 100%;
+  min-width: 1200px;
   border-collapse: collapse;
   text-align: left;
   font-size: 0.86rem;
@@ -1175,17 +1209,29 @@ select:disabled {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border-subtle);
   white-space: nowrap;
+  z-index: 10;
 }
 
 .leads-table td {
   padding: 0.75rem 1rem;
   border-bottom: 1px solid #f1f5f9;
   color: var(--text-main);
+  white-space: nowrap;
 }
 
 .leads-table tr:hover td {
   background: #f8fafc;
 }
+
+/* Allow project title column to have comfortable width with text wrap */
+.leads-table td:nth-child(7),
+.leads-table th:nth-child(7) {
+  min-width: 280px;
+  max-width: 420px;
+  white-space: normal;
+  word-break: break-word;
+}
+
 
 .email-pill-wrap {
   display: inline-flex;
@@ -2110,3 +2156,495 @@ select:disabled {
   word-break: break-all;
 }
 
+/* ==========================================================================
+   Scientific Data Source Selector & Provenance Badges
+   ========================================================================== */
+.source-selector-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(10px);
+  padding: 0.65rem 1.15rem;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+}
+
+.source-pills-group {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.source-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 9999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  background: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.source-pill:hover:not(.disabled) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  color: #0f172a;
+}
+
+.source-pill.active {
+  background: #ede9fe;
+  color: #4f46e5;
+  border-color: #c4b5fd;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.15);
+}
+
+.source-pill.active[data-source="biorxiv"] {
+  background: #ecfeff;
+  color: #0891b2;
+  border-color: #a5f3fc;
+  box-shadow: 0 2px 8px rgba(6, 182, 212, 0.15);
+}
+
+.source-pill.disabled {
+  opacity: 0.65;
+  cursor: pointer;
+  background: #fafafa;
+  border-style: dashed;
+}
+
+.pill-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.pill-status-dot.green {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.25);
+}
+
+.pill-status-dot.blue {
+  background: #06b6d4;
+  box-shadow: 0 0 0 2px rgba(6, 182, 212, 0.25);
+}
+
+.pill-status-dot.purple {
+  background: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.25);
+}
+
+.badge-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  white-space: nowrap;
+}
+
+.badge-openalex {
+  background: rgba(99, 102, 241, 0.1);
+  color: #4f46e5;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+}
+
+.badge-biorxiv {
+  background: rgba(6, 182, 212, 0.1);
+  color: #0891b2;
+  border: 1px solid rgba(6, 182, 212, 0.25);
+}
+
+.badge-nih {
+  background: rgba(16, 185, 129, 0.1);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+
+
+
+
+/* ==========================================================================
+   ENHANCED LIVE PROGRESS BANNER & ETA METRICS
+   ========================================================================== */
+.pipeline-progress-container {
+  padding: 0.85rem 1.25rem;
+  background: linear-gradient(135deg, #0f172a, #1e293b);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.progress-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.55rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.progress-left-info {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.progress-badge {
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+}
+
+.progress-leads-count {
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #e2e8f0;
+}
+
+.progress-right-metrics {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.metric-pill {
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.07);
+  padding: 0.22rem 0.6rem;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #cbd5e1;
+  font-weight: 500;
+}
+
+.metric-pill.eta-pill {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-weight: 600;
+}
+
+.progress-bar-track {
+  height: 9px !important;
+  background: rgba(255, 255, 255, 0.12) !important;
+  border-radius: 9999px !important;
+  width: 100% !important;
+  overflow: hidden !important;
+}
+
+.progress-bar-fill {
+  height: 100% !important;
+  background: linear-gradient(90deg, #6366f1, #06b6d4, #10b981) !important;
+  border-radius: 9999px !important;
+  transition: width 0.35s ease !important;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5) !important;
+}
+
+.progress-bar-fill.completed {
+  background: #10b981 !important;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.8) !important;
+}
+
+
+/* ==========================================================================
+   UNIFIED SCIENTIFIC AUTHENTICATION GATE & USER PROFILE STYLES
+   ========================================================================== */
+.auth-gate-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: rgba(7, 11, 22, 0.85);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  padding: 1.5rem;
+  animation: fadeInGate 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes fadeInGate {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.auth-gate-card {
+  width: 100%;
+  max-width: 480px;
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(99, 102, 241, 0.15);
+  padding: 2.25rem 2.25rem 1.85rem;
+  color: #fff;
+}
+
+.auth-gate-header {
+  text-align: center;
+  margin-bottom: 1.5rem;
+}
+
+.auth-brand-badge {
+  display: inline-flex;
+  padding: 0.8rem;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+  border-radius: 16px;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 0 20px rgba(56, 189, 248, 0.25);
+}
+
+.auth-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  margin-bottom: 0.35rem;
+}
+
+.auth-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, #06b6d4, #3b82f6);
+  color: #fff;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  vertical-align: middle;
+  margin-left: 0.35rem;
+}
+
+.auth-subtitle {
+  font-size: 0.88rem;
+  color: #94a3b8;
+  margin: 0;
+}
+
+.auth-tab-bar {
+  display: flex;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 4px;
+  margin-bottom: 1.5rem;
+  gap: 4px;
+}
+
+.auth-tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.6rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #94a3b8;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.auth-tab-btn:hover {
+  color: #e2e8f0;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.auth-tab-btn.active {
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+}
+
+.auth-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 1.25rem;
+}
+
+.auth-field label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #cbd5e1;
+}
+
+.auth-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  transition: all 0.2s ease;
+}
+
+.auth-input-wrap:focus-within {
+  border-color: #38bdf8;
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2);
+}
+
+.auth-input-icon {
+  position: absolute;
+  left: 0.85rem;
+  color: #64748b;
+  pointer-events: none;
+}
+
+.auth-input-wrap input {
+  width: 100%;
+  padding: 0.75rem 1rem 0.75rem 2.5rem;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 0.95rem;
+  outline: none;
+}
+
+.auth-help-text {
+  font-size: 0.76rem;
+  color: #64748b;
+}
+
+.auth-error-box {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  color: #fca5a5;
+  padding: 0.7rem 0.95rem;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  margin-bottom: 1.15rem;
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.btn-auth-primary {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0.85rem 1rem;
+  background: linear-gradient(135deg, #6366f1, #06b6d4);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  box-shadow: 0 4px 18px rgba(99, 102, 241, 0.4);
+  transition: all 0.25s ease;
+  margin-top: 0.5rem;
+}
+
+.btn-auth-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(99, 102, 241, 0.55);
+}
+
+.btn-auth-admin {
+  background: linear-gradient(135deg, #8b5cf6, #ec4899);
+  box-shadow: 0 4px 18px rgba(139, 92, 246, 0.4);
+}
+
+.btn-auth-admin:hover {
+  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.55);
+}
+
+.auth-gate-footer-info {
+  margin-top: 1.5rem;
+  text-align: center;
+}
+
+.cloud-secured-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.cloud-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 6px #10b981;
+}
+
+/* User Profile Chip in Titlebar */
+.user-profile-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.22rem 0.65rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  color: #e2e8f0;
+}
+
+.user-chip-name {
+  font-weight: 600;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-chip-tier {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #10b981;
+  color: #fff;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  letter-spacing: 0.5px;
+}
+
+.btn-signout {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.26rem 0.6rem;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: #fca5a5;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-signout:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fff;
+}

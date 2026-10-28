@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
-  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="index.css?v=2.4">
 </head>
 <body>
   <!-- Toast notification -->
@@ -141,13 +141,31 @@
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
                 <span>About SciProspect</span>
               </button>
+              <div class="dropdown-divider"></div>
+              <a href="/admin" target="_blank" class="dropdown-item" style="color: #C4B5FD; text-decoration: none;">
+                <span>🛡️ Open Root Admin Console</span>
+              </a>
             </div>
           </div>
         </nav>
       </div>
 
       <div class="titlebar-right">
-        <div class="topbar-indicator" id="system-status-indicator">
+        <a href="/admin" target="_blank" class="btn-refresh" id="btn-root-admin" title="Open Root User Licensing Command Center" style="text-decoration:none; color:#C4B5FD; border-color:rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); font-weight:600;">
+          <span>🛡️ Root Admin</span>
+        </a>
+                <!-- Logged-in User Profile Chip & Sign Out -->
+        <div class="user-profile-chip" id="user-profile-chip" style="display: none;">
+          <span class="user-chip-avatar">👤</span>
+          <span class="user-chip-name" id="user-chip-name">Account</span>
+          <span class="user-chip-tier" id="user-chip-tier">PRO</span>
+        </div>
+        <button class="btn-signout" id="btn-sign-out" title="Sign out of SciProspect" style="display: none;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+          <span>Sign Out</span>
+        </button>
+
+<div class="topbar-indicator" id="system-status-indicator">
           <span class="pulse-indicator-dot"></span>
           <span class="indicator-text" id="system-status-text">Engine Online</span>
         </div>
@@ -189,17 +207,14 @@
           </nav>
         </div>
 
-        <!-- Pinned Evaluation Meter Card at Bottom of Sidebar -->
+        <!-- Pinned License Badge at Bottom of Sidebar -->
         <div class="sidebar-bottom">
-          <div class="sidebar-eval-card" id="header-trial-pill" title="Evaluation license countdown">
+          <div class="sidebar-eval-card" id="header-trial-pill" title="Commercial License Status" style="background: #f0fdf4; border-color: #bbf7d0;">
             <div class="eval-card-header">
-              <span class="trial-dot"></span>
-              <span class="eval-card-title">EVALUATION LICENSE</span>
+              <span class="trial-dot" style="background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);"></span>
+              <span class="eval-card-title" style="color: #166534;">PRO EDITION</span>
             </div>
-            <div class="eval-card-quota" id="header-trial-text">7.0 Days Left (0/1,000 Today)</div>
-            <div class="eval-card-bar">
-              <div class="eval-card-bar-fill"></div>
-            </div>
+            <div class="eval-card-quota" id="header-trial-text" style="color: #15803d; font-weight: 600;">Lifetime License (Unlimited)</div>
           </div>
         </div>
       </aside>
@@ -276,136 +291,100 @@
 
           <div class="stat-card">
             <div class="stat-top">
-              <span class="stat-title">Evaluation Allowance</span>
-              <div class="stat-icon-wrap icon-amber">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span class="stat-title">License Status</span>
+              <div class="stat-icon-wrap icon-emerald" style="background: #ecfdf5; color: #059669;">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               </div>
             </div>
-            <div class="stat-value" id="stat-trial-days">7.0 d</div>
+            <div class="stat-value" id="stat-trial-days">Lifetime</div>
             <div class="stat-footer">
-              <span class="pill-badge pill-amber" id="stat-trial-quota">1,000 / day</span>
-              <span class="stat-meta">Remaining daily quota</span>
+              <span class="pill-badge pill-emerald" id="stat-trial-quota">Unlimited Leads</span>
+              <span class="stat-meta">Full Commercial Edition</span>
             </div>
           </div>
         </section>
 
-        <!-- Workflow Cards Row (Step 1 -> Step 2) -->
-        <div class="stepped-cards-grid">
-          
-          <!-- Stage 01: OpenAlex Researcher Discovery -->
-          <div class="workflow-card" id="card-openalex">
-            <div class="card-step-badge">Stage 01</div>
-            <div class="card-header-clean">
-              <div>
-                <h3>OpenAlex Discovery</h3>
-                <p class="card-subtitle">Extract scientific paper authors and build your targeted topic pool.</p>
-              </div>
-            </div>
-
-            <div class="form-grid">
-              <div class="form-group flex-2">
-                <label for="openalex-keyword">Scientific / Conference Keyword</label>
-                <input type="text" id="openalex-keyword" value="Physical Chemistry" placeholder="e.g. Physical Chemistry, Oncology, Nanomaterials">
-              </div>
-
-              <div class="form-group flex-1">
-                <label for="openalex-pages">Scale (Pages × 200)</label>
-                <input type="number" id="openalex-pages" value="25" min="1" max="50">
-              </div>
-            </div>
-
-            <!-- Date Filter Settings -->
-            <div class="form-grid mt-sm">
-              <div class="form-group flex-1">
-                <label for="openalex-date-mode">Date Filter Type</label>
-                <select id="openalex-date-mode" class="select-date-mode">
-                  <option value="month" selected>Specific Month</option>
-                  <option value="year">Full Year</option>
-                  <option value="custom">Custom Date Range</option>
-                </select>
-              </div>
-
-              <div class="form-group flex-1 date-mode-panel" id="panel-date-month">
-                <label for="openalex-month-select">Publication Month</label>
-                <input type="month" id="openalex-month-select" value="2026-01">
-              </div>
-
-              <div class="form-group flex-1 date-mode-panel" id="panel-date-year" style="display: none;">
-                <label for="openalex-year-select">Publication Year</label>
-                <select id="openalex-year-select">
-                  <option value="2026" selected>2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                  <option value="2023">2023</option>
-                </select>
-              </div>
-
-              <div class="form-group flex-2 date-mode-panel" id="panel-date-custom" style="display: none;">
-                <label>Date Range (From - To)</label>
-                <div class="date-range-inputs">
-                  <input type="date" id="openalex-custom-from" value="2026-01-01">
-                  <input type="date" id="openalex-custom-to" value="2026-01-31">
-                </div>
-              </div>
-            </div>
-
-            <div class="card-action-bar">
-              <button class="btn btn-primary" id="btn-run-openalex">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                Run OpenAlex Discovery
+        <!-- SCIENTIFIC DATA SOURCE SELECTOR -->
+        <div class="source-selector-bar">
+          <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+            <span style="font-size:0.75rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; color:#64748b;">Active Data Source:</span>
+            <div class="source-pills-group" id="source-pills-container">
+              <button type="button" class="source-pill active" id="src-pill-openalex" data-source="openalex" title="Universal literature (Chemistry, Biology, Physics, Medicine, AI)">
+                <span>📚 Source 1: OpenAlex</span>
+                <span class="pill-status-dot green"></span>
+              </button>
+              <button type="button" class="source-pill" id="src-pill-biorxiv" data-source="biorxiv" title="Preprint Intelligence from Cold Spring Harbor (Cell Biology, Genetics, Cancer, etc.)">
+                <span>🧬 Source 2: bioRxiv / medRxiv</span>
+                <span class="pill-status-dot blue"></span>
+              </button>
+              <button type="button" class="source-pill" id="src-pill-nih" data-source="nih" title="Switch to NIH RePORTER Grant Awarded PIs ($250k–$2M+)">
+                <span>🏛️ Source 3: NIH RePORTER</span>
+                <span class="pill-status-dot purple"></span>
+              </button>
+              <button type="button" class="source-pill disabled" id="src-pill-more" title="Coming soon: PubMed / NCBI, ChemRxiv, and arXiv integration">
+                <span>🔬 More Sources (Roadmap)</span>
               </button>
             </div>
           </div>
+          <div style="font-size:0.78rem; color:#64748b; font-weight:600; display:flex; align-items:center; gap:0.4rem;" id="source-meta-tag">
+            <span class="pulse-indicator-dot" style="background:#10b981; width:6px; height:6px;"></span>
+            <span id="source-meta-text">250M+ Universal Literature Works</span>
+          </div>
+        </div>
 
-          <!-- Connecting Arrow Between Steps -->
-          <div class="workflow-arrow-divider">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        <!-- UNIFIED 1-CLICK PIPELINE CARD -->
+        <div class="workflow-card unified-pipeline-card" id="card-unified-pipeline" style="margin-bottom: 1.5rem; border: 1px solid rgba(99, 102, 241, 0.25); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);">
+          <div class="card-step-badge" id="unified-card-badge" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;">Source 1 • OpenAlex Engine</div>
+          <div class="card-header-clean">
+            <div>
+              <h3 id="unified-card-title">OpenAlex Scientific Lead Intelligence</h3>
+              <p class="card-subtitle" id="unified-card-subtitle">Direct API connection to 250M+ peer-reviewed works (Universal: Chemistry, Biology, Physics, Medicine, AI). Strict Name & Title Match (Score ≥ 50) with verified emails.</p>
+            </div>
+            <div class="header-tag-pill" id="unified-card-pill" style="display:flex; align-items:center; gap:0.4rem; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.25); color:#6366f1; padding:4px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700;">
+              <span>✨ 1-Click Lead Discovery</span>
+            </div>
           </div>
 
-          <!-- Stage 02: Scholarly Email Verification -->
-          <div class="workflow-card" id="card-scholarly">
-            <div class="card-step-badge">Stage 02</div>
-            <div class="card-header-clean">
-              <div>
-                <h3>Scholarly Verification & Enrichment</h3>
-                <p class="card-subtitle">Verify names against ORCID profiles and Europe PMC records to extract validated emails.</p>
-              </div>
+          <div class="form-grid">
+            <div class="form-group flex-2">
+              <label for="unified-keyword" id="lbl-unified-keyword">Scientific / Medical Field / Keyword *</label>
+              <input type="text" id="unified-keyword" value="cell biology" placeholder="e.g. cell biology, Physical Chemistry, cancer genetics, neuroscience">
             </div>
 
-            <!-- Dynamic State Alert: Shown if Pool is Empty -->
-            <div class="pool-state-alert alert-warning" id="pool-empty-alert">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span><strong>Stage 1 Required:</strong> No candidate pool available yet. Run OpenAlex Discovery first to populate your candidates.</span>
+            <div class="form-group flex-1">
+              <label for="unified-target">Target Verified Leads *</label>
+              <input type="number" id="unified-target" value="1000" min="50" max="50000" step="50" placeholder="e.g. 1000">
             </div>
 
-            <!-- Dynamic State Alert: Shown when Pool is Active -->
-            <div class="pool-state-alert alert-success" id="pool-active-alert" style="display: none;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              <span id="pool-active-text"><strong>Pool Ready:</strong> 21,752 candidates waiting for verified enrichment.</span>
+            <div class="form-group flex-1">
+              <label for="unified-min-score">Minimum Match Score</label>
+              <select id="unified-min-score">
+                <option value="50" selected>Score 50+ (Strict Name & Title Match)</option>
+                <option value="65">Score 65+ (High Relevance & Recent Pub)</option>
+                <option value="80">Score 80+ (Top Tier Precision)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Date Filters & Launch Button -->
+          <div class="form-grid mt-sm">
+            <div class="form-group flex-1">
+              <label for="unified-date-from">Publication Window (From)</label>
+              <input type="date" id="unified-date-from" value="2025-01-01">
             </div>
 
-            <div class="form-grid">
-              <div class="form-group flex-2">
-                <label for="scholarly-file-select">Source Candidate Pool</label>
-                <select id="scholarly-file-select" disabled>
-                  <option value="" disabled selected>No candidate pool available (Run Stage 1)</option>
-                </select>
-              </div>
-
-              <div class="form-group flex-1">
-                <label for="scholarly-target">Target Verified Emails</label>
-                <input type="number" id="scholarly-target" value="1000" min="50" max="1000" step="50">
-              </div>
+            <div class="form-group flex-1">
+              <label for="unified-date-to">Publication Window (To)</label>
+              <input type="date" id="unified-date-to" value="2026-12-31">
             </div>
 
-            <div class="card-action-bar">
-              <button class="btn btn-emerald" id="btn-run-scholarly" disabled>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                <span id="btn-scholarly-label">Waiting for Stage 1 Extraction</span>
+            <div class="form-group flex-2" style="display:flex; align-items:flex-end;">
+              <button class="btn btn-primary" id="btn-run-unified" style="width:100%; height:42px; background:linear-gradient(135deg, #4f46e5, #06b6d4); font-size:0.95rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:0.5rem; box-shadow:0 4px 14px rgba(79,70,229,0.35);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <span id="unified-btn-text">🚀 Run OpenAlex 1-Click Pipeline (Score ≥ 50)</span>
               </button>
             </div>
           </div>
-
         </div>
 
         <!-- Live Activity Monitor (Clean Modern Design, Not a massive black terminal) -->
@@ -430,9 +409,22 @@
             </div>
           </div>
 
-          <!-- Sleek Progress Bar -->
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" id="pipeline-progress-bar"></div>
+          <!-- Rich Live Progress Banner -->
+          <div class="pipeline-progress-container" id="pipeline-progress-container">
+            <div class="progress-header-row">
+              <div class="progress-left-info">
+                <span class="progress-badge" id="progress-percent-badge">0.0%</span>
+                <span class="progress-leads-count" id="progress-leads-count">0 Leads Discovered</span>
+              </div>
+              <div class="progress-right-metrics">
+                <span class="metric-pill" id="progress-speed-pill">⚡ Speed: -- leads/min</span>
+                <span class="metric-pill" id="progress-elapsed-pill">⏱️ Elapsed: 00:00</span>
+                <span class="metric-pill eta-pill" id="progress-eta-pill">⏳ ETA: Ready</span>
+              </div>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="pipeline-progress-bar" style="width: 0%;"></div>
+            </div>
           </div>
 
           <!-- Clean Monospaced Log Stream -->
@@ -505,6 +497,56 @@
           </div>
         </div>
 
+        <!-- NIH Leads Live Data Table Card -->
+        <div class="explorer-card" style="margin-top: 1.5rem;">
+          <div class="explorer-toolbar">
+            <div class="toolbar-left">
+              <div class="form-group-compact" style="display: flex; align-items: center; gap: 0.6rem;">
+                <span style="font-weight: 700; color: #0f172a; font-size: 0.95rem;">Extracted NIH Funded Leads</span>
+                <span class="pill-badge pill-amber" id="nih-table-count">0 PIs</span>
+              </div>
+            </div>
+            <div class="toolbar-right" style="display: flex; align-items: center; gap: 0.6rem;">
+              <div class="search-box">
+                <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                <input type="text" id="nih-search-input" placeholder="Search PI, university, grant...">
+              </div>
+              <button class="btn btn-secondary btn-compact" id="btn-export-nih-csv">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export CSV
+              </button>
+            </div>
+          </div>
+
+          <div class="table-container table-responsive" style="overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; max-width: 100%;">
+            <table class="leads-table" id="nih-leads-table" style="min-width: 1250px; width: 100%;">
+              <thead>
+                <tr>
+                  <th style="width: 45px;">#</th>
+                  <th>Principal Investigator</th>
+                  <th>Institutional Email</th>
+                  <th>Organization / University</th>
+                  <th>Award Amount</th>
+                  <th>Fiscal Year</th>
+                  <th>Project Title</th>
+                  <th style="width: 100px;">Profile</th>
+                </tr>
+              </thead>
+              <tbody id="nih-leads-table-body">
+                <tr><td colspan="8" class="empty-state">Loading NIH funded leads...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="table-pagination">
+            <span class="pagination-info" id="nih-pagination-info">Showing 0 of 0 leads</span>
+            <div class="pagination-controls">
+              <button class="btn-page" id="btn-nih-prev" disabled>Previous</button>
+              <button class="btn-page" id="btn-nih-next" disabled>Next</button>
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
 
@@ -543,6 +585,10 @@
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Export CSV
             </button>
+            <button class="btn btn-outline" id="btn-wipe-datasets" title="Wipe old dataset files to start fresh" style="color: #ef4444; border-color: rgba(239, 68, 68, 0.3);">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Wipe Datasets</span>
+            </button>
           </div>
         </div>
 
@@ -554,6 +600,8 @@
                 <th style="width: 48px; text-align: center;">#</th>
                 <th>Researcher Name</th>
                 <th>Professional Email</th>
+                <th style="width: 130px; text-align: center;">Match Score</th>
+                <th style="width: 140px; text-align: center;">Data Source</th>
                 <th>Affiliation / University</th>
                 <th>Status</th>
                 <th>Research Field</th>
@@ -562,7 +610,7 @@
             </thead>
             <tbody id="leads-table-body">
               <tr>
-                <td colspan="7" class="table-empty">
+                <td colspan="9" class="table-empty">
                   Select a dataset above to explore verified researcher contacts.
                 </td>
               </tr>
@@ -688,6 +736,102 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2.4"></script>
+  <!-- =================================================================== -->
+  <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
+  <!-- =================================================================== -->
+  <div class="auth-gate-overlay" id="auth-gate-overlay" style="display: none;">
+    <div class="auth-gate-card">
+      <div class="auth-gate-header">
+        <div class="auth-brand-badge">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2.3">
+            <circle cx="11" cy="11" r="8"/>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            <path d="M11 8v6M8 11h6"/>
+          </svg>
+        </div>
+        <h2 class="auth-title">SciProspect <span class="auth-tag">Lead Intelligence</span></h2>
+        <p class="auth-subtitle">Academic & Research Outreach Discovery System</p>
+      </div>
+
+      <!-- Auth Mode Switcher Tabs -->
+      <div class="auth-tab-bar">
+        <button type="button" class="auth-tab-btn active" id="auth-tab-btn-license" onclick="switchAuthTab('license')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          License Key
+        </button>
+        <button type="button" class="auth-tab-btn" id="auth-tab-btn-pwd" onclick="switchAuthTab('password')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          Email & Password
+        </button>
+        <button type="button" class="auth-tab-btn" id="auth-tab-btn-admin" onclick="switchAuthTab('admin')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Admin
+        </button>
+      </div>
+
+      <!-- Error Alert Box -->
+      <div class="auth-error-box" id="auth-error-box" style="display: none;"></div>
+
+      <!-- Tab 1: License Key Sign-In -->
+      <form class="auth-form-view active" id="auth-view-license" onsubmit="submitLicenseAuth(event)">
+        <div class="auth-field">
+          <label for="auth-input-license-key">Product License Key</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="text" id="auth-input-license-key" placeholder="e.g. SCIP-PRO-XXXX-XXXX" autocomplete="off" spellcheck="false" required>
+          </div>
+          <span class="auth-help-text">Enter your unique 16-character Pro or Trial License Key.</span>
+        </div>
+        <button type="submit" class="btn-auth-primary" id="btn-auth-submit-key">
+          <span>⚡ Unlock Workspace</span>
+        </button>
+      </form>
+
+      <!-- Tab 2: Email & Password Sign-In -->
+      <form class="auth-form-view" id="auth-view-password" style="display: none;" onsubmit="submitPasswordAuth(event)">
+        <div class="auth-field">
+          <label for="auth-input-email">Registered Email</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            <input type="email" id="auth-input-email" placeholder="client@institution.edu" autocomplete="username" required>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label for="auth-input-pwd">Account Password</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            <input type="password" id="auth-input-pwd" placeholder="Enter your password" autocomplete="current-password" required>
+          </div>
+        </div>
+        <button type="submit" class="btn-auth-primary" id="btn-auth-submit-pwd">
+          <span>Sign In</span>
+        </button>
+      </form>
+
+      <!-- Tab 3: Root Administrator Sign-In -->
+      <form class="auth-form-view" id="auth-view-admin" style="display: none;" onsubmit="submitAdminAuth(event)">
+        <div class="auth-field">
+          <label for="auth-input-admin-pwd">Root Master Password</label>
+          <div class="auth-input-wrap">
+            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <input type="password" id="auth-input-admin-pwd" placeholder="Enter Root Admin Password" autocomplete="current-password" required>
+          </div>
+          <span class="auth-help-text">Grants full access to the Root Licensing Command Center & Master Leads.</span>
+        </div>
+        <button type="submit" class="btn-auth-primary btn-auth-admin" id="btn-auth-submit-admin">
+          <span>🛡️ Sign In as Root Admin</span>
+        </button>
+      </form>
+
+      <div class="auth-gate-footer-info">
+        <span class="cloud-secured-tag">
+          <span class="cloud-dot"></span>
+          Oracle Cloud High-Availability Auth
+        </span>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>

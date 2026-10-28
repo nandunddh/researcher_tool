@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
-  <link rel="stylesheet" href="index.css">
+  <link rel="stylesheet" href="index.css?v=2.2">
 </head>
 <body>
   <!-- Toast notification -->
@@ -292,120 +292,87 @@
         <!-- Workflow Cards Row (Step 1 -> Step 2) -->
         <div class="stepped-cards-grid">
           
-          <!-- Stage 01: OpenAlex Researcher Discovery -->
-          <div class="workflow-card" id="card-openalex">
-            <div class="card-step-badge">Stage 01</div>
-            <div class="card-header-clean">
-              <div>
-                <h3>OpenAlex Discovery</h3>
-                <p class="card-subtitle">Extract scientific paper authors and build your targeted topic pool.</p>
-              </div>
-            </div>
-
-            <div class="form-grid">
-              <div class="form-group flex-2">
-                <label for="openalex-keyword">Scientific / Conference Keyword</label>
-                <input type="text" id="openalex-keyword" value="Physical Chemistry" placeholder="e.g. Physical Chemistry, Oncology, Nanomaterials">
-              </div>
-
-              <div class="form-group flex-1">
-                <label for="openalex-pages">Scale (Pages × 200)</label>
-                <input type="number" id="openalex-pages" value="25" min="1" max="50">
-              </div>
-            </div>
-
-            <!-- Date Filter Settings -->
-            <div class="form-grid mt-sm">
-              <div class="form-group flex-1">
-                <label for="openalex-date-mode">Date Filter Type</label>
-                <select id="openalex-date-mode" class="select-date-mode">
-                  <option value="month" selected>Specific Month</option>
-                  <option value="year">Full Year</option>
-                  <option value="custom">Custom Date Range</option>
-                </select>
-              </div>
-
-              <div class="form-group flex-1 date-mode-panel" id="panel-date-month">
-                <label for="openalex-month-select">Publication Month</label>
-                <input type="month" id="openalex-month-select" value="2026-01">
-              </div>
-
-              <div class="form-group flex-1 date-mode-panel" id="panel-date-year" style="display: none;">
-                <label for="openalex-year-select">Publication Year</label>
-                <select id="openalex-year-select">
-                  <option value="2026" selected>2026</option>
-                  <option value="2025">2025</option>
-                  <option value="2024">2024</option>
-                  <option value="2023">2023</option>
-                </select>
-              </div>
-
-              <div class="form-group flex-2 date-mode-panel" id="panel-date-custom" style="display: none;">
-                <label>Date Range (From - To)</label>
-                <div class="date-range-inputs">
-                  <input type="date" id="openalex-custom-from" value="2026-01-01">
-                  <input type="date" id="openalex-custom-to" value="2026-01-31">
-                </div>
-              </div>
-            </div>
-
-            <div class="card-action-bar">
-              <button class="btn btn-primary" id="btn-run-openalex">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                Run OpenAlex Discovery
+        <!-- SCIENTIFIC DATA SOURCE SELECTOR -->
+        <div class="source-selector-bar">
+          <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+            <span style="font-size:0.75rem; font-weight:800; letter-spacing:0.05em; text-transform:uppercase; color:#64748b;">Active Data Source:</span>
+            <div class="source-pills-group" id="source-pills-container">
+              <button type="button" class="source-pill active" id="src-pill-openalex" data-source="openalex" title="Universal literature (Chemistry, Biology, Physics, Medicine, AI)">
+                <span>📚 Source 1: OpenAlex</span>
+                <span class="pill-status-dot green"></span>
+              </button>
+              <button type="button" class="source-pill" id="src-pill-biorxiv" data-source="biorxiv" title="Preprint Intelligence from Cold Spring Harbor (Cell Biology, Genetics, Cancer, etc.)">
+                <span>🧬 Source 2: bioRxiv / medRxiv</span>
+                <span class="pill-status-dot blue"></span>
+              </button>
+              <button type="button" class="source-pill" id="src-pill-nih" data-source="nih" title="Switch to NIH RePORTER Grant Awarded PIs ($250k–$2M+)">
+                <span>🏛️ Source 3: NIH RePORTER</span>
+                <span class="pill-status-dot purple"></span>
+              </button>
+              <button type="button" class="source-pill disabled" id="src-pill-more" title="Coming soon: PubMed / NCBI, ChemRxiv, and arXiv integration">
+                <span>🔬 More Sources (Roadmap)</span>
               </button>
             </div>
           </div>
+          <div style="font-size:0.78rem; color:#64748b; font-weight:600; display:flex; align-items:center; gap:0.4rem;" id="source-meta-tag">
+            <span class="pulse-indicator-dot" style="background:#10b981; width:6px; height:6px;"></span>
+            <span id="source-meta-text">250M+ Universal Literature Works</span>
+          </div>
+        </div>
 
-          <!-- Connecting Arrow Between Steps -->
-          <div class="workflow-arrow-divider">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+        <!-- UNIFIED 1-CLICK PIPELINE CARD -->
+        <div class="workflow-card unified-pipeline-card" id="card-unified-pipeline" style="margin-bottom: 1.5rem; border: 1px solid rgba(99, 102, 241, 0.25); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);">
+          <div class="card-step-badge" id="unified-card-badge" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;">Source 1 • OpenAlex Engine</div>
+          <div class="card-header-clean">
+            <div>
+              <h3 id="unified-card-title">OpenAlex Scientific Lead Intelligence</h3>
+              <p class="card-subtitle" id="unified-card-subtitle">Direct API connection to 250M+ peer-reviewed works (Universal: Chemistry, Biology, Physics, Medicine, AI). Strict Name & Title Match (Score ≥ 50) with verified emails.</p>
+            </div>
+            <div class="header-tag-pill" id="unified-card-pill" style="display:flex; align-items:center; gap:0.4rem; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.25); color:#6366f1; padding:4px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700;">
+              <span>✨ 1-Click Lead Discovery</span>
+            </div>
           </div>
 
-          <!-- Stage 02: Scholarly Email Verification -->
-          <div class="workflow-card" id="card-scholarly">
-            <div class="card-step-badge">Stage 02</div>
-            <div class="card-header-clean">
-              <div>
-                <h3>Scholarly Verification & Enrichment</h3>
-                <p class="card-subtitle">Verify names against ORCID profiles and Europe PMC records to extract validated emails.</p>
-              </div>
+          <div class="form-grid">
+            <div class="form-group flex-2">
+              <label for="unified-keyword" id="lbl-unified-keyword">Scientific / Medical Field / Keyword *</label>
+              <input type="text" id="unified-keyword" value="cell biology" placeholder="e.g. cell biology, Physical Chemistry, cancer genetics, neuroscience">
             </div>
 
-            <!-- Dynamic State Alert: Shown if Pool is Empty -->
-            <div class="pool-state-alert alert-warning" id="pool-empty-alert">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span><strong>Stage 1 Required:</strong> No candidate pool available yet. Run OpenAlex Discovery first to populate your candidates.</span>
+            <div class="form-group flex-1">
+              <label for="unified-target">Target Verified Leads *</label>
+              <input type="number" id="unified-target" value="1000" min="50" max="1000" step="50" placeholder="e.g. 1000">
             </div>
 
-            <!-- Dynamic State Alert: Shown when Pool is Active -->
-            <div class="pool-state-alert alert-success" id="pool-active-alert" style="display: none;">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-              <span id="pool-active-text"><strong>Pool Ready:</strong> 21,752 candidates waiting for verified enrichment.</span>
+            <div class="form-group flex-1">
+              <label for="unified-min-score">Minimum Match Score</label>
+              <select id="unified-min-score">
+                <option value="50" selected>Score 50+ (Strict Name & Title Match)</option>
+                <option value="65">Score 65+ (High Relevance & Recent Pub)</option>
+                <option value="80">Score 80+ (Top Tier Precision)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Date Filters & Launch Button -->
+          <div class="form-grid mt-sm">
+            <div class="form-group flex-1">
+              <label for="unified-date-from">Publication Window (From)</label>
+              <input type="date" id="unified-date-from" value="2025-01-01">
             </div>
 
-            <div class="form-grid">
-              <div class="form-group flex-2">
-                <label for="scholarly-file-select">Source Candidate Pool</label>
-                <select id="scholarly-file-select" disabled>
-                  <option value="" disabled selected>No candidate pool available (Run Stage 1)</option>
-                </select>
-              </div>
-
-              <div class="form-group flex-1">
-                <label for="scholarly-target">Target Verified Emails</label>
-                <input type="number" id="scholarly-target" value="1000" min="50" max="1000" step="50">
-              </div>
+            <div class="form-group flex-1">
+              <label for="unified-date-to">Publication Window (To)</label>
+              <input type="date" id="unified-date-to" value="2026-12-31">
             </div>
 
-            <div class="card-action-bar">
-              <button class="btn btn-emerald" id="btn-run-scholarly" disabled>
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                <span id="btn-scholarly-label">Waiting for Stage 1 Extraction</span>
+            <div class="form-group flex-2" style="display:flex; align-items:flex-end;">
+              <button class="btn btn-primary" id="btn-run-unified" style="width:100%; height:42px; background:linear-gradient(135deg, #4f46e5, #06b6d4); font-size:0.95rem; font-weight:700; display:flex; align-items:center; justify-content:center; gap:0.5rem; box-shadow:0 4px 14px rgba(79,70,229,0.35);">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                <span id="unified-btn-text">🚀 Run OpenAlex 1-Click Pipeline (Score ≥ 50)</span>
               </button>
             </div>
           </div>
-
         </div>
 
         <!-- Live Activity Monitor (Clean Modern Design, Not a massive black terminal) -->
@@ -430,9 +397,22 @@
             </div>
           </div>
 
-          <!-- Sleek Progress Bar -->
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" id="pipeline-progress-bar"></div>
+          <!-- Rich Live Progress Banner -->
+          <div class="pipeline-progress-container" id="pipeline-progress-container">
+            <div class="progress-header-row">
+              <div class="progress-left-info">
+                <span class="progress-badge" id="progress-percent-badge">0.0%</span>
+                <span class="progress-leads-count" id="progress-leads-count">0 Leads Discovered</span>
+              </div>
+              <div class="progress-right-metrics">
+                <span class="metric-pill" id="progress-speed-pill">⚡ Speed: -- leads/min</span>
+                <span class="metric-pill" id="progress-elapsed-pill">⏱️ Elapsed: 00:00</span>
+                <span class="metric-pill eta-pill" id="progress-eta-pill">⏳ ETA: Ready</span>
+              </div>
+            </div>
+            <div class="progress-bar-track">
+              <div class="progress-bar-fill" id="pipeline-progress-bar" style="width: 0%;"></div>
+            </div>
           </div>
 
           <!-- Clean Monospaced Log Stream -->
@@ -554,6 +534,8 @@
                 <th style="width: 48px; text-align: center;">#</th>
                 <th>Researcher Name</th>
                 <th>Professional Email</th>
+                <th style="width: 130px; text-align: center;">Match Score</th>
+                <th style="width: 140px; text-align: center;">Data Source</th>
                 <th>Affiliation / University</th>
                 <th>Status</th>
                 <th>Research Field</th>
@@ -562,7 +544,7 @@
             </thead>
             <tbody id="leads-table-body">
               <tr>
-                <td colspan="7" class="table-empty">
+                <td colspan="9" class="table-empty">
                   Select a dataset above to explore verified researcher contacts.
                 </td>
               </tr>
@@ -688,6 +670,6 @@
     </div>
   </div>
 
-  <script src="app.js"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>

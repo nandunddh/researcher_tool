@@ -15,7 +15,11 @@ import requests
 # SETTINGS
 # --------------------------------------------------
 
-FOLDER = Path(__file__).parent / "data"
+try:
+    from app_config import get_data_dir
+    FOLDER = get_data_dir()
+except Exception:
+    FOLDER = Path(__file__).parent / "data"
 FOLDER.mkdir(parents=True, exist_ok=True)
 
 # Master pool tracks all researchers and their status across days:

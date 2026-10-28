@@ -130,6 +130,50 @@ def _get_programdata_file() -> Path:
 
 
 # ---------------------------------------------------------------------------
+# Central Root License & Remote Kill-Switch Connector
+# ---------------------------------------------------------------------------
+
+def _read_central_license():
+    """Checks central Root Admin license database to support remote activation and kill-switch."""
+    candidates_active = [
+        BASE_DIR / ".active_license",
+        BASE_DIR.parent / ".active_license",
+    ]
+    key = None
+    for p in candidates_active:
+        if p.exists():
+            try:
+                k = p.read_text(encoding="utf-8").strip()
+                if k:
+                    key = k
+                    break
+            except Exception:
+                pass
+
+    candidates_db = [
+        BASE_DIR / "licenses.json",
+        BASE_DIR.parent / "licenses.json",
+    ]
+    db_data = None
+    for db_path in candidates_db:
+        if db_path.exists():
+            try:
+                with open(db_path, "r", encoding="utf-8") as f:
+                    db_data = json.load(f)
+                    break
+            except Exception:
+                pass
+
+    if not db_data:
+        return None
+
+    licenses = db_data.get("licenses", {})
+    if key and key in licenses:
+        return licenses[key]
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Trial Manager Engine
 # ---------------------------------------------------------------------------
 
@@ -268,6 +312,47 @@ class TrialManager:
         now = get_current_date()
         today_str = now.strftime("%Y-%m-%d")
 
+        # 0. Check Root Admin Central License & Remote Kill-Switch
+        central_lic = _read_central_license()
+        if central_lic:
+            # Check if Root stopped this account
+            if central_lic.get("status") == "stopped":
+                return {
+                    "active": False,
+                    "status": "stopped",
+                    "days_left": 0,
+                    "reason": "🚨 Access Suspended: Your account has been stopped by the administrator.",
+                    "today_verified": 0,
+                    "daily_verified_limit": 0,
+                    "remaining_verified_today": 0,
+                    "tool_01_max_pool": 0,
+                    "tool_01_extracted": 0,
+                    "client_name": central_lic.get("client_name", ""),
+                    "license_key": central_lic.get("license_key", ""),
+                    "message": "Account suspended by Root Admin. Please contact support."
+                }
+            
+            # Check if Upgraded to Pro
+            if central_lic.get("tier") == "pro":
+                return {
+                    "active": True,
+                    "is_trial": False,
+                    "status": "active",
+                    "tier": "pro",
+                    "days_left": "Unlimited",
+                    "first_run": central_lic.get("created_at", ""),
+                    "expires_on": central_lic.get("expires_at", "Never"),
+                    "today_date": today_str,
+                    "today_verified": central_lic.get("used_today", 0),
+                    "daily_verified_limit": "Unlimited",
+                    "remaining_verified_today": 999999,
+                    "tool_01_max_pool": 999999,
+                    "tool_01_extracted": central_lic.get("total_extracted", 0),
+                    "client_name": central_lic.get("client_name", ""),
+                    "license_key": central_lic.get("license_key", ""),
+                    "message": f"SciProspect Pro — Active Commercial License for {central_lic.get('client_name')}"
+                }
+
         if self.state.get("is_expired"):
             return {
                 "active": False,
@@ -341,5 +426,28 @@ class TrialManager:
         self.state["tool_01_total_extracted"] = self.state.get("tool_01_total_extracted", 0) + count
         self._save_state(self.state)
 
+    def reset_trial(self) -> dict:
+        """Resets the trial timer and resets today's verified leads to 0."""
+        now = datetime.utcnow()
+        now_iso = now.isoformat()
+        today_str = now.strftime("%Y-%m-%d")
+
+        fresh_state = {
+            "machine_id": MACHINE_ID,
+            "first_run": now_iso,
+            "last_run": now_iso,
+            "total_runs": 1,
+            "is_expired": False,
+            "days_allowed": TRIAL_DURATION_DAYS,
+            "tool_01_total_extracted": 0,
+            "daily_usage": {
+                today_str: 0
+            }
+        }
+        self.state = fresh_state
+        self._save_state(fresh_state)
+        return self.check_status()
+
 
 trial_engine = TrialManager()
+

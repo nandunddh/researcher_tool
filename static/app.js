@@ -151,6 +151,8 @@ document.addEventListener("DOMContentLoaded", () => {
       loadLeads();
     } else if (tabName === "datasets") {
       loadDatasetsArchive();
+    } else if (tabName === "nih") {
+      loadNihLeads();
     }
   }
 
@@ -188,18 +190,28 @@ document.addEventListener("DOMContentLoaded", () => {
       if (statPool) statPool.textContent = Number(data.master_pool_total || 0).toLocaleString();
       if (statPoolUnprocessed) statPoolUnprocessed.textContent = `${Number(data.master_pool_total || 0).toLocaleString()} Candidates`;
 
-      // Trial metrics
+      // Trial / License metrics
       if (headerTrialText) {
-        const days = data.trial_days_left !== undefined ? data.trial_days_left : 7.0;
-        const used = data.today_verified_used || 0;
-        const limit = data.today_verified_limit || 1000;
-        headerTrialText.textContent = `${days} Days Left (${used}/${limit} Today)`;
+        if (data.is_trial === false || data.trial_days_left === "Unlimited") {
+          headerTrialText.textContent = "Lifetime License (Unlimited)";
+        } else {
+          const days = data.trial_days_left !== undefined ? data.trial_days_left : 7.0;
+          const used = data.today_verified_used || 0;
+          const limit = data.today_verified_limit || 1000;
+          headerTrialText.textContent = `${days} Days Left (${used}/${limit} Today)`;
+        }
       }
-      if (statTrialDays) statTrialDays.textContent = `${data.trial_days_left !== undefined ? data.trial_days_left : 7.0} d`;
+      if (statTrialDays) {
+        statTrialDays.textContent = (data.is_trial === false || data.trial_days_left === "Unlimited") ? "Lifetime" : `${data.trial_days_left !== undefined ? data.trial_days_left : 7.0} d`;
+      }
       if (statTrialQuota) {
-        const limit = data.today_verified_limit || 1000;
-        const used = data.today_verified_used || 0;
-        statTrialQuota.textContent = `${Math.max(0, limit - used)} leads left`;
+        if (data.is_trial === false || data.trial_days_limit === "Unlimited") {
+          statTrialQuota.textContent = "Unlimited Leads";
+        } else {
+          const limit = data.today_verified_limit || 1000;
+          const used = data.today_verified_used || 0;
+          statTrialQuota.textContent = `${Math.max(0, limit - used)} leads left`;
+        }
       }
 
       // Dynamic Candidate Pool State for Tool 02
@@ -262,14 +274,50 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const payload = JSON.parse(event.data);
 
-        // Heartbeat
+        // Heartbeat (silent keep-alive, no UI re-render)
         if (payload.type === "heartbeat") {
-          updateProcessUIState(payload.status, payload.stage);
           return;
         }
 
         // Real log line
         appendLogLine(payload);
+
+        // Live UI Progress Bar & ETA Updater
+        if (payload.text) {
+          const pm = payload.text.match(/\[(\d+)\/(\d+)\s*\|\s*([\d\.]+)%\](?:\s*\[Elapsed:\s*([^\|\]]+)\|\s*ETA:\s*([^\|\]]+)\|\s*([^\|\]]+)\])?/);
+          if (pm) {
+            const cur = pm[1];
+            const tot = pm[2];
+            const pct = parseFloat(pm[3]);
+            const elapsed = pm[4] ? pm[4].trim() : '';
+            const eta = pm[5] ? pm[5].trim() : '';
+            const spd = pm[6] ? pm[6].trim() : '';
+
+            const pBar = document.getElementById('pipeline-progress-bar');
+            if (pBar) {
+              pBar.style.width = pct + '%';
+              if (pct >= 100) pBar.classList.add('completed');
+              else pBar.classList.remove('completed');
+            }
+
+            const pBadge = document.getElementById('progress-percent-badge');
+            if (pBadge) pBadge.textContent = pct.toFixed(1) + '%';
+
+            const pCount = document.getElementById('progress-leads-count');
+            if (pCount) pCount.textContent = cur + ' / ' + tot + ' Leads';
+
+            const pSpeed = document.getElementById('progress-speed-pill');
+            if (pSpeed && spd) pSpeed.textContent = '⚡ Speed: ' + spd;
+
+            const pElapsed = document.getElementById('progress-elapsed-pill');
+            if (pElapsed && elapsed) pElapsed.textContent = '⏱️ Elapsed: ' + elapsed;
+
+            const pEta = document.getElementById('progress-eta-pill');
+            if (pEta && eta) {
+              pEta.textContent = pct >= 100 ? '✓ Target Reached' : '⏳ ETA: ' + eta;
+            }
+          }
+        }
         if (payload.status) {
           updateProcessUIState(payload.status, payload.stage);
         }
@@ -292,6 +340,49 @@ document.addEventListener("DOMContentLoaded", () => {
     line.className = "log-line";
 
     const text = entry.text || "";
+
+    // Live UI Progress Bar & ETA Badges Updater
+    const pm = text.match(/\[(\d+)\/(\d+)\s*\|\s*([\d\.]+)%\](?:\s*\[Elapsed:\s*([^\|\]]+)\|\s*ETA:\s*([^\|\]]+)\|\s*([^\|\]]+)\])?/);
+    if (pm) {
+      const cur = pm[1];
+      const tot = pm[2];
+      const pct = parseFloat(pm[3]);
+      const elapsed = pm[4] ? pm[4].trim() : "";
+      const eta = pm[5] ? pm[5].trim() : "";
+      const spd = pm[6] ? pm[6].trim() : "";
+
+      const pBar = document.getElementById("pipeline-progress-bar");
+      if (pBar) {
+        pBar.style.width = `${pct}%`;
+        if (pct >= 100) pBar.classList.add("completed");
+        else pBar.classList.remove("completed");
+      }
+
+      const pBadge = document.getElementById("progress-percent-badge");
+      if (pBadge) pBadge.textContent = `${pct.toFixed(1)}%`;
+
+      const pCount = document.getElementById("progress-leads-count");
+      if (pCount) pCount.textContent = `${cur} / ${tot} Leads`;
+
+      const pSpeed = document.getElementById("progress-speed-pill");
+      if (pSpeed && spd) pSpeed.textContent = `⚡ Speed: ${spd}`;
+
+      const pElapsed = document.getElementById("progress-elapsed-pill");
+      if (pElapsed && elapsed) pElapsed.textContent = `⏱️ Elapsed: ${elapsed}`;
+
+      const pEta = document.getElementById("progress-eta-pill");
+      if (pEta && eta) {
+        pEta.textContent = pct >= 100 ? "✓ Target Reached" : `⏳ ETA: ${eta}`;
+      }
+    } else if (text.includes("COMPLETED:") || text.includes("TARGET REACHED")) {
+      const pBar = document.getElementById("pipeline-progress-bar");
+      if (pBar) {
+        pBar.style.width = "100%";
+        pBar.classList.add("completed");
+      }
+      const pEta = document.getElementById("progress-eta-pill");
+      if (pEta) pEta.textContent = "✓ Completed";
+    }
     if (text.includes("COMPLETED:") || text.includes("✅") || text.includes("TARGET REACHED")) {
       line.classList.add("log-success");
     } else if (text.includes("WARNING:") || text.includes("⚠️") || text.includes("Rate limit")) {
@@ -316,6 +407,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  let lastProcessStatus = "idle";
   function updateProcessUIState(status, stage) {
     const isRunning = status === "running";
     if (btnStopPipeline) {
@@ -350,10 +442,17 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     } else {
       stopElapsedTimer();
-      if (status === "completed") {
+      if (status === "completed" && lastProcessStatus !== "completed") {
         fetchStats();
+        loadDatasetsDropdown();
+        if (currentTab === "nih") {
+          loadNihLeads();
+        } else if (currentTab === "explorer") {
+          loadLeads();
+        }
       }
     }
+    lastProcessStatus = status;
   }
 
   function startElapsedTimer() {
@@ -381,6 +480,14 @@ document.addEventListener("DOMContentLoaded", () => {
   async function triggerRun(action, payload = {}) {
     try {
       updateProcessUIState("running", action);
+      const pBar = document.getElementById("pipeline-progress-bar");
+      if (pBar) { pBar.style.width = "0%"; pBar.classList.remove("completed"); }
+      const pBadge = document.getElementById("progress-percent-badge");
+      if (pBadge) pBadge.textContent = "0.0%";
+      const pCount = document.getElementById("progress-leads-count");
+      if (pCount) pCount.textContent = "0 Leads Discovered";
+      const pEta = document.getElementById("progress-eta-pill");
+      if (pEta) pEta.textContent = "⏳ ETA: Initializing...";
       const res = await fetch("/api/pipeline/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -412,43 +519,47 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Bind Buttons
-  btnRunOpenalex.addEventListener("click", () => {
-    const keyword = inputOpenalexKeyword.value.trim() || "Physical Chemistry";
-    const pages = parseInt(inputOpenalexPages.value) || 25;
-    
-    // Calculate From and To dates based on selected mode
-    let fromDate = "2026-01-01";
-    let toDate = "2026-01-31";
-    const mode = selectDateMode ? selectDateMode.value : "month";
+  if (btnRunOpenalex) {
+    btnRunOpenalex.addEventListener("click", () => {
+      const keyword = (inputOpenalexKeyword ? inputOpenalexKeyword.value.trim() : "") || "Physical Chemistry";
+      const pages = parseInt(inputOpenalexPages ? inputOpenalexPages.value : 25) || 25;
+      
+      // Calculate From and To dates based on selected mode
+      let fromDate = "2026-01-01";
+      let toDate = "2026-01-31";
+      const mode = selectDateMode ? selectDateMode.value : "month";
 
-    if (mode === "month" && inputMonthSelect) {
-      const ym = inputMonthSelect.value || "2026-01";
-      fromDate = `${ym}-01`;
-      const [y, m] = ym.split("-").map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      toDate = `${ym}-${String(lastDay).padStart(2, "0")}`;
-    } else if (mode === "year" && inputYearSelect) {
-      const yr = inputYearSelect.value || "2026";
-      fromDate = `${yr}-01-01`;
-      toDate = `${yr}-12-31`;
-    } else if (mode === "custom" && inputCustomFrom && inputCustomTo) {
-      fromDate = inputCustomFrom.value || "2026-01-01";
-      toDate = inputCustomTo.value || "2026-01-31";
-    }
+      if (mode === "month" && inputMonthSelect) {
+        const ym = inputMonthSelect.value || "2026-01";
+        fromDate = `${ym}-01`;
+        const [y, m] = ym.split("-").map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        toDate = `${ym}-${String(lastDay).padStart(2, "0")}`;
+      } else if (mode === "year" && inputYearSelect) {
+        const yr = inputYearSelect.value || "2026";
+        fromDate = `${yr}-01-01`;
+        toDate = `${yr}-12-31`;
+      } else if (mode === "custom" && inputCustomFrom && inputCustomTo) {
+        fromDate = inputCustomFrom.value || "2026-01-01";
+        toDate = inputCustomTo.value || "2026-01-31";
+      }
 
-    triggerRun("openalex", { 
-      keyword, 
-      pages,
-      from_date: fromDate,
-      to_date: toDate
+      triggerRun("openalex", { 
+        keyword, 
+        pages,
+        from_date: fromDate,
+        to_date: toDate
+      });
     });
-  });
+  }
 
-  btnRunScholarly.addEventListener("click", () => {
-    const target = parseInt(inputScholarlyTarget.value) || 3000;
-    const selectedFile = selectScholarlyFile ? selectScholarlyFile.value.trim() : "";
-    triggerRun("scholarly", { target_leads: target, input_file: selectedFile });
-  });
+  if (btnRunScholarly) {
+    btnRunScholarly.addEventListener("click", () => {
+      const target = parseInt(inputScholarlyTarget ? inputScholarlyTarget.value : 3000) || 3000;
+      const selectedFile = selectScholarlyFile ? selectScholarlyFile.value.trim() : "";
+      triggerRun("scholarly", { target_leads: target, input_file: selectedFile });
+    });
+  }
 
   if (btnRunNih) {
     btnRunNih.addEventListener("click", () => {
@@ -458,38 +569,175 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Scientific Data Source Selector (Source 1: OpenAlex, Source 2: bioRxiv, etc.)
+  // ---------------------------------------------------------------------------
+  let activeDataSource = "openalex";
+  const pillOpenalex = document.getElementById("src-pill-openalex");
+  const pillBiorxiv = document.getElementById("src-pill-biorxiv");
+  const pillNih = document.getElementById("src-pill-nih");
+  const pillMore = document.getElementById("src-pill-more");
+
+  const unifiedCardBadge = document.getElementById("unified-card-badge");
+  const unifiedCardTitle = document.getElementById("unified-card-title");
+  const unifiedCardSubtitle = document.getElementById("unified-card-subtitle");
+  const unifiedBtnText = document.getElementById("unified-btn-text");
+  const sourceMetaText = document.getElementById("source-meta-text");
+  const lblUnifiedKeyword = document.getElementById("lbl-unified-keyword");
+
+  function setDataSource(sourceName) {
+    activeDataSource = sourceName;
+    [pillOpenalex, pillBiorxiv, pillNih].forEach(p => {
+      if (p) p.classList.remove("active");
+    });
+
+    if (sourceName === "openalex") {
+      if (pillOpenalex) pillOpenalex.classList.add("active");
+      if (unifiedCardBadge) {
+        unifiedCardBadge.textContent = "Source 1 • OpenAlex Engine";
+        unifiedCardBadge.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }
+      if (unifiedCardTitle) unifiedCardTitle.textContent = "OpenAlex Scientific Lead Intelligence";
+      if (unifiedCardSubtitle) unifiedCardSubtitle.textContent = "Direct API connection to 250M+ peer-reviewed works (Universal: Chemistry, Biology, Physics, Medicine, AI). Strict Name & Title Match (Score ≥ 50) with verified emails.";
+      if (unifiedBtnText) unifiedBtnText.textContent = "🚀 Run OpenAlex 1-Click Pipeline (Score ≥ 50)";
+      if (sourceMetaText) sourceMetaText.textContent = "250M+ Universal Literature Works";
+      if (lblUnifiedKeyword) lblUnifiedKeyword.textContent = "Scientific / Medical Field / Keyword *";
+    } else if (sourceName === "biorxiv") {
+      if (pillBiorxiv) pillBiorxiv.classList.add("active");
+      if (unifiedCardBadge) {
+        unifiedCardBadge.textContent = "Source 2 • bioRxiv & medRxiv Engine";
+        unifiedCardBadge.style.background = "linear-gradient(135deg, #0891b2, #2563eb)";
+      }
+      if (unifiedCardTitle) unifiedCardTitle.textContent = "bioRxiv & medRxiv Preprint Intelligence";
+      if (unifiedCardSubtitle) unifiedCardSubtitle.textContent = "Direct API connection to Cold Spring Harbor Laboratory preprints (Cell Biology, Genetics, Cancer, etc.). Extracts active 2025–2026 lab heads and verified author emails.";
+      if (unifiedBtnText) unifiedBtnText.textContent = "🚀 Run bioRxiv 1-Click Pipeline (Score ≥ 50)";
+      if (sourceMetaText) sourceMetaText.textContent = "3M+ Biomedical Preprints (Cold Spring Harbor)";
+      if (lblUnifiedKeyword) lblUnifiedKeyword.textContent = "Preprint Category or Research Topic *";
+    }
+  }
+
+  if (pillOpenalex) {
+    pillOpenalex.addEventListener("click", () => setDataSource("openalex"));
+  }
+  if (pillBiorxiv) {
+    pillBiorxiv.addEventListener("click", () => setDataSource("biorxiv"));
+  }
+  if (pillNih) {
+    pillNih.addEventListener("click", () => {
+      switchTab("nih");
+      showToast("Switched to Tab 2: NIH RePORTER Grant PIs");
+    });
+  }
+  if (pillMore) {
+    pillMore.addEventListener("click", () => {
+      showToast("Next Sources in Roadmap: PubMed/NCBI, ChemRxiv (Chemistry), & arXiv!");
+    });
+  }
+
+  // Unified 1-Click Pipeline Button
+  const btnRunUnified = document.getElementById("btn-run-unified");
+  const inputUnifiedKeyword = document.getElementById("unified-keyword");
+  const inputUnifiedTarget = document.getElementById("unified-target");
+  const selectUnifiedMinScore = document.getElementById("unified-min-score");
+  const inputUnifiedDateFrom = document.getElementById("unified-date-from");
+  const inputUnifiedDateTo = document.getElementById("unified-date-to");
+
+  function normalizeDateInput(val, fallback) {
+    if (!val) return fallback;
+    val = String(val).trim();
+    const isoMatch = val.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+    }
+    const dmyMatch = val.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
+    }
+    return val;
+  }
+
+  if (btnRunUnified) {
+    btnRunUnified.addEventListener("click", () => {
+      const keyword = (inputUnifiedKeyword ? inputUnifiedKeyword.value.trim() : "") || "cell biology";
+      const targetLeads = parseInt(inputUnifiedTarget ? inputUnifiedTarget.value : 1000) || 1000;
+      const minScore = parseInt(selectUnifiedMinScore ? selectUnifiedMinScore.value : 50) || 50;
+      const rawFrom = inputUnifiedDateFrom ? inputUnifiedDateFrom.value : "";
+      const rawTo = inputUnifiedDateTo ? inputUnifiedDateTo.value : "";
+      const fromDate = normalizeDateInput(rawFrom, "2025-01-01");
+      const toDate = normalizeDateInput(rawTo, "2026-12-31");
+
+      const actionName = activeDataSource === "biorxiv" ? "biorxiv" : "unified";
+
+      triggerRun(actionName, {
+        keyword,
+        target_leads: targetLeads,
+        min_score: minScore,
+        from_date: fromDate,
+        to_date: toDate
+      });
+    });
+  }
+
+  // Wipe Datasets Button
+  const btnWipeDatasets = document.getElementById("btn-wipe-datasets");
+  if (btnWipeDatasets) {
+    btnWipeDatasets.addEventListener("click", async () => {
+      if (!confirm("Are you sure you want to wipe all old lead dataset files and start with a fresh slate?")) {
+        return;
+      }
+      try {
+        const res = await fetch("/api/leads/clear-all", { method: "POST" });
+        const data = await res.json();
+        showToast(data.message || "All old datasets cleared.");
+        loadDatasetsDropdown();
+        loadLeads();
+        fetchStats();
+      } catch (err) {
+        showToast("Failed to clear datasets: " + err.message, "error");
+      }
+    });
+  }
+
   if (btnRunBiorxiv) {
     btnRunBiorxiv.addEventListener("click", () => {
+      setDataSource("biorxiv");
       triggerRun("biorxiv");
     });
   }
 
 
-  btnStopPipeline.addEventListener("click", async () => {
-    try {
-      const res = await fetch("/api/pipeline/stop", { method: "POST" });
-      const data = await res.json();
-      showToast("Pipeline stopped", "warning");
-      updateProcessUIState("stopped");
-    } catch (e) {
-      showToast("Failed to stop process", "error");
-    }
-  });
-
-  btnClearConsole.addEventListener("click", () => {
-    terminalBody.innerHTML = "";
-    lineCount = 0;
-    consoleLineCount.textContent = "0 lines";
-  });
-
-  btnCopyConsole.addEventListener("click", () => {
-    const text = Array.from(terminalBody.querySelectorAll(".log-text"))
-      .map((el) => el.innerText)
-      .join("\n");
-    navigator.clipboard.writeText(text).then(() => {
-      showToast("Console logs copied to clipboard!");
+  if (btnStopPipeline) {
+    btnStopPipeline.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/pipeline/stop", { method: "POST" });
+        const data = await res.json();
+        showToast("Pipeline stopped", "warning");
+        updateProcessUIState("stopped");
+      } catch (e) {
+        showToast("Failed to stop process", "error");
+      }
     });
-  });
+  }
+
+  if (btnClearConsole) {
+    btnClearConsole.addEventListener("click", () => {
+      if (terminalBody) terminalBody.innerHTML = "";
+      lineCount = 0;
+      if (consoleLineCount) consoleLineCount.textContent = "0 lines";
+    });
+  }
+
+  if (btnCopyConsole) {
+    btnCopyConsole.addEventListener("click", () => {
+      if (!terminalBody) return;
+      const text = Array.from(terminalBody.querySelectorAll(".log-text"))
+        .map((el) => el.innerText)
+        .join("\n");
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Console logs copied to clipboard!");
+      });
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Leads Explorer & Data Table
@@ -584,20 +832,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 
-  datasetSelect.addEventListener("change", () => {
-    activeDataset = datasetSelect.value;
-    currentPage = 1;
-    loadLeads();
-  });
-
-  leadsSearchInput.addEventListener("input", (e) => {
-    clearTimeout(searchDebounceTimeout);
-    searchDebounceTimeout = setTimeout(() => {
-      currentSearch = e.target.value.trim();
+  if (datasetSelect) {
+    datasetSelect.addEventListener("change", () => {
+      activeDataset = datasetSelect.value;
       currentPage = 1;
       loadLeads();
-    }, 300);
-  });
+    });
+  }
+
+  if (leadsSearchInput) {
+    leadsSearchInput.addEventListener("input", (e) => {
+      clearTimeout(searchDebounceTimeout);
+      searchDebounceTimeout = setTimeout(() => {
+        currentSearch = e.target.value.trim();
+        currentPage = 1;
+        loadLeads();
+      }, 300);
+    });
+  }
 
   filterPills.forEach((pill) => {
     pill.addEventListener("click", () => {
@@ -609,31 +861,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  pageSizeSelect.addEventListener("change", (e) => {
-    currentPageSize = parseInt(e.target.value);
-    currentPage = 1;
-    loadLeads();
-  });
-
-  btnExportCsv.addEventListener("click", () => {
-    if (!activeDataset) return;
-    window.open(`/api/leads/export?file=${encodeURIComponent(activeDataset)}`, "_blank");
-  });
-
-  btnPrevPage.addEventListener("click", () => {
-    if (currentPage > 1) {
-      currentPage--;
+  if (pageSizeSelect) {
+    pageSizeSelect.addEventListener("change", (e) => {
+      currentPageSize = parseInt(e.target.value);
+      currentPage = 1;
       loadLeads();
-    }
-  });
+    });
+  }
 
-  btnNextPage.addEventListener("click", () => {
-    const maxPage = Math.ceil(totalLeadsCount / currentPageSize);
-    if (currentPage < maxPage) {
-      currentPage++;
-      loadLeads();
-    }
-  });
+  if (btnExportCsv) {
+    btnExportCsv.addEventListener("click", () => {
+      if (!activeDataset) return;
+      window.open(`/api/leads/export?file=${encodeURIComponent(activeDataset)}`, "_blank");
+    });
+  }
+
+  if (btnPrevPage) {
+    btnPrevPage.addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        loadLeads();
+      }
+    });
+  }
+
+  if (btnNextPage) {
+    btnNextPage.addEventListener("click", () => {
+      const maxPage = Math.ceil(totalLeadsCount / currentPageSize);
+      if (currentPage < maxPage) {
+        currentPage++;
+        loadLeads();
+      }
+    });
+  }
 
   async function loadLeads() {
     leadsTableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Loading leads...</td></tr>`;
@@ -666,7 +926,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderTable(leads, startIdx) {
     if (leads.length === 0) {
-      leadsTableBody.innerHTML = `<tr><td colspan="7" class="empty-state">No matching researcher leads found.</td></tr>`;
+      leadsTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">No matching researcher leads found.</td></tr>`;
       return;
     }
 
@@ -674,10 +934,32 @@ document.addEventListener("DOMContentLoaded", () => {
     leads.forEach((row, i) => {
       const name = row.researcher_name || row.full_name || row.author_name || "Unknown Author";
       const email = row.professional_email || row.email || "";
-      const inst = row.affiliations_seen_on_matching_papers || row.organization || "Academic Institution";
-      const topic = row.matched_search_terms || row.field_keyword || row.keyword || "cell biology";
+      const inst = row.affiliations_seen_on_matching_papers || row.affiliation || row.organization || "Academic Institution";
+      const topic = row.matched_search_terms || row.search_keyword || row.field_keyword || row.keyword || "cell biology";
       const award = row.award_amount || "";
       const statusRaw = row.review_status || row.email_status || (email ? "found" : "needs_review");
+
+      // Calculate Match Score display
+      const rawScore = row.match_score ? parseInt(row.match_score) : null;
+      let scoreBadge = `<span style="color:var(--text-dim);font-size:0.75rem;">—</span>`;
+      if (rawScore !== null && !isNaN(rawScore)) {
+        if (rawScore >= 80) {
+          scoreBadge = `<span class="pill-badge pill-emerald" style="font-weight:700;">🟢 ${rawScore}%</span>`;
+        } else if (rawScore >= 65) {
+          scoreBadge = `<span class="pill-badge pill-cyan" style="font-weight:700;">🔵 ${rawScore}%</span>`;
+        } else {
+          scoreBadge = `<span class="pill-badge pill-amber" style="font-weight:700;">🟡 ${rawScore}%</span>`;
+        }
+      }
+
+      // Data Source badge
+      const srcRaw = (row.data_source || row.source || "").toLowerCase();
+      let srcBadge = `<span class="badge-source badge-openalex">📚 OpenAlex</span>`;
+      if (srcRaw.includes("biorxiv") || srcRaw.includes("medrxiv")) {
+        srcBadge = `<span class="badge-source badge-biorxiv">🧬 bioRxiv</span>`;
+      } else if (srcRaw.includes("nih") || row.award_amount) {
+        srcBadge = `<span class="badge-source badge-nih">🏛️ NIH Grant</span>`;
+      }
 
       let badgeClass = "needs-review";
       let badgeLabel = "Needs Review";
@@ -704,6 +986,8 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           ` : `<span style="color: var(--text-dim); font-style: italic;">No email found</span>`}
         </td>
+        <td style="text-align: center;">${scoreBadge}</td>
+        <td style="text-align: center;">${srcBadge}</td>
         <td>${escapeHtml(inst ? inst.substring(0, 50) + (inst.length > 50 ? "..." : "") : "—")}</td>
         <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
         <td><span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(award ? `${topic} (${award})` : topic)}</span></td>
@@ -903,10 +1187,180 @@ document.addEventListener("DOMContentLoaded", () => {
     detailModal.style.display = "none";
   }
 
-  modalCloseBtn.addEventListener("click", closeDetailModal);
-  detailModal.addEventListener("click", (e) => {
-    if (e.target === detailModal) closeDetailModal();
-  });
+  if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeDetailModal);
+  if (detailModal) {
+    detailModal.addEventListener("click", (e) => {
+      if (e.target === detailModal) closeDetailModal();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dedicated NIH Grant PIs Leads Table Controller
+  // ---------------------------------------------------------------------------
+  const nihTableBody = document.getElementById("nih-leads-table-body");
+  const nihTableCount = document.getElementById("nih-table-count");
+  const nihSearchInput = document.getElementById("nih-search-input");
+  const btnExportNihCsv = document.getElementById("btn-export-nih-csv");
+  const nihPaginationInfo = document.getElementById("nih-pagination-info");
+  const btnNihPrev = document.getElementById("btn-nih-prev");
+  const btnNihNext = document.getElementById("btn-nih-next");
+
+  let nihCurrentPage = 1;
+  const nihPageSize = 25;
+  let nihSearch = "";
+  let nihTotalCount = 0;
+  let nihActiveFile = "";
+  let nihDebounceTimer = null;
+
+  async function loadNihLeads() {
+    if (!nihTableBody) return;
+    nihTableBody.innerHTML = `<tr><td colspan="8" class="empty-state">Loading NIH funded leads...</td></tr>`;
+
+    try {
+      // Find the latest NIH dataset
+      const dRes = await fetch("/api/datasets");
+      if (dRes.ok) {
+        const dData = await dRes.json();
+        const datasets = dData.datasets || [];
+        const nihFile = datasets.find(d => d.name.toLowerCase().includes("nih_funded") || d.name.toLowerCase().includes("nih"));
+        if (nihFile) {
+          nihActiveFile = nihFile.path;
+        }
+      }
+
+      if (!nihActiveFile) {
+        nihActiveFile = "nih_funded_leads_2026-10-24.csv";
+      }
+
+      const params = new URLSearchParams({
+        file: nihActiveFile,
+        search: nihSearch,
+        page: nihCurrentPage,
+        page_size: nihPageSize,
+      });
+
+      const res = await fetch(`/api/leads?${params.toString()}`);
+      if (!res.ok) throw new Error("Could not load NIH leads");
+      const data = await res.json();
+
+      const leads = data.leads || data.rows || [];
+      nihTotalCount = data.total || leads.length;
+
+      if (nihTableCount) {
+        nihTableCount.textContent = `${nihTotalCount.toLocaleString()} PIs`;
+      }
+
+      if (leads.length === 0) {
+        nihTableBody.innerHTML = `<tr><td colspan="8" class="empty-state">No NIH funded leads found. Click "Extract NIH Funded PIs" above to start extracting.</td></tr>`;
+        if (nihPaginationInfo) nihPaginationInfo.textContent = "Showing 0 of 0 leads";
+        if (btnNihPrev) btnNihPrev.disabled = true;
+        if (btnNihNext) btnNihNext.disabled = true;
+        return;
+      }
+
+      nihTableBody.innerHTML = "";
+      leads.forEach((row, i) => {
+        const name = row.full_name || row.researcher_name || row.contact_pi_name || "Unknown PI";
+        const email = row.email || row.professional_email || "";
+        const org = row.organization || row.org_name || "Academic Institution";
+        const award = row.award_amount || "$0";
+        const fiscalYear = row.fiscal_year || "2026";
+        const projectTitle = row.project_title || "";
+        const rowIdx = (nihCurrentPage - 1) * nihPageSize + i + 1;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td style="text-align: center; color: var(--text-dim); font-size: 0.8rem;">${rowIdx}</td>
+          <td class="cell-name">${escapeHtml(name)}</td>
+          <td>
+            ${
+              email
+                ? `<div class="email-pill-wrap" title="Click to copy: ${escapeHtml(email)}">
+                     <span class="email-text">${escapeHtml(email)}</span>
+                     <button class="btn-copy" data-email="${escapeHtml(email)}" title="Copy email address" type="button">
+                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                     </button>
+                   </div>`
+                : `<span style="color: var(--text-dim); font-style: italic;">No email found</span>`
+            }
+          </td>
+          <td title="${escapeHtml(org)}">${escapeHtml(org.length > 35 ? org.substring(0, 35) + "..." : org)}</td>
+          <td><span style="font-weight: 700; color: #0284c7;">${escapeHtml(award)}</span></td>
+          <td><span class="pill-badge pill-cyan">FY ${escapeHtml(fiscalYear)}</span></td>
+          <td title="${escapeHtml(projectTitle)}">${escapeHtml(projectTitle.length > 40 ? projectTitle.substring(0, 40) + "..." : projectTitle)}</td>
+          <td style="text-align: center;">
+            <button class="btn-view-profile btn-view-row" title="View researcher full profile dossier" type="button">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Profile</span>
+            </button>
+          </td>
+        `;
+
+        const pillWrap = tr.querySelector(".email-pill-wrap");
+        const copyBtn = tr.querySelector(".btn-copy");
+        if (pillWrap && copyBtn && email) {
+          pillWrap.addEventListener("click", (e) => {
+            e.stopPropagation();
+            handleCopyEmailClick(copyBtn, email);
+          });
+        }
+
+        const viewBtn = tr.querySelector(".btn-view-row");
+        if (viewBtn) {
+          viewBtn.addEventListener("click", () => openDetailModal(row));
+        }
+
+        nihTableBody.appendChild(tr);
+      });
+
+      const totalPages = Math.ceil(nihTotalCount / nihPageSize) || 1;
+      if (nihPaginationInfo) {
+        nihPaginationInfo.textContent = `Showing ${Math.min(leads.length, nihPageSize)} of ${nihTotalCount.toLocaleString()} leads (Page ${nihCurrentPage} of ${totalPages})`;
+      }
+      if (btnNihPrev) btnNihPrev.disabled = nihCurrentPage <= 1;
+      if (btnNihNext) btnNihNext.disabled = nihCurrentPage >= totalPages;
+
+    } catch (e) {
+      nihTableBody.innerHTML = `<tr><td colspan="8" class="empty-state text-error">Failed to load NIH leads: ${e.message}</td></tr>`;
+    }
+  }
+
+  if (nihSearchInput) {
+    nihSearchInput.addEventListener("input", (e) => {
+      clearTimeout(nihDebounceTimer);
+      nihDebounceTimer = setTimeout(() => {
+        nihSearch = e.target.value.trim();
+        nihCurrentPage = 1;
+        loadNihLeads();
+      }, 300);
+    });
+  }
+
+  if (btnExportNihCsv) {
+    btnExportNihCsv.addEventListener("click", () => {
+      if (!nihActiveFile) return;
+      window.open(`/api/leads/export?file=${encodeURIComponent(nihActiveFile)}`, "_blank");
+    });
+  }
+
+  if (btnNihPrev) {
+    btnNihPrev.addEventListener("click", () => {
+      if (nihCurrentPage > 1) {
+        nihCurrentPage--;
+        loadNihLeads();
+      }
+    });
+  }
+
+  if (btnNihNext) {
+    btnNihNext.addEventListener("click", () => {
+      const maxPages = Math.ceil(nihTotalCount / nihPageSize);
+      if (nihCurrentPage < maxPages) {
+        nihCurrentPage++;
+        loadNihLeads();
+      }
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Datasets Archive View
@@ -1138,13 +1592,15 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(advanceStage, 80);
   }
 
-  btnRefreshAll.addEventListener("click", () => {
-    fetchStats();
-    loadDatasetsDropdown();
-    if (currentTab === "explorer") loadLeads();
-    if (currentTab === "datasets") loadDatasetsArchive();
-    showToast("Dashboard metrics refreshed");
-  });
+  if (btnRefreshAll) {
+    btnRefreshAll.addEventListener("click", () => {
+      fetchStats();
+      loadDatasetsDropdown();
+      if (currentTab === "explorer") loadLeads();
+      if (currentTab === "datasets") loadDatasetsArchive();
+      showToast("Dashboard metrics refreshed");
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Desktop Menubar & Data Management Actions
@@ -1359,30 +1815,31 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const res = await fetch("/api/trial/status");
         const st = await res.json();
+        const isTrial = st.is_trial !== false;
         showInfoModal(
-          "Evaluation License & Quotas",
+          isTrial ? "Evaluation License & Quotas" : "Commercial License Status",
           `
           <div style="padding: 0.5rem 0;">
-            <div style="background: #fefce8; border: 1px solid #fef08a; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
-              <div style="font-size: 0.85rem; font-weight: 700; color: #854d0e;">Evaluation Edition (7-Day Trial)</div>
-              <div style="font-size: 0.78rem; color: #a16207; margin-top: 0.2rem;">Full-featured evaluation license with 1,000 verified leads per day.</div>
+            <div style="background: ${isTrial ? "#fefce8" : "#f0fdf4"}; border: 1px solid ${isTrial ? "#fef08a" : "#bbf7d0"}; border-radius: 8px; padding: 0.85rem; margin-bottom: 1rem;">
+              <div style="font-size: 0.85rem; font-weight: 700; color: ${isTrial ? "#854d0e" : "#166534"};">${isTrial ? "Evaluation Edition (7-Day Trial)" : "SciProspect Professional Edition"}</div>
+              <div style="font-size: 0.78rem; color: ${isTrial ? "#a16207" : "#15803d"}; margin-top: 0.2rem;">${isTrial ? "Full-featured evaluation license with 1,000 verified leads per day." : "Full commercial license with unlimited discovery and verified email enrichment."}</div>
             </div>
             <div style="display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.85rem;">
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
-                <span style="color: #64748b;">Trial Days Remaining:</span>
-                <span style="font-weight: 700; color: #0f172a;">${st.days_left} Days</span>
+                <span style="color: #64748b;">License Status:</span>
+                <span style="font-weight: 700; color: #0f172a;">${isTrial ? `${st.days_left} Days Left` : "Active / Lifetime"}</span>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
-                <span style="color: #64748b;">Expiration Date:</span>
-                <span style="font-weight: 600; color: #0f172a;">${st.expires_on}</span>
+                <span style="color: #64748b;">Expiration:</span>
+                <span style="font-weight: 600; color: #0f172a;">${st.expires_on || "Never (Lifetime License)"}</span>
               </div>
               <div style="display: flex; justify-content: space-between; border-bottom: 1px solid #f1f5f9; padding-bottom: 0.4rem;">
                 <span style="color: #64748b;">Daily Verified Quota:</span>
-                <span style="font-weight: 600; color: #0f172a;">1,000 Verified Leads / Day</span>
+                <span style="font-weight: 600; color: #0f172a;">${isTrial ? "1,000 Verified Leads / Day" : "Unlimited Leads"}</span>
               </div>
               <div style="display: flex; justify-content: space-between; padding-bottom: 0.4rem;">
-                <span style="color: #64748b;">Used Today:</span>
-                <span style="font-weight: 600; color: #0284c7;">${st.today_verified} / 1,000</span>
+                <span style="color: #64748b;">Restrictions:</span>
+                <span style="font-weight: 600; color: #0284c7;">${isTrial ? "Evaluation Active" : "None (Zero Limits)"}</span>
               </div>
             </div>
           </div>
@@ -1566,10 +2023,147 @@ document.addEventListener("DOMContentLoaded", () => {
     menuHelpUpdate.addEventListener("click", () => checkForUpdates(true));
   }
 
+
+  // ---------------------------------------------------------------------------
+  // Unified Authentication Controller
+  // ---------------------------------------------------------------------------
+  async function checkAuthSession() {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const data = await res.json();
+        renderAuthenticatedState(data.user);
+      } else {
+        renderUnauthenticatedState();
+      }
+    } catch (e) {
+      renderUnauthenticatedState();
+    }
+  }
+
+  function renderAuthenticatedState(user) {
+    const overlay = document.getElementById("auth-gate-overlay");
+    if (overlay) overlay.style.display = "none";
+    const chip = document.getElementById("user-profile-chip");
+    if (chip) {
+      const nameEl = document.getElementById("user-chip-name");
+      if (nameEl) nameEl.textContent = user.client_name || user.client_email || "Account";
+      const tierEl = document.getElementById("user-chip-tier");
+      if (tierEl) tierEl.textContent = (user.tier || "pro").toUpperCase();
+      chip.style.display = "flex";
+    }
+    const btnSignOut = document.getElementById("btn-sign-out");
+    if (btnSignOut) btnSignOut.style.display = "flex";
+  }
+
+  function renderUnauthenticatedState() {
+    const overlay = document.getElementById("auth-gate-overlay");
+    if (overlay) overlay.style.display = "flex";
+    const chip = document.getElementById("user-profile-chip");
+    if (chip) chip.style.display = "none";
+    const btnSignOut = document.getElementById("btn-sign-out");
+    if (btnSignOut) btnSignOut.style.display = "none";
+  }
+
+  window.switchAuthTab = function(tab) {
+    const btnLic = document.getElementById("auth-tab-btn-license");
+    const btnPwd = document.getElementById("auth-tab-btn-pwd");
+    const btnAdm = document.getElementById("auth-tab-btn-admin");
+    if (btnLic) btnLic.classList.toggle("active", tab === "license");
+    if (btnPwd) btnPwd.classList.toggle("active", tab === "password");
+    if (btnAdm) btnAdm.classList.toggle("active", tab === "admin");
+
+    const vLic = document.getElementById("auth-view-license");
+    const vPwd = document.getElementById("auth-view-password");
+    const vAdm = document.getElementById("auth-view-admin");
+    if (vLic) vLic.style.display = (tab === "license") ? "block" : "none";
+    if (vPwd) vPwd.style.display = (tab === "password") ? "block" : "none";
+    if (vAdm) vAdm.style.display = (tab === "admin") ? "block" : "none";
+
+    const errBox = document.getElementById("auth-error-box");
+    if (errBox) { errBox.style.display = "none"; errBox.textContent = ""; }
+  };
+
+  async function executeAuthLogin(payload, btnId) {
+    const errBox = document.getElementById("auth-error-box");
+    if (errBox) errBox.style.display = "none";
+    const btn = document.getElementById(btnId);
+    const origText = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = "<span>Authenticating...</span>"; }
+
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (errBox) {
+          errBox.textContent = data.detail || "Authentication failed. Please verify your credentials.";
+          errBox.style.display = "block";
+        }
+        return;
+      }
+
+      showToast(`Welcome, ${data.user.client_name}!`, "success");
+      renderAuthenticatedState(data.user);
+      fetchStats();
+      loadDatasetsDropdown();
+    } catch (e) {
+      if (errBox) {
+        errBox.textContent = `Connection error: ${e.message}`;
+        errBox.style.display = "block";
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+  }
+
+  window.submitLicenseAuth = function(e) {
+    e.preventDefault();
+    const inputEl = document.getElementById("auth-input-license-key");
+    const key = inputEl ? inputEl.value.trim() : "";
+    if (!key) return;
+    executeAuthLogin({ identifier: key }, "btn-auth-submit-key");
+  };
+
+  window.submitPasswordAuth = function(e) {
+    e.preventDefault();
+    const emailEl = document.getElementById("auth-input-email");
+    const pwdEl = document.getElementById("auth-input-pwd");
+    const email = emailEl ? emailEl.value.trim() : "";
+    const pwd = pwdEl ? pwdEl.value.trim() : "";
+    if (!email || !pwd) return;
+    executeAuthLogin({ identifier: email, password: pwd }, "btn-auth-submit-pwd");
+  };
+
+  window.submitAdminAuth = function(e) {
+    e.preventDefault();
+    const pwdEl = document.getElementById("auth-input-admin-pwd");
+    const pwd = pwdEl ? pwdEl.value.trim() : "";
+    if (!pwd) return;
+    executeAuthLogin({ identifier: "admin", password: pwd }, "btn-auth-submit-admin");
+  };
+
+  const btnSignOut = document.getElementById("btn-sign-out");
+  if (btnSignOut) {
+    btnSignOut.addEventListener("click", async () => {
+      try {
+        await fetch("/api/auth/logout", { method: "POST" });
+        showToast("Signed out successfully.");
+        renderUnauthenticatedState();
+      } catch (e) {
+        renderUnauthenticatedState();
+      }
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // Initialization
   // ---------------------------------------------------------------------------
   initSplashScreen();
+  checkAuthSession();
   fetchStats();
   connectLogStream();
   loadDatasetsDropdown();

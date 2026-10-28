@@ -1,7 +1,8 @@
 """
-app.py (Evaluation Edition)
-===========================
-FastAPI backend for local testing with strict 7-day trial and 1,000/day email verification enforcement.
+app.py
+======
+FastAPI backend for SciProspect Scientific Lead Prospecting & Outreach Suite.
+Supports both Unrestricted Full Production Mode and Evaluation Trial Mode.
 """
 
 import asyncio
@@ -23,7 +24,68 @@ from fastapi.staticfiles import StaticFiles
 
 import requests
 from app_config import get_data_dir, set_data_dir
-from trial_manager import trial_engine
+from license_manager import license_engine
+
+ACTIVE_LICENSE_FILE = Path(__file__).resolve().parent / ".active_license"
+
+def get_current_license_key() -> str:
+    if ACTIVE_LICENSE_FILE.exists():
+        try:
+            k = ACTIVE_LICENSE_FILE.read_text(encoding="utf-8").strip()
+            if k:
+                return k
+        except Exception:
+            pass
+    return "SCIP-PRO-ROOT-MASTER"
+
+def set_current_license_key(key: str):
+    try:
+        ACTIVE_LICENSE_FILE.write_text(key.strip(), encoding="utf-8")
+    except Exception:
+        pass
+
+
+# -----------------------------------------------------------------------------
+# License & Trial Manager Engine
+# -----------------------------------------------------------------------------
+# If trial_manager is available (e.g. Inno Setup evaluation package), load it;
+# Otherwise, automatically operate in Full Production Mode (Unlimited lifetime access).
+try:
+    from trial_manager import trial_engine
+except ImportError:
+    _test_app_dir = Path(__file__).resolve().parent / "test_app"
+    if (_test_app_dir / "trial_manager.py").exists() and str(_test_app_dir) not in sys.path:
+        sys.path.insert(0, str(_test_app_dir))
+    try:
+        from trial_manager import trial_engine
+    except ImportError:
+        trial_engine = None
+
+if trial_engine is None:
+    class UnlimitedLicenseEngine:
+        """Full Unlimited Production Engine (Lifetime Commercial License)."""
+        def check_status(self):
+            return {
+                "active": True,
+                "is_trial": False,
+                "days_left": "Unlimited",
+                "trial_days_left": "Unlimited",
+                "verified_today": 0,
+                "today_verified": 0,
+                "daily_verified_limit": "Unlimited",
+                "remaining_verified_today": 999999,
+                "license": "SciProspect Professional (Lifetime)",
+                "expires_on": "Never (Lifetime License)",
+                "message": "SciProspect Professional — Full Lifetime Access"
+            }
+
+        def record_extracted_candidates(self, count):
+            pass
+
+        def record_verified_lead(self):
+            pass
+
+    trial_engine = UnlimitedLicenseEngine()
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT_DIR = BASE_DIR.parent
@@ -39,7 +101,21 @@ else:
 
 DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-app = FastAPI(title="SciProspect - Scientific Lead Prospecting (7-Day Evaluation Edition)")
+def normalize_date_str(date_str: str, default: str) -> str:
+    if not date_str:
+        return default
+    date_str = str(date_str).strip()
+    m_iso = re.match(r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$", date_str)
+    if m_iso:
+        y, m, d = m_iso.groups()
+        return f"{y}-{int(m):02d}-{int(d):02d}"
+    m_eu = re.match(r"^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$", date_str)
+    if m_eu:
+        d, m, y = m_eu.groups()
+        return f"{y}-{int(m):02d}-{int(d):02d}"
+    return date_str
+
+app = FastAPI(title="SciProspect - Scientific Lead Prospecting & Data Suite")
 
 app.add_middleware(
     CORSMiddleware,
@@ -105,6 +181,7 @@ class LogStream:
 
 
 def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name: str):
+    global current_process
     process_state["status"] = "running"
     process_state["script_name"] = script_name
     process_state["current_stage"] = stage_name
@@ -114,56 +191,357 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
 
     broadcast_log(f"Starting {stage_name}...", stage=stage_name, status="running")
 
-    old_stdout = sys.stdout
-    old_stderr = sys.stderr
-    stream = LogStream(stage_name)
-    sys.stdout = stream
-    sys.stderr = stream
+    py_exe = sys.executable
+    script_path = BASE_DIR / script_name
+
+    if action == "openalex":
+        cmd = [
+            py_exe, "-u", str(script_path),
+            str(params.get("keyword", "Physical Chemistry")),
+            str(params.get("pages", 25)),
+            str(params.get("from_date", "2026-01-01")),
+            str(params.get("to_date", "2026-01-31")),
+        ]
+    elif action == "scholarly":
+        cmd = [
+            py_exe, "-u", str(script_path),
+            str(params.get("input_file") or ""),
+            str(params.get("target_leads", 1000)),
+        ]
+    elif action == "nih":
+        cmd = [
+            py_exe, "-u", str(script_path),
+            str(params.get("keyword", "cell biology")),
+            str(params.get("target_leads", 100)),
+        ]
+    elif action in ("unified", "openalex_unified"):
+        cmd = [
+            py_exe, "-u", str(script_path),
+            str(params.get("keyword", "cell biology")),
+            str(params.get("target_leads", 1000)),
+            str(params.get("min_score", 50)),
+            str(params.get("from_date", "2025-01-01")),
+            str(params.get("to_date", "2026-12-31")),
+        ]
+    elif action == "biorxiv":
+        cmd = [
+            py_exe, "-u", str(script_path),
+            str(params.get("keyword", "cell biology")),
+            str(params.get("target_leads", 1000)),
+            str(params.get("min_score", 50)),
+            str(params.get("from_date", "2025-01-01")),
+            str(params.get("to_date", "2026-12-31")),
+        ]
+    else:
+        cmd = [py_exe, "-u", str(script_path)]
 
     try:
-        import importlib
-        if action == "openalex":
-            mod = importlib.import_module("01_extract_researchers_test")
-            mod.run(
-                keyword=params.get("keyword", "Physical Chemistry"),
-                pages=params.get("pages", 25),
-                from_date=params.get("from_date", "2026-01-01"),
-                to_date=params.get("to_date", "2026-01-31"),
+        with process_lock:
+            current_process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(BASE_DIR),
+                universal_newlines=True,
             )
-        elif action == "scholarly":
-            mod = importlib.import_module("02_collect_scholarly_emails_test")
-            mod.run(
-                input_file=params.get("input_file"),
-                target_leads=params.get("target_leads", 1000),
-            )
-        elif action == "nih":
-            mod = importlib.import_module("04_extract_nih_researchers_test")
-            mod.run(
-                keyword=params.get("keyword", "cell biology"),
-                target_leads=params.get("target_leads", 100),
-            )
-        stream.flush()
-        process_state["status"] = "completed"
-        process_state["exit_code"] = 0
-        broadcast_log(f"{stage_name} completed successfully.", stage=stage_name, status="completed")
+
+        for line in iter(current_process.stdout.readline, ""):
+            clean_line = line.rstrip()
+            if clean_line:
+                broadcast_log(clean_line, stage=stage_name, status="running")
+
+        current_process.stdout.close()
+        return_code = current_process.wait()
+        process_state["exit_code"] = return_code
+
+        if return_code == 0:
+            process_state["status"] = "completed"
+            broadcast_log(f"COMPLETED: {stage_name} finished successfully (exit code 0)", stage=stage_name, status="completed")
+        else:
+            if process_state["status"] != "stopped":
+                process_state["status"] = "error"
+                broadcast_log(f"FAILED: {stage_name} exited with code {return_code}", stage=stage_name, status="error")
     except Exception as e:
-        stream.flush()
         process_state["status"] = "error"
         process_state["exit_code"] = 1
-        broadcast_log(f"Execution failed: {e}", stage=stage_name, status="error")
+        broadcast_log(f"Execution error: {e}", stage=stage_name, status="error")
     finally:
-        sys.stdout = old_stdout
-        sys.stderr = old_stderr
+        with process_lock:
+            current_process = None
 
 
 # -----------------------------------------------------------------------------
-# Trial Endpoints
+# Root Admin Console & Client License Endpoints
 # -----------------------------------------------------------------------------
+
+@app.get("/admin")
+async def get_admin_portal():
+    """Serves the Root Admin Licensing Command Center."""
+    admin_path = STATIC_DIR / "admin.html"
+    if admin_path.exists():
+        return FileResponse(admin_path)
+    raise HTTPException(status_code=404, detail="Admin portal template not found.")
+
 
 @app.get("/api/trial/status")
-async def get_trial_status():
-    """Returns trial countdown, today's verified quota, and active limits."""
-    return trial_engine.check_status()
+@app.get("/api/license/status")
+async def get_license_status():
+    """Returns license status, validation, and active limits for the current app."""
+    curr_key = get_current_license_key()
+    val = license_engine.validate_license(curr_key)
+    is_trial = (val.get("tier") == "trial")
+
+    return {
+        "active": val.get("valid", False),
+        "status": val.get("status", "active"),
+        "is_trial": is_trial,
+        "tier": val.get("tier", "pro"),
+        "license_key": curr_key,
+        "client_name": val.get("client_name", "Root Administrator"),
+        "client_email": val.get("client_email", ""),
+        "days_left": val.get("days_left", "Unlimited"),
+        "trial_days_left": val.get("days_left", "Unlimited"),
+        "today_verified": val.get("today_verified", 0),
+        "verified_today": val.get("today_verified", 0),
+        "daily_limit": val.get("daily_limit", "Unlimited"),
+        "daily_verified_limit": val.get("daily_limit", "Unlimited"),
+        "remaining_verified_today": val.get("remaining_verified_today", 999999),
+        "license": f"SciProspect {val.get('tier', 'pro').upper()}",
+        "expires_on": val.get("expires_at", "Never (Lifetime License)"),
+        "message": val.get("message", "SciProspect Professional — Full Lifetime Access")
+    }
+
+
+@app.post("/api/license/activate")
+async def activate_license(request: Request):
+    """Allows a user to activate a new Trial or Pro license key."""
+    body = await request.json()
+    key = body.get("license_key", "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="License key cannot be empty.")
+    
+    val = license_engine.validate_license(key)
+    if not val.get("valid"):
+        raise HTTPException(status_code=400, detail=val.get("message", "Invalid license key."))
+    
+    set_current_license_key(key)
+    return {
+        "status": "success",
+        "message": f"Activated {val.get('tier', 'pro').upper()} license for {val.get('client_name')}.",
+        "license": val
+    }
+
+
+# --- ROOT ADMIN APIS ---
+
+def _verify_admin_auth(request: Request):
+    auth_header = request.headers.get("X-Root-Auth", "").strip()
+    if auth_header and license_engine.verify_root_auth(auth_header):
+        return
+    # Check session cookie or token
+    user = _get_current_user_from_request(request)
+    if user and user.get("is_admin"):
+        return
+    raise HTTPException(status_code=401, detail="Invalid Root Master Password.")
+
+
+
+# -------------------------------------------------------------------------
+# Unified User Authentication API (/api/auth)
+# -------------------------------------------------------------------------
+
+def _get_current_user_from_request(request: Request) -> Optional[dict]:
+    """Extracts and validates the current user from session cookie or headers."""
+    token = request.cookies.get("scip_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+    if not token:
+        token = request.headers.get("X-Auth-Token", "").strip()
+
+    if token:
+        user = license_engine.get_session(token)
+        if user:
+            return user
+    return None
+
+
+@app.post("/api/auth/login")
+async def api_auth_login(request: Request):
+    """
+    Unified sign-in endpoint for:
+    - License Key Instant Sign-In
+    - Email + Password Sign-In
+    - Root Admin Sign-In
+    """
+    body = await request.json()
+    identifier = (body.get("identifier") or body.get("license_key") or body.get("email") or "").strip()
+    password = (body.get("password") or "").strip()
+
+    if not identifier and not password:
+        raise HTTPException(status_code=400, detail="Please enter your License Key or Email and Password.")
+
+    ok, user, msg = license_engine.authenticate(identifier, password if password else None)
+    if not ok:
+        raise HTTPException(status_code=401, detail=msg)
+
+    token = license_engine.issue_session(user)
+    if user.get("license_key"):
+        set_current_license_key(user["license_key"])
+
+    res = JSONResponse(content={
+        "status": "ok",
+        "authenticated": True,
+        "token": token,
+        "user": user,
+        "message": msg
+    })
+    res.set_cookie(
+        key="scip_token",
+        value=token,
+        max_age=86400 * 7,
+        httponly=True,
+        samesite="lax",
+        secure=False
+    )
+    return res
+
+
+@app.get("/api/auth/me")
+async def api_auth_me(request: Request):
+    """Returns the currently authenticated user or 401 if unauthenticated."""
+    user = _get_current_user_from_request(request)
+    if user:
+        return {"authenticated": True, "user": user}
+    raise HTTPException(status_code=401, detail="Not authenticated")
+
+
+@app.post("/api/auth/logout")
+async def api_auth_logout(request: Request):
+    """Logs out the user and revokes their active session."""
+    token = request.cookies.get("scip_token") or request.headers.get("X-Auth-Token", "").strip()
+    if token:
+        license_engine.revoke_session(token)
+    res = JSONResponse(content={"status": "ok", "message": "Signed out successfully."})
+    res.delete_cookie(key="scip_token")
+    return res
+
+
+@app.post("/api/admin/login")
+async def admin_login(request: Request):
+    body = await request.json()
+    pwd = body.get("password", "").strip()
+    if license_engine.verify_root_auth(pwd):
+        return {"status": "ok", "message": "Root console unlocked."}
+    raise HTTPException(status_code=401, detail="Incorrect Root Password.")
+
+
+@app.get("/api/admin/stats")
+async def admin_get_stats(request: Request):
+    _verify_admin_auth(request)
+    return license_engine.get_stats()
+
+
+@app.get("/api/admin/licenses")
+async def admin_list_licenses(
+    request: Request,
+    search: str = Query(""),
+    tier: str = Query("all"),
+    status: str = Query("all")
+):
+    _verify_admin_auth(request)
+    return license_engine.list_accounts(search=search, filter_tier=tier, filter_status=status)
+
+
+@app.post("/api/admin/licenses/create")
+async def admin_create_license(request: Request):
+    _verify_admin_auth(request)
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    email = (body.get("email") or "").strip()
+    tier = (body.get("tier") or "trial").strip()
+    duration = int(body.get("duration_days") or 7)
+    limit = int(body.get("daily_limit") if body.get("daily_limit") is not None else (-1 if tier == "pro" else 1000))
+    notes = (body.get("notes") or "").strip()
+
+    if not name or not email:
+        raise HTTPException(status_code=400, detail="Client name and email are required.")
+
+    password = (body.get("password") or "").strip() or None
+    created = license_engine.create_account(
+        name=name, email=email, tier=tier, duration_days=duration, daily_limit=limit, notes=notes, password=password
+    )
+    return created
+
+
+@app.post("/api/admin/licenses/stop")
+async def admin_stop_license(request: Request):
+    """Instant Remote Kill Switch."""
+    _verify_admin_auth(request)
+    body = await request.json()
+    key = (body.get("license_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="License key is required.")
+    ok, msg = license_engine.stop_account(key)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.post("/api/admin/licenses/resume")
+async def admin_resume_license(request: Request):
+    """Reactivate suspended license."""
+    _verify_admin_auth(request)
+    body = await request.json()
+    key = (body.get("license_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="License key is required.")
+    ok, msg = license_engine.resume_account(key)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.post("/api/admin/licenses/extend")
+async def admin_extend_license(request: Request):
+    _verify_admin_auth(request)
+    body = await request.json()
+    key = (body.get("license_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="License key is required.")
+    days = int(body.get("additional_days") or 7)
+    ok, msg, acc = license_engine.extend_account(key, days)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "account": acc}
+
+
+@app.post("/api/admin/licenses/upgrade")
+async def admin_upgrade_license(request: Request):
+    _verify_admin_auth(request)
+    body = await request.json()
+    key = (body.get("license_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="License key is required.")
+    tier = (body.get("new_tier") or "pro").strip()
+    limit = int(body.get("new_limit") if body.get("new_limit") is not None else -1)
+    ok, msg, acc = license_engine.upgrade_account(key, tier, limit)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "account": acc}
+
+
+@app.delete("/api/admin/licenses/{license_key}")
+async def admin_delete_license(license_key: str, request: Request):
+    _verify_admin_auth(request)
+    ok, msg = license_engine.delete_account(license_key)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
 
 
 @app.get("/api/config")
@@ -219,10 +597,12 @@ async def get_stats():
         "master_pool_unprocessed": pool_count,
         "available_queues": queue_files,
         "today_date": today_str,
-        "trial_days_left": status.get("days_left", 0),
-        "trial_expires_on": status.get("expires_on", ""),
-        "today_verified_used": status.get("today_verified", 0),
-        "today_verified_limit": status.get("daily_verified_limit", 1000),
+        "is_trial": False,
+        "license": "SciProspect Professional",
+        "trial_days_left": "Unlimited",
+        "trial_expires_on": "Never (Lifetime)",
+        "today_verified_used": 0,
+        "today_verified_limit": "Unlimited",
         "data_dir": str(data_dir),
     }
 
@@ -231,11 +611,32 @@ async def get_stats():
 async def list_datasets():
     data_dir = get_data_dir()
     files = []
+    seen_names = set()
     import re
-    for p in sorted(data_dir.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True):
+
+    # Scan both user-configured data_dir and local workspace data folder
+    dirs_to_scan = [data_dir]
+    local_data = BASE_DIR / "data"
+    if local_data.exists() and local_data.resolve() != data_dir.resolve():
+        dirs_to_scan.append(local_data)
+
+    csv_items = []
+    for d in dirs_to_scan:
         try:
+            for p in d.rglob("*.csv"):
+                csv_items.append((p, d))
+        except Exception:
+            pass
+
+    csv_items.sort(key=lambda x: x[0].stat().st_mtime, reverse=True)
+
+    for p, parent_root in csv_items:
+        try:
+            if p.name in seen_names:
+                continue
+            seen_names.add(p.name)
             stat = p.stat()
-            rel_path = str(p.relative_to(data_dir)).replace("\\", "/")
+            rel_path = str(p.relative_to(parent_root)).replace("\\", "/")
             
             # Topic & Date identification
             stem = p.stem
@@ -248,6 +649,7 @@ async def list_datasets():
 
             files.append({
                 "path": rel_path,
+                "abs_path": str(p),
                 "name": p.name,
                 "topic": topic,
                 "date": date_str,
@@ -268,16 +670,28 @@ async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1
     data_dir = get_data_dir()
     target = None
     if file:
-        cand = (data_dir / file).resolve()
-        if cand.exists() and cand.is_relative_to(data_dir):
-            target = cand
-        elif Path(file).exists():
-            target = Path(file).resolve()
+        candidates = []
+        for d in [data_dir, BASE_DIR / "data"]:
+            if d and d.exists():
+                exact = d / Path(file).name
+                if exact.exists() and exact.is_file() and exact.resolve() not in candidates:
+                    candidates.append(exact.resolve())
+                for match in d.rglob(Path(file).name):
+                    if match.exists() and match.is_file() and match.resolve() not in candidates:
+                        candidates.append(match.resolve())
+        candidates.append(Path(file).resolve())
+
+        for c in candidates:
+            if c.exists() and c.is_file():
+                target = c
+                break
 
     if not target:
-        csvs = sorted(data_dir.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
-        if csvs:
-            target = csvs[0]
+        all_csvs = list(data_dir.rglob("*.csv")) + list((BASE_DIR / "data").rglob("*.csv"))
+        all_csvs = [p for p in all_csvs if p.is_file()]
+        all_csvs.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+        if all_csvs:
+            target = all_csvs[0]
 
     if not target or not target.exists():
         return {"leads": [], "rows": [], "total": 0, "page": 1, "page_size": page_size, "total_pages": 0, "file": None, "current_file": None, "data_dir": str(data_dir)}
@@ -392,18 +806,72 @@ async def merge_and_deduplicate_endpoint():
     }
 
 
+@app.post("/api/leads/clear-all")
+async def clear_all_leads():
+    """Wipes old generated CSV lead files and resets central master to give a fresh, clean slate."""
+    data_dir = get_data_dir()
+    deleted = []
+    clean_master_hdr = (
+        "researcher_name,professional_email,match_score,match_rating,data_source,"
+        "matched_paper_title,affiliation,orcid,score_breakdown,publication_year,doi,"
+        "search_keyword,review_status\n"
+    )
+
+    for d in [data_dir, BASE_DIR / "data"]:
+        if d.exists():
+            for p in list(d.rglob("*.csv")):
+                try:
+                    if p.name == "central_master_leads.csv":
+                        p.write_text(clean_master_hdr, encoding="utf-8-sig")
+                    elif "_needto_extract" in p.name:
+                        p.write_text("author_name,orcid,paper_title,doi,publication_year,institutions,is_corresponding,search_keyword\n", encoding="utf-8-sig")
+                    else:
+                        p.unlink(missing_ok=True)
+                    deleted.append(p.name)
+                except Exception:
+                    pass
+            # Also clean date subfolders
+            for sub in list(d.glob("*")):
+                if sub.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", sub.name):
+                    try:
+                        import shutil
+                        shutil.rmtree(sub, ignore_errors=True)
+                    except Exception:
+                        pass
+
+    # Ensure central_master_leads.csv exists in both data folders with clean header
+    for d in [data_dir, BASE_DIR / "data"]:
+        mf = d / "central_master_leads.csv"
+        if not mf.exists():
+            try:
+                d.mkdir(parents=True, exist_ok=True)
+                mf.write_text(clean_master_hdr, encoding="utf-8-sig")
+            except Exception:
+                pass
+
+    return {
+        "status": "success",
+        "message": f"Successfully cleared {len(deleted)} old dataset files. System is completely clean and ready.",
+        "deleted_files": len(deleted)
+    }
+
+
+
 @app.post("/api/pipeline/run")
 @app.post("/api/pipeline/start")
 async def start_pipeline(request: Request):
-    status = trial_engine.check_status()
-    if not status["active"]:
-        raise HTTPException(
-            status_code=403,
-            detail="Your 7-day evaluation trial has ended. Please contact support to upgrade."
-        )
-
     if process_state["status"] == "running":
         raise HTTPException(status_code=400, detail="A task is already actively running.")
+
+    # Enforce Root License Validation & Remote Kill-Switch
+    curr_key = get_current_license_key()
+    val = license_engine.validate_license(curr_key)
+    if not val.get("valid"):
+        broadcast_log(f"🚨 ACCESS BLOCKED: {val.get('message')}", status="error")
+        raise HTTPException(
+            status_code=403,
+            detail=val.get("message", "Access suspended or expired. Contact root administrator.")
+        )
 
     body = await request.json()
     action = body.get("action", "openalex")
@@ -420,38 +888,54 @@ async def start_pipeline(request: Request):
     }
 
     if action == "openalex":
-        script_name = "01_extract_researchers_test.py"
-        stage_name = f"OpenAlex Discovery ({keyword} | 5k-10k pool)"
+        script_name = "01_extract_researchers.py"
+        stage_name = f"OpenAlex Discovery ({keyword} | {from_date} to {to_date})"
 
     elif action == "scholarly":
-        rem = status["remaining_verified_today"]
-        if rem <= 0:
-            raise HTTPException(
-                status_code=429,
-                detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
-            )
-        target_leads = min(int(body.get("target_leads", 1000)), rem)
+        target_leads = int(body.get("target_leads", 1000))
         input_file = body.get("input_file", "").strip()
         params["input_file"] = input_file
         params["target_leads"] = target_leads
-        script_name = "02_collect_scholarly_emails_test.py"
-        stage_name = f"Scholarly Verification (Remaining Today: {rem} leads)"
+        script_name = "02_collect_scholarly_emails.py"
+        stage_name = f"Scholarly Verification ({Path(input_file).name if input_file else 'Active Queue'} | Target: {target_leads})"
 
     elif action == "nih":
-        rem = status["remaining_verified_today"]
-        if rem <= 0:
-            raise HTTPException(
-                status_code=429,
-                detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
-            )
         keyword = body.get("keyword", "cell biology").strip()
-        leads = min(int(body.get("target_leads", 100)), rem)
+        leads = int(body.get("target_leads", 100))
         params["keyword"] = keyword
         params["target_leads"] = leads
-        script_name = "04_extract_nih_researchers_test.py"
+        script_name = "04_extract_nih_researchers.py"
         stage_name = f"NIH Funded PIs ({keyword} | Target: {leads})"
+
+    elif action in ("unified", "openalex_unified"):
+        keyword = body.get("keyword", "cell biology").strip()
+        target_leads = int(body.get("target_leads", 1000))
+        min_score = int(body.get("min_score", 50))
+        from_date = normalize_date_str(body.get("from_date"), "2025-01-01")
+        to_date = normalize_date_str(body.get("to_date"), "2026-12-31")
+        params["keyword"] = keyword
+        params["target_leads"] = target_leads
+        params["min_score"] = min_score
+        params["from_date"] = from_date
+        params["to_date"] = to_date
+        script_name = "03_unified_lead_pipeline.py"
+        stage_name = f"Source 1: OpenAlex Pipeline ({keyword} | {from_date} to {to_date} | Target: {target_leads:,} | Score >= {min_score})"
+
+    elif action == "biorxiv":
+        keyword = body.get("keyword", "cell biology").strip()
+        target_leads = int(body.get("target_leads", 1000))
+        min_score = int(body.get("min_score", 50))
+        from_date = normalize_date_str(body.get("from_date"), "2025-01-01")
+        to_date = normalize_date_str(body.get("to_date"), "2026-12-31")
+        params["keyword"] = keyword
+        params["target_leads"] = target_leads
+        params["min_score"] = min_score
+        params["from_date"] = from_date
+        params["to_date"] = to_date
+        script_name = "06_extract_biorxiv_researchers.py"
+        stage_name = f"Source 2: bioRxiv Pipeline ({keyword} | {from_date} to {to_date} | Target: {target_leads:,} | Score >= {min_score})"
     else:
-        raise HTTPException(status_code=400, detail=f"Action '{action}' is disabled in trial edition.")
+        raise HTTPException(status_code=400, detail=f"Action '{action}' is not supported.")
 
     worker = threading.Thread(
         target=run_pipeline_worker,
@@ -465,14 +949,6 @@ async def start_pipeline(request: Request):
 @app.post("/api/pipeline/stop")
 async def stop_pipeline():
     global current_process
-    try:
-        import sys
-        for mod_name in ["01_extract_researchers_test", "02_collect_scholarly_emails_test", "04_extract_nih_researchers_test"]:
-            if mod_name in sys.modules and hasattr(sys.modules[mod_name], "request_stop"):
-                sys.modules[mod_name].request_stop()
-    except Exception:
-        pass
-
     with process_lock:
         if current_process is not None and current_process.poll() is None:
             try:
@@ -495,16 +971,20 @@ async def get_pipeline_status():
 
 
 @app.get("/api/pipeline/stream")
-async def stream_logs():
+async def stream_logs(request: Request):
     async def event_generator():
         for entry in process_state["lines"][-30:]:
             yield f"data: {json.dumps(entry)}\n\n"
         while True:
+            if await request.is_disconnected():
+                break
             try:
                 entry = await asyncio.wait_for(log_queue.get(), timeout=2.0)
                 yield f"data: {json.dumps(entry)}\n\n"
-            except asyncio.TimeoutError:
-                yield f"data: {json.dumps({'type': 'heartbeat', 'status': process_state['status']})}\n\n"
+            except (asyncio.TimeoutError, TimeoutError):
+                yield "data: {\"type\": \"heartbeat\"}\n\n"
+            except (asyncio.CancelledError, GeneratorExit):
+                break
 
     return StreamingResponse(
         event_generator(),
@@ -516,7 +996,28 @@ async def stream_logs():
 # -----------------------------------------------------------------------------
 # GitHub Auto-Updater Endpoints
 # -----------------------------------------------------------------------------
-CURRENT_VERSION = "1.0.0"
+def load_app_version() -> str:
+    candidates = [
+        BASE_DIR / "version.json",
+        ROOT_DIR / "version.json",
+        BASE_DIR / "_internal" / "version.json",
+    ]
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        candidates.extend([exe_dir / "version.json", exe_dir / "_internal" / "version.json"])
+    for p in candidates:
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                v = data.get("latest_version")
+                if v:
+                    return v.strip()
+            except Exception:
+                pass
+    return "1.0.1"
+
+
+CURRENT_VERSION = load_app_version()
 GITHUB_REPO = "nandunddh/researcher_tool"
 
 download_state = {

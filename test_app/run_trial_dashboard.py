@@ -27,10 +27,23 @@ if sys.stderr is None:
     sys.stderr = SafeStream()
 
 import uvicorn
+import socket
 import app as api_module
 from trial_manager import trial_engine
 
-APP_URL = "http://127.0.0.1:8000"
+def find_available_port(preferred_port=8001):
+    """Finds an open local port so Trial and Pro apps can run simultaneously without conflicts."""
+    for p in [preferred_port, 8002, 8003, 8080, 8000]:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.bind(("127.0.0.1", p))
+                return p
+        except Exception:
+            continue
+    return preferred_port
+
+APP_PORT = find_available_port(8001)
+APP_URL = f"http://127.0.0.1:{APP_PORT}"
 
 
 def run_server():
@@ -38,7 +51,7 @@ def run_server():
     uvicorn.run(
         api_module.app,
         host="127.0.0.1",
-        port=8000,
+        port=APP_PORT,
         reload=False,
         log_config=None,
         access_log=False

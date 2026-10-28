@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SciProspect — Root Admin Licensing Console</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #070B14;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-card-hover: rgba(26, 36, 56, 0.85);
+            --border-color: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(139, 92, 246, 0.3);
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+            --text-subtle: #6B7280;
+            
+            --purple-500: #8B5CF6;
+            --purple-600: #7C3AED;
+            --indigo-500: #6366F1;
+            --indigo-600: #4F46E5;
+            
+            --emerald-500: #10B981;
+            --emerald-bg: rgba(16, 185, 129, 0.12);
+            --amber-500: #F59E0B;
+            --amber-bg: rgba(245, 158, 11, 0.12);
+            --rose-500: #EF4444;
+            --rose-bg: rgba(239, 68, 68, 0.15);
+            --cyan-500: #06B6D4;
+            --cyan-bg: rgba(6, 182, 212, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 80%, rgba(139, 92, 246, 0.06) 0%, transparent 45%),
+                radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.04) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        /* Top Bar */
+        .admin-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 2rem;
+            background: rgba(11, 17, 30, 0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .brand-logo {
+            width: 38px;
+            height: 38px;
+            border-radius: 10px;
+            background: linear-gradient(135deg, var(--indigo-500), var(--purple-600));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.4);
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.2rem;
+        }
+
+        .brand-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #FFF, #D1D5DB);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .root-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(99, 102, 241, 0.3));
+            color: #C4B5FD;
+            border: 1px solid rgba(139, 92, 246, 0.4);
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn-nav {
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            background: rgba(255, 255, 255, 0.03);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-nav:hover {
+            color: #FFF;
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-logout {
+            color: #F87171;
+            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.06);
+        }
+
+        .btn-logout:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: var(--rose-500);
+            color: #FFF;
+        }
+
+        /* Main Container */
+        .admin-container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            flex: 1;
+        }
+
+        /* Hero / Header greeting */
+        .console-banner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .console-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.85rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+        }
+
+        .console-subtitle {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-top: 0.25rem;
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.25rem;
+        }
+
+        .kpi-card {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 14px;
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .kpi-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+        }
+
+        .kpi-card.total::before { background: linear-gradient(90deg, #6366F1, #8B5CF6); }
+        .kpi-card.trial::before { background: linear-gradient(90deg, #F59E0B, #F97316); }
+        .kpi-card.pro::before { background: linear-gradient(90deg, #10B981, #06B6D4); }
+        .kpi-card.stopped::before { background: linear-gradient(90deg, #EF4444, #F43F5E); }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .kpi-val {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2.2rem;
+            font-weight: 800;
+            color: #FFF;
+        }
+
+        .kpi-desc {
+            font-size: 0.78rem;
+            color: var(--text-subtle);
+        }
+
+        /* Two column layout: Create Form & Accounts Table */
+        .content-grid {
+            display: grid;
+            grid-template-columns: 380px 1fr;
+            gap: 1.75rem;
+            align-items: start;
+        }
+
+        @media (max-width: 1100px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Create License Card */
+        .card-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(14px);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 0.85rem;
+        }
+
+        .panel-title {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: #FFF;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .form-label {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .form-input, .form-select, .form-textarea {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 0.65rem 0.85rem;
+            color: #FFF;
+            font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .form-input:focus, .form-select:focus, .form-textarea:focus {
+            border-color: var(--purple-500);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.15);
+        }
+
+        .radio-pills {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.5rem;
+        }
+
+        .radio-pill-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.4rem;
+            padding: 0.6rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.2s ease;
+        }
+
+        .radio-pill-label input {
+            display: none;
+        }
+
+        .radio-pill-label.active-trial {
+            background: rgba(245, 158, 11, 0.15);
+            border-color: var(--amber-500);
+            color: #FBBF24;
+        }
+
+        .radio-pill-label.active-pro {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: var(--emerald-500);
+            color: #34D399;
+        }
+
+        .btn-create {
+            width: 100%;
+            padding: 0.85rem;
+            border-radius: 10px;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 700;
+            color: #FFF;
+            background: linear-gradient(135deg, var(--indigo-500), var(--purple-600));
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-create:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 22px rgba(99, 102, 241, 0.5);
+            filter: brightness(1.1);
+        }
+
+        /* Accounts Table Panel */
+        .table-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .search-box {
+            position: relative;
+            flex: 1;
+            max-width: 380px;
+        }
+
+        .search-input {
+            width: 100%;
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 0.6rem 0.85rem 0.6rem 2.2rem;
+            color: #FFF;
+            font-size: 0.88rem;
+            outline: none;
+        }
+
+        .search-input:focus {
+            border-color: var(--purple-500);
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-subtle);
+            pointer-events: none;
+        }
+
+        .filter-tabs {
+            display: flex;
+            gap: 0.4rem;
+            background: rgba(255, 255, 255, 0.03);
+            padding: 0.25rem;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .filter-btn {
+            background: transparent;
+            border: none;
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-btn.active {
+            background: var(--purple-600);
+            color: #FFF;
+            box-shadow: 0 2px 8px rgba(124, 58, 237, 0.4);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            background: rgba(15, 23, 42, 0.5);
+        }
+
+        .admin-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            font-size: 0.88rem;
+        }
+
+        .admin-table th {
+            background: rgba(17, 24, 39, 0.95);
+            padding: 0.85rem 1rem;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .admin-table td {
+            padding: 0.9rem 1rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            vertical-align: middle;
+        }
+
+        .admin-table tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .client-info {
+            display: flex;
+            flex-direction: column;
+            gap: 0.15rem;
+        }
+
+        .client-name {
+            font-weight: 600;
+            color: #FFF;
+        }
+
+        .client-email {
+            font-size: 0.78rem;
+            color: var(--text-subtle);
+        }
+
+        .key-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
+            color: #E2E8F0;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            cursor: pointer;
+        }
+
+        .key-badge:hover {
+            border-color: var(--purple-500);
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .tier-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.25rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        .tier-trial {
+            background: var(--amber-bg);
+            color: #FBBF24;
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .tier-pro {
+            background: var(--emerald-bg);
+            color: #34D399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.25rem 0.65rem;
+            border-radius: 9999px;
+            font-size: 0.74rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        .status-pill::before {
+            content: '';
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+        }
+
+        .status-active {
+            background: rgba(16, 185, 129, 0.15);
+            color: #10B981;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .status-active::before {
+            background: #10B981;
+            box-shadow: 0 0 8px #10B981;
+        }
+
+        .status-stopped {
+            background: rgba(239, 68, 68, 0.2);
+            color: #F87171;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+        .status-stopped::before {
+            background: #EF4444;
+            box-shadow: 0 0 8px #EF4444;
+        }
+
+        .status-expired {
+            background: rgba(156, 163, 175, 0.15);
+            color: #9CA3AF;
+            border: 1px solid rgba(156, 163, 175, 0.3);
+        }
+        .status-expired::before {
+            background: #9CA3AF;
+        }
+
+        /* Action Buttons */
+        .actions-cell {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .btn-action {
+            padding: 0.35rem 0.65rem;
+            border-radius: 6px;
+            font-size: 0.78rem;
+            font-weight: 600;
+            border: 1px solid transparent;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            white-space: nowrap;
+        }
+
+        .btn-stop {
+            background: rgba(239, 68, 68, 0.15);
+            color: #F87171;
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-stop:hover {
+            background: var(--rose-500);
+            color: #FFF;
+            box-shadow: 0 0 12px rgba(239, 68, 68, 0.4);
+        }
+
+        .btn-resume {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+            border-color: rgba(16, 185, 129, 0.3);
+        }
+
+        .btn-resume:hover {
+            background: var(--emerald-500);
+            color: #FFF;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
+        }
+
+        .btn-extend {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            border-color: var(--border-color);
+        }
+
+        .btn-extend:hover {
+            background: rgba(255, 255, 255, 0.12);
+            color: #FFF;
+        }
+
+        .btn-delete {
+            background: transparent;
+            color: var(--text-subtle);
+            border: none;
+            padding: 0.35rem 0.45rem;
+        }
+
+        .btn-delete:hover {
+            color: #F87171;
+        }
+
+        /* Login Modal & Key Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: all;
+        }
+
+        .modal-box {
+            background: #0E1626;
+            border: 1px solid var(--border-glow);
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 480px;
+            width: 90%;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            text-align: center;
+        }
+
+        .key-display {
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px dashed var(--purple-500);
+            border-radius: 10px;
+            padding: 1rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #C4B5FD;
+            letter-spacing: 0.05em;
+            word-break: break-all;
+        }
+
+        /* Toast notifications */
+        .toast-container {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            z-index: 2000;
+        }
+
+        .toast {
+            background: #111827;
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 0.85rem 1.25rem;
+            color: #FFF;
+            font-size: 0.88rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            animation: slideIn 0.3s ease;
+        }
+
+        .toast.success { border-color: var(--emerald-500); }
+        .toast.error { border-color: var(--rose-500); }
+        .toast.warning { border-color: var(--amber-500); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header Navigation -->
+    <header class="admin-header">
+        <div class="header-brand">
+            <div class="brand-logo">SP</div>
+            <div>
+                <div class="brand-title">SciProspect</div>
+            </div>
+            <span class="root-badge">🛡️ Root Console</span>
+        </div>
+
+        <div class="header-actions">
+            <a href="/" class="btn-nav" title="Back to Prospecting Lead Explorer">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>
+                Open Prospecting App
+            </a>
+            <button class="btn-nav btn-logout" onclick="logoutRoot()">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                Lock Console
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Admin Container -->
+    <main class="admin-container">
+        
+        <!-- Welcome Banner -->
+        <div class="console-banner">
+            <div>
+                <h1 class="console-title">License & User Account Command Center</h1>
+                <p class="console-subtitle">Issue client accounts, configure custom quotas, and exercise instant remote kill-switch control over Trial and Pro apps.</p>
+            </div>
+            <div>
+                <button class="btn-nav" onclick="refreshDashboard()" style="background: rgba(255,255,255,0.06);">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
+                    Refresh Status
+                </button>
+            </div>
+        </div>
+
+        <!-- 4 KPI Metrics -->
+        <div class="kpi-grid">
+            <div class="kpi-card total">
+                <div class="kpi-header">
+                    <span>Total Accounts</span>
+                    <span>📑</span>
+                </div>
+                <div class="kpi-val" id="stat-total">0</div>
+                <div class="kpi-desc">Issued in system database</div>
+            </div>
+
+            <div class="kpi-card trial">
+                <div class="kpi-header">
+                    <span>Active Trials</span>
+                    <span>🧪</span>
+                </div>
+                <div class="kpi-val" id="stat-trial" style="color: #FBBF24;">0</div>
+                <div class="kpi-desc">7-Day evaluation clients</div>
+            </div>
+
+            <div class="kpi-card pro">
+                <div class="kpi-header">
+                    <span>Active Pro</span>
+                    <span>💎</span>
+                </div>
+                <div class="kpi-val" id="stat-pro" style="color: #34D399;">0</div>
+                <div class="kpi-desc">Full commercial lifetime access</div>
+            </div>
+
+            <div class="kpi-card stopped">
+                <div class="kpi-header">
+                    <span>Suspended / Stopped</span>
+                    <span>⛔</span>
+                </div>
+                <div class="kpi-val" id="stat-stopped" style="color: #F87171;">0</div>
+                <div class="kpi-desc">Access blocked via kill-switch</div>
+            </div>
+        </div>
+
+        <!-- 2 Column: Form + Table -->
+        <div class="content-grid">
+            
+            <!-- Issue New Account Form -->
+            <div class="card-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>✨ Issue New Account</span>
+                    </div>
+                </div>
+
+                <form id="createAccountForm" onsubmit="handleCreateAccount(event)">
+                    <div class="form-group">
+                        <label class="form-label">Client / User Name *</label>
+                        <input type="text" id="inputName" class="form-input" placeholder="e.g., Dr. Sarah Jenkins" required>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">Client Email / Affiliation *</label>
+                        <input type="email" id="inputEmail" class="form-input" placeholder="s.jenkins@harvard.edu" required>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">Client Password (Optional)</label>
+                        <input type="text" id="inputPassword" class="form-input" placeholder="Optional password (client can also use License Key)">
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">Account Tier</label>
+                        <div class="radio-pills">
+                            <label class="radio-pill-label active-trial" id="tierLabelTrial">
+                                <input type="radio" name="tierRadio" value="trial" checked onchange="toggleTierSelection('trial')">
+                                🧪 Trial (7-Day)
+                            </label>
+                            <label class="radio-pill-label" id="tierLabelPro">
+                                <input type="radio" name="tierRadio" value="pro" onchange="toggleTierSelection('pro')">
+                                💎 Pro Edition
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">Validity Duration</label>
+                        <select id="inputDuration" class="form-select" onchange="handleDurationChange()">
+                            <option value="7" selected>7 Days (Standard Evaluation)</option>
+                            <option value="14">14 Days (Extended Trial)</option>
+                            <option value="30">30 Days (1 Month)</option>
+                            <option value="365">1 Year (Annual)</option>
+                            <option value="-1">Lifetime / Unlimited (Never Expires)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">Daily Verified Leads Limit</label>
+                        <select id="inputLimit" class="form-select">
+                            <option value="1000" selected>1,000 Verified Leads / Day (Trial Default)</option>
+                            <option value="2500">2,500 Verified Leads / Day</option>
+                            <option value="5000">5,000 Verified Leads / Day</option>
+                            <option value="-1">Unlimited Leads (Pro Default)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">Notes / Reference (Optional)</label>
+                        <input type="text" id="inputNotes" class="form-input" placeholder="e.g. Cambridge Biotech Demo">
+                    </div>
+
+                    <button type="submit" class="btn-create" style="margin-top: 1.25rem;">
+                        <span>⚡ Create Account & Issue Key</span>
+                    </button>
+                </form>
+            </div>
+
+            <!-- Client Accounts Table -->
+            <div class="card-panel">
+                <div class="panel-header">
+                    <div class="panel-title">
+                        <span>👥 Client Accounts & Live Remote Control</span>
+                    </div>
+                </div>
+
+                <div class="table-controls">
+                    <div class="search-box">
+                        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                        <input type="text" id="searchAccounts" class="search-input" placeholder="Search by name, email, or key..." oninput="filterAccounts()">
+                    </div>
+
+                    <div class="filter-tabs">
+                        <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+                        <button class="filter-btn" data-filter="active" onclick="setFilter('active', this)">Active</button>
+                        <button class="filter-btn" data-filter="stopped" onclick="setFilter('stopped', this)">Stopped ⛔</button>
+                        <button class="filter-btn" data-filter="trial" onclick="setFilter('trial', this)">Trial</button>
+                        <button class="filter-btn" data-filter="pro" onclick="setFilter('pro', this)">Pro</button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="admin-table">
+                        <thead>
+                            <tr>
+                                <th>Client Details</th>
+                                <th>License Key</th>
+                                <th>Tier</th>
+                                <th>Status</th>
+                                <th>Expires / Remaining</th>
+                                <th>Limit</th>
+                                <th>Remote Control</th>
+                            </tr>
+                        </thead>
+                        <tbody id="accountsTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                    Loading accounts database...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Root Login Modal -->
+    <div class="modal-overlay" id="loginModal">
+        <div class="modal-box">
+            <div style="font-size: 2.5rem;">🛡️</div>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.5rem; font-weight: 700;">Root Admin Authentication</h2>
+            <p style="color: var(--text-muted); font-size: 0.88rem;">Please enter your Root Master Password to unlock the licensing console.</p>
+            
+            <form onsubmit="handleRootLogin(event)">
+                <div class="form-group" style="text-align: left;">
+                    <label class="form-label">Root Master Password / PIN</label>
+                    <input type="password" id="rootPassInput" class="form-input" placeholder="Enter root password..." required autofocus>
+                    <small style="color: var(--text-subtle); margin-top: 0.35rem; display: block;">Default password: <code>admin2026</code></small>
+                </div>
+                <button type="submit" class="btn-create" style="margin-top: 1.25rem;">
+                    Unlock Console
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success License Key Modal -->
+    <div class="modal-overlay" id="keyModal">
+        <div class="modal-box" style="max-width: 520px;">
+            <div style="font-size: 2.5rem;">🎉</div>
+            <h2 style="font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;">Account Successfully Issued!</h2>
+            <p style="color: var(--text-muted); font-size: 0.88rem;" id="modalClientInfo">Dr. Sarah Jenkins (s.jenkins@harvard.edu)</p>
+            
+            <div class="key-display" id="modalKeyDisplay">
+                SCIP-TR-XXXX-XXXX
+            </div>
+
+            <div style="display: flex; gap: 0.75rem; margin-top: 0.5rem;">
+                <button class="btn-create" style="flex: 1;" onclick="copyWelcomePack()">
+                    📋 Copy Client Welcome Pack
+                </button>
+                <button class="btn-nav" onclick="closeKeyModal()">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        // State
+        let allAccounts = [];
+        let currentFilter = 'all';
+        let latestIssuedAccount = null;
+
+        // Check authentication on startup
+        document.addEventListener('DOMContentLoaded', () => {
+            const rootToken = sessionStorage.getItem('scip_root_token') || localStorage.getItem('scip_root_token');
+            if (!rootToken) {
+                openLoginModal();
+            } else {
+                refreshDashboard();
+            }
+        });
+
+        function openLoginModal() {
+            document.getElementById('loginModal').classList.add('active');
+            setTimeout(() => document.getElementById('rootPassInput').focus(), 100);
+        }
+
+        async function handleRootLogin(e) {
+            e.preventDefault();
+            const pass = document.getElementById('rootPassInput').value.trim();
+            if (!pass) return;
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: pass })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    sessionStorage.setItem('scip_root_token', pass);
+                    document.getElementById('loginModal').classList.remove('active');
+                    showToast('Root console unlocked successfully.', 'success');
+                    refreshDashboard();
+                } else {
+                    showToast(data.detail || 'Incorrect root password', 'error');
+                }
+            } catch (err) {
+                // If offline or direct fallback
+                if (pass === 'admin2026') {
+                    sessionStorage.setItem('scip_root_token', pass);
+                    document.getElementById('loginModal').classList.remove('active');
+                    refreshDashboard();
+                } else {
+                    showToast('Could not verify root password: ' + err.message, 'error');
+                }
+            }
+        }
+
+        function logoutRoot() {
+            sessionStorage.removeItem('scip_root_token');
+            localStorage.removeItem('scip_root_token');
+            openLoginModal();
+        }
+
+        function getAuthHeader() {
+            const token = sessionStorage.getItem('scip_root_token') || localStorage.getItem('scip_root_token') || 'admin2026';
+            return { 'X-Root-Auth': token, 'Content-Type': 'application/json' };
+        }
+
+        // Toggle Tier Pills
+        function toggleTierSelection(tier) {
+            const trialLabel = document.getElementById('tierLabelTrial');
+            const proLabel = document.getElementById('tierLabelPro');
+            const durationSelect = document.getElementById('inputDuration');
+            const limitSelect = document.getElementById('inputLimit');
+
+            if (tier === 'pro') {
+                trialLabel.className = 'radio-pill-label';
+                proLabel.className = 'radio-pill-label active-pro';
+                durationSelect.value = '-1'; // Lifetime default
+                limitSelect.value = '-1';   // Unlimited default
+            } else {
+                trialLabel.className = 'radio-pill-label active-trial';
+                proLabel.className = 'radio-pill-label';
+                durationSelect.value = '7';    // 7 Days default
+                limitSelect.value = '1000';    // 1000 default
+            }
+        }
+
+        function handleDurationChange() {
+            const dur = document.getElementById('inputDuration').value;
+            const limitSelect = document.getElementById('inputLimit');
+            if (dur === '-1') {
+                limitSelect.value = '-1';
+            }
+        }
+
+        // Fetch Stats & Accounts
+        async function refreshDashboard() {
+            try {
+                // 1. Fetch Stats
+                const statsRes = await fetch('/api/admin/stats', { headers: getAuthHeader() });
+                if (statsRes.status === 401 || statsRes.status === 403) {
+                    openLoginModal();
+                    return;
+                }
+                const stats = await statsRes.json();
+                document.getElementById('stat-total').textContent = stats.total_accounts || 0;
+                document.getElementById('stat-trial').textContent = stats.active_trials || 0;
+                document.getElementById('stat-pro').textContent = stats.active_pros || 0;
+                document.getElementById('stat-stopped').textContent = stats.stopped_accounts || 0;
+
+                // 2. Fetch Accounts
+                const accRes = await fetch('/api/admin/licenses', { headers: getAuthHeader() });
+                allAccounts = await accRes.json();
+                renderAccountsTable();
+            } catch (err) {
+                console.error('Failed to refresh admin data:', err);
+            }
+        }
+
+        // Render Table
+        function renderAccountsTable() {
+            const tbody = document.getElementById('accountsTableBody');
+            const searchVal = document.getElementById('searchAccounts').value.trim().toLowerCase();
+
+            let filtered = allAccounts.filter(acc => {
+                if (currentFilter === 'active' && acc.status !== 'active') return false;
+                if (currentFilter === 'stopped' && acc.status !== 'stopped') return false;
+                if (currentFilter === 'trial' && acc.tier !== 'trial') return false;
+                if (currentFilter === 'pro' && acc.tier !== 'pro') return false;
+
+                if (searchVal) {
+                    const match = (
+                        (acc.client_name || '').toLowerCase().includes(searchVal) ||
+                        (acc.client_email || '').toLowerCase().includes(searchVal) ||
+                        (acc.license_key || '').toLowerCase().includes(searchVal) ||
+                        (acc.notes || '').toLowerCase().includes(searchVal)
+                    );
+                    if (!match) return false;
+                }
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                            No matching user accounts found.
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(acc => {
+                const isPro = acc.tier === 'pro';
+                const isStopped = acc.status === 'stopped';
+                const isExpired = acc.status === 'expired' || acc.is_expired;
+
+                let statusBadge = '';
+                if (isStopped) {
+                    statusBadge = `<span class="status-pill status-stopped">⛔ Suspended</span>`;
+                } else if (isExpired) {
+                    statusBadge = `<span class="status-pill status-expired">⏳ Expired</span>`;
+                } else {
+                    statusBadge = `<span class="status-pill status-active">Active</span>`;
+                }
+
+                const tierBadge = isPro 
+                    ? `<span class="tier-badge tier-pro">💎 Pro</span>`
+                    : `<span class="tier-badge tier-trial">🧪 Trial</span>`;
+
+                const limitDisplay = (acc.daily_limit === -1 || acc.daily_limit === 'Unlimited') 
+                    ? 'Unlimited' 
+                    : `${acc.daily_limit.toLocaleString()} / day`;
+
+                const expiryDisplay = (acc.expires_at === 'never' || acc.duration_days === -1)
+                    ? 'Lifetime'
+                    : `${acc.expires_at.split(' ')[0]} <br><small style="color:var(--text-subtle)">(${acc.days_left})</small>`;
+
+                // Action buttons: STOP or RESUME
+                let stopResumeBtn = '';
+                if (isStopped) {
+                    stopResumeBtn = `
+                        <button class="btn-action btn-resume" onclick="resumeAccount('${acc.license_key}')" title="Resume user access">
+                            ▶️ Resume
+                        </button>
+                    `;
+                } else {
+                    stopResumeBtn = `
+                        <button class="btn-action btn-stop" onclick="stopAccount('${acc.license_key}')" title="Stop and revoke user access instantly">
+                            ⛔ STOP
+                        </button>
+                    `;
+                }
+
+                return `
+                    <tr>
+                        <td>
+                            <div class="client-info">
+                                <span class="client-name">${escapeHtml(acc.client_name)}</span>
+                                <span class="client-email">${escapeHtml(acc.client_email)}</span>
+                                ${acc.notes ? `<small style="color:var(--text-subtle);font-size:0.75rem;">📝 ${escapeHtml(acc.notes)}</small>` : ''}
+                            </div>
+                        </td>
+                        <td>
+                            <span class="key-badge" onclick="copyText('${acc.license_key}')" title="Click to copy key">
+                                ${acc.license_key}
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                            </span>
+                        </td>
+                        <td>${tierBadge}</td>
+                        <td>${statusBadge}</td>
+                        <td>${expiryDisplay}</td>
+                        <td><strong>${limitDisplay}</strong></td>
+                        <td>
+                            <div class="actions-cell">
+                                ${stopResumeBtn}
+                                <button class="btn-action btn-extend" onclick="extendAccount('${acc.license_key}', 7)" title="Add 7 extra days">
+                                    +7d
+                                </button>
+                                ${!isPro ? `
+                                    <button class="btn-action btn-extend" onclick="upgradeToPro('${acc.license_key}')" title="Upgrade this user to Pro">
+                                        💎 Pro
+                                    </button>
+                                ` : ''}
+                                ${acc.license_key !== 'SCIP-PRO-ROOT-MASTER' ? `
+                                    <button class="btn-action btn-delete" onclick="deleteAccount('${acc.license_key}')" title="Delete account">
+                                        🗑️
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function filterAccounts() {
+            renderAccountsTable();
+        }
+
+        function setFilter(filterType, btnElem) {
+            currentFilter = filterType;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btnElem.classList.add('active');
+            renderAccountsTable();
+        }
+
+        // Actions: Create Account
+        async function handleCreateAccount(e) {
+            e.preventDefault();
+            const name = document.getElementById('inputName').value.trim();
+            const email = document.getElementById('inputEmail').value.trim();
+            const tier = document.querySelector('input[name="tierRadio"]:checked').value;
+            const duration = parseInt(document.getElementById('inputDuration').value);
+            const limit = parseInt(document.getElementById('inputLimit').value);
+            const notes = document.getElementById('inputNotes').value.trim();
+
+            try {
+                const res = await fetch('/api/admin/licenses/create', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({
+                        name: name,
+                        email: email,
+                        tier: tier,
+                        duration_days: duration,
+                        daily_limit: limit,
+                        notes: notes,
+                        password: document.getElementById('inputPassword')?.value.trim() || undefined
+                    })
+                });
+
+                if (!res.ok) {
+                    const errData = await res.json();
+                    throw new Error(errData.detail || 'Failed to issue account');
+                }
+
+                const created = await res.json();
+                latestIssuedAccount = created;
+
+                // Reset form
+                document.getElementById('createAccountForm').reset();
+                toggleTierSelection('trial');
+
+                // Show Key Modal
+                document.getElementById('modalClientInfo').textContent = `${created.client_name} (${created.client_email}) — ${created.tier.toUpperCase()} TIER`;
+                document.getElementById('modalKeyDisplay').textContent = created.license_key;
+                document.getElementById('keyModal').classList.add('active');
+
+                showToast(`Issued ${created.tier.toUpperCase()} account for ${created.client_name}`, 'success');
+                refreshDashboard();
+
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Actions: Stop Account
+        async function stopAccount(key) {
+            if (!confirm(`Are you sure you want to STOP and suspend account ${key}? The user will immediately be blocked from extracting leads.`)) {
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/licenses/stop', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({ license_key: key })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`⛔ Account ${key} has been STOPPED.`, 'warning');
+                    refreshDashboard();
+                } else {
+                    showToast(data.detail || 'Failed to stop account', 'error');
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Actions: Resume Account
+        async function resumeAccount(key) {
+            try {
+                const res = await fetch('/api/admin/licenses/resume', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({ license_key: key })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`▶️ Account ${key} reactivated.`, 'success');
+                    refreshDashboard();
+                } else {
+                    showToast(data.detail || 'Failed to resume account', 'error');
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Actions: Extend Account
+        async function extendAccount(key, days = 7) {
+            try {
+                const res = await fetch('/api/admin/licenses/extend', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({ license_key: key, additional_days: days })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`Added +${days} days to ${key}.`, 'success');
+                    refreshDashboard();
+                } else {
+                    showToast(data.detail || 'Failed to extend account', 'error');
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Actions: Upgrade to Pro
+        async function upgradeToPro(key) {
+            if (!confirm(`Upgrade ${key} to PRO LIFETIME with unlimited daily leads?`)) {
+                return;
+            }
+            try {
+                const res = await fetch('/api/admin/licenses/upgrade', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({ license_key: key, new_tier: 'pro', new_limit: -1 })
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`💎 ${key} upgraded to Pro Lifetime!`, 'success');
+                    refreshDashboard();
+                } else {
+                    showToast(data.detail || 'Failed to upgrade', 'error');
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Actions: Delete Account
+        async function deleteAccount(key) {
+            if (!confirm(`Permanently delete account ${key}? This action cannot be undone.`)) {
+                return;
+            }
+            try {
+                const res = await fetch(`/api/admin/licenses/${key}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeader()
+                });
+                const data = await res.json();
+                if (data.status === 'ok') {
+                    showToast(`Deleted ${key}`, 'info');
+                    refreshDashboard();
+                } else {
+                    showToast(data.detail || 'Failed to delete account', 'error');
+                }
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        // Copy Welcome Pack
+        function copyWelcomePack() {
+            if (!latestIssuedAccount) return;
+            const text = 
+`========================================
+✨ Welcome to SciProspect Lead Suite ✨
+========================================
+Client: ${latestIssuedAccount.client_name}
+Email:  ${latestIssuedAccount.client_email}
+Plan:   ${latestIssuedAccount.tier.toUpperCase()} EDITION
+Key:    ${latestIssuedAccount.license_key}
+
+Validity: ${latestIssuedAccount.expires_at}
+Daily Limit: ${latestIssuedAccount.daily_limit === -1 ? 'Unlimited Verified Leads' : latestIssuedAccount.daily_limit + ' Verified Leads / Day'}
+========================================
+Launch your desktop application and enter this License Key to activate!`;
+
+            copyText(text);
+            showToast('Welcome pack copied to clipboard!', 'success');
+        }
+
+        function closeKeyModal() {
+            document.getElementById('keyModal').classList.remove('active');
+        }
+
+        function copyText(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showToast('Copied to clipboard: ' + text.substring(0, 20) + '...', 'info');
+            });
+        }
+
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            let icon = 'ℹ️';
+            if (type === 'success') icon = '✅';
+            if (type === 'error') icon = '❌';
+            if (type === 'warning') icon = '⚠️';
+
+            toast.innerHTML = `<span>${icon}</span> <span>${escapeHtml(msg)}</span>`;
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateY(10px)';
+                toast.style.transition = 'all 0.3s ease';
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+    </script>
+</body>
+</html>

@@ -69,6 +69,21 @@ process_state = {
 }
 
 
+def normalize_date_str(date_str: str, default: str) -> str:
+    if not date_str:
+        return default
+    date_str = str(date_str).strip()
+    m_iso = re.match(r"^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$", date_str)
+    if m_iso:
+        y, m, d = m_iso.groups()
+        return f"{y}-{int(m):02d}-{int(d):02d}"
+    m_eu = re.match(r"^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$", date_str)
+    if m_eu:
+        d, m, y = m_eu.groups()
+        return f"{y}-{int(m):02d}-{int(d):02d}"
+    return date_str
+
+
 def broadcast_log(line: str, stage: str = "", status: str = "running"):
     timestamp = datetime.now().strftime("%H:%M:%S")
     entry = {"time": timestamp, "text": line, "stage": stage, "status": status}
@@ -142,6 +157,24 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
                 keyword=params.get("keyword", "cell biology"),
                 target_leads=params.get("target_leads", 100),
             )
+        elif action in ("unified", "openalex_unified"):
+            mod = importlib.import_module("03_unified_lead_pipeline_test")
+            mod.run(
+                keyword=params.get("keyword", "cell biology"),
+                target_leads=params.get("target_leads", 1000),
+                min_score=params.get("min_score", 50),
+                from_date=params.get("from_date", "2025-01-01"),
+                to_date=params.get("to_date", "2026-12-31"),
+            )
+        elif action == "biorxiv":
+            mod = importlib.import_module("06_extract_biorxiv_researchers_test")
+            mod.run(
+                keyword=params.get("keyword", "cell biology"),
+                target_leads=params.get("target_leads", 1000),
+                min_score=params.get("min_score", 50),
+                from_date=params.get("from_date", "2025-01-01"),
+                to_date=params.get("to_date", "2026-12-31"),
+            )
         stream.flush()
         process_state["status"] = "completed"
         process_state["exit_code"] = 0
@@ -164,6 +197,19 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
 async def get_trial_status():
     """Returns trial countdown, today's verified quota, and active limits."""
     return trial_engine.check_status()
+
+
+@app.post("/api/trial/reset")
+@app.get("/api/trial/reset")
+async def reset_trial_limits():
+    """Admin/Developer endpoint to instantly reset trial limits and daily quota."""
+    status = trial_engine.reset_trial()
+    return {
+        "status": "success",
+        "message": "Trial limits and today's verification quota successfully reset to 0/1,000.",
+        "trial_status": status
+    }
+
 
 
 @app.get("/api/config")
@@ -268,11 +314,20 @@ async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1
     data_dir = get_data_dir()
     target = None
     if file:
-        cand = (data_dir / file).resolve()
-        if cand.exists() and cand.is_relative_to(data_dir):
-            target = cand
-        elif Path(file).exists():
-            target = Path(file).resolve()
+        candidates = []
+        for d in [data_dir, BASE_DIR.parent / "data", BASE_DIR / "data"]:
+            if d and d.exists():
+                exact = d / Path(file).name
+                if exact.exists() and exact.is_file() and exact.resolve() not in candidates:
+                    candidates.append(exact.resolve())
+                for match in d.rglob(Path(file).name):
+                    if match.exists() and match.is_file() and match.resolve() not in candidates:
+                        candidates.append(match.resolve())
+        candidates.append(Path(file).resolve())
+        for c in candidates:
+            if c.exists() and c.is_file():
+                target = c
+                break
 
     if not target:
         csvs = sorted(data_dir.rglob("*.csv"), key=lambda x: x.stat().st_mtime, reverse=True)
@@ -392,6 +447,45 @@ async def merge_and_deduplicate_endpoint():
     }
 
 
+@app.post("/api/leads/clear-all")
+async def clear_all_leads():
+    """Wipes old generated CSV lead files and resets central master to give a fresh, clean slate."""
+    data_dir = get_data_dir()
+    deleted = []
+    clean_master_hdr = (
+        "researcher_name,professional_email,match_score,match_rating,data_source,"
+        "matched_paper_title,affiliation,orcid,score_breakdown,publication_year,doi,"
+        "search_keyword,review_status\n"
+    )
+
+    for d in [data_dir, BASE_DIR.parent / "data", BASE_DIR / "data"]:
+        if d.exists():
+            for p in list(d.rglob("*.csv")):
+                try:
+                    if p.name == "central_master_leads.csv":
+                        p.write_text(clean_master_hdr, encoding="utf-8-sig")
+                    elif "_needto_extract" in p.name:
+                        p.write_text("author_name,orcid,paper_title,doi,publication_year,institutions,is_corresponding,search_keyword\n", encoding="utf-8-sig")
+                    else:
+                        p.unlink(missing_ok=True)
+                    deleted.append(p.name)
+                except Exception:
+                    pass
+            for sub in list(d.glob("*")):
+                if sub.is_dir() and re.match(r"^\d{4}-\d{2}-\d{2}$", sub.name):
+                    try:
+                        import shutil
+                        shutil.rmtree(sub, ignore_errors=True)
+                    except Exception:
+                        pass
+
+    return {
+        "status": "success",
+        "message": f"Successfully cleared {len(deleted)} old dataset files. System is completely clean and ready.",
+        "deleted_files": len(deleted)
+    }
+
+
 @app.post("/api/pipeline/run")
 @app.post("/api/pipeline/start")
 async def start_pipeline(request: Request):
@@ -399,7 +493,7 @@ async def start_pipeline(request: Request):
     if not status["active"]:
         raise HTTPException(
             status_code=403,
-            detail="Your 7-day evaluation trial has ended. Please contact support to upgrade."
+            detail=status.get("reason", "Your access has been suspended or expired. Please contact support.")
         )
 
     if process_state["status"] == "running":
@@ -450,6 +544,45 @@ async def start_pipeline(request: Request):
         params["target_leads"] = leads
         script_name = "04_extract_nih_researchers_test.py"
         stage_name = f"NIH Funded PIs ({keyword} | Target: {leads})"
+    elif action in ("unified", "openalex_unified"):
+        rem = status["remaining_verified_today"]
+        if rem <= 0:
+            raise HTTPException(
+                status_code=429,
+                detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
+            )
+        keyword = body.get("keyword", "cell biology").strip()
+        leads = min(int(body.get("target_leads", 1000)), rem)
+        min_score = int(body.get("min_score", 50))
+        from_date = normalize_date_str(body.get("from_date"), "2025-01-01")
+        to_date = normalize_date_str(body.get("to_date"), "2026-12-31")
+        params["keyword"] = keyword
+        params["target_leads"] = leads
+        params["min_score"] = min_score
+        params["from_date"] = from_date
+        params["to_date"] = to_date
+        script_name = "03_unified_lead_pipeline_test.py"
+        stage_name = f"Source 1: OpenAlex Pipeline ({keyword} | {from_date} to {to_date} | Target: {leads} | Score >= {min_score})"
+
+    elif action == "biorxiv":
+        rem = status["remaining_verified_today"]
+        if rem <= 0:
+            raise HTTPException(
+                status_code=429,
+                detail="Daily trial limit reached (1,000/1,000 verified leads used today). Resets tomorrow!"
+            )
+        keyword = body.get("keyword", "cell biology").strip()
+        leads = min(int(body.get("target_leads", 1000)), rem)
+        min_score = int(body.get("min_score", 50))
+        from_date = normalize_date_str(body.get("from_date"), "2025-01-01")
+        to_date = normalize_date_str(body.get("to_date"), "2026-12-31")
+        params["keyword"] = keyword
+        params["target_leads"] = leads
+        params["min_score"] = min_score
+        params["from_date"] = from_date
+        params["to_date"] = to_date
+        script_name = "06_extract_biorxiv_researchers_test.py"
+        stage_name = f"Source 2: bioRxiv Pipeline ({keyword} | {from_date} to {to_date} | Target: {leads} | Score >= {min_score})"
     else:
         raise HTTPException(status_code=400, detail=f"Action '{action}' is disabled in trial edition.")
 
@@ -516,7 +649,28 @@ async def stream_logs():
 # -----------------------------------------------------------------------------
 # GitHub Auto-Updater Endpoints
 # -----------------------------------------------------------------------------
-CURRENT_VERSION = "1.0.0"
+def load_app_version() -> str:
+    candidates = [
+        BASE_DIR / "version.json",
+        ROOT_DIR / "version.json",
+        BASE_DIR / "_internal" / "version.json",
+    ]
+    if getattr(sys, "frozen", False):
+        exe_dir = Path(sys.executable).parent
+        candidates.extend([exe_dir / "version.json", exe_dir / "_internal" / "version.json"])
+    for p in candidates:
+        if p.exists():
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+                v = data.get("latest_version")
+                if v:
+                    return v.strip()
+            except Exception:
+                pass
+    return "1.0.1"
+
+
+CURRENT_VERSION = load_app_version()
 GITHUB_REPO = "nandunddh/researcher_tool"
 
 download_state = {

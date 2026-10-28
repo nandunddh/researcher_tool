@@ -262,14 +262,50 @@ document.addEventListener("DOMContentLoaded", () => {
       try {
         const payload = JSON.parse(event.data);
 
-        // Heartbeat
+        // Heartbeat (silent keep-alive, no UI re-render)
         if (payload.type === "heartbeat") {
-          updateProcessUIState(payload.status, payload.stage);
           return;
         }
 
         // Real log line
         appendLogLine(payload);
+
+        // Live UI Progress Bar & ETA Updater
+        if (payload.text) {
+          const pm = payload.text.match(/\[(\d+)\/(\d+)\s*\|\s*([\d\.]+)%\](?:\s*\[Elapsed:\s*([^\|\]]+)\|\s*ETA:\s*([^\|\]]+)\|\s*([^\|\]]+)\])?/);
+          if (pm) {
+            const cur = pm[1];
+            const tot = pm[2];
+            const pct = parseFloat(pm[3]);
+            const elapsed = pm[4] ? pm[4].trim() : '';
+            const eta = pm[5] ? pm[5].trim() : '';
+            const spd = pm[6] ? pm[6].trim() : '';
+
+            const pBar = document.getElementById('pipeline-progress-bar');
+            if (pBar) {
+              pBar.style.width = pct + '%';
+              if (pct >= 100) pBar.classList.add('completed');
+              else pBar.classList.remove('completed');
+            }
+
+            const pBadge = document.getElementById('progress-percent-badge');
+            if (pBadge) pBadge.textContent = pct.toFixed(1) + '%';
+
+            const pCount = document.getElementById('progress-leads-count');
+            if (pCount) pCount.textContent = cur + ' / ' + tot + ' Leads';
+
+            const pSpeed = document.getElementById('progress-speed-pill');
+            if (pSpeed && spd) pSpeed.textContent = '⚡ Speed: ' + spd;
+
+            const pElapsed = document.getElementById('progress-elapsed-pill');
+            if (pElapsed && elapsed) pElapsed.textContent = '⏱️ Elapsed: ' + elapsed;
+
+            const pEta = document.getElementById('progress-eta-pill');
+            if (pEta && eta) {
+              pEta.textContent = pct >= 100 ? '✓ Target Reached' : '⏳ ETA: ' + eta;
+            }
+          }
+        }
         if (payload.status) {
           updateProcessUIState(payload.status, payload.stage);
         }
@@ -292,6 +328,49 @@ document.addEventListener("DOMContentLoaded", () => {
     line.className = "log-line";
 
     const text = entry.text || "";
+
+    // Live UI Progress Bar & ETA Badges Updater
+    const pm = text.match(/\[(\d+)\/(\d+)\s*\|\s*([\d\.]+)%\](?:\s*\[Elapsed:\s*([^\|\]]+)\|\s*ETA:\s*([^\|\]]+)\|\s*([^\|\]]+)\])?/);
+    if (pm) {
+      const cur = pm[1];
+      const tot = pm[2];
+      const pct = parseFloat(pm[3]);
+      const elapsed = pm[4] ? pm[4].trim() : "";
+      const eta = pm[5] ? pm[5].trim() : "";
+      const spd = pm[6] ? pm[6].trim() : "";
+
+      const pBar = document.getElementById("pipeline-progress-bar");
+      if (pBar) {
+        pBar.style.width = `${pct}%`;
+        if (pct >= 100) pBar.classList.add("completed");
+        else pBar.classList.remove("completed");
+      }
+
+      const pBadge = document.getElementById("progress-percent-badge");
+      if (pBadge) pBadge.textContent = `${pct.toFixed(1)}%`;
+
+      const pCount = document.getElementById("progress-leads-count");
+      if (pCount) pCount.textContent = `${cur} / ${tot} Leads`;
+
+      const pSpeed = document.getElementById("progress-speed-pill");
+      if (pSpeed && spd) pSpeed.textContent = `⚡ Speed: ${spd}`;
+
+      const pElapsed = document.getElementById("progress-elapsed-pill");
+      if (pElapsed && elapsed) pElapsed.textContent = `⏱️ Elapsed: ${elapsed}`;
+
+      const pEta = document.getElementById("progress-eta-pill");
+      if (pEta && eta) {
+        pEta.textContent = pct >= 100 ? "✓ Target Reached" : `⏳ ETA: ${eta}`;
+      }
+    } else if (text.includes("COMPLETED:") || text.includes("TARGET REACHED")) {
+      const pBar = document.getElementById("pipeline-progress-bar");
+      if (pBar) {
+        pBar.style.width = "100%";
+        pBar.classList.add("completed");
+      }
+      const pEta = document.getElementById("progress-eta-pill");
+      if (pEta) pEta.textContent = "✓ Completed";
+    }
     if (text.includes("COMPLETED:") || text.includes("✅") || text.includes("TARGET REACHED")) {
       line.classList.add("log-success");
     } else if (text.includes("WARNING:") || text.includes("⚠️") || text.includes("Rate limit")) {
@@ -381,6 +460,14 @@ document.addEventListener("DOMContentLoaded", () => {
   async function triggerRun(action, payload = {}) {
     try {
       updateProcessUIState("running", action);
+      const pBar = document.getElementById("pipeline-progress-bar");
+      if (pBar) { pBar.style.width = "0%"; pBar.classList.remove("completed"); }
+      const pBadge = document.getElementById("progress-percent-badge");
+      if (pBadge) pBadge.textContent = "0.0%";
+      const pCount = document.getElementById("progress-leads-count");
+      if (pCount) pCount.textContent = "0 Leads Discovered";
+      const pEta = document.getElementById("progress-eta-pill");
+      if (pEta) pEta.textContent = "⏳ ETA: Initializing...";
       const res = await fetch("/api/pipeline/run", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -412,43 +499,47 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Bind Buttons
-  btnRunOpenalex.addEventListener("click", () => {
-    const keyword = inputOpenalexKeyword.value.trim() || "Physical Chemistry";
-    const pages = parseInt(inputOpenalexPages.value) || 25;
-    
-    // Calculate From and To dates based on selected mode
-    let fromDate = "2026-01-01";
-    let toDate = "2026-01-31";
-    const mode = selectDateMode ? selectDateMode.value : "month";
+  if (btnRunOpenalex) {
+    btnRunOpenalex.addEventListener("click", () => {
+      const keyword = (inputOpenalexKeyword ? inputOpenalexKeyword.value.trim() : "") || "Physical Chemistry";
+      const pages = parseInt(inputOpenalexPages ? inputOpenalexPages.value : 25) || 25;
+      
+      // Calculate From and To dates based on selected mode
+      let fromDate = "2026-01-01";
+      let toDate = "2026-01-31";
+      const mode = selectDateMode ? selectDateMode.value : "month";
 
-    if (mode === "month" && inputMonthSelect) {
-      const ym = inputMonthSelect.value || "2026-01";
-      fromDate = `${ym}-01`;
-      const [y, m] = ym.split("-").map(Number);
-      const lastDay = new Date(y, m, 0).getDate();
-      toDate = `${ym}-${String(lastDay).padStart(2, "0")}`;
-    } else if (mode === "year" && inputYearSelect) {
-      const yr = inputYearSelect.value || "2026";
-      fromDate = `${yr}-01-01`;
-      toDate = `${yr}-12-31`;
-    } else if (mode === "custom" && inputCustomFrom && inputCustomTo) {
-      fromDate = inputCustomFrom.value || "2026-01-01";
-      toDate = inputCustomTo.value || "2026-01-31";
-    }
+      if (mode === "month" && inputMonthSelect) {
+        const ym = inputMonthSelect.value || "2026-01";
+        fromDate = `${ym}-01`;
+        const [y, m] = ym.split("-").map(Number);
+        const lastDay = new Date(y, m, 0).getDate();
+        toDate = `${ym}-${String(lastDay).padStart(2, "0")}`;
+      } else if (mode === "year" && inputYearSelect) {
+        const yr = inputYearSelect.value || "2026";
+        fromDate = `${yr}-01-01`;
+        toDate = `${yr}-12-31`;
+      } else if (mode === "custom" && inputCustomFrom && inputCustomTo) {
+        fromDate = inputCustomFrom.value || "2026-01-01";
+        toDate = inputCustomTo.value || "2026-01-31";
+      }
 
-    triggerRun("openalex", { 
-      keyword, 
-      pages,
-      from_date: fromDate,
-      to_date: toDate
+      triggerRun("openalex", { 
+        keyword, 
+        pages,
+        from_date: fromDate,
+        to_date: toDate
+      });
     });
-  });
+  }
 
-  btnRunScholarly.addEventListener("click", () => {
-    const target = parseInt(inputScholarlyTarget.value) || 3000;
-    const selectedFile = selectScholarlyFile ? selectScholarlyFile.value.trim() : "";
-    triggerRun("scholarly", { target_leads: target, input_file: selectedFile });
-  });
+  if (btnRunScholarly) {
+    btnRunScholarly.addEventListener("click", () => {
+      const target = parseInt(inputScholarlyTarget ? inputScholarlyTarget.value : 3000) || 3000;
+      const selectedFile = selectScholarlyFile ? selectScholarlyFile.value.trim() : "";
+      triggerRun("scholarly", { target_leads: target, input_file: selectedFile });
+    });
+  }
 
   if (btnRunNih) {
     btnRunNih.addEventListener("click", () => {
@@ -458,38 +549,162 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  // Unified 1-Click Pipeline Button
+  const btnRunUnified = document.getElementById("btn-run-unified");
+  const inputUnifiedKeyword = document.getElementById("unified-keyword");
+  const inputUnifiedTarget = document.getElementById("unified-target");
+  const selectUnifiedMinScore = document.getElementById("unified-min-score");
+  const inputUnifiedDateFrom = document.getElementById("unified-date-from");
+  const inputUnifiedDateTo = document.getElementById("unified-date-to");
+
+  // ---------------------------------------------------------------------------
+  // Scientific Data Source Selector (Source 1: OpenAlex, Source 2: bioRxiv, etc.)
+  // ---------------------------------------------------------------------------
+  let activeDataSource = "openalex";
+  const pillOpenalex = document.getElementById("src-pill-openalex");
+  const pillBiorxiv = document.getElementById("src-pill-biorxiv");
+  const pillNih = document.getElementById("src-pill-nih");
+  const pillMore = document.getElementById("src-pill-more");
+
+  const unifiedCardBadge = document.getElementById("unified-card-badge");
+  const unifiedCardTitle = document.getElementById("unified-card-title");
+  const unifiedCardSubtitle = document.getElementById("unified-card-subtitle");
+  const unifiedBtnText = document.getElementById("unified-btn-text");
+  const sourceMetaText = document.getElementById("source-meta-text");
+  const lblUnifiedKeyword = document.getElementById("lbl-unified-keyword");
+
+  function setDataSource(sourceName) {
+    activeDataSource = sourceName;
+    [pillOpenalex, pillBiorxiv, pillNih].forEach(p => {
+      if (p) p.classList.remove("active");
+    });
+
+    if (sourceName === "openalex") {
+      if (pillOpenalex) pillOpenalex.classList.add("active");
+      if (unifiedCardBadge) {
+        unifiedCardBadge.textContent = "Source 1 • OpenAlex Engine";
+        unifiedCardBadge.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
+      }
+      if (unifiedCardTitle) unifiedCardTitle.textContent = "OpenAlex Scientific Lead Intelligence";
+      if (unifiedCardSubtitle) unifiedCardSubtitle.textContent = "Direct API connection to 250M+ peer-reviewed works (Universal: Chemistry, Biology, Physics, Medicine, AI). Strict Name & Title Match (Score ≥ 50) with verified emails.";
+      if (unifiedBtnText) unifiedBtnText.textContent = "🚀 Run OpenAlex 1-Click Pipeline (Score ≥ 50)";
+      if (sourceMetaText) sourceMetaText.textContent = "250M+ Universal Literature Works";
+      if (lblUnifiedKeyword) lblUnifiedKeyword.textContent = "Scientific / Medical Field / Keyword *";
+    } else if (sourceName === "biorxiv") {
+      if (pillBiorxiv) pillBiorxiv.classList.add("active");
+      if (unifiedCardBadge) {
+        unifiedCardBadge.textContent = "Source 2 • bioRxiv & medRxiv Engine";
+        unifiedCardBadge.style.background = "linear-gradient(135deg, #0891b2, #2563eb)";
+      }
+      if (unifiedCardTitle) unifiedCardTitle.textContent = "bioRxiv & medRxiv Preprint Intelligence";
+      if (unifiedCardSubtitle) unifiedCardSubtitle.textContent = "Direct API connection to Cold Spring Harbor Laboratory preprints (Cell Biology, Genetics, Cancer, etc.). Extracts active 2025–2026 lab heads and verified author emails.";
+      if (unifiedBtnText) unifiedBtnText.textContent = "🚀 Run bioRxiv 1-Click Pipeline (Score ≥ 50)";
+      if (sourceMetaText) sourceMetaText.textContent = "3M+ Biomedical Preprints (Cold Spring Harbor)";
+      if (lblUnifiedKeyword) lblUnifiedKeyword.textContent = "Preprint Category or Research Topic *";
+    }
+  }
+
+  if (pillOpenalex) {
+    pillOpenalex.addEventListener("click", () => setDataSource("openalex"));
+  }
+  if (pillBiorxiv) {
+    pillBiorxiv.addEventListener("click", () => setDataSource("biorxiv"));
+  }
+  if (pillNih) {
+    pillNih.addEventListener("click", () => {
+      switchTab("nih");
+      showToast("Switched to Tab 2: NIH RePORTER Grant PIs");
+    });
+  }
+  if (pillMore) {
+    pillMore.addEventListener("click", () => {
+      showToast("Next Sources in Roadmap: PubMed/NCBI, ChemRxiv (Chemistry), & arXiv!");
+    });
+  }
+
+  // Unified 1-Click Pipeline Button
+  const inputUnifiedKeyword = document.getElementById("unified-keyword");
+  const inputUnifiedTarget = document.getElementById("unified-target");
+  const selectUnifiedMinScore = document.getElementById("unified-min-score");
+  const inputUnifiedDateFrom = document.getElementById("unified-date-from");
+  const inputUnifiedDateTo = document.getElementById("unified-date-to");
+
+  function normalizeDateInput(val, fallback) {
+    if (!val) return fallback;
+    val = String(val).trim();
+    const isoMatch = val.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (isoMatch) {
+      return `${isoMatch[1]}-${isoMatch[2].padStart(2, "0")}-${isoMatch[3].padStart(2, "0")}`;
+    }
+    const dmyMatch = val.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, "0")}-${dmyMatch[1].padStart(2, "0")}`;
+    }
+    return val;
+  }
+
+  if (btnRunUnified) {
+    btnRunUnified.addEventListener("click", () => {
+      const keyword = (inputUnifiedKeyword ? inputUnifiedKeyword.value.trim() : "") || "cell biology";
+      const targetLeads = parseInt(inputUnifiedTarget ? inputUnifiedTarget.value : 1000) || 1000;
+      const minScore = parseInt(selectUnifiedMinScore ? selectUnifiedMinScore.value : 50) || 50;
+      const rawFrom = inputUnifiedDateFrom ? inputUnifiedDateFrom.value : "";
+      const rawTo = inputUnifiedDateTo ? inputUnifiedDateTo.value : "";
+      const fromDate = normalizeDateInput(rawFrom, "2025-01-01");
+      const toDate = normalizeDateInput(rawTo, "2026-12-31");
+
+      const actionName = activeDataSource === "biorxiv" ? "biorxiv" : "unified";
+
+      triggerRun(actionName, {
+        keyword,
+        target_leads: targetLeads,
+        min_score: minScore,
+        from_date: fromDate,
+        to_date: toDate
+      });
+    });
+  }
+
   if (btnRunBiorxiv) {
     btnRunBiorxiv.addEventListener("click", () => {
+      setDataSource("biorxiv");
       triggerRun("biorxiv");
     });
   }
 
 
-  btnStopPipeline.addEventListener("click", async () => {
-    try {
-      const res = await fetch("/api/pipeline/stop", { method: "POST" });
-      const data = await res.json();
-      showToast("Pipeline stopped", "warning");
-      updateProcessUIState("stopped");
-    } catch (e) {
-      showToast("Failed to stop process", "error");
-    }
-  });
-
-  btnClearConsole.addEventListener("click", () => {
-    terminalBody.innerHTML = "";
-    lineCount = 0;
-    consoleLineCount.textContent = "0 lines";
-  });
-
-  btnCopyConsole.addEventListener("click", () => {
-    const text = Array.from(terminalBody.querySelectorAll(".log-text"))
-      .map((el) => el.innerText)
-      .join("\n");
-    navigator.clipboard.writeText(text).then(() => {
-      showToast("Console logs copied to clipboard!");
+  if (btnStopPipeline) {
+    btnStopPipeline.addEventListener("click", async () => {
+      try {
+        const res = await fetch("/api/pipeline/stop", { method: "POST" });
+        const data = await res.json();
+        showToast("Pipeline stopped", "warning");
+        updateProcessUIState("stopped");
+      } catch (e) {
+        showToast("Failed to stop process", "error");
+      }
     });
-  });
+  }
+
+  if (btnClearConsole) {
+    btnClearConsole.addEventListener("click", () => {
+      if (terminalBody) terminalBody.innerHTML = "";
+      lineCount = 0;
+      if (consoleLineCount) consoleLineCount.textContent = "0 lines";
+    });
+  }
+
+  if (btnCopyConsole) {
+    btnCopyConsole.addEventListener("click", () => {
+      if (!terminalBody) return;
+      const text = Array.from(terminalBody.querySelectorAll(".log-text"))
+        .map((el) => el.innerText)
+        .join("\n");
+      navigator.clipboard.writeText(text).then(() => {
+        showToast("Console logs copied to clipboard!");
+      });
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Leads Explorer & Data Table
@@ -584,20 +799,24 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
 
-  datasetSelect.addEventListener("change", () => {
-    activeDataset = datasetSelect.value;
-    currentPage = 1;
-    loadLeads();
-  });
-
-  leadsSearchInput.addEventListener("input", (e) => {
-    clearTimeout(searchDebounceTimeout);
-    searchDebounceTimeout = setTimeout(() => {
-      currentSearch = e.target.value.trim();
+  if (datasetSelect) {
+    datasetSelect.addEventListener("change", () => {
+      activeDataset = datasetSelect.value;
       currentPage = 1;
       loadLeads();
-    }, 300);
-  });
+    });
+  }
+
+  if (leadsSearchInput) {
+    leadsSearchInput.addEventListener("input", (e) => {
+      clearTimeout(searchDebounceTimeout);
+      searchDebounceTimeout = setTimeout(() => {
+        currentSearch = e.target.value.trim();
+        currentPage = 1;
+        loadLeads();
+      }, 300);
+    });
+  }
 
   filterPills.forEach((pill) => {
     pill.addEventListener("click", () => {
@@ -609,31 +828,39 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  pageSizeSelect.addEventListener("change", (e) => {
-    currentPageSize = parseInt(e.target.value);
-    currentPage = 1;
-    loadLeads();
-  });
-
-  btnExportCsv.addEventListener("click", () => {
-    if (!activeDataset) return;
-    window.open(`/api/leads/export?file=${encodeURIComponent(activeDataset)}`, "_blank");
-  });
-
-  btnPrevPage.addEventListener("click", () => {
-    if (currentPage > 1) {
-      currentPage--;
+  if (pageSizeSelect) {
+    pageSizeSelect.addEventListener("change", (e) => {
+      currentPageSize = parseInt(e.target.value);
+      currentPage = 1;
       loadLeads();
-    }
-  });
+    });
+  }
 
-  btnNextPage.addEventListener("click", () => {
-    const maxPage = Math.ceil(totalLeadsCount / currentPageSize);
-    if (currentPage < maxPage) {
-      currentPage++;
-      loadLeads();
-    }
-  });
+  if (btnExportCsv) {
+    btnExportCsv.addEventListener("click", () => {
+      if (!activeDataset) return;
+      window.open(`/api/leads/export?file=${encodeURIComponent(activeDataset)}`, "_blank");
+    });
+  }
+
+  if (btnPrevPage) {
+    btnPrevPage.addEventListener("click", () => {
+      if (currentPage > 1) {
+        currentPage--;
+        loadLeads();
+      }
+    });
+  }
+
+  if (btnNextPage) {
+    btnNextPage.addEventListener("click", () => {
+      const maxPage = Math.ceil(totalLeadsCount / currentPageSize);
+      if (currentPage < maxPage) {
+        currentPage++;
+        loadLeads();
+      }
+    });
+  }
 
   async function loadLeads() {
     leadsTableBody.innerHTML = `<tr><td colspan="7" class="empty-state">Loading leads...</td></tr>`;
@@ -666,7 +893,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderTable(leads, startIdx) {
     if (leads.length === 0) {
-      leadsTableBody.innerHTML = `<tr><td colspan="7" class="empty-state">No matching researcher leads found.</td></tr>`;
+      leadsTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">No matching researcher leads found.</td></tr>`;
       return;
     }
 
@@ -674,10 +901,32 @@ document.addEventListener("DOMContentLoaded", () => {
     leads.forEach((row, i) => {
       const name = row.researcher_name || row.full_name || row.author_name || "Unknown Author";
       const email = row.professional_email || row.email || "";
-      const inst = row.affiliations_seen_on_matching_papers || row.organization || "Academic Institution";
-      const topic = row.matched_search_terms || row.field_keyword || row.keyword || "cell biology";
+      const inst = row.affiliations_seen_on_matching_papers || row.affiliation || row.organization || "Academic Institution";
+      const topic = row.matched_search_terms || row.search_keyword || row.field_keyword || row.keyword || "cell biology";
       const award = row.award_amount || "";
       const statusRaw = row.review_status || row.email_status || (email ? "found" : "needs_review");
+
+      // Calculate Match Score display
+      const rawScore = row.match_score ? parseInt(row.match_score) : null;
+      let scoreBadge = `<span style="color:var(--text-dim);font-size:0.75rem;">—</span>`;
+      if (rawScore !== null && !isNaN(rawScore)) {
+        if (rawScore >= 80) {
+          scoreBadge = `<span class="pill-badge pill-emerald" style="font-weight:700;">🟢 ${rawScore}%</span>`;
+        } else if (rawScore >= 65) {
+          scoreBadge = `<span class="pill-badge pill-cyan" style="font-weight:700;">🔵 ${rawScore}%</span>`;
+        } else {
+          scoreBadge = `<span class="pill-badge pill-amber" style="font-weight:700;">🟡 ${rawScore}%</span>`;
+        }
+      }
+
+      // Data Source badge
+      const srcRaw = (row.data_source || row.source || "").toLowerCase();
+      let srcBadge = `<span class="badge-source badge-openalex">📚 OpenAlex</span>`;
+      if (srcRaw.includes("biorxiv") || srcRaw.includes("medrxiv")) {
+        srcBadge = `<span class="badge-source badge-biorxiv">🧬 bioRxiv</span>`;
+      } else if (srcRaw.includes("nih") || row.award_amount) {
+        srcBadge = `<span class="badge-source badge-nih">🏛️ NIH Grant</span>`;
+      }
 
       let badgeClass = "needs-review";
       let badgeLabel = "Needs Review";
@@ -704,6 +953,8 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           ` : `<span style="color: var(--text-dim); font-style: italic;">No email found</span>`}
         </td>
+        <td style="text-align: center;">${scoreBadge}</td>
+        <td style="text-align: center;">${srcBadge}</td>
         <td>${escapeHtml(inst ? inst.substring(0, 50) + (inst.length > 50 ? "..." : "") : "—")}</td>
         <td><span class="status-badge ${badgeClass}">${badgeLabel}</span></td>
         <td><span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(award ? `${topic} (${award})` : topic)}</span></td>
@@ -903,10 +1154,12 @@ document.addEventListener("DOMContentLoaded", () => {
     detailModal.style.display = "none";
   }
 
-  modalCloseBtn.addEventListener("click", closeDetailModal);
-  detailModal.addEventListener("click", (e) => {
-    if (e.target === detailModal) closeDetailModal();
-  });
+  if (modalCloseBtn) modalCloseBtn.addEventListener("click", closeDetailModal);
+  if (detailModal) {
+    detailModal.addEventListener("click", (e) => {
+      if (e.target === detailModal) closeDetailModal();
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Datasets Archive View
@@ -1138,13 +1391,15 @@ document.addEventListener("DOMContentLoaded", () => {
     setTimeout(advanceStage, 80);
   }
 
-  btnRefreshAll.addEventListener("click", () => {
-    fetchStats();
-    loadDatasetsDropdown();
-    if (currentTab === "explorer") loadLeads();
-    if (currentTab === "datasets") loadDatasetsArchive();
-    showToast("Dashboard metrics refreshed");
-  });
+  if (btnRefreshAll) {
+    btnRefreshAll.addEventListener("click", () => {
+      fetchStats();
+      loadDatasetsDropdown();
+      if (currentTab === "explorer") loadLeads();
+      if (currentTab === "datasets") loadDatasetsArchive();
+      showToast("Dashboard metrics refreshed");
+    });
+  }
 
   // ---------------------------------------------------------------------------
   // Desktop Menubar & Data Management Actions
