@@ -114,7 +114,7 @@ class LicenseManager:
         except Exception as e:
             print(f"[LICENSE] Error reading local file: {e}")
 
-        # Cloud Sync: Load from Oracle Cloud PostgreSQL
+        # Cloud Sync: Load from Oracle Cloud PostgreSQL (Authoritative Source of Truth)
         try:
             import psycopg2
             with psycopg2.connect(**PG_CONFIG) as conn:
@@ -125,23 +125,36 @@ class LicenseManager:
                                last_active_date, total_extracted, notes, password_hash 
                         FROM admin_licenses;
                     """)
-                    for r in cur.fetchall():
-                        data["licenses"][r[0]] = {
-                            "license_key": r[0],
-                            "client_name": r[1] or "",
-                            "client_email": r[2] or "",
-                            "tier": r[3] or "pro",
-                            "status": r[4] or "active",
-                            "daily_limit": r[5] if r[5] is not None else 1000,
-                            "used_today": r[6] or 0,
-                            "expires_at": str(r[7] or "never"),
-                            "created_at": str(r[8] or ""),
-                            "last_active_date": str(r[9] or ""),
-                            "total_extracted": r[10] or 0,
-                            "notes": r[11] or "",
-                            "password_hash": r[12] or ""
-                        }
-        except Exception:
+                    rows = cur.fetchall()
+                    if rows:
+                        cloud_licenses = {}
+                        for r in rows:
+                            cloud_licenses[r[0]] = {
+                                "license_key": r[0],
+                                "client_name": r[1] or "",
+                                "client_email": r[2] or "",
+                                "tier": r[3] or "pro",
+                                "status": r[4] or "active",
+                                "daily_limit": r[5] if r[5] is not None else 1000,
+                                "used_today": r[6] or 0,
+                                "expires_at": str(r[7] or "never"),
+                                "created_at": str(r[8] or ""),
+                                "last_active_date": str(r[9] or ""),
+                                "total_extracted": r[10] or 0,
+                                "notes": r[11] or "",
+                                "password_hash": r[12] or ""
+                            }
+                        # Overwrite in-memory licenses with authoritative cloud set
+                        data["licenses"] = cloud_licenses
+                        # Sync local file to match cloud database
+                        try:
+                            temp_f = self.db_path.with_suffix(".tmp")
+                            with open(temp_f, "w", encoding="utf-8") as sf:
+                                json.dump(data, sf, indent=2)
+                            temp_f.replace(self.db_path)
+                        except Exception:
+                            pass
+        except Exception as e:
             pass
         return data
 
@@ -186,6 +199,12 @@ class LicenseManager:
                             lic.get("total_extracted", 0),
                             lic.get("password_hash", "")
                         ))
+
+                    # Remove any deleted licenses from PostgreSQL that are no longer in data["licenses"]
+                    if data.get("licenses"):
+                        valid_keys = tuple(data["licenses"].keys())
+                        cur.execute("DELETE FROM admin_licenses WHERE license_key NOT IN %s;", (valid_keys,))
+
                     conn.commit()
         except Exception:
             pass
@@ -270,16 +289,26 @@ class LicenseManager:
         return account
 
     def stop_account(self, license_key: str) -> Tuple[bool, str]:
-        """Instantly stops/suspends an account. Client app will be locked out."""
+        """Instantly stops/suspends an account. Client app will be locked out and active sessions revoked."""
+        key_clean = (license_key or "").strip().upper()
         db = self._load_db()
-        if license_key not in db["licenses"]:
+        if key_clean not in db.get("licenses", {}):
             return False, "License key not found."
-        account = db["licenses"][license_key]
+        account = db["licenses"][key_clean]
         account["status"] = "stopped"
         account["stopped_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         self._save_db(db)
-        print(f"[LICENSE] ⛔ Stopped account {license_key} ({account.get('client_name')})")
-        return True, f"Account {license_key} has been suspended."
+
+        # Immediately revoke all active sessions for this key
+        tokens_to_remove = [
+            t for t, s in self._sessions.items()
+            if s.get("user", {}).get("license_key", "").strip().upper() == key_clean
+        ]
+        for t in tokens_to_remove:
+            self._sessions.pop(t, None)
+
+        print(f"[LICENSE] ⛔ Stopped account {key_clean} ({account.get('client_name')}) and revoked {len(tokens_to_remove)} sessions.")
+        return True, f"Account {key_clean} has been suspended."
 
     def resume_account(self, license_key: str) -> Tuple[bool, str]:
         """Re-activates a suspended account."""
@@ -341,14 +370,43 @@ class LicenseManager:
         return True, f"Account upgraded to {new_tier.upper()}.", account
 
     def delete_account(self, license_key: str) -> Tuple[bool, str]:
-        """Permanently deletes an account record."""
-        db = self._load_db()
-        if license_key == "SCIP-PRO-ROOT-MASTER":
+        """Permanently deletes an account record locally and from PostgreSQL cloud database."""
+        key_clean = (license_key or "").strip().upper()
+        if key_clean == "SCIP-PRO-ROOT-MASTER":
             return False, "Cannot delete master root key."
-        if license_key in db["licenses"]:
-            del db["licenses"][license_key]
+
+        db = self._load_db()
+        found = False
+
+        # 1. Remove from local database dictionary
+        for k in list(db.get("licenses", {}).keys()):
+            if k.strip().upper() == key_clean:
+                del db["licenses"][k]
+                found = True
+
+        # 2. Cloud Sync: Delete from Oracle Cloud PostgreSQL
+        try:
+            import psycopg2
+            with psycopg2.connect(**PG_CONFIG) as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM admin_licenses WHERE UPPER(license_key) = %s;", (key_clean,))
+                    if cur.rowcount > 0:
+                        found = True
+                    conn.commit()
+        except Exception as e:
+            print(f"[LICENSE] Error deleting {key_clean} from PostgreSQL: {e}")
+
+        if found:
             self._save_db(db)
-            return True, "Account deleted."
+            # Revoke any active session tokens for this license
+            tokens_to_remove = [
+                t for t, s in self._sessions.items()
+                if s.get("user", {}).get("license_key", "").strip().upper() == key_clean
+            ]
+            for t in tokens_to_remove:
+                self._sessions.pop(t, None)
+            return True, f"Account {key_clean} deleted successfully."
+
         return False, "License key not found."
 
     def list_accounts(self, search: str = "", filter_tier: str = "all", filter_status: str = "all") -> List[dict]:
@@ -507,7 +565,7 @@ class LicenseManager:
                 "status": "stopped",
                 "tier": tier,
                 "client_name": client_name,
-                "message": "🚨 ACCESS SUSPENDED: Your account has been temporarily stopped by the root administrator.",
+                "message": "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.",
             }
 
         # 2. Check Expiration
@@ -579,16 +637,19 @@ class LicenseManager:
     # -------------------------------------------------------------------------
     def authenticate(self, identifier: str, password: Optional[str] = None) -> Tuple[bool, dict, str]:
         """
-        Authenticates a user via:
-        1. Root Admin Login (identifier='admin' or 'root' with root password)
-        2. License Key Login (identifier starts with 'SCIP-' and valid)
-        3. Email + Password Login
+        Authenticates a user via Email and Password:
+        - The license key is hidden from the user interface and serves as their tracking account ID.
         """
         ident = (identifier or "").strip()
         pwd = (password or "").strip()
 
-        # 1. Root Admin Check
-        if ident.lower() in ("admin", "root", "sciprospect") and pwd:
+        if not ident:
+            return False, {}, "Please enter your account email."
+        if not pwd:
+            return False, {}, "Please enter your password."
+
+        # 1. Root Admin Check (via email or admin handle)
+        if ident.lower() in ("admin", "root", "sciprospect", "root@sciprospect.internal"):
             if self.verify_root_auth(pwd):
                 user_info = {
                     "license_key": "SCIP-PRO-ROOT-MASTER",
@@ -601,67 +662,47 @@ class LicenseManager:
                 }
                 return True, user_info, "Logged in as Root Administrator"
             else:
-                return False, {}, "Invalid root administrator password"
+                return False, {}, "Incorrect password."
 
-        # 2. License Key Instant Login (no password required or key provided)
+        # 2. Email + Password Lookup
         db = self._load_db()
+        found_acc = None
+        found_key = None
         key_upper = ident.upper()
-        if key_upper in db.get("licenses", {}) and (not pwd or key_upper == ident):
-            val = self.validate_license(key_upper)
-            if not val.get("valid"):
-                return False, {}, val.get("message", "License is inactive or expired")
-            user_info = {
-                "license_key": key_upper,
-                "client_name": val.get("client_name", "Valued Client"),
-                "client_email": val.get("client_email", ""),
-                "tier": val.get("tier", "pro"),
-                "is_admin": (key_upper == "SCIP-PRO-ROOT-MASTER"),
-                "daily_limit": val.get("daily_limit", "Unlimited"),
-                "status": "active"
-            }
-            return True, user_info, f"Welcome back, {user_info['client_name']}"
 
-        # 3. Email + Password Login
-        if pwd:
-            # Find matching account by email or key
-            found_acc = None
-            found_key = None
-            for lk, acc in db.get("licenses", {}).items():
-                if acc.get("client_email", "").strip().lower() == ident.lower() or lk == key_upper:
-                    found_acc = acc
-                    found_key = lk
-                    break
+        for lk, acc in db.get("licenses", {}).items():
+            if acc.get("client_email", "").strip().lower() == ident.lower() or lk == key_upper:
+                found_acc = acc
+                found_key = lk
+                break
 
-            if not found_acc:
-                return False, {}, "No account found matching this email or license key"
+        if not found_acc:
+            return False, {}, "No account found matching this email."
 
-            # Check password
-            stored_hash = found_acc.get("password_hash", "")
-            if not stored_hash:
-                # If no password set yet, check if root password matches as admin fallback
-                if self.verify_root_auth(pwd):
-                    pass
-                else:
-                    return False, {}, "Password not configured for this account. Please use your License Key to sign in."
-            elif not verify_password(pwd, stored_hash):
-                return False, {}, "Incorrect password"
+        # Verify password
+        stored_hash = found_acc.get("password_hash", "")
+        if not stored_hash:
+            if self.verify_root_auth(pwd):
+                pass
+            else:
+                return False, {}, "Password not set for this account. Contact Admin."
+        elif not verify_password(pwd, stored_hash):
+            return False, {}, "Incorrect password. Please try again."
 
-            val = self.validate_license(found_key)
-            if not val.get("valid"):
-                return False, {}, val.get("message", "Account is inactive or expired")
+        val = self.validate_license(found_key)
+        if not val.get("valid"):
+            return False, {}, val.get("message", "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
 
-            user_info = {
-                "license_key": found_key,
-                "client_name": val.get("client_name", "Valued Client"),
-                "client_email": val.get("client_email", ""),
-                "tier": val.get("tier", "pro"),
-                "is_admin": (found_key == "SCIP-PRO-ROOT-MASTER"),
-                "daily_limit": val.get("daily_limit", "Unlimited"),
-                "status": "active"
-            }
-            return True, user_info, f"Welcome back, {user_info['client_name']}"
-
-        return False, {}, "Please provide a valid License Key or Email and Password"
+        user_info = {
+            "license_key": found_key,  # Hidden account ID used for tracking and limits
+            "client_name": val.get("client_name", "Valued Client"),
+            "client_email": val.get("client_email", ""),
+            "tier": val.get("tier", "pro"),
+            "is_admin": (found_key == "SCIP-PRO-ROOT-MASTER"),
+            "daily_limit": val.get("daily_limit", "Unlimited"),
+            "status": "active"
+        }
+        return True, user_info, f"Welcome back, {user_info['client_name']}"
 
     def issue_session(self, user_info: dict) -> str:
         """Issues a secure session token valid for 7 days."""
@@ -674,7 +715,7 @@ class LicenseManager:
         return token
 
     def get_session(self, token: Optional[str]) -> Optional[dict]:
-        """Validates a session token and returns the user info if valid."""
+        """Validates a session token and returns the user info if valid and active."""
         if not token:
             return None
         session = self._sessions.get(token)
@@ -683,7 +724,29 @@ class LicenseManager:
         if time.time() > session.get("expires_at", 0):
             self._sessions.pop(token, None)
             return None
-        return session.get("user")
+        user = session.get("user")
+        if not user:
+            return None
+
+        # Root admin session is always valid
+        if user.get("is_admin"):
+            return user
+
+        # Real-time license status validation
+        key = user.get("license_key")
+        if key:
+            val = self.validate_license(key)
+            if not val.get("valid") or val.get("status") == "stopped":
+                # Account suspended or expired: destroy session immediately
+                self._sessions.pop(token, None)
+                return None
+            # Keep user details synchronized
+            user["status"] = val.get("status", "active")
+            user["tier"] = val.get("tier", user.get("tier", "pro"))
+            user["daily_limit"] = val.get("daily_limit", "Unlimited")
+            user["days_left"] = val.get("days_left", "Unlimited")
+
+        return user
 
     def revoke_session(self, token: Optional[str]) -> bool:
         """Revokes a session token."""

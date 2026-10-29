@@ -287,9 +287,10 @@ async def get_admin_portal():
 
 @app.get("/api/trial/status")
 @app.get("/api/license/status")
-async def get_license_status():
-    """Returns license status, validation, and active limits for the current app."""
-    curr_key = get_current_license_key()
+async def get_license_status(request: Request):
+    """Returns license status, validation, and active limits for the current user."""
+    user = _get_current_user_from_request(request)
+    curr_key = user.get("license_key") if user else get_current_license_key()
     val = license_engine.validate_license(curr_key)
     is_trial = (val.get("tier") == "trial")
 
@@ -412,11 +413,14 @@ async def api_auth_login(request: Request):
 
 @app.get("/api/auth/me")
 async def api_auth_me(request: Request):
-    """Returns the currently authenticated user or 401 if unauthenticated."""
+    """Returns the currently authenticated user or 401 if unauthenticated or suspended."""
     user = _get_current_user_from_request(request)
     if user:
         return {"authenticated": True, "user": user}
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    raise HTTPException(
+        status_code=401,
+        detail="🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin."
+    )
 
 
 @app.post("/api/auth/logout")
@@ -540,6 +544,8 @@ async def admin_delete_license(license_key: str, request: Request):
     ok, msg = license_engine.delete_account(license_key)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
+    if get_current_license_key().strip().upper() == license_key.strip().upper():
+        set_current_license_key("SCIP-PRO-ROOT-MASTER")
     return {"status": "ok", "message": msg}
 
 
@@ -561,7 +567,12 @@ async def update_data_dir(request: Request):
 
 
 @app.get("/api/stats")
-async def get_stats():
+async def get_stats(request: Request):
+    user = _get_current_user_from_request(request)
+    curr_key = user.get("license_key") if user else get_current_license_key()
+    val = license_engine.validate_license(curr_key)
+    is_trial = (val.get("tier") == "trial")
+
     status = trial_engine.check_status()
     today_str = datetime.now().strftime("%Y-%m-%d")
     data_dir = get_data_dir()
@@ -597,12 +608,13 @@ async def get_stats():
         "master_pool_unprocessed": pool_count,
         "available_queues": queue_files,
         "today_date": today_str,
-        "is_trial": False,
-        "license": "SciProspect Professional",
-        "trial_days_left": "Unlimited",
-        "trial_expires_on": "Never (Lifetime)",
-        "today_verified_used": 0,
-        "today_verified_limit": "Unlimited",
+        "is_trial": is_trial,
+        "license": f"SciProspect {val.get('tier', 'pro').upper()}",
+        "trial_days_left": val.get("days_left", "Unlimited") if is_trial else "Unlimited",
+        "trial_expires_on": val.get("expires_at", "Never") if is_trial else "Never (Lifetime)",
+        "today_verified_used": val.get("today_verified", 0),
+        "today_verified_limit": val.get("daily_limit", "Unlimited"),
+        "account_status": val.get("status", "active"),
         "data_dir": str(data_dir),
     }
 
@@ -870,7 +882,7 @@ async def start_pipeline(request: Request):
         broadcast_log(f"🚨 ACCESS BLOCKED: {val.get('message')}", status="error")
         raise HTTPException(
             status_code=403,
-            detail=val.get("message", "Access suspended or expired. Contact root administrator.")
+            detail=val.get("message", "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
         )
 
     body = await request.json()

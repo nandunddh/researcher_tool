@@ -1,7 +1,7 @@
 {
   "_metadata": {
     "version": "1.0",
-    "updated_at": "2026-10-28T18:53:13.762900",
+    "updated_at": "2026-10-29T17:36:00.344587",
     "root_password": "admin2026"
   },
   "licenses": {
@@ -20,6 +20,21 @@
       "notes": "Master Root Pro Key (Never Expires)",
       "password_hash": ""
     },
+    "SCIP-PRO-ENWL-XAMY": {
+      "license_key": "SCIP-PRO-ENWL-XAMY",
+      "client_name": "Dr. Alan Turing",
+      "client_email": "alan.turing@cambridge.ac.uk",
+      "tier": "pro",
+      "status": "active",
+      "daily_limit": -1,
+      "used_today": 0,
+      "expires_at": "2027-10-28 18:53:09 UTC",
+      "created_at": "2026-10-28 18:53:09.706352",
+      "last_active_date": "",
+      "total_extracted": 0,
+      "notes": "Pioneer of computing",
+      "password_hash": "5f87e3768706f3048815b196f2d9345d:c8d6aa4c94ef28d3bde1b01669531406a608da63dff1026a8700b97548225808"
+    },
     "SCIP-PRO-QZMV-JSET": {
       "license_key": "SCIP-PRO-QZMV-JSET",
       "client_name": "Test Client",
@@ -34,21 +49,6 @@
       "total_extracted": 0,
       "notes": "Created via cloud test",
       "password_hash": ""
-    },
-    "SCIP-PRO-ENWL-XAMY": {
-      "license_key": "SCIP-PRO-ENWL-XAMY",
-      "client_name": "Dr. Alan Turing",
-      "client_email": "alan.turing@cambridge.ac.uk",
-      "tier": "pro",
-      "status": "active",
-      "daily_limit": -1,
-      "used_today": 0,
-      "expires_at": "2027-10-28 18:53:09 UTC",
-      "created_at": "2026-10-28 18:53:09.706352",
-      "last_active_date": "2026-10-28",
-      "total_extracted": 0,
-      "notes": "Pioneer of computing",
-      "password_hash": "5f87e3768706f3048815b196f2d9345d:c8d6aa4c94ef28d3bde1b01669531406a608da63dff1026a8700b97548225808"
     }
   }
 }

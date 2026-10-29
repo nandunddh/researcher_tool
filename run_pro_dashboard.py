@@ -70,7 +70,7 @@ def open_native_desktop_window():
         import webview
         window = webview.create_window(
             title="SciProspect Professional (Lifetime Commercial Edition)",
-            url=APP_URL,
+            url=f"{APP_URL}/?mode=app",
             width=1360,
             height=880,
             min_size=(1020, 700),
@@ -91,7 +91,7 @@ def open_native_desktop_window():
         try:
             proc = subprocess.Popen([
                 edge_exe,
-                f"--app={APP_URL}",
+                f"--app={APP_URL}/?mode=app",
                 "--window-size=1360,880",
                 "--app-title=SciProspect Professional"
             ])

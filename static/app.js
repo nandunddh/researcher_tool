@@ -190,15 +190,20 @@ document.addEventListener("DOMContentLoaded", () => {
       if (statPool) statPool.textContent = Number(data.master_pool_total || 0).toLocaleString();
       if (statPoolUnprocessed) statPoolUnprocessed.textContent = `${Number(data.master_pool_total || 0).toLocaleString()} Candidates`;
 
-      // Trial / License metrics
-      if (headerTrialText) {
-        if (data.is_trial === false || data.trial_days_left === "Unlimited") {
-          headerTrialText.textContent = "Lifetime License (Unlimited)";
+      // Trial / License metrics: ONLY display trial card for Trial users, hide for Pro
+      const trialPill = document.getElementById("header-trial-pill");
+      const isTrial = !!(data.is_trial === true);
+      if (trialPill) {
+        if (isTrial) {
+          trialPill.style.display = "block";
+          if (headerTrialText) {
+            const days = data.trial_days_left !== undefined ? data.trial_days_left : "7";
+            const used = data.today_verified_used || 0;
+            const limit = data.today_verified_limit || 1000;
+            headerTrialText.textContent = `${days} Days Left (${used}/${limit} Today)`;
+          }
         } else {
-          const days = data.trial_days_left !== undefined ? data.trial_days_left : 7.0;
-          const used = data.today_verified_used || 0;
-          const limit = data.today_verified_limit || 1000;
-          headerTrialText.textContent = `${days} Days Left (${used}/${limit} Today)`;
+          trialPill.style.display = "none";
         }
       }
       if (statTrialDays) {
@@ -2034,7 +2039,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const data = await res.json();
         renderAuthenticatedState(data.user);
       } else {
-        renderUnauthenticatedState();
+        const errData = await res.json().catch(() => ({}));
+        renderUnauthenticatedState(errData.detail || "");
       }
     } catch (e) {
       renderUnauthenticatedState();
@@ -2052,17 +2058,44 @@ document.addEventListener("DOMContentLoaded", () => {
       if (tierEl) tierEl.textContent = (user.tier || "pro").toUpperCase();
       chip.style.display = "flex";
     }
+
+    // Toggle Left Menu Trial Badge (Trial only, hidden for Pro)
+    const trialPillEl = document.getElementById("header-trial-pill");
+    if (trialPillEl) {
+      const isTrialUser = ((user.tier || "").toLowerCase() === "trial");
+      trialPillEl.style.display = isTrialUser ? "block" : "none";
+    }
     const btnSignOut = document.getElementById("btn-sign-out");
     if (btnSignOut) btnSignOut.style.display = "flex";
+
+    // ONLY SHOW ROOT ADMIN IF CURRENT USER IS ROOT ADMIN
+    const isAdmin = !!(user && user.is_admin);
+    const btnRootAdmin = document.getElementById("btn-root-admin");
+    if (btnRootAdmin) btnRootAdmin.style.display = isAdmin ? "inline-flex" : "none";
+    const menuRootAdmin = document.getElementById("menu-root-admin");
+    if (menuRootAdmin) menuRootAdmin.style.display = isAdmin ? "flex" : "none";
   }
 
-  function renderUnauthenticatedState() {
+  function renderUnauthenticatedState(errorMsg) {
     const overlay = document.getElementById("auth-gate-overlay");
     if (overlay) overlay.style.display = "flex";
     const chip = document.getElementById("user-profile-chip");
     if (chip) chip.style.display = "none";
     const btnSignOut = document.getElementById("btn-sign-out");
     if (btnSignOut) btnSignOut.style.display = "none";
+
+    const btnRootAdmin = document.getElementById("btn-root-admin");
+    if (btnRootAdmin) btnRootAdmin.style.display = "none";
+    const menuRootAdmin = document.getElementById("menu-root-admin");
+    if (menuRootAdmin) menuRootAdmin.style.display = "none";
+
+    if (errorMsg) {
+      const errBox = document.getElementById("auth-error-box");
+      if (errBox) {
+        errBox.style.display = "block";
+        errBox.textContent = errorMsg;
+      }
+    }
   }
 
   window.switchAuthTab = function(tab) {
@@ -2162,8 +2195,29 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   // Initialization
   // ---------------------------------------------------------------------------
+  // Desktop vs Web Mode: Keep menubar only in desktop app version, hide on web
+  const isAppMode = !!(
+    window.pywebview ||
+    window.matchMedia('(display-mode: standalone)').matches ||
+    new URLSearchParams(window.location.search).get('mode') === 'app' ||
+    sessionStorage.getItem('scip_app_mode') === 'true'
+  );
+  if (new URLSearchParams(window.location.search).get('mode') === 'app') {
+    sessionStorage.setItem('scip_app_mode', 'true');
+  }
+
+  const desktopMenubar = document.getElementById("desktop-menubar");
+  const titlebarSep = document.getElementById("titlebar-sep");
+  if (desktopMenubar) {
+    desktopMenubar.style.display = isAppMode ? "flex" : "none";
+  }
+  if (titlebarSep) {
+    titlebarSep.style.display = isAppMode ? "block" : "none";
+  }
+
   initSplashScreen();
   checkAuthSession();
+  setInterval(checkAuthSession, 4000);
   fetchStats();
   connectLogStream();
   loadDatasetsDropdown();

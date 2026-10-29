@@ -56,10 +56,10 @@
           </svg>
           <span class="titlebar-app-name">SciProspect</span>
         </div>
-        <div class="titlebar-sep"></div>
+        <div class="titlebar-sep" id="titlebar-sep" style="display: none;"></div>
 
-        <!-- Top Desktop Application Menus -->
-        <nav class="desktop-menubar" id="desktop-menubar">
+        <!-- Top Desktop Application Menus (App version only) -->
+        <nav class="desktop-menubar" id="desktop-menubar" style="display: none;">
           <div class="menubar-item" data-menu="file">
             <button class="menubar-btn" type="button">File <span class="menu-arrow">▾</span></button>
             <div class="menubar-dropdown">
@@ -142,7 +142,7 @@
                 <span>About SciProspect</span>
               </button>
               <div class="dropdown-divider"></div>
-              <a href="/admin" target="_blank" class="dropdown-item" style="color: #C4B5FD; text-decoration: none;">
+              <a href="/admin" target="_blank" class="dropdown-item" id="menu-root-admin" style="color: #C4B5FD; text-decoration: none; display: none;">
                 <span>🛡️ Open Root Admin Console</span>
               </a>
             </div>
@@ -151,7 +151,7 @@
       </div>
 
       <div class="titlebar-right">
-        <a href="/admin" target="_blank" class="btn-refresh" id="btn-root-admin" title="Open Root User Licensing Command Center" style="text-decoration:none; color:#C4B5FD; border-color:rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); font-weight:600;">
+        <a href="/admin" target="_blank" class="btn-refresh" id="btn-root-admin" title="Open Root User Licensing Command Center" style="text-decoration:none; color:#C4B5FD; border-color:rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); font-weight:600; display: none;">
           <span>🛡️ Root Admin</span>
         </a>
                 <!-- Logged-in User Profile Chip & Sign Out -->
@@ -165,13 +165,9 @@
           <span>Sign Out</span>
         </button>
 
-<div class="topbar-indicator" id="system-status-indicator">
-          <span class="pulse-indicator-dot"></span>
-          <span class="indicator-text" id="system-status-text">Engine Online</span>
-        </div>
-        <button class="btn-refresh" id="btn-refresh-all" title="Refresh metrics and data">
+        <button class="btn-refresh" id="btn-refresh-all" title="Refresh dashboard data and metrics">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          <span>Sync</span>
+          <span>Refresh</span>
         </button>
       </div>
     </header>
@@ -207,14 +203,14 @@
           </nav>
         </div>
 
-        <!-- Pinned License Badge at Bottom of Sidebar -->
+        <!-- Pinned Trial Badge at Bottom of Sidebar (Only for Trial Users) -->
         <div class="sidebar-bottom">
-          <div class="sidebar-eval-card" id="header-trial-pill" title="Commercial License Status" style="background: #f0fdf4; border-color: #bbf7d0;">
+          <div class="sidebar-eval-card" id="header-trial-pill" title="Evaluation License Status" style="display: none; background: #fffbeb; border-color: #fef08a;">
             <div class="eval-card-header">
-              <span class="trial-dot" style="background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);"></span>
-              <span class="eval-card-title" style="color: #166534;">PRO EDITION</span>
+              <span class="trial-dot" style="background: #eab308; box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.2);"></span>
+              <span class="eval-card-title" style="color: #854d0e;">TRIAL EVALUATION</span>
             </div>
-            <div class="eval-card-quota" id="header-trial-text" style="color: #15803d; font-weight: 600;">Lifetime License (Unlimited)</div>
+            <div class="eval-card-quota" id="header-trial-text" style="color: #a16207; font-weight: 600;">Evaluation Active</div>
           </div>
         </div>
       </aside>
@@ -289,19 +285,7 @@
             </div>
           </div>
 
-          <div class="stat-card">
-            <div class="stat-top">
-              <span class="stat-title">License Status</span>
-              <div class="stat-icon-wrap icon-emerald" style="background: #ecfdf5; color: #059669;">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              </div>
-            </div>
-            <div class="stat-value" id="stat-trial-days">Lifetime</div>
-            <div class="stat-footer">
-              <span class="pill-badge pill-emerald" id="stat-trial-quota">Unlimited Leads</span>
-              <span class="stat-meta">Full Commercial Edition</span>
-            </div>
-          </div>
+
         </section>
 
         <!-- SCIENTIFIC DATA SOURCE SELECTOR -->
@@ -754,82 +738,31 @@
         <p class="auth-subtitle">Academic & Research Outreach Discovery System</p>
       </div>
 
-      <!-- Auth Mode Switcher Tabs -->
-      <div class="auth-tab-bar">
-        <button type="button" class="auth-tab-btn active" id="auth-tab-btn-license" onclick="switchAuthTab('license')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-          License Key
-        </button>
-        <button type="button" class="auth-tab-btn" id="auth-tab-btn-pwd" onclick="switchAuthTab('password')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-          Email & Password
-        </button>
-        <button type="button" class="auth-tab-btn" id="auth-tab-btn-admin" onclick="switchAuthTab('admin')">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          Admin
-        </button>
-      </div>
-
       <!-- Error Alert Box -->
-      <div class="auth-error-box" id="auth-error-box" style="display: none;"></div>
+      <div class="auth-error-box" id="auth-error-box" style="display: none; margin-top: 1rem;"></div>
 
-      <!-- Tab 1: License Key Sign-In -->
-      <form class="auth-form-view active" id="auth-view-license" onsubmit="submitLicenseAuth(event)">
+      <!-- Account Email & Password Sign-In Form -->
+      <form class="auth-form-view active" id="auth-view-password" style="display: block; margin-top: 1.25rem;" onsubmit="submitPasswordAuth(event)">
         <div class="auth-field">
-          <label for="auth-input-license-key">Product License Key</label>
-          <div class="auth-input-wrap">
-            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input type="text" id="auth-input-license-key" placeholder="e.g. SCIP-PRO-XXXX-XXXX" autocomplete="off" spellcheck="false" required>
-          </div>
-          <span class="auth-help-text">Enter your unique 16-character Pro or Trial License Key.</span>
-        </div>
-        <button type="submit" class="btn-auth-primary" id="btn-auth-submit-key">
-          <span>⚡ Unlock Workspace</span>
-        </button>
-      </form>
-
-      <!-- Tab 2: Email & Password Sign-In -->
-      <form class="auth-form-view" id="auth-view-password" style="display: none;" onsubmit="submitPasswordAuth(event)">
-        <div class="auth-field">
-          <label for="auth-input-email">Registered Email</label>
+          <label for="auth-input-email">Account Email</label>
           <div class="auth-input-wrap">
             <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
-            <input type="email" id="auth-input-email" placeholder="client@institution.edu" autocomplete="username" required>
+            <input type="email" id="auth-input-email" placeholder="e.g. user@institution.edu" autocomplete="username" required>
           </div>
         </div>
-        <div class="auth-field">
-          <label for="auth-input-pwd">Account Password</label>
+        <div class="auth-field" style="margin-top: 1rem;">
+          <label for="auth-input-pwd">Password</label>
           <div class="auth-input-wrap">
             <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             <input type="password" id="auth-input-pwd" placeholder="Enter your password" autocomplete="current-password" required>
           </div>
         </div>
-        <button type="submit" class="btn-auth-primary" id="btn-auth-submit-pwd">
+        <button type="submit" class="btn-auth-primary" id="btn-auth-submit-pwd" style="margin-top: 1.5rem; width: 100%;">
           <span>Sign In</span>
         </button>
       </form>
 
-      <!-- Tab 3: Root Administrator Sign-In -->
-      <form class="auth-form-view" id="auth-view-admin" style="display: none;" onsubmit="submitAdminAuth(event)">
-        <div class="auth-field">
-          <label for="auth-input-admin-pwd">Root Master Password</label>
-          <div class="auth-input-wrap">
-            <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <input type="password" id="auth-input-admin-pwd" placeholder="Enter Root Admin Password" autocomplete="current-password" required>
-          </div>
-          <span class="auth-help-text">Grants full access to the Root Licensing Command Center & Master Leads.</span>
-        </div>
-        <button type="submit" class="btn-auth-primary btn-auth-admin" id="btn-auth-submit-admin">
-          <span>🛡️ Sign In as Root Admin</span>
-        </button>
-      </form>
 
-      <div class="auth-gate-footer-info">
-        <span class="cloud-secured-tag">
-          <span class="cloud-dot"></span>
-          Oracle Cloud High-Availability Auth
-        </span>
-      </div>
     </div>
   </div>
 

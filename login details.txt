@@ -1,0 +1,38 @@
+================================================================================
+SCIPROSPECT - LOGIN & AUTHENTICATION CREDENTIALS
+================================================================================
+
+1. ROOT ADMINISTRATOR LOGIN
+--------------------------------------------------------------------------------
+Access the Admin Command Center at: http://localhost:8000/admin
+Or use it in the main dashboard sign-in prompt:
+
+  - Username / Identifier : admin (or root)
+  - Password              : admin2026
+
+(Note: You can also unlock the admin panel with the Root Master Key below)
+
+
+2. INSTANT SIGN-IN VIA LICENSE KEY (No Password Required)
+--------------------------------------------------------------------------------
+Paste any of the following keys directly into the login prompt:
+
+  - Master Root Pro Key   : SCIP-PRO-ROOT-MASTER
+    Tier                  : Pro (Unlimited Lifetime Access)
+    Associated Email      : root@sciprospect.internal
+
+  - Test Client Key       : SCIP-PRO-QZMV-JSET
+    Tier                  : Pro (Expires 2026-11-04)
+    Associated Email      : client@university.edu
+
+  - Dr. Alan Turing Key   : SCIP-PRO-ENWL-XAMY
+    Tier                  : Pro (Expires 2027-10-28)
+    Associated Email      : alan.turing@cambridge.ac.uk
+
+
+3. ACTIVE ENVIRONMENT LICENSE
+--------------------------------------------------------------------------------
+The application currently defaults to:
+  - Active License Key    : SCIP-PRO-ROOT-MASTER
+  - Stored in             : .active_license
+================================================================================
