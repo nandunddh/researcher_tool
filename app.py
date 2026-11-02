@@ -19,7 +19,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import requests
@@ -36,7 +36,7 @@ def get_current_license_key() -> str:
                 return k
         except Exception:
             pass
-    return "SCIP-PRO-ROOT-MASTER"
+    return ""
 
 def set_current_license_key(key: str):
     try:
@@ -289,8 +289,8 @@ async def get_admin_portal():
 @app.get("/api/license/status")
 async def get_license_status(request: Request):
     """Returns license status, validation, and active limits for the current user."""
-    user = _get_current_user_from_request(request)
-    curr_key = user.get("license_key") if user else get_current_license_key()
+    user = _require_authenticated_user(request)
+    curr_key = user.get("license_key") or ""
     val = license_engine.validate_license(curr_key)
     is_trial = (val.get("tier") == "trial")
 
@@ -353,8 +353,7 @@ def _verify_admin_auth(request: Request):
 # Unified User Authentication API (/api/auth)
 # -------------------------------------------------------------------------
 
-def _get_current_user_from_request(request: Request) -> Optional[dict]:
-    """Extracts and validates the current user from session cookie or headers."""
+def _extract_token_from_request(request: Request) -> Optional[str]:
     token = request.cookies.get("scip_token")
     if not token:
         auth_header = request.headers.get("Authorization", "")
@@ -362,12 +361,42 @@ def _get_current_user_from_request(request: Request) -> Optional[dict]:
             token = auth_header[7:].strip()
     if not token:
         token = request.headers.get("X-Auth-Token", "").strip()
+    return token or None
 
+def _get_current_user_from_request(request: Request) -> Optional[dict]:
+    """Extracts and validates the current user from session cookie or headers."""
+    token = _extract_token_from_request(request)
     if token:
         user = license_engine.get_session(token)
         if user:
             return user
     return None
+
+
+def _require_authenticated_user(request: Request) -> dict:
+    """
+    Enforces that the request has an active, valid session.
+    If not authenticated, raises HTTP 401.
+    If authenticated but account is suspended/stopped/expired, raises HTTP 403.
+    """
+    token = _extract_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")
+    
+    user, err = license_engine.get_session_info(token)
+    if not user:
+        if err and "SUSPENDED" in err:
+            raise HTTPException(status_code=403, detail="🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
+        raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in.")
+    
+    # Real-time kill switch verification for non-admin accounts
+    if not user.get("is_admin"):
+        key = user.get("license_key")
+        if key:
+            val = license_engine.validate_license(key)
+            if not val.get("valid") or val.get("status") == "stopped":
+                raise HTTPException(status_code=403, detail="🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
+    return user
 
 
 @app.post("/api/auth/login")
@@ -413,14 +442,21 @@ async def api_auth_login(request: Request):
 
 @app.get("/api/auth/me")
 async def api_auth_me(request: Request):
-    """Returns the currently authenticated user or 401 if unauthenticated or suspended."""
-    user = _get_current_user_from_request(request)
+    """Returns the currently authenticated user or 401 with appropriate reason."""
+    token = _extract_token_from_request(request)
+    if not token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user, err = license_engine.get_session_info(token)
     if user:
         return {"authenticated": True, "user": user}
-    raise HTTPException(
-        status_code=401,
-        detail="🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin."
-    )
+
+    if err and "SUSPENDED" in err:
+        res = JSONResponse(status_code=401, content={"detail": err})
+        res.delete_cookie(key="scip_token")
+        return res
+
+    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 @app.post("/api/auth/logout")
@@ -551,13 +587,15 @@ async def admin_delete_license(license_key: str, request: Request):
 
 
 @app.get("/api/config")
-async def get_app_config():
+async def get_app_config(request: Request):
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     return {"data_dir": str(data_dir)}
 
 
 @app.post("/api/config/data-dir")
 async def update_data_dir(request: Request):
+    _require_authenticated_user(request)
     body = await request.json()
     new_dir = body.get("data_dir", "").strip()
     if not new_dir:
@@ -568,8 +606,8 @@ async def update_data_dir(request: Request):
 
 @app.get("/api/stats")
 async def get_stats(request: Request):
-    user = _get_current_user_from_request(request)
-    curr_key = user.get("license_key") if user else get_current_license_key()
+    user = _require_authenticated_user(request)
+    curr_key = user.get("license_key") or ""
     val = license_engine.validate_license(curr_key)
     is_trial = (val.get("tier") == "trial")
 
@@ -620,7 +658,8 @@ async def get_stats(request: Request):
 
 
 @app.get("/api/datasets")
-async def list_datasets():
+async def list_datasets(request: Request):
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     files = []
     seen_names = set()
@@ -678,7 +717,8 @@ async def list_datasets():
 
 
 @app.get("/api/leads")
-async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1), page_size: int = Query(50, ge=10, le=100)):
+async def get_leads(request: Request, file: Optional[str] = Query(None), page: int = Query(1, ge=1), page_size: int = Query(50, ge=10, le=100)):
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     target = None
     if file:
@@ -735,7 +775,8 @@ async def get_leads(file: Optional[str] = Query(None), page: int = Query(1, ge=1
 
 
 @app.get("/api/leads/export")
-async def export_leads(file: Optional[str] = Query(None)):
+async def export_leads(request: Request, file: Optional[str] = Query(None)):
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     if not file:
         raise HTTPException(status_code=400, detail="Missing file parameter")
@@ -746,7 +787,8 @@ async def export_leads(file: Optional[str] = Query(None)):
 
 
 @app.post("/api/open-folder")
-async def open_data_folder():
+async def open_data_folder(request: Request):
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     try:
         import subprocess
@@ -757,7 +799,8 @@ async def open_data_folder():
 
 
 @app.post("/api/leads/merge-deduplicate")
-async def merge_and_deduplicate_endpoint():
+async def merge_and_deduplicate_endpoint(request: Request):
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     target_files = []
     for p in data_dir.rglob("*.csv"):
@@ -819,8 +862,9 @@ async def merge_and_deduplicate_endpoint():
 
 
 @app.post("/api/leads/clear-all")
-async def clear_all_leads():
+async def clear_all_leads(request: Request):
     """Wipes old generated CSV lead files and resets central master to give a fresh, clean slate."""
+    _require_authenticated_user(request)
     data_dir = get_data_dir()
     deleted = []
     clean_master_hdr = (
@@ -872,11 +916,12 @@ async def clear_all_leads():
 @app.post("/api/pipeline/run")
 @app.post("/api/pipeline/start")
 async def start_pipeline(request: Request):
+    user = _require_authenticated_user(request)
     if process_state["status"] == "running":
         raise HTTPException(status_code=400, detail="A task is already actively running.")
 
-    # Enforce Root License Validation & Remote Kill-Switch
-    curr_key = get_current_license_key()
+    # Enforce License Validation & Remote Kill-Switch
+    curr_key = user.get("license_key") or ""
     val = license_engine.validate_license(curr_key)
     if not val.get("valid"):
         broadcast_log(f"🚨 ACCESS BLOCKED: {val.get('message')}", status="error")
@@ -959,7 +1004,8 @@ async def start_pipeline(request: Request):
 
 
 @app.post("/api/pipeline/stop")
-async def stop_pipeline():
+async def stop_pipeline(request: Request):
+    _require_authenticated_user(request)
     global current_process
     with process_lock:
         if current_process is not None and current_process.poll() is None:
@@ -973,7 +1019,8 @@ async def stop_pipeline():
 
 
 @app.get("/api/pipeline/status")
-async def get_pipeline_status():
+async def get_pipeline_status(request: Request):
+    _require_authenticated_user(request)
     return {
         "status": process_state["status"],
         "stage": process_state["current_stage"],
@@ -984,6 +1031,7 @@ async def get_pipeline_status():
 
 @app.get("/api/pipeline/stream")
 async def stream_logs(request: Request):
+    _require_authenticated_user(request)
     async def event_generator():
         for entry in process_state["lines"][-30:]:
             yield f"data: {json.dumps(entry)}\n\n"
@@ -1196,6 +1244,124 @@ async def launch_installer():
         return {"status": "launched"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# -----------------------------------------------------------------------------
+# Website Builder Module Endpoints (/api/builder)
+# -----------------------------------------------------------------------------
+from builder_manager import builder_engine
+
+@app.get("/api/builder/templates")
+async def builder_list_templates():
+    return {"templates": builder_engine.list_templates()}
+
+
+@app.get("/api/builder/sites")
+async def builder_list_sites(request: Request):
+    user = _require_authenticated_user(request)
+    email = user.get("client_email", "")
+    sites = builder_engine.list_sites(email)
+    return {"sites": sites}
+
+
+@app.post("/api/builder/sites")
+async def builder_create_site(request: Request):
+    user = _require_authenticated_user(request)
+    body = await request.json()
+    name = (body.get("name") or "New Website").strip()
+    slug = (body.get("slug") or "").strip() or None
+    template_id = body.get("template_id") or "genomics"
+    theme_config = body.get("theme_config") or {}
+    custom_options = body.get("custom_options") or {}
+    site = builder_engine.create_site(
+        user_email=user.get("client_email", ""),
+        name=name,
+        slug=slug,
+        template_id=template_id,
+        theme_config=theme_config,
+        custom_options=custom_options
+    )
+    return {"status": "ok", "site": site}
+
+
+@app.get("/api/builder/sites/{site_id}")
+async def builder_get_site(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    site = builder_engine.get_site(site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found.")
+    return site
+
+
+@app.put("/api/builder/sites/{site_id}")
+async def builder_update_site(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    body = await request.json()
+    ok, msg, site = builder_engine.update_site(site_id, body)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "site": site}
+
+
+@app.delete("/api/builder/sites/{site_id}")
+async def builder_delete_site(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    ok, msg = builder_engine.delete_site(site_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.post("/api/builder/sites/{site_id}/publish")
+async def builder_publish_site(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    ok, msg, site = builder_engine.update_site(site_id, {"status": "published"})
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": "Website successfully published!", "url": site.get("url")}
+
+
+@app.get("/api/builder/sites/{site_id}/export")
+async def builder_export_site(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    zip_bytes, filename = builder_engine.export_site_zip(site_id)
+    if not zip_bytes:
+        raise HTTPException(status_code=404, detail="Site not found or could not be compiled.")
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+
+@app.get("/sites/{slug}")
+async def serve_public_website(slug: str):
+    """Public delivery endpoint for published websites."""
+    site = builder_engine.get_site_by_slug(slug)
+    if not site:
+        return HTMLResponse(
+            "<!DOCTYPE html><html><head><title>Site Not Found</title></head><body style='font-family:sans-serif;text-align:center;padding:5rem;background:#0f172a;color:#fff;'><h1>404 - Website Not Found</h1><p>The requested website does not exist or has not been published yet.</p></body></html>",
+            status_code=404
+        )
+    return HTMLResponse(content=site["compiled_html"], status_code=200)
+
+
+
+# -----------------------------------------------------------------------------
+# Clean SPA Client Routes (/dashboard, /websitebuilder, /nih, /explorer, etc.)
+# -----------------------------------------------------------------------------
+@app.get("/dashboard")
+@app.get("/websitebuilder")
+@app.get("/builder")
+@app.get("/nih")
+@app.get("/explorer")
+@app.get("/datasets")
+async def serve_spa_page(request: Request):
+    index_path = STATIC_DIR / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    raise HTTPException(status_code=404, detail="Page not found.")
 
 
 # Mount static assets

@@ -122,16 +122,21 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  function switchTab(tabName) {
+  function switchTab(tabName, updateHistory = true) {
     currentTab = tabName;
     navTabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-tab") === tabName));
-    tabViews.forEach((v) => v.classList.toggle("active", v.id === `view-${tabName}`));
+    tabViews.forEach((v) => {
+      const isActive = (v.id === `view-${tabName}`);
+      v.classList.toggle("active", isActive);
+      v.style.display = isActive ? "block" : "none";
+    });
 
     const titleMap = {
       pipeline: "Dashboard",
       nih: "NIH Grant PIs",
       explorer: "Leads Explorer",
-      datasets: "Datasets Archive"
+      datasets: "Datasets Archive",
+      builder: "Website Builder"
     };
     const titleEl = document.getElementById("topbar-view-title");
     if (titleEl && titleMap[tabName]) titleEl.textContent = titleMap[tabName];
@@ -142,9 +147,25 @@ document.addEventListener("DOMContentLoaded", () => {
         pipeline: "2-Stage Lead Prospecting",
         nih: "NIH Grant Intelligence",
         explorer: "Verified Lead Management",
-        datasets: "Central Dataset Storage"
+        datasets: "Central Dataset Storage",
+        builder: "Visual Studio & Drag-and-Drop Publishing"
       };
       badgeEl.textContent = badgeMap[tabName] || "Lead Intelligence Console";
+    }
+
+    // Clean SPA Browser URL Routing
+    if (updateHistory) {
+      const routeMap = {
+        pipeline: "/dashboard",
+        builder: "/websitebuilder",
+        nih: "/nih",
+        explorer: "/explorer",
+        datasets: "/datasets"
+      };
+      const newPath = routeMap[tabName] || "/dashboard";
+      if (window.location.pathname !== newPath) {
+        window.history.pushState({ tab: tabName }, "", newPath);
+      }
     }
 
     if (tabName === "explorer") {
@@ -153,6 +174,8 @@ document.addEventListener("DOMContentLoaded", () => {
       loadDatasetsArchive();
     } else if (tabName === "nih") {
       loadNihLeads();
+    } else if (tabName === "builder") {
+      fetchBuilderSites();
     }
   }
 
@@ -2032,6 +2055,49 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   // Unified Authentication Controller
   // ---------------------------------------------------------------------------
+  
+  // ---------------------------------------------------------------------------
+  // DevTools Anti-Tampering Defense Watchdog
+  // ---------------------------------------------------------------------------
+  const antiTamperObserver = new MutationObserver(() => {
+    if (!isSessionAuthenticated) {
+      const overlay = document.getElementById("auth-gate-overlay");
+      const shell = document.getElementById("app-shell");
+
+      // 1. Check if overlay was deleted from DOM or hidden via DevTools
+      const isOverlayMissing = !overlay || !document.body.contains(overlay);
+      const isOverlayHidden = overlay && (
+        overlay.style.display === "none" ||
+        overlay.style.visibility === "hidden" ||
+        overlay.style.opacity === "0" ||
+        overlay.hidden ||
+        window.getComputedStyle(overlay).display === "none"
+      );
+
+      if (isOverlayMissing || isOverlayHidden) {
+        console.warn("🚨 DevTools tampering detected: Authentication Gate removed.");
+        if (shell) shell.innerHTML = "";
+        window.location.reload();
+        return;
+      }
+
+      // 2. Check if app shell was unhidden without authenticating
+      if (shell) {
+        if (shell.style.display !== "none" || shell.classList.contains("authenticated")) {
+          shell.style.setProperty("display", "none", "important");
+          shell.classList.remove("authenticated");
+        }
+      }
+    }
+  });
+
+  antiTamperObserver.observe(document.body, {
+    childList: true,
+    subtree: true,
+    attributes: true,
+    attributeFilter: ["style", "class", "hidden"]
+  });
+
   async function checkAuthSession() {
     try {
       const res = await fetch("/api/auth/me");
@@ -2040,16 +2106,30 @@ document.addEventListener("DOMContentLoaded", () => {
         renderAuthenticatedState(data.user);
       } else {
         const errData = await res.json().catch(() => ({}));
-        renderUnauthenticatedState(errData.detail || "");
+        // Only pass suspension notice, never pass standard unauthenticated message
+        const detail = errData.detail || "";
+        if (detail && detail.includes("ACCESS SUSPENDED")) {
+          renderUnauthenticatedState(detail);
+        } else {
+          renderUnauthenticatedState("");
+        }
       }
     } catch (e) {
-      renderUnauthenticatedState();
+      renderUnauthenticatedState("");
     }
   }
 
+  let isSessionAuthenticated = false;
+
   function renderAuthenticatedState(user) {
+    isSessionAuthenticated = true;
     const overlay = document.getElementById("auth-gate-overlay");
     if (overlay) overlay.style.display = "none";
+    const shell = document.getElementById("app-shell");
+    if (shell) {
+      shell.classList.add("authenticated");
+      shell.style.removeProperty("display");
+    }
     const chip = document.getElementById("user-profile-chip");
     if (chip) {
       const nameEl = document.getElementById("user-chip-name");
@@ -2074,9 +2154,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnRootAdmin) btnRootAdmin.style.display = isAdmin ? "inline-flex" : "none";
     const menuRootAdmin = document.getElementById("menu-root-admin");
     if (menuRootAdmin) menuRootAdmin.style.display = isAdmin ? "flex" : "none";
+
+    // Initialize authenticated data loads
+    fetchStats();
+    loadDatasetsDropdown();
+    if (!eventSource) {
+      connectLogStream();
+    }
   }
 
   function renderUnauthenticatedState(errorMsg) {
+    isSessionAuthenticated = false;
+    document.body.classList.remove("studio-fullscreen-mode");
+    if (eventSource) {
+      try { eventSource.close(); } catch(e) {}
+      eventSource = null;
+    }
+    const shell = document.getElementById("app-shell");
+    if (shell) {
+      shell.classList.remove("authenticated");
+      shell.style.setProperty("display", "none", "important");
+    }
     const overlay = document.getElementById("auth-gate-overlay");
     if (overlay) overlay.style.display = "flex";
     const chip = document.getElementById("user-profile-chip");
@@ -2089,11 +2187,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuRootAdmin = document.getElementById("menu-root-admin");
     if (menuRootAdmin) menuRootAdmin.style.display = "none";
 
-    if (errorMsg) {
-      const errBox = document.getElementById("auth-error-box");
-      if (errBox) {
+    const errBox = document.getElementById("auth-error-box");
+    if (errBox) {
+      if (errorMsg && errorMsg !== "Not authenticated") {
         errBox.style.display = "block";
         errBox.textContent = errorMsg;
+      } else if (!errorMsg) {
+        errBox.style.display = "none";
+        errBox.textContent = "";
       }
     }
   }
@@ -2161,6 +2262,23 @@ document.addEventListener("DOMContentLoaded", () => {
     executeAuthLogin({ identifier: key }, "btn-auth-submit-key");
   };
 
+  // Password visibility toggle (Show / Hide)
+  const btnTogglePwd = document.getElementById("btn-toggle-pwd");
+  const inputPwd = document.getElementById("auth-input-pwd");
+  if (btnTogglePwd && inputPwd) {
+    btnTogglePwd.addEventListener("click", () => {
+      const isPwd = inputPwd.type === "password";
+      inputPwd.type = isPwd ? "text" : "password";
+      const eye = btnTogglePwd.querySelector(".eye-icon");
+      const eyeOff = btnTogglePwd.querySelector(".eye-off-icon");
+      if (eye && eyeOff) {
+        eye.style.display = isPwd ? "none" : "block";
+        eyeOff.style.display = isPwd ? "block" : "none";
+      }
+      btnTogglePwd.setAttribute("title", isPwd ? "Hide password" : "Show password");
+    });
+  }
+
   window.submitPasswordAuth = function(e) {
     e.preventDefault();
     const emailEl = document.getElementById("auth-input-email");
@@ -2215,11 +2333,1253 @@ document.addEventListener("DOMContentLoaded", () => {
     titlebarSep.style.display = isAppMode ? "block" : "none";
   }
 
+
+  // ===========================================================================
+  // MODULE 05: WEBSITE BUILDER STUDIO LOGIC (V1)
+  // ===========================================================================
+  let userWebsites = [];
+  let currentSite = null;
+  let activeComponentId = null;
+  let starterTemplates = [];
+  let selectedTemplateId = "genomics";
+
+  const btnOpenCreateSiteModal = document.getElementById("btn-open-create-site-modal");
+  const modalCreateSite = document.getElementById("modal-create-site");
+  const btnCloseCreateSite = document.getElementById("btn-close-create-site");
+  const btnCancelCreateSite = document.getElementById("btn-cancel-create-site");
+  const formCreateSite = document.getElementById("form-create-site");
+  const createSiteNameInput = document.getElementById("create-site-name");
+  const createSiteSlugInput = document.getElementById("create-site-slug");
+
+  // Wizard Extra Fields
+  const wizardTemplatesGrid = document.getElementById("wizard-templates-grid");
+  const createSiteThemeMode = document.getElementById("create-site-theme-mode");
+  const createPrimaryColor = document.getElementById("create-primary-color");
+  const labelCreatePrimary = document.getElementById("label-create-primary");
+  const createNavBrand = document.getElementById("create-nav-brand");
+  const createNavCta = document.getElementById("create-nav-cta");
+  const createHeroEyebrow = document.getElementById("create-hero-eyebrow");
+  const createHeroHeadline = document.getElementById("create-hero-headline");
+  const createHeroSubheadline = document.getElementById("create-hero-subheadline");
+  const createHeroBtn1 = document.getElementById("create-hero-btn1");
+  const createHeroBtn2 = document.getElementById("create-hero-btn2");
+  const secChkSpeakers = document.getElementById("sec-chk-speakers");
+  const secChkFeatures = document.getElementById("sec-chk-features");
+  const secChkPricing = document.getElementById("sec-chk-pricing");
+  const secChkGallery = document.getElementById("sec-chk-gallery");
+  const secChkFaq = document.getElementById("sec-chk-faq");
+  const secChkContact = document.getElementById("sec-chk-contact");
+
+  if (createPrimaryColor && labelCreatePrimary) {
+    createPrimaryColor.addEventListener("input", () => {
+      labelCreatePrimary.textContent = createPrimaryColor.value;
+    });
+  }
+
+  const builderDashboardView = document.getElementById("builder-dashboard-view");
+  const builderStudioView = document.getElementById("builder-studio-view");
+  const builderSitesGrid = document.getElementById("builder-sites-grid");
+  const builderSearchSites = document.getElementById("builder-search-sites");
+  const statTotalSites = document.getElementById("stat-total-sites");
+
+  const btnStudioBack = document.getElementById("btn-studio-back");
+  const studioSiteName = document.getElementById("studio-site-name");
+  const studioSiteStatus = document.getElementById("studio-site-status");
+  const btnDeviceDesktop = document.getElementById("btn-device-desktop");
+  const btnDeviceMobile = document.getElementById("btn-device-mobile");
+  const builderCanvasFrame = document.getElementById("builder-canvas-frame");
+  const canvasSectionsList = document.getElementById("canvas-sections-list");
+  const inspectorContent = document.getElementById("inspector-content");
+
+  const btnStudioSave = document.getElementById("btn-studio-save");
+  const btnStudioPublish = document.getElementById("btn-studio-publish");
+  const btnStudioPreview = document.getElementById("btn-studio-preview");
+  const btnStudioExport = document.getElementById("btn-studio-export");
+
+  const themePrimaryColor = document.getElementById("theme-primary-color");
+  const labelPrimaryColor = document.getElementById("label-primary-color");
+  const themeAccentColor = document.getElementById("theme-accent-color");
+  const labelAccentColor = document.getElementById("label-accent-color");
+  const themeBgPreset = document.getElementById("theme-bg-preset");
+
+  // Slug auto-generation on typing name
+  if (createSiteNameInput && createSiteSlugInput) {
+    createSiteNameInput.addEventListener("input", () => {
+      const slugVal = createSiteNameInput.value
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      createSiteSlugInput.value = slugVal;
+    });
+  }
+
+  // Fetch starter templates and render wizard picker
+  async function fetchTemplatesAndRenderWizard() {
+    try {
+      const res = await fetch("/api/builder/templates");
+      if (!res.ok) return;
+      const data = await res.json();
+      starterTemplates = data.templates || [];
+      renderWizardTemplates(starterTemplates);
+    } catch (err) {
+      console.warn("Failed to load starter templates:", err);
+    }
+  }
+
+  function renderWizardTemplates(templates) {
+    if (!wizardTemplatesGrid) return;
+    if (!templates || !templates.length) {
+      wizardTemplatesGrid.innerHTML = '<div style="color: #94a3b8; font-size: 0.82rem; padding: 1rem;">No templates available.</div>';
+      return;
+    }
+
+    wizardTemplatesGrid.innerHTML = templates.map((tmpl, idx) => {
+      const isSel = (tmpl.id === selectedTemplateId) || (!selectedTemplateId && idx === 0);
+      if (isSel && !selectedTemplateId) selectedTemplateId = tmpl.id;
+      return `
+        <div class="wizard-template-card ${isSel ? 'active' : ''}" data-tmpl-id="${tmpl.id}">
+          <div class="wizard-tmpl-top">
+            <span class="wizard-tmpl-icon">${tmpl.icon || '🌐'}</span>
+            <span class="wizard-tmpl-category">${escapeHtml(tmpl.category || 'General')}</span>
+          </div>
+          <div class="wizard-tmpl-title">${escapeHtml(tmpl.name)}</div>
+          <div class="wizard-tmpl-desc">${escapeHtml(tmpl.description || '')}</div>
+        </div>
+      `;
+    }).join("");
+
+    wizardTemplatesGrid.querySelectorAll(".wizard-template-card").forEach(card => {
+      card.addEventListener("click", () => {
+        wizardTemplatesGrid.querySelectorAll(".wizard-template-card").forEach(c => c.classList.remove("active"));
+        card.classList.add("active");
+        const tmplId = card.getAttribute("data-tmpl-id");
+        selectedTemplateId = tmplId;
+        applyTemplateDefaultsToWizard(tmplId);
+      });
+    });
+  }
+
+  function applyTemplateDefaultsToWizard(tmplId) {
+    const tmpl = starterTemplates.find(t => t.id === tmplId);
+    if (!tmpl) return;
+
+    if (createSiteNameInput) {
+      createSiteNameInput.value = tmpl.name;
+      const slugVal = tmpl.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      if (createSiteSlugInput) createSiteSlugInput.value = slugVal;
+    }
+    if (createSiteThemeMode && tmpl.theme) {
+      createSiteThemeMode.value = tmpl.theme.mode || "dark";
+    }
+    if (createPrimaryColor && tmpl.theme) {
+      createPrimaryColor.value = tmpl.theme.primary_color || "#38bdf8";
+      if (labelCreatePrimary) labelCreatePrimary.textContent = createPrimaryColor.value;
+    }
+    if (createNavBrand) {
+      createNavBrand.value = tmpl.name;
+    }
+    if (createNavCta) {
+      createNavCta.value = "Register Now";
+    }
+    if (createHeroEyebrow) {
+      createHeroEyebrow.value = `🌟 ${tmpl.name.toUpperCase()} 2026`;
+    }
+    if (createHeroHeadline) {
+      createHeroHeadline.value = `${tmpl.name}: Advancing Discovery & Collaboration`;
+    }
+    if (createHeroSubheadline) {
+      createHeroSubheadline.value = tmpl.description || "";
+    }
+    if (createHeroBtn1) createHeroBtn1.value = "Register Today";
+    if (createHeroBtn2) createHeroBtn2.value = "Explore Faculty";
+  }
+
+  // Open / Close Create Modal with Active Class
+  if (btnOpenCreateSiteModal && modalCreateSite) {
+    btnOpenCreateSiteModal.addEventListener("click", () => {
+      modalCreateSite.classList.add("active");
+      modalCreateSite.style.display = "flex";
+      fetchTemplatesAndRenderWizard();
+      if (!selectedTemplateId && starterTemplates.length > 0) {
+        selectedTemplateId = starterTemplates[0].id;
+      }
+      if (selectedTemplateId) {
+        applyTemplateDefaultsToWizard(selectedTemplateId);
+      }
+      if (createSiteNameInput) createSiteNameInput.focus();
+    });
+  }
+
+  function closeCreateSiteModal() {
+    if (modalCreateSite) {
+      modalCreateSite.classList.remove("active");
+      modalCreateSite.style.display = "none";
+    }
+  }
+
+  if (btnCloseCreateSite) btnCloseCreateSite.addEventListener("click", closeCreateSiteModal);
+  if (btnCancelCreateSite) btnCancelCreateSite.addEventListener("click", closeCreateSiteModal);
+
+  // Submit Create Site from Comprehensive Wizard
+  window.handleCreateSiteSubmit = async function(e) {
+    e.preventDefault();
+    const name = createSiteNameInput ? createSiteNameInput.value.trim() : "";
+    const slug = createSiteSlugInput ? createSiteSlugInput.value.trim() : "";
+    if (!name) return;
+
+    const themeMode = createSiteThemeMode ? createSiteThemeMode.value : "dark";
+    const primaryColor = createPrimaryColor ? createPrimaryColor.value : "#38bdf8";
+    const navBrand = createNavBrand ? createNavBrand.value.trim() : name;
+    const navCta = createNavCta ? createNavCta.value.trim() : "Register Now";
+    const heroEyebrow = createHeroEyebrow ? createHeroEyebrow.value.trim() : "";
+    const heroHeadline = createHeroHeadline ? createHeroHeadline.value.trim() : "";
+    const heroSubheadline = createHeroSubheadline ? createHeroSubheadline.value.trim() : "";
+    const heroBtn1 = createHeroBtn1 ? createHeroBtn1.value.trim() : "Register Today";
+    const heroBtn2 = createHeroBtn2 ? createHeroBtn2.value.trim() : "Explore Faculty";
+
+    const sections = {
+      hero: true,
+      speakers: secChkSpeakers ? secChkSpeakers.checked : true,
+      features: secChkFeatures ? secChkFeatures.checked : true,
+      pricing: secChkPricing ? secChkPricing.checked : true,
+      gallery: secChkGallery ? secChkGallery.checked : true,
+      faq: secChkFaq ? secChkFaq.checked : true,
+      contact: secChkContact ? secChkContact.checked : true,
+      footer: true
+    };
+
+    const payload = {
+      name,
+      slug,
+      template_id: selectedTemplateId || "genomics",
+      theme_config: {
+        mode: themeMode,
+        primary_color: primaryColor
+      },
+      custom_options: {
+        mode: themeMode,
+        primary_color: primaryColor,
+        nav_brand: navBrand,
+        nav_cta: navCta,
+        hero_eyebrow: heroEyebrow,
+        hero_headline: heroHeadline,
+        hero_subheadline: heroSubheadline,
+        hero_btn1: heroBtn1,
+        hero_btn2: heroBtn2,
+        sections: sections
+      }
+    };
+
+    try {
+      showToast("Generating website from template...", "info");
+      const res = await fetch("/api/builder/sites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to create website");
+
+      closeCreateSiteModal();
+      showToast("Website generated successfully!", "success");
+      openBuilderStudio(data.site.site_id);
+    } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  };
+
+  // Fetch and Render Websites Dashboard
+  async function fetchBuilderSites() {
+    try {
+      const res = await fetch("/api/builder/sites");
+      if (!res.ok) return;
+      const data = await res.json();
+      userWebsites = data.sites || [];
+      renderBuilderSites(userWebsites);
+    } catch (e) {
+      console.warn("Failed to load websites:", e);
+    }
+  }
+
+  function renderBuilderSites(sites) {
+    if (!builderSitesGrid) return;
+    if (statTotalSites) statTotalSites.textContent = `${sites.length} Website${sites.length === 1 ? '' : 's'}`;
+
+    if (!sites || sites.length === 0) {
+      builderSitesGrid.innerHTML = `
+        <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; color: #64748b; background: #0f172a; border: 1px dashed rgba(255,255,255,0.1); border-radius: 16px;">
+          <div style="font-size: 2.5rem; margin-bottom: 0.85rem;">🌐</div>
+          <h3 style="color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">No Websites Created Yet</h3>
+          <p style="max-width: 460px; margin: 0 auto 1.5rem auto; font-size: 0.92rem;">Build dynamic conference sites, research lab portals, or campaign landing pages with live components.</p>
+          <button class="btn-primary-action" onclick="document.getElementById('btn-open-create-site-modal').click()">
+            <span>+ Create Your First Website</span>
+          </button>
+        </div>
+      `;
+      return;
+    }
+
+    builderSitesGrid.innerHTML = sites.map(site => {
+      const isPub = (site.status === "published");
+      const pubUrl = site.url || `/sites/${site.slug}`;
+      return `
+        <div class="builder-site-card">
+          <!-- Browser Mockup Window Bar -->
+          <div class="site-card-browser-bar">
+            <span class="browser-dot dot-red"></span>
+            <span class="browser-dot dot-yellow"></span>
+            <span class="browser-dot dot-green"></span>
+            <span class="browser-url-preview">${pubUrl}</span>
+          </div>
+
+          <div>
+            <div class="site-card-header">
+              <div>
+                <h3 class="site-card-title">${site.name}</h3>
+                <div style="display:flex;align-items:center;gap:0.4rem;margin-top:0.35rem;">
+                  <span class="site-card-slug">${pubUrl}</span>
+                  <button type="button" class="btn-site-tool" style="padding:2px 6px;font-size:0.7rem;" title="Copy Public URL" onclick="navigator.clipboard.writeText(window.location.origin + '${pubUrl}'); showToast('URL copied to clipboard!', 'success');">📋 Copy</button>
+                </div>
+              </div>
+              <span class="site-status-badge ${isPub ? 'published' : 'draft'}">
+                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${isPub ? '#10b981' : '#94a3b8'};margin-right:4px;"></span>
+                ${isPub ? 'Published' : 'Draft'}
+              </span>
+            </div>
+            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.85rem;">
+              Last updated: ${site.updated_at ? site.updated_at.substring(0, 16).replace('T', ' ') : 'Recently'}
+            </p>
+          </div>
+
+          <div class="site-card-actions">
+            <button class="btn-site-edit" onclick="openBuilderStudio('${site.site_id}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span>Edit Studio</span>
+            </button>
+            <a href="${pubUrl}" target="_blank" class="btn-site-tool" title="View live page in new tab">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>View</span>
+            </a>
+            <a href="/api/builder/sites/${site.site_id}/export" class="btn-site-tool" title="Download standalone ZIP">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>ZIP</span>
+            </a>
+            <button class="btn-site-tool text-danger" onclick="deleteBuilderSite('${site.site_id}')" title="Delete Website">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  // Search Filter
+  if (builderSearchSites) {
+    builderSearchSites.addEventListener("input", () => {
+      const q = builderSearchSites.value.trim().toLowerCase();
+      if (!q) {
+        renderBuilderSites(userWebsites);
+      } else {
+        const filtered = userWebsites.filter(s =>
+          (s.name && s.name.toLowerCase().includes(q)) ||
+          (s.slug && s.slug.toLowerCase().includes(q))
+        );
+        renderBuilderSites(filtered);
+      }
+    });
+  }
+
+  // Delete Site
+  window.deleteBuilderSite = async function(siteId) {
+    if (!confirm("Are you sure you want to permanently delete this website?")) return;
+    try {
+      const res = await fetch(`/api/builder/sites/${siteId}`, { method: "DELETE" });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to delete");
+      showToast("Website deleted", "success");
+      fetchBuilderSites();
+    } catch (e) {
+      showToast(`Error: ${e.message}`, "error");
+    }
+  };
+
+  // Open Studio (Fullscreen Experience)
+  window.openBuilderStudio = async function(siteId) {
+    try {
+      showToast("Loading Website Studio...", "info");
+      const res = await fetch(`/api/builder/sites/${siteId}`);
+      if (!res.ok) throw new Error("Failed to load site");
+      currentSite = await res.json();
+
+      // Enter Fullscreen Studio Mode: hide app sidebar, topbar, status bar
+      document.body.classList.add("studio-fullscreen-mode");
+
+      if (builderDashboardView) builderDashboardView.style.display = "none";
+      if (builderStudioView) builderStudioView.style.display = "flex";
+
+      if (studioSiteName) studioSiteName.value = currentSite.name || "My Website";
+      if (studioSiteStatus) {
+        const isPub = (currentSite.status === "published");
+        studioSiteStatus.textContent = isPub ? "Published" : "Draft";
+        studioSiteStatus.className = `site-status-badge ${isPub ? 'published' : 'draft'}`;
+      }
+
+      // Populate Studio User Profile Chip
+      const mainUserName = document.getElementById("user-chip-name");
+      const studioUserName = document.getElementById("studio-user-name");
+      if (mainUserName && studioUserName) {
+        studioUserName.textContent = mainUserName.textContent || "Root Administrator";
+      }
+      const studioUserTier = document.getElementById("studio-user-tier");
+      if (studioUserTier) {
+        studioUserTier.textContent = "PRO";
+      }
+
+      // Studio Sign Out Button Hookup
+      const btnStudioSignout = document.getElementById("btn-studio-signout");
+      if (btnStudioSignout) {
+        btnStudioSignout.onclick = () => {
+          document.body.classList.remove("studio-fullscreen-mode");
+          const mainSignOut = document.getElementById("btn-sign-out");
+          if (mainSignOut) {
+            mainSignOut.click();
+          } else {
+            renderUnauthenticatedState();
+          }
+        };
+      }
+
+      // Initialize Theme Pickers
+      const theme = currentSite.theme_config || {};
+      if (themePrimaryColor) {
+        themePrimaryColor.value = theme.primary_color || "#38bdf8";
+        if (labelPrimaryColor) labelPrimaryColor.textContent = themePrimaryColor.value;
+      }
+      if (themeAccentColor) {
+        themeAccentColor.value = theme.accent_color || "#6366f1";
+        if (labelAccentColor) labelAccentColor.textContent = themeAccentColor.value;
+      }
+      if (themeBgPreset) {
+        themeBgPreset.value = theme.bg_color || "#0b0f19";
+      }
+
+      renderCanvas();
+      showToast(`Editing: ${currentSite.name}`, "success");
+    } catch (e) {
+      showToast(`Studio error: ${e.message}`, "error");
+    }
+  };
+
+  // Back to Dashboard (Exit Fullscreen Studio)
+  if (btnStudioBack) {
+    btnStudioBack.addEventListener("click", () => {
+      document.body.classList.remove("studio-fullscreen-mode");
+      currentSite = null;
+      activeComponentId = null;
+      if (builderStudioView) builderStudioView.style.display = "none";
+      if (builderDashboardView) builderDashboardView.style.display = "block";
+      fetchBuilderSites();
+    });
+  }
+
+  // Device Responsive Switchers
+  if (btnDeviceDesktop && btnDeviceMobile && builderCanvasFrame) {
+    btnDeviceDesktop.addEventListener("click", () => {
+      btnDeviceDesktop.classList.add("active");
+      btnDeviceMobile.classList.remove("active");
+      builderCanvasFrame.classList.remove("mobile-view");
+    });
+    btnDeviceMobile.addEventListener("click", () => {
+      btnDeviceMobile.classList.add("active");
+      btnDeviceDesktop.classList.remove("active");
+      builderCanvasFrame.classList.add("mobile-view");
+    });
+  }
+
+  // Theme Controls
+  if (themePrimaryColor) {
+    themePrimaryColor.addEventListener("input", () => {
+      if (!currentSite) return;
+      if (!currentSite.theme_config) currentSite.theme_config = {};
+      currentSite.theme_config.primary_color = themePrimaryColor.value;
+      if (labelPrimaryColor) labelPrimaryColor.textContent = themePrimaryColor.value;
+      renderCanvas();
+    });
+  }
+  if (themeAccentColor) {
+    themeAccentColor.addEventListener("input", () => {
+      if (!currentSite) return;
+      if (!currentSite.theme_config) currentSite.theme_config = {};
+      currentSite.theme_config.accent_color = themeAccentColor.value;
+      if (labelAccentColor) labelAccentColor.textContent = themeAccentColor.value;
+      renderCanvas();
+    });
+  }
+  if (themeBgPreset) {
+    themeBgPreset.addEventListener("change", () => {
+      if (!currentSite) return;
+      if (!currentSite.theme_config) currentSite.theme_config = {};
+      currentSite.theme_config.bg_color = themeBgPreset.value;
+      renderCanvas();
+    });
+  }
+
+  // Save Site Draft
+  async function saveSiteDraft(silent = false) {
+    if (!currentSite) return;
+    try {
+      if (studioSiteName) currentSite.name = studioSiteName.value.trim() || currentSite.name;
+      const res = await fetch(`/api/builder/sites/${currentSite.site_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(currentSite)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to save draft");
+      currentSite = data.site;
+      if (!silent) showToast("Website draft saved successfully!", "success");
+    } catch (e) {
+      if (!silent) showToast(`Save error: ${e.message}`, "error");
+    }
+  }
+
+  if (btnStudioSave) btnStudioSave.addEventListener("click", () => saveSiteDraft(false));
+
+  // Publish Site Live
+  if (btnStudioPublish) {
+    btnStudioPublish.addEventListener("click", async () => {
+      if (!currentSite) return;
+      try {
+        await saveSiteDraft(true);
+        const res = await fetch(`/api/builder/sites/${currentSite.site_id}/publish`, { method: "POST" });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Publish failed");
+        currentSite.status = "published";
+        if (studioSiteStatus) {
+          studioSiteStatus.textContent = "Published";
+          studioSiteStatus.className = "site-status-badge published";
+        }
+        showToast("🚀 Website is LIVE and accessible to the public!", "success");
+      } catch (e) {
+        showToast(`Publish error: ${e.message}`, "error");
+      }
+    });
+  }
+
+  // Preview Site in New Tab
+  if (btnStudioPreview) {
+    btnStudioPreview.addEventListener("click", () => {
+      if (!currentSite) return;
+      window.open(`/sites/${currentSite.slug}`, "_blank");
+    });
+  }
+
+  // Export ZIP
+  if (btnStudioExport) {
+    btnStudioExport.addEventListener("click", () => {
+      if (!currentSite) return;
+      window.location.href = `/api/builder/sites/${currentSite.site_id}/export`;
+    });
+  }
+
+  // Add Component from Left Palette
+  document.querySelectorAll(".btn-add-comp").forEach(btn => {
+    btn.addEventListener("click", () => {
+      if (!currentSite) return;
+      const type = btn.getAttribute("data-type");
+      addNewComponent(type);
+    });
+  });
+
+  function addNewComponent(type) {
+    if (!currentSite) return;
+    if (!currentSite.schema_json) currentSite.schema_json = [];
+
+    const newId = `comp_${type}_${Date.now()}`;
+    let compData = {};
+
+    if (type === "hero") {
+      compData = {
+        eyebrow: "🌟 NEW HIGHLIGHT",
+        headline: "Innovative Research & Outreach",
+        subheadline: "Empowering breakthrough collaboration across life sciences, oncology, and biotech.",
+        primary_btn_text: "Register Now",
+        primary_btn_url: "#pricing",
+        secondary_btn_text: "Learn More",
+        secondary_btn_url: "#features",
+        hero_image: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80"
+      };
+    } else if (type === "features") {
+      compData = {
+        section_tag: "HIGHLIGHTS",
+        section_title: "Conference Features",
+        section_subtitle: "Accelerating researcher impact with high-value technical sessions.",
+        items: [
+          { icon: "🔬", title: "Laboratory Sessions", description: "Hands-on data modeling workshops." },
+          { icon: "📊", title: "Publication Insights", description: "Strategies for high-impact journal submissions." },
+          { icon: "🌐", title: "Global Outreach", description: "Network with NIH and European grant recipients." }
+        ]
+      };
+    } else if (type === "speakers") {
+      compData = {
+        section_tag: "KEYNOTES",
+        section_title: "Featured Faculty",
+        section_subtitle: "Renowned principal investigators and laboratory chairs.",
+        speakers: [
+          {
+            name: "Dr. Alexander Ross",
+            role: "Professor of Molecular Genetics",
+            affiliation: "Cambridge BioTech Lab",
+            photo: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=600&q=80",
+            bio: "Leader in computational genetic architecture."
+          }
+        ]
+      };
+    } else if (type === "pricing") {
+      compData = {
+        section_tag: "PRICING",
+        section_title: "Registration Tiers",
+        section_subtitle: "Choose your access pass.",
+        tiers: [
+          {
+            name: "Standard Pass",
+            price: "$299",
+            period: "one-time",
+            featured: true,
+            badge: "POPULAR",
+            description: "Full event access including workshop archives.",
+            features: ["Keynotes Access", "Networking Hall", "Certificate"],
+            btn_label: "Select Pass",
+            btn_url: "#contact"
+          }
+        ]
+      };
+    } else if (type === "gallery") {
+      compData = {
+        section_tag: "GALLERY",
+        section_title: "Symposium Highlights",
+        section_subtitle: "Photos from previous summits.",
+        images: [
+          { url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80", caption: "Main Hall" },
+          { url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=800&q=80", caption: "Poster Session" }
+        ]
+      };
+    } else if (type === "faq") {
+      compData = {
+        section_tag: "FAQ",
+        section_title: "Frequently Asked Questions",
+        section_subtitle: "Common questions regarding registration and abstracts.",
+        faqs: [
+          { q: "How can I register my laboratory team?", a: "Fill out the contact form below to receive a group discount invoice." }
+        ]
+      };
+    } else if (type === "contact") {
+      compData = {
+        section_tag: "CONTACT",
+        section_title: "Inquiries & RSVPs",
+        section_subtitle: "Reach out to the conference coordination desk.",
+        email: "contact@sciprospect.internal",
+        phone: "+1 800 555-0199",
+        address: "Innovation Center",
+        form_button_label: "Submit Inquiry"
+      };
+    } else if (type === "footer") {
+      compData = {
+        brand_name: currentSite.name,
+        tagline: "Empowering researcher intelligence and scientific outreach.",
+        copyright: `© ${new Date().getFullYear()} ${currentSite.name}. All rights reserved.`,
+        links: [{ label: "Terms", url: "#" }, { label: "Privacy", url: "#" }]
+      };
+    }
+
+    currentSite.schema_json.push({
+      id: newId,
+      type: type,
+      title: type.toUpperCase(),
+      data: compData
+    });
+
+    renderCanvas();
+    selectComponentForEditing(newId);
+    showToast(`Added ${type} section`, "info");
+  }
+
+  // Render Canvas
+  function renderCanvas() {
+    if (!canvasSectionsList || !currentSite) return;
+    const comps = currentSite.schema_json || [];
+
+    if (comps.length === 0) {
+      canvasSectionsList.innerHTML = `
+        <div style="text-align: center; padding: 5rem 1rem; color: #64748b;">
+          <h3>Canvas is Empty</h3>
+          <p>Click any component on the left palette to begin designing your website.</p>
+        </div>
+      `;
+      return;
+    }
+
+    const theme = currentSite.theme_config || {};
+    const primary = theme.primary_color || "#38bdf8";
+    const bg = theme.bg_color || "#0b0f19";
+
+    canvasSectionsList.style.backgroundColor = bg;
+
+    canvasSectionsList.innerHTML = comps.map((comp, idx) => {
+      const isSelected = (comp.id === activeComponentId);
+      return `
+        <div class="canvas-section-wrapper ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
+          <!-- Floating Toolbar -->
+          <div class="section-hover-bar" onclick="event.stopPropagation()">
+            <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
+            <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move Down">⬇</button>
+            <button class="btn-sec-tool" onclick="selectComponentForEditing('${comp.id}')" title="Configure">⚙ Settings</button>
+            <button class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete">🗑</button>
+          </div>
+
+          <!-- Section Render -->
+          <div class="section-preview-render" style="pointer-events: none;">
+            ${renderComponentHTML(comp, primary)}
+          </div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  function renderComponentHTML(comp, primary) {
+    const d = comp.data || {};
+    const t = comp.type;
+
+    if (t === "navbar") {
+      const links = (d.links || []).map(l => `<a href="#" style="color:#cbd5e1;font-size:0.85rem;margin-right:1rem;">${l.label}</a>`).join("");
+      return `
+        <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);">
+          <div style="font-weight:800;color:#fff;font-size:1.15rem;">${d.brand_name || 'Brand'}</div>
+          <div>${links} <span style="background:${primary};color:#fff;padding:0.35rem 0.85rem;border-radius:6px;font-size:0.82rem;font-weight:700;">${d.cta_label || 'Register'}</span></div>
+        </div>
+      `;
+    } else if (t === "hero") {
+      return `
+        <div style="padding:3.5rem 1.5rem;display:grid;grid-template-columns:1.2fr 0.8fr;gap:2rem;align-items:center;">
+          <div>
+            <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;">${d.eyebrow || ''}</span>
+            <h1 style="font-size:2.2rem;font-weight:800;color:#fff;line-height:1.2;margin:0.5rem 0;">${d.headline || 'Headline'}</h1>
+            <p style="color:#94a3b8;font-size:0.95rem;margin-bottom:1.5rem;">${d.subheadline || ''}</p>
+            <div>
+              <span style="background:${primary};color:#fff;padding:0.6rem 1.4rem;border-radius:8px;font-weight:700;margin-right:0.6rem;">${d.primary_btn_text || 'Action'}</span>
+              <span style="border:1px solid rgba(255,255,255,0.2);color:#fff;padding:0.6rem 1.4rem;border-radius:8px;">${d.secondary_btn_text || 'Learn More'}</span>
+            </div>
+          </div>
+          <div>
+            <img src="${d.hero_image || ''}" style="width:100%;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.5);" onerror="this.style.display='none'">
+          </div>
+        </div>
+      `;
+    } else if (t === "features") {
+      const items = (d.items || []).map(i => `
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:1.25rem;">
+          <div style="font-size:1.5rem;margin-bottom:0.5rem;">${i.icon || '✦'}</div>
+          <h4 style="color:#fff;font-size:1rem;margin-bottom:0.35rem;">${i.title}</h4>
+          <p style="color:#94a3b8;font-size:0.82rem;">${i.description}</p>
+        </div>
+      `).join("");
+      return `
+        <div style="padding:3rem 1.5rem;text-align:center;">
+          <span style="font-size:0.72rem;font-weight:700;color:${primary};letter-spacing:1px;">${d.section_tag || ''}</span>
+          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
+          <p style="color:#94a3b8;font-size:0.9rem;max-width:550px;margin:0 auto 2rem auto;">${d.section_subtitle || ''}</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem;text-align:left;">
+            ${items}
+          </div>
+        </div>
+      `;
+    } else if (t === "speakers") {
+      const spk = (d.speakers || []).map(s => `
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;">
+          <img src="${s.photo}" style="width:100%;height:160px;object-fit:cover;" onerror="this.src='https://via.placeholder.com/300'">
+          <div style="padding:1rem;">
+            <h4 style="color:#fff;font-size:0.95rem;">${s.name}</h4>
+            <div style="color:${primary};font-size:0.78rem;font-weight:600;">${s.role}</div>
+            <div style="color:#64748b;font-size:0.72rem;margin-bottom:0.4rem;">${s.affiliation}</div>
+            <p style="color:#94a3b8;font-size:0.75rem;">${s.bio}</p>
+          </div>
+        </div>
+      `).join("");
+      return `
+        <div style="padding:3rem 1.5rem;text-align:center;">
+          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
+          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
+          <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:2rem;">${d.section_subtitle || ''}</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1.25rem;text-align:left;">
+            ${spk}
+          </div>
+        </div>
+      `;
+    } else if (t === "pricing") {
+      const tiers = (d.tiers || []).map(ti => `
+        <div style="background:rgba(255,255,255,0.04);border:1px solid ${ti.featured ? primary : 'rgba(255,255,255,0.08)'};border-radius:14px;padding:1.5rem;text-align:center;">
+          <h4 style="color:#fff;font-size:1.05rem;">${ti.name}</h4>
+          <div style="font-size:2rem;font-weight:800;color:#fff;margin:0.5rem 0;">${ti.price}</div>
+          <p style="color:#94a3b8;font-size:0.78rem;margin-bottom:1rem;">${ti.description}</p>
+          <ul style="list-style:none;text-align:left;color:#cbd5e1;font-size:0.8rem;margin-bottom:1.5rem;">
+            ${(ti.features || []).map(f => `<li style="margin-bottom:0.35rem;">✓ ${f}</li>`).join('')}
+          </ul>
+          <span style="background:${ti.featured ? primary : 'rgba(255,255,255,0.1)'};color:#fff;padding:0.5rem 1rem;border-radius:6px;display:block;font-weight:700;font-size:0.85rem;">${ti.btn_label || 'Select'}</span>
+        </div>
+      `).join("");
+      return `
+        <div style="padding:3rem 1.5rem;text-align:center;">
+          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
+          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
+          <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:2rem;">${d.section_subtitle || ''}</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;">
+            ${tiers}
+          </div>
+        </div>
+      `;
+    } else if (t === "gallery") {
+      const imgs = (d.images || []).map(img => `
+        <div style="border-radius:10px;overflow:hidden;height:140px;position:relative;">
+          <img src="${img.url}" style="width:100%;height:100%;object-fit:cover;">
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:0.4rem;background:rgba(0,0,0,0.7);font-size:0.7rem;color:#fff;">${img.caption}</div>
+        </div>
+      `).join("");
+      return `
+        <div style="padding:3rem 1.5rem;text-align:center;">
+          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
+          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-top:1.5rem;">
+            ${imgs}
+          </div>
+        </div>
+      `;
+    } else if (t === "faq") {
+      const faqs = (d.faqs || []).map(f => `
+        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.65rem;text-align:left;">
+          <div style="font-weight:700;color:#fff;font-size:0.9rem;">${f.q}</div>
+          <div style="color:#94a3b8;font-size:0.82rem;margin-top:0.35rem;">${f.a}</div>
+        </div>
+      `).join("");
+      return `
+        <div style="padding:3rem 1.5rem;text-align:center;">
+          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
+          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
+          <div style="max-width:600px;margin:1.5rem auto 0 auto;">
+            ${faqs}
+          </div>
+        </div>
+      `;
+    } else if (t === "contact") {
+      return `
+        <div style="padding:3rem 1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:2rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;margin:2rem 1.5rem;">
+          <div>
+            <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || 'CONTACT'}</span>
+            <h3 style="color:#fff;font-size:1.5rem;margin:0.35rem 0;">${d.section_title || 'Get in Touch'}</h3>
+            <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:1rem;">${d.section_subtitle || ''}</p>
+            <div style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;">
+              <div>📧 ${d.email || ''}</div>
+              <div>📞 ${d.phone || ''}</div>
+              <div>📍 ${d.address || ''}</div>
+            </div>
+          </div>
+          <div>
+            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
+              <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:0.75rem;">[Live Form Input Fields]</div>
+              <span style="background:${primary};color:#fff;padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;font-weight:700;display:inline-block;">${d.form_button_label || 'Submit'}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (t === "footer") {
+      return `
+        <div style="padding:2rem 1.5rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;color:#94a3b8;font-size:0.8rem;">
+          <div>${d.brand_name || 'Brand'} — ${d.tagline || ''}</div>
+          <div>${d.copyright || ''}</div>
+        </div>
+      `;
+    }
+    return `<div style="padding:1.5rem;color:#94a3b8;">${comp.title}</div>`;
+  }
+
+  // Component Reordering & Deletion
+  window.moveComponent = function(compId, dir) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comps = currentSite.schema_json;
+    const idx = comps.findIndex(c => c.id === compId);
+    if (idx === -1) return;
+    const targetIdx = idx + dir;
+    if (targetIdx < 0 || targetIdx >= comps.length) return;
+
+    const temp = comps[idx];
+    comps[idx] = comps[targetIdx];
+    comps[targetIdx] = temp;
+
+    renderCanvas();
+    showToast("Section reordered", "info");
+  };
+
+  window.deleteComponent = function(compId) {
+    if (!currentSite || !currentSite.schema_json) return;
+    if (!confirm("Remove this section from the page?")) return;
+    currentSite.schema_json = currentSite.schema_json.filter(c => c.id !== compId);
+    if (activeComponentId === compId) {
+      activeComponentId = null;
+      if (inspectorContent) {
+        inspectorContent.innerHTML = `
+          <div class="empty-inspector-notice">
+            <span style="font-size: 2rem;">👈</span>
+            <p>Click any block on the canvas to configure its text, images, speakers, and pricing tiers.</p>
+          </div>
+        `;
+      }
+    }
+    renderCanvas();
+    showToast("Section removed", "info");
+  };
+
+  // Select Component for Property Inspector
+  window.selectComponentForEditing = function(compId) {
+    activeComponentId = compId;
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !inspectorContent) return;
+
+    // Highlight on canvas
+    document.querySelectorAll(".canvas-section-wrapper").forEach(el => {
+      el.classList.toggle("active-editing", el.getAttribute("data-comp-id") === compId);
+    });
+
+    renderInspector(comp);
+  };
+
+  function renderInspector(comp) {
+    if (!inspectorContent) return;
+    const d = comp.data || {};
+    const t = comp.type;
+
+    let html = `
+      <div style="margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">${t.toUpperCase()} BLOCK</span>
+        <h3 style="font-size: 1.1rem; color: #fff; margin-top: 0.15rem;">${comp.title}</h3>
+      </div>
+    `;
+
+    if (t === "hero") {
+      html += `
+        <div class="inspector-field">
+          <label>Eyebrow Badge</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.eyebrow || '')}" oninput="updateField('${comp.id}', 'eyebrow', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Headline</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.headline || '')}" oninput="updateField('${comp.id}', 'headline', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Subheadline</label>
+          <textarea class="inspector-input" oninput="updateField('${comp.id}', 'subheadline', this.value)">${escapeHtml(d.subheadline || '')}</textarea>
+        </div>
+        <div class="inspector-field">
+          <label>Primary Button Label</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.primary_btn_text || '')}" oninput="updateField('${comp.id}', 'primary_btn_text', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Secondary Button Label</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.secondary_btn_text || '')}" oninput="updateField('${comp.id}', 'secondary_btn_text', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Hero Image URL</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.hero_image || '')}" oninput="updateField('${comp.id}', 'hero_image', this.value)">
+        </div>
+      `;
+    } else if (t === "features") {
+      html += `
+        <div class="inspector-field">
+          <label>Section Tag</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Section Title</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Section Subtitle</label>
+          <textarea class="inspector-input" oninput="updateField('${comp.id}', 'section_subtitle', this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">Feature Items (${(d.items || []).length})</label>
+          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addFeatureItem('${comp.id}')">+ Add Item</button>
+        </div>
+        <div class="dynamic-items-container">
+          ${(d.items || []).map((item, idx) => `
+            <div class="dynamic-sub-card">
+              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'items', ${idx})">&times;</button>
+              <div style="display:flex;gap:0.5rem;margin-bottom:0.4rem;">
+                <input type="text" style="width:40px;text-align:center;" class="inspector-input" value="${escapeHtml(item.icon || '✦')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'icon', this.value)">
+                <input type="text" style="flex:1;" class="inspector-input" placeholder="Title" value="${escapeHtml(item.title || '')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'title', this.value)">
+              </div>
+              <input type="text" class="inspector-input" placeholder="Description" value="${escapeHtml(item.description || '')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'description', this.value)">
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (t === "speakers") {
+      html += `
+        <div class="inspector-field">
+          <label>Section Tag</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Section Title</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">Speakers (${(d.speakers || []).length})</label>
+          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addSpeakerItem('${comp.id}')">+ Add Speaker</button>
+        </div>
+        <div class="dynamic-items-container">
+          ${(d.speakers || []).map((spk, idx) => `
+            <div class="dynamic-sub-card">
+              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'speakers', ${idx})">&times;</button>
+              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Speaker Full Name" value="${escapeHtml(spk.name || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'name', this.value)">
+              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Role / Title" value="${escapeHtml(spk.role || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'role', this.value)">
+              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Affiliation / University" value="${escapeHtml(spk.affiliation || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'affiliation', this.value)">
+              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Photo URL" value="${escapeHtml(spk.photo || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'photo', this.value)">
+              <textarea class="inspector-input" placeholder="Bio" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'bio', this.value)">${escapeHtml(spk.bio || '')}</textarea>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (t === "pricing") {
+      html += `
+        <div class="inspector-field">
+          <label>Section Title</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">Pricing Tiers (${(d.tiers || []).length})</label>
+          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addPricingItem('${comp.id}')">+ Add Tier</button>
+        </div>
+        <div class="dynamic-items-container">
+          ${(d.tiers || []).map((ti, idx) => `
+            <div class="dynamic-sub-card">
+              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'tiers', ${idx})">&times;</button>
+              <div style="display:flex;gap:0.4rem;margin-bottom:0.35rem;">
+                <input type="text" style="flex:1;" class="inspector-input" placeholder="Tier Name" value="${escapeHtml(ti.name || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'name', this.value)">
+                <input type="text" style="width:80px;" class="inspector-input" placeholder="Price" value="${escapeHtml(ti.price || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'price', this.value)">
+              </div>
+              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Description" value="${escapeHtml(ti.description || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'description', this.value)">
+              <div style="margin-bottom:0.35rem;">
+                <label style="font-size:0.72rem;color:#94a3b8;"><input type="checkbox" ${ti.featured ? 'checked' : ''} onchange="updateSubField('${comp.id}', 'tiers', ${idx}, 'featured', this.checked)"> Highlight as Most Popular</label>
+              </div>
+              <textarea class="inspector-input" placeholder="Features (one per line)" oninput="updateTierFeatures('${comp.id}', ${idx}, this.value)">${(ti.features || []).join('\n')}</textarea>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (t === "faq") {
+      html += `
+        <div class="inspector-field">
+          <label>Section Title</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
+          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">FAQs (${(d.faqs || []).length})</label>
+          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addFaqItem('${comp.id}')">+ Add FAQ</button>
+        </div>
+        <div class="dynamic-items-container">
+          ${(d.faqs || []).map((faq, idx) => `
+            <div class="dynamic-sub-card">
+              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'faqs', ${idx})">&times;</button>
+              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Question" value="${escapeHtml(faq.q || '')}" oninput="updateSubField('${comp.id}', 'faqs', ${idx}, 'q', this.value)">
+              <textarea class="inspector-input" placeholder="Answer" oninput="updateSubField('${comp.id}', 'faqs', ${idx}, 'a', this.value)">${escapeHtml(faq.a || '')}</textarea>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    } else if (t === "contact") {
+      html += `
+        <div class="inspector-field">
+          <label>Section Title</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Contact Email</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.email || '')}" oninput="updateField('${comp.id}', 'email', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Contact Phone</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.phone || '')}" oninput="updateField('${comp.id}', 'phone', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Venue / Address</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.address || '')}" oninput="updateField('${comp.id}', 'address', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Submit Button Text</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.form_button_label || '')}" oninput="updateField('${comp.id}', 'form_button_label', this.value)">
+        </div>
+      `;
+    } else if (t === "footer") {
+      html += `
+        <div class="inspector-field">
+          <label>Brand Name</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.brand_name || '')}" oninput="updateField('${comp.id}', 'brand_name', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Tagline</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.tagline || '')}" oninput="updateField('${comp.id}', 'tagline', this.value)">
+        </div>
+        <div class="inspector-field">
+          <label>Copyright Text</label>
+          <input type="text" class="inspector-input" value="${escapeHtml(d.copyright || '')}" oninput="updateField('${comp.id}', 'copyright', this.value)">
+        </div>
+      `;
+    }
+
+    inspectorContent.innerHTML = html;
+  }
+
+  // Real-Time Field Update Handlers
+  window.updateField = function(compId, field, val) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp) return;
+    if (!comp.data) comp.data = {};
+    comp.data[field] = val;
+    renderCanvas();
+  };
+
+  window.updateSubField = function(compId, arrName, idx, field, val) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data || !comp.data[arrName] || !comp.data[arrName][idx]) return;
+    comp.data[arrName][idx][field] = val;
+    renderCanvas();
+  };
+
+  window.updateTierFeatures = function(compId, idx, textVal) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data || !comp.data.tiers || !comp.data.tiers[idx]) return;
+    comp.data.tiers[idx].features = textVal.split('\n').map(s => s.trim()).filter(Boolean);
+    renderCanvas();
+  };
+
+  window.deleteSubItem = function(compId, arrName, idx) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data || !comp.data[arrName]) return;
+    comp.data[arrName].splice(idx, 1);
+    renderCanvas();
+    renderInspector(comp);
+  };
+
+  window.addFeatureItem = function(compId) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data) return;
+    if (!comp.data.items) comp.data.items = [];
+    comp.data.items.push({ icon: "⚡", title: "New Feature", description: "Describe this key offering." });
+    renderCanvas();
+    renderInspector(comp);
+  };
+
+  window.addSpeakerItem = function(compId) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data) return;
+    if (!comp.data.speakers) comp.data.speakers = [];
+    comp.data.speakers.push({
+      name: "New Speaker",
+      role: "Lead Researcher",
+      affiliation: "Academic Institute",
+      photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
+      bio: "Brief biography and research focus."
+    });
+    renderCanvas();
+    renderInspector(comp);
+  };
+
+  window.addPricingItem = function(compId) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data) return;
+    if (!comp.data.tiers) comp.data.tiers = [];
+    comp.data.tiers.push({
+      name: "VIP Pass",
+      price: "$499",
+      period: "one-time",
+      featured: false,
+      description: "Comprehensive symposium pass.",
+      features: ["All Session Access", "Conference Materials"],
+      btn_label: "Select Pass",
+      btn_url: "#contact"
+    });
+    renderCanvas();
+    renderInspector(comp);
+  };
+
+  window.addFaqItem = function(compId) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data) return;
+    if (!comp.data.faqs) comp.data.faqs = [];
+    comp.data.faqs.push({ q: "What are the session dates?", a: "The symposium schedule is listed in the conference agenda." });
+    renderCanvas();
+    renderInspector(comp);
+  };
+
+  function escapeHtml(str) {
+    if (!str) return "";
+    return String(str)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  // Hook into tab switching:
+  navTabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      const target = tab.dataset.tab;
+      if (target === "builder") {
+        fetchBuilderSites();
+      }
+    });
+  });
+
+
+
+  // ---------------------------------------------------------------------------
+  // URL Routing Initialization (/dashboard, /websitebuilder, /nih, etc.)
+  // ---------------------------------------------------------------------------
+  function initBrowserRouting() {
+    const p = window.location.pathname.toLowerCase();
+    if (p.includes("websitebuilder") || p.includes("builder")) {
+      switchTab("builder", false);
+    } else if (p.includes("nih")) {
+      switchTab("nih", false);
+    } else if (p.includes("explorer")) {
+      switchTab("explorer", false);
+    } else if (p.includes("datasets")) {
+      switchTab("datasets", false);
+    } else {
+      switchTab("pipeline", false);
+    }
+
+    window.addEventListener("popstate", (e) => {
+      if (e.state && e.state.tab) {
+        switchTab(e.state.tab, false);
+      } else {
+        initBrowserRouting();
+      }
+    });
+  }
+
+  initBrowserRouting();
+
   initSplashScreen();
   checkAuthSession();
   setInterval(checkAuthSession, 4000);
-  fetchStats();
-  connectLogStream();
-  loadDatasetsDropdown();
 });
 

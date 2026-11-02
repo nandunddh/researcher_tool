@@ -9,7 +9,39 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
-  <link rel="stylesheet" href="index.css?v=2.4">
+  <link rel="stylesheet" href="index.css?v=4.1">
+    <style>
+    /* Complete suppression of Microsoft Edge & browser native reveal icons */
+    ::-ms-reveal,
+    ::-ms-clear,
+    input::-ms-reveal,
+    input::-ms-clear,
+    input[type="password"]::-ms-reveal,
+    input[type="password"]::-ms-clear {
+      display: none !important;
+      visibility: hidden !important;
+      pointer-events: none !important;
+      width: 0 !important;
+      height: 0 !important;
+      opacity: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      -webkit-appearance: none !important;
+      appearance: none !important;
+    }
+
+    /* Zero-Trust UI Protection: App Shell is completely hidden until session is verified */
+    #app-shell {
+      display: none !important;
+    }
+    #app-shell.authenticated {
+      display: flex !important;
+      flex-direction: column;
+      height: 100vh;
+      width: 100vw;
+      overflow: hidden;
+    }
+  </style>
 </head>
 <body>
   <!-- Toast notification -->
@@ -43,7 +75,7 @@
   </div>
 
   <!-- Desktop App Shell (Fixed 100vh / 100vw Native Container) -->
-  <div class="app-shell">
+  <div class="app-shell" id="app-shell" style="display: none !important;">
     
     <!-- 1. Real Native Desktop Top Menu Bar across 100% Window Width -->
     <header class="app-desktop-titlebar" id="app-desktop-titlebar">
@@ -199,6 +231,10 @@
             <button class="nav-tab" data-tab="datasets" id="tab-btn-datasets">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               <span class="nav-label">Datasets Archive</span>
+            </button>
+            <button class="nav-tab" data-tab="builder" id="tab-btn-builder">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+              <span class="nav-label">Website Builder</span>
             </button>
           </nav>
         </div>
@@ -686,6 +722,400 @@
         <!-- Dynamically populated dataset cards -->
       </div>
     </section>
+    <!-- =============================================================== -->
+    <!-- MODULE 05: WEBSITE BUILDER STUDIO (V1)                          -->
+    <!-- =============================================================== -->
+    <section class="tab-view" id="view-builder">
+      
+      <!-- SUB-VIEW A: WEBSITES DASHBOARD (SITE MANAGER) -->
+      <div id="builder-dashboard-view">
+        <div class="view-header-strip">
+          <div class="view-header-left">
+            <h1 class="view-title">🌐 Website Builder Studio</h1>
+            <p class="view-subtitle">Create, customize, and publish dynamic conference, lab, and research outreach websites with modular drag-and-drop components.</p>
+          </div>
+          <div class="view-header-right">
+            <button class="btn-primary-action" id="btn-open-create-site-modal">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+              <span>+ Create New Website</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="archive-search-toolbar" style="margin-bottom: 1.5rem;">
+          <div class="archive-search-input-wrap" style="max-width: 450px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="builder-search-sites" placeholder="Search your websites by name or slug...">
+          </div>
+          <div class="builder-stats-summary" id="builder-stats-summary">
+            <span class="builder-stat-pill" id="stat-total-sites">0 Websites</span>
+          </div>
+        </div>
+
+        <!-- Dynamic Websites Cards Grid -->
+        <div class="builder-sites-grid" id="builder-sites-grid">
+          <!-- Dynamically populated website cards -->
+        </div>
+      </div>
+
+      <!-- SUB-VIEW B: DRAG-AND-DROP VISUAL BUILDER STUDIO (CANVAS & INSPECTOR) -->
+      <div id="builder-studio-view" style="display: none; height: 100%;">
+        <!-- Studio Navigation Bar -->
+        <div class="builder-studio-topbar">
+          <div class="studio-topbar-left">
+            <button class="btn-studio-back" id="btn-studio-back" title="Back to Websites Dashboard">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+              <span>All Websites</span>
+            </button>
+            <div class="studio-title-wrap">
+              <input type="text" id="studio-site-name" class="studio-site-name-input" placeholder="Website Title">
+              <span class="site-status-badge draft" id="studio-site-status">Draft</span>
+            </div>
+          </div>
+
+          <!-- Responsive View Toggles (Desktop / Mobile Preview) -->
+          <div class="studio-device-toggles">
+            <button class="btn-device-toggle active" data-device="desktop" id="btn-device-desktop" title="Desktop View (100%)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>Desktop</span>
+            </button>
+            <button class="btn-device-toggle" data-device="mobile" id="btn-device-mobile" title="Mobile Phone View (380px)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
+              <span>Mobile</span>
+            </button>
+          </div>
+
+          <!-- Studio Action Buttons -->
+          <div class="studio-topbar-right">
+            <button class="btn-studio-action" id="btn-studio-preview" title="Open live preview in new tab">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>Preview</span>
+            </button>
+            <button class="btn-studio-action" id="btn-studio-export" title="Download standalone HTML/CSS ZIP archive">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export ZIP</span>
+            </button>
+            <button class="btn-studio-save" id="btn-studio-save" title="Save draft changes">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+              <span>Save</span>
+            </button>
+            <button class="btn-studio-publish" id="btn-studio-publish" title="Publish website to live URL">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+              <span>Publish</span>
+            </button>
+
+            <!-- Studio Fullscreen User Profile & Sign Out -->
+            <div style="display: flex; align-items: center; gap: 0.5rem; margin-left: 0.5rem; padding-left: 0.65rem; border-left: 1px solid rgba(255,255,255,0.12);">
+              <div class="user-profile-chip" id="studio-user-chip" style="display: flex;">
+                <span class="user-chip-avatar">👤</span>
+                <span class="user-chip-name" id="studio-user-name">Account</span>
+                <span class="user-chip-tier" id="studio-user-tier">PRO</span>
+              </div>
+              <button class="btn-signout" id="btn-studio-signout" title="Sign out of SciProspect">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Three-Column Builder Studio Workspace -->
+        <div class="builder-studio-workspace">
+          
+          <!-- Column 1: Components Library (Drag / Click to Add) -->
+          <aside class="builder-components-panel">
+            <div class="panel-section-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              <span>ADD COMPONENT</span>
+            </div>
+            <p class="panel-section-subtitle">Click any block to insert into page:</p>
+
+            <div class="components-palette-list">
+              <button class="btn-add-comp" data-type="hero">
+                <span class="comp-icon">🌟</span>
+                <div class="comp-text">
+                  <div class="comp-title">Hero Banner</div>
+                  <div class="comp-desc">Headline, CTA buttons, banner</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="features">
+                <span class="comp-icon">📋</span>
+                <div class="comp-text">
+                  <div class="comp-title">Info & Highlights</div>
+                  <div class="comp-desc">3-column feature cards</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="speakers">
+                <span class="comp-icon">🎤</span>
+                <div class="comp-text">
+                  <div class="comp-title">Keynote Speakers</div>
+                  <div class="comp-desc">Faculty, photos, roles & bios</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="pricing">
+                <span class="comp-icon">💳</span>
+                <div class="comp-text">
+                  <div class="comp-title">Pricing & Tickets</div>
+                  <div class="comp-desc">Tier cards, checklist & buttons</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="gallery">
+                <span class="comp-icon">🖼️</span>
+                <div class="comp-text">
+                  <div class="comp-title">Photo Gallery</div>
+                  <div class="comp-desc">Venue, lab & poster displays</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="faq">
+                <span class="comp-icon">❓</span>
+                <div class="comp-text">
+                  <div class="comp-title">FAQ Accordion</div>
+                  <div class="comp-desc">Questions & expandable answers</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="contact">
+                <span class="comp-icon">✉️</span>
+                <div class="comp-text">
+                  <div class="comp-title">Contact & RSVP</div>
+                  <div class="comp-desc">Lead capture & registration</div>
+                </div>
+              </button>
+
+              <button class="btn-add-comp" data-type="footer">
+                <span class="comp-icon">📄</span>
+                <div class="comp-text">
+                  <div class="comp-title">Footer</div>
+                  <div class="comp-desc">Branding, links & copyright</div>
+                </div>
+              </button>
+            </div>
+
+            <!-- Page Theme & Palette Settings -->
+            <div class="panel-section-title" style="margin-top: 2rem;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m4.93 4.93 4.24 4.24"/></svg>
+              <span>THEME STYLING</span>
+            </div>
+            <div class="theme-controls-box">
+              <label class="control-label">Primary Color</label>
+              <div class="color-picker-row">
+                <input type="color" id="theme-primary-color" value="#38bdf8">
+                <span class="color-hex-label" id="label-primary-color">#38bdf8</span>
+              </div>
+
+              <label class="control-label" style="margin-top: 0.75rem;">Accent Color</label>
+              <div class="color-picker-row">
+                <input type="color" id="theme-accent-color" value="#6366f1">
+                <span class="color-hex-label" id="label-accent-color">#6366f1</span>
+              </div>
+
+              <label class="control-label" style="margin-top: 0.75rem;">Background Mode</label>
+              <select id="theme-bg-preset" class="studio-select">
+                <option value="#0b0f19">Midnight Navy (Dark)</option>
+                <option value="#090d16">Obsidian Deep (Pitch)</option>
+                <option value="#0f172a">Slate Steel (Pro)</option>
+              </select>
+            </div>
+          </aside>
+
+          <!-- Column 2: Live Assembled Canvas Frame -->
+          <main class="builder-canvas-wrapper">
+            <div class="builder-canvas-frame" id="builder-canvas-frame">
+              <div class="canvas-sections-list" id="canvas-sections-list">
+                <!-- Dynamically rendered visual sections -->
+              </div>
+            </div>
+          </main>
+
+          <!-- Column 3: Dynamic Property Inspector -->
+          <aside class="builder-inspector-panel" id="builder-inspector-panel">
+            <div class="panel-section-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+              <span>BLOCK SETTINGS</span>
+            </div>
+            
+            <div id="inspector-content">
+              <div class="empty-inspector-notice">
+                <span style="font-size: 2rem;">👈</span>
+                <p>Click any block on the canvas to configure its text, images, speakers, and pricing tiers.</p>
+              </div>
+            </div>
+          </aside>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- Create New Website Modal -->
+    <div class="modal-backdrop" id="modal-create-site" style="display: none;">
+      <div class="modal-card wizard-modal-card">
+        <div class="modal-header wizard-header">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <span style="font-size: 1.4rem;">🌐</span>
+            <div>
+              <h3 style="color: #fff; font-size: 1.25rem; font-weight: 800; margin: 0;">Create New Website</h3>
+              <p style="color: #94a3b8; font-size: 0.82rem; margin: 0;">Configure your template, branding, hero content, and sections</p>
+            </div>
+          </div>
+          <button class="modal-close" id="btn-close-create-site">&times;</button>
+        </div>
+
+        <form class="modal-body wizard-body" id="form-create-site" onsubmit="handleCreateSiteSubmit(event)">
+          
+          <!-- Section 1: Choose a Template (15 Curated Scientific & Tech Templates) -->
+          <div class="wizard-section">
+            <div class="wizard-sec-label">
+              <span class="wizard-step-num">1</span>
+              <span>CHOOSE A PRE-BUILT STARTER TEMPLATE (15 AVAILABLE)</span>
+            </div>
+            <div class="wizard-templates-grid" id="wizard-templates-grid">
+              <!-- Dynamically populated 15 template cards -->
+            </div>
+          </div>
+
+          <!-- Section 2: Identity & Theme Mode -->
+          <div class="wizard-section" style="margin-top: 1.5rem;">
+            <div class="wizard-sec-label">
+              <span class="wizard-step-num">2</span>
+              <span>WEBSITE IDENTITY & COLOR THEME</span>
+            </div>
+            
+            <div class="wizard-fields-grid-2">
+              <div class="auth-field">
+                <label for="create-site-name">Website / Conference Title *</label>
+                <input type="text" id="create-site-name" class="form-input" placeholder="e.g. Annual Precision Oncology Summit 2026" required>
+              </div>
+
+              <div class="auth-field">
+                <label for="create-site-slug">URL Slug *</label>
+                <div class="wizard-slug-wrap">
+                  <span class="slug-prefix">/sites/</span>
+                  <input type="text" id="create-site-slug" class="slug-input" placeholder="precision-oncology-2026" required>
+                </div>
+              </div>
+            </div>
+
+            <div class="wizard-fields-grid-2" style="margin-top: 0.85rem;">
+              <div class="auth-field">
+                <label for="create-site-theme-mode">Visual Appearance Mode</label>
+                <select id="create-site-theme-mode" class="studio-select" style="padding: 0.65rem;">
+                  <option value="dark">🌙 Dark Mode (Midnight Navy & Cyan)</option>
+                  <option value="light">☀️ Clean Light Mode (Medical White & Blue)</option>
+                  <option value="obsidian">🌑 Pitch Obsidian (Deep Black & Purple)</option>
+                  <option value="emerald">🍃 Biotech Emerald (Deep Slate & Green)</option>
+                </select>
+              </div>
+
+              <div class="auth-field">
+                <label>Brand Accent Color</label>
+                <div class="color-picker-row" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 8px;">
+                  <input type="color" id="create-primary-color" value="#38bdf8">
+                  <span class="color-hex-label" id="label-create-primary">#38bdf8</span>
+                  <span style="font-size: 0.75rem; color: #64748b; margin-left: auto;">Buttons & Highlights</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 3: Navigation Bar & Branding -->
+          <div class="wizard-section" style="margin-top: 1.5rem;">
+            <div class="wizard-sec-label">
+              <span class="wizard-step-num">3</span>
+              <span>TOP NAVIGATION BAR & BRANDING</span>
+            </div>
+            <div class="wizard-fields-grid-2">
+              <div class="auth-field">
+                <label for="create-nav-brand">Navbar Brand Text / Logo Name</label>
+                <input type="text" id="create-nav-brand" class="form-input" placeholder="e.g. Precision Medicine 2026">
+              </div>
+              <div class="auth-field">
+                <label for="create-nav-cta">Navbar Action Button</label>
+                <input type="text" id="create-nav-cta" class="form-input" value="Register Now" placeholder="e.g. Register Now, Submit Abstract">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 4: Hero Header & Content -->
+          <div class="wizard-section" style="margin-top: 1.5rem;">
+            <div class="wizard-sec-label">
+              <span class="wizard-step-num">4</span>
+              <span>HERO BANNER & CALL-TO-ACTION</span>
+            </div>
+            <div class="auth-field">
+              <label for="create-hero-eyebrow">Eyebrow Badge</label>
+              <input type="text" id="create-hero-eyebrow" class="form-input" value="🌟 ANNUAL SCIENTIFIC & RESEARCH INNOVATION 2026">
+            </div>
+            <div class="auth-field" style="margin-top: 0.75rem;">
+              <label for="create-hero-headline">Hero Main Headline</label>
+              <input type="text" id="create-hero-headline" class="form-input" placeholder="e.g. Advancing Next-Gen Discoveries & Breakthroughs">
+            </div>
+            <div class="auth-field" style="margin-top: 0.75rem;">
+              <label for="create-hero-subheadline">Hero Subtitle</label>
+              <textarea id="create-hero-subheadline" class="form-input" style="min-height: 65px;" placeholder="1-2 sentences summarizing the event, research focus, or laboratory mission."></textarea>
+            </div>
+            <div class="wizard-fields-grid-2" style="margin-top: 0.75rem;">
+              <div class="auth-field">
+                <label for="create-hero-btn1">Primary Button Text</label>
+                <input type="text" id="create-hero-btn1" class="form-input" value="Register Today">
+              </div>
+              <div class="auth-field">
+                <label for="create-hero-btn2">Secondary Button Text</label>
+                <input type="text" id="create-hero-btn2" class="form-input" value="Explore Faculty">
+              </div>
+            </div>
+          </div>
+
+          <!-- Section 5: Sections to Include -->
+          <div class="wizard-section" style="margin-top: 1.5rem;">
+            <div class="wizard-sec-label">
+              <span class="wizard-step-num">5</span>
+              <span>PAGES & SECTIONS TO INCLUDE</span>
+            </div>
+            <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.75rem;">Check the modular components you want pre-assembled:</p>
+            <div class="wizard-sections-checkbox-grid">
+              <label class="wizard-checkbox-pill">
+                <input type="checkbox" id="sec-chk-speakers" checked>
+                <span>🎤 Keynote Speakers / Faculty</span>
+              </label>
+              <label class="wizard-checkbox-pill">
+                <input type="checkbox" id="sec-chk-features" checked>
+                <span>📋 Research Highlights / About</span>
+              </label>
+              <label class="wizard-checkbox-pill">
+                <input type="checkbox" id="sec-chk-pricing" checked>
+                <span>💳 Pricing & Registration Passes</span>
+              </label>
+              <label class="wizard-checkbox-pill">
+                <input type="checkbox" id="sec-chk-gallery" checked>
+                <span>🖼️ Photo Gallery / Venue</span>
+              </label>
+              <label class="wizard-checkbox-pill">
+                <input type="checkbox" id="sec-chk-faq" checked>
+                <span>❓ FAQ Accordion</span>
+              </label>
+              <label class="wizard-checkbox-pill">
+                <input type="checkbox" id="sec-chk-contact" checked>
+                <span>✉️ Contact & Registration Form</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Wizard Footer Actions -->
+          <div class="wizard-footer-bar">
+            <button type="button" class="btn-secondary" id="btn-cancel-create-site" style="padding: 0.7rem 1.4rem;">Cancel</button>
+            <button type="submit" class="btn-primary-action" style="padding: 0.75rem 1.85rem;">
+              <span>🚀 Generate Website & Open Studio</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
   </main>
     </div><!-- .app-workspace -->
   </div><!-- .app-body-container -->
@@ -720,11 +1150,11 @@
     </div>
   </div>
 
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=4.1"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->
-  <div class="auth-gate-overlay" id="auth-gate-overlay" style="display: none;">
+  <div class="auth-gate-overlay" id="auth-gate-overlay" style="display: flex;">
     <div class="auth-gate-card">
       <div class="auth-gate-header">
         <div class="auth-brand-badge">
@@ -754,7 +1184,17 @@
           <label for="auth-input-pwd">Password</label>
           <div class="auth-input-wrap">
             <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            <input type="password" id="auth-input-pwd" placeholder="Enter your password" autocomplete="current-password" required>
+            <input type="password" id="auth-input-pwd" placeholder="Enter your password" autocomplete="current-password" required style="padding-right: 2.75rem;">
+            <button type="button" class="auth-pwd-toggle" id="btn-toggle-pwd" title="Show password" tabindex="-1">
+              <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
+                <circle cx="12" cy="12" r="3"></circle>
+              </svg>
+              <svg class="eye-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                <line x1="1" y1="1" x2="23" y2="23"></line>
+              </svg>
+            </button>
           </div>
         </div>
         <button type="submit" class="btn-auth-primary" id="btn-auth-submit-pwd" style="margin-top: 1.5rem; width: 100%;">
