@@ -506,15 +506,33 @@ async def admin_create_license(request: Request):
     duration = int(body.get("duration_days") or 7)
     limit = int(body.get("daily_limit") if body.get("daily_limit") is not None else (-1 if tier == "pro" else 1000))
     notes = (body.get("notes") or "").strip()
+    scistudio_access = bool(body.get("scistudio_access", True))
 
     if not name or not email:
         raise HTTPException(status_code=400, detail="Client name and email are required.")
 
     password = (body.get("password") or "").strip() or None
     created = license_engine.create_account(
-        name=name, email=email, tier=tier, duration_days=duration, daily_limit=limit, notes=notes, password=password
+        name=name, email=email, tier=tier, duration_days=duration, daily_limit=limit, notes=notes, password=password, scistudio_access=scistudio_access
     )
     return created
+
+
+@app.post("/api/admin/licenses/toggle-scistudio")
+async def admin_toggle_scistudio(request: Request):
+    """Toggle SciStudio website builder access for a client account."""
+    _verify_admin_auth(request)
+    body = await request.json()
+    key = (body.get("license_key") or "").strip()
+    if not key:
+        raise HTTPException(status_code=400, detail="License key is required.")
+    enabled = body.get("enabled")
+    if enabled is not None:
+        enabled = bool(enabled)
+    ok, msg, acc = license_engine.toggle_scistudio_access(key, enable=enabled)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "account": acc}
 
 
 @app.post("/api/admin/licenses/stop")
@@ -1248,9 +1266,19 @@ async def launch_installer():
 
 
 # -----------------------------------------------------------------------------
-# Website Builder Module Endpoints (/api/builder)
+# SciStudio Website Builder Module Endpoints (/api/builder)
 # -----------------------------------------------------------------------------
 from builder_manager import builder_engine
+
+def _require_scistudio_access(user: dict):
+    """Enforces that the user account has SciStudio website builder access enabled."""
+    if user.get("is_admin"):
+        return
+    if not user.get("scistudio_access", True):
+        raise HTTPException(
+            status_code=403,
+            detail="SciStudio access is disabled for your account. Please contact an administrator to request access."
+        )
 
 @app.get("/api/builder/templates")
 async def builder_list_templates():
@@ -1260,6 +1288,7 @@ async def builder_list_templates():
 @app.get("/api/builder/sites")
 async def builder_list_sites(request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     email = user.get("client_email", "")
     sites = builder_engine.list_sites(email)
     return {"sites": sites}
@@ -1268,6 +1297,7 @@ async def builder_list_sites(request: Request):
 @app.post("/api/builder/sites")
 async def builder_create_site(request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     body = await request.json()
     name = (body.get("name") or "New Website").strip()
     slug = (body.get("slug") or "").strip() or None
@@ -1288,6 +1318,7 @@ async def builder_create_site(request: Request):
 @app.get("/api/builder/sites/{site_id}")
 async def builder_get_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     site = builder_engine.get_site(site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Website not found.")
@@ -1297,6 +1328,7 @@ async def builder_get_site(site_id: str, request: Request):
 @app.put("/api/builder/sites/{site_id}")
 async def builder_update_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     body = await request.json()
     ok, msg, site = builder_engine.update_site(site_id, body)
     if not ok:
@@ -1307,6 +1339,7 @@ async def builder_update_site(site_id: str, request: Request):
 @app.delete("/api/builder/sites/{site_id}")
 async def builder_delete_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     ok, msg = builder_engine.delete_site(site_id)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -1316,6 +1349,7 @@ async def builder_delete_site(site_id: str, request: Request):
 @app.post("/api/builder/sites/{site_id}/publish")
 async def builder_publish_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     ok, msg, site = builder_engine.update_site(site_id, {"status": "published"})
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -1325,6 +1359,7 @@ async def builder_publish_site(site_id: str, request: Request):
 @app.get("/api/builder/sites/{site_id}/export")
 async def builder_export_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
     zip_bytes, filename = builder_engine.export_site_zip(site_id)
     if not zip_bytes:
         raise HTTPException(status_code=404, detail="Site not found or could not be compiled.")

@@ -8,7 +8,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-    <style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<style>
         :root {
             --bg-body: #070B14;
             --bg-card: rgba(17, 24, 39, 0.7);
@@ -642,6 +643,31 @@
             box-shadow: 0 0 12px rgba(16, 185, 129, 0.4);
         }
 
+        
+        .btn-scistudio-on {
+            background: rgba(14, 165, 233, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+        }
+
+        .btn-scistudio-on:hover {
+            background: rgba(14, 165, 233, 0.35);
+            color: #fff;
+            box-shadow: 0 0 12px rgba(56, 189, 248, 0.4);
+        }
+
+        .btn-scistudio-off {
+            background: rgba(100, 116, 139, 0.15);
+            color: #94a3b8;
+            border: 1px solid rgba(148, 163, 184, 0.25);
+        }
+
+        .btn-scistudio-off:hover {
+            background: rgba(239, 68, 68, 0.2);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.4);
+        }
+
         .btn-extend {
             background: rgba(255, 255, 255, 0.05);
             color: var(--text-muted);
@@ -889,6 +915,15 @@
                     </div>
 
                     <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label">SciStudio Access (Website Builder)</label>
+                        <label class="checkbox-pill-label" style="display: flex; align-items: center; gap: 0.65rem; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); padding: 0.65rem 0.85rem; border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="inputSciStudioAccess" checked style="accent-color: #0284c7; width: 17px; height: 17px; cursor: pointer;">
+                            <span style="font-size: 0.85rem; color: #f1f5f9; font-weight: 600;">Enable SciStudio Website Builder</span>
+                        </label>
+                        <small style="color: var(--text-subtle); font-size: 0.75rem; margin-top: 4px; display: block;">When enabled, this client account can design, customize, and publish websites in SciStudio.</small>
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
                         <label class="form-label">Notes / Reference (Optional)</label>
                         <input type="text" id="inputNotes" class="form-input" placeholder="e.g. Cambridge Biotech Demo">
                     </div>
@@ -930,6 +965,7 @@
                                 <th>License Key</th>
                                 <th>Tier</th>
                                 <th>Status</th>
+                                <th>SciStudio</th>
                                 <th>Expires / Remaining</th>
                                 <th>Limit</th>
                                 <th>Remote Control</th>
@@ -937,7 +973,7 @@
                         </thead>
                         <tbody id="accountsTableBody">
                             <tr>
-                                <td colspan="7" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
                                     Loading accounts database...
                                 </td>
                             </tr>
@@ -1112,6 +1148,25 @@
         }
 
         // Render Table
+        
+        // Toggle SciStudio Permission for an Account
+        async function toggleSciStudio(licenseKey, enable) {
+            try {
+                showToast(`Updating SciStudio access...`, 'info');
+                const res = await fetch('/api/admin/licenses/toggle-scistudio', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({ license_key: licenseKey, enabled: enable })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to update SciStudio permission');
+                showToast(data.message, 'success');
+                refreshDashboard();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
         function renderAccountsTable() {
             const tbody = document.getElementById('accountsTableBody');
             const searchVal = document.getElementById('searchAccounts').value.trim().toLowerCase();
@@ -1137,7 +1192,7 @@
             if (filtered.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+                        <td colspan="8" style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
                             No matching user accounts found.
                         </td>
                     </tr>
@@ -1204,6 +1259,17 @@
                         </td>
                         <td>${tierBadge}</td>
                         <td>${statusBadge}</td>
+                        <td>
+                            ${acc.license_key === 'SCIP-PRO-ROOT-MASTER' 
+                                ? `<span class="status-pill status-active" style="background:rgba(56,189,248,0.15);color:#38bdf8;border-color:rgba(56,189,248,0.3)">Always On</span>` 
+                                : `
+                                <button class="btn-action ${acc.scistudio_access !== false ? 'btn-scistudio-on' : 'btn-scistudio-off'}" 
+                                        onclick="toggleSciStudio('${acc.license_key}', ${acc.scistudio_access === false})" 
+                                        title="Click to ${acc.scistudio_access !== false ? 'Disable' : 'Enable'} SciStudio website builder">
+                                    ${acc.scistudio_access !== false ? '🎨 Active' : '🔒 Disabled'}
+                                </button>
+                            `}
+                        </td>
                         <td>${expiryDisplay}</td>
                         <td><strong>${limitDisplay}</strong></td>
                         <td>
@@ -1249,6 +1315,7 @@
             const duration = parseInt(document.getElementById('inputDuration').value);
             const limit = parseInt(document.getElementById('inputLimit').value);
             const notes = document.getElementById('inputNotes').value.trim();
+            const scistudioAccess = document.getElementById('inputSciStudioAccess') ? document.getElementById('inputSciStudioAccess').checked : true;
 
             try {
                 const res = await fetch('/api/admin/licenses/create', {
@@ -1261,6 +1328,7 @@
                         duration_days: duration,
                         daily_limit: limit,
                         notes: notes,
+                        scistudio_access: scistudioAccess,
                         password: document.getElementById('inputPassword')?.value.trim() || undefined
                     })
                 });

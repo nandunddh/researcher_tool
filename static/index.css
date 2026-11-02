@@ -3809,3 +3809,149 @@ body.studio-fullscreen-mode .builder-canvas-wrapper {
   margin-top: 1.25rem;
   border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
+
+
+/* ========================================================================== */
+/* PRO SCISTUDIO CUSTOM INSPECTOR CONTROLS                                    */
+/* ========================================================================== */
+.inspector-card-group {
+  background: rgba(30, 41, 59, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 0.9rem;
+  margin-bottom: 1.15rem;
+}
+
+.inspector-group-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  color: #38bdf8;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+/* Quick Stock Preset Pills */
+.stock-preset-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.btn-stock-pill {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #cbd5e1;
+  padding: 0.22rem 0.55rem;
+  border-radius: 6px;
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.btn-stock-pill:hover {
+  background: rgba(56, 189, 248, 0.2);
+  border-color: #38bdf8;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+/* Icon Selector Widget */
+.icon-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.icon-preview-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1.5px solid rgba(56, 189, 248, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  color: #38bdf8;
+  flex-shrink: 0;
+}
+
+/* Segmented Control Buttons */
+.segmented-control {
+  display: flex;
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+  margin-top: 0.35rem;
+}
+
+.segmented-btn {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #94a3b8;
+  font-size: 0.74rem;
+  font-weight: 600;
+  padding: 0.35rem 0.45rem;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.segmented-btn.active {
+  background: #0284c7;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.inspector-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #f1f5f9;
+  cursor: pointer;
+  user-select: none;
+  margin-bottom: 0.65rem;
+}
+
+.inspector-toggle-label input[type="checkbox"] {
+  accent-color: #0284c7;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.inspector-select {
+  width: 100%;
+  background: #1e293b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f1f5f9;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.inspector-select:focus {
+  border-color: #38bdf8;
+}
+
+/* Widen inspector panel to 360px for full layout comfort */
+body.studio-fullscreen-mode .builder-inspector-panel {
+  width: 360px !important;
+  min-width: 360px !important;
+  max-width: 380px !important;
+}

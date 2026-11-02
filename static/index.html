@@ -9,7 +9,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
-  <link rel="stylesheet" href="index.css?v=4.1">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="index.css?v=5.1">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -234,7 +235,8 @@
             </button>
             <button class="nav-tab" data-tab="builder" id="tab-btn-builder">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-              <span class="nav-label">Website Builder</span>
+              <span class="nav-label">SciStudio</span>
+              <span class="scistudio-lock-badge" id="scistudio-lock-badge" style="display: none; margin-left: auto; font-size: 0.72rem; color: #f87171;" title="SciStudio access disabled">🔒</span>
             </button>
           </nav>
         </div>
@@ -725,13 +727,23 @@
     <!-- =============================================================== -->
     <!-- MODULE 05: WEBSITE BUILDER STUDIO (V1)                          -->
     <!-- =============================================================== -->
-    <section class="tab-view" id="view-builder">
+        <section class="tab-view" id="view-builder">
+      
+      <!-- ACCESS RESTRICTED OVERLAY WHEN SCISTUDIO ACCESS IS DISABLED -->
+      <div id="scistudio-locked-view" style="display: none; text-align: center; padding: 4.5rem 2rem; background: rgba(15, 23, 42, 0.4); border: 1px dashed rgba(239, 68, 68, 0.35); border-radius: 16px; margin: 2rem auto; max-width: 620px;">
+        <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
+        <h2 style="font-size: 1.6rem; font-weight: 800; color: #f8fafc; margin-bottom: 0.65rem;">SciStudio Access Disabled</h2>
+        <p style="color: #94a3b8; font-size: 0.95rem; line-height: 1.6; margin-bottom: 1.5rem;">SciStudio Website Builder is currently not activated for your account. Please contact your organization administrator or SciProspect support to enable SciStudio access.</p>
+        <div style="display: inline-flex; align-items: center; gap: 0.5rem; background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 9999px; padding: 5px 14px; font-size: 0.8rem; font-weight: 700;">
+          <span>⛔ Permission Required</span>
+        </div>
+      </div>
       
       <!-- SUB-VIEW A: WEBSITES DASHBOARD (SITE MANAGER) -->
       <div id="builder-dashboard-view">
         <div class="view-header-strip">
           <div class="view-header-left">
-            <h1 class="view-title">🌐 Website Builder Studio</h1>
+            <h1 class="view-title">🌐 SciStudio Website Builder</h1>
             <p class="view-subtitle">Create, customize, and publish dynamic conference, lab, and research outreach websites with modular drag-and-drop components.</p>
           </div>
           <div class="view-header-right">
@@ -789,7 +801,7 @@
           <!-- Studio Action Buttons -->
           <div class="studio-topbar-right">
             <button class="btn-studio-action" id="btn-studio-preview" title="Open live preview in new tab">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
               <span>Preview</span>
             </button>
             <button class="btn-studio-action" id="btn-studio-export" title="Download standalone HTML/CSS ZIP archive">
@@ -1150,7 +1162,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=4.1"></script>
+  <script src="app.js?v=5.1"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->
@@ -1187,7 +1199,7 @@
             <input type="password" id="auth-input-pwd" placeholder="Enter your password" autocomplete="current-password" required style="padding-right: 2.75rem;">
             <button type="button" class="auth-pwd-toggle" id="btn-toggle-pwd" title="Show password" tabindex="-1">
               <svg class="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8z"></path>
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"></path>
                 <circle cx="12" cy="12" r="3"></circle>
               </svg>
               <svg class="eye-off-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">

@@ -136,7 +136,7 @@ document.addEventListener("DOMContentLoaded", () => {
       nih: "NIH Grant PIs",
       explorer: "Leads Explorer",
       datasets: "Datasets Archive",
-      builder: "Website Builder"
+      builder: "SciStudio"
     };
     const titleEl = document.getElementById("topbar-view-title");
     if (titleEl && titleMap[tabName]) titleEl.textContent = titleMap[tabName];
@@ -148,7 +148,7 @@ document.addEventListener("DOMContentLoaded", () => {
         nih: "NIH Grant Intelligence",
         explorer: "Verified Lead Management",
         datasets: "Central Dataset Storage",
-        builder: "Visual Studio & Drag-and-Drop Publishing"
+        builder: "SciStudio Visual Studio & Drag-and-Drop Publishing"
       };
       badgeEl.textContent = badgeMap[tabName] || "Lead Intelligence Console";
     }
@@ -175,6 +175,20 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (tabName === "nih") {
       loadNihLeads();
     } else if (tabName === "builder") {
+      const u = window.currentUser;
+      const hasAccess = !!(u && (u.is_admin || u.scistudio_access !== false));
+      const lockedView = document.getElementById("scistudio-locked-view");
+      const dashView = document.getElementById("builder-dashboard-view");
+      const studioView = document.getElementById("builder-studio-view");
+
+      if (!hasAccess && u && !u.is_admin) {
+        if (lockedView) lockedView.style.display = "block";
+        if (dashView) dashView.style.display = "none";
+        if (studioView) studioView.style.display = "none";
+        return;
+      } else {
+        if (lockedView) lockedView.style.display = "none";
+      }
       fetchBuilderSites();
     }
   }
@@ -2155,6 +2169,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const menuRootAdmin = document.getElementById("menu-root-admin");
     if (menuRootAdmin) menuRootAdmin.style.display = isAdmin ? "flex" : "none";
 
+    window.currentUser = user;
+    const hasSciStudioAccess = !!(user && (user.is_admin || user.scistudio_access !== false));
+    const scistudioLockBadge = document.getElementById("scistudio-lock-badge");
+    if (scistudioLockBadge) {
+      scistudioLockBadge.style.display = hasSciStudioAccess ? "none" : "inline";
+    }
+
     // Initialize authenticated data loads
     fetchStats();
     loadDatasetsDropdown();
@@ -2335,13 +2356,66 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   // ===========================================================================
-  // MODULE 05: WEBSITE BUILDER STUDIO LOGIC (V1)
+  // MODULE 05: SCISTUDIO WEBSITE BUILDER STUDIO LOGIC (V2 PRO)
   // ===========================================================================
   let userWebsites = [];
   let currentSite = null;
   let activeComponentId = null;
   let starterTemplates = [];
   let selectedTemplateId = "genomics";
+
+  // Curated Scientific Vector Icons (FontAwesome 6)
+  const SCIENTIFIC_ICONS = [
+    { val: "fa-solid fa-microscope", label: "Microscope (Lab & Analysis)" },
+    { val: "fa-solid fa-dna", label: "DNA Helix (Genomics & CRISPR)" },
+    { val: "fa-solid fa-brain", label: "Brain (Neuroscience & AI)" },
+    { val: "fa-solid fa-flask-vial", label: "Flask & Vials (Pharma & Chemistry)" },
+    { val: "fa-solid fa-stethoscope", label: "Stethoscope (Clinical & Oncology)" },
+    { val: "fa-solid fa-atom", label: "Atom (Physics & Quantum)" },
+    { val: "fa-solid fa-laptop-code", label: "Laptop (Bioinformatics & ML)" },
+    { val: "fa-solid fa-chart-line", label: "Chart (Data & Trends)" },
+    { val: "fa-solid fa-earth-americas", label: "Globe (Global Climate & Ecology)" },
+    { val: "fa-solid fa-bolt", label: "Bolt (CRISPR & Energy)" },
+    { val: "fa-solid fa-users", label: "Faculty (Keynote Speakers)" },
+    { val: "fa-solid fa-award", label: "Award (Grants & NIH Funding)" },
+    { val: "fa-solid fa-lightbulb", label: "Lightbulb (Innovation & Patents)" },
+    { val: "fa-solid fa-shield-halved", label: "Shield (Safety & Trial Standards)" },
+    { val: "fa-solid fa-rocket", label: "Rocket (Translational Launch)" },
+    { val: "fa-solid fa-ticket", label: "Ticket (Passes & Admissions)" },
+    { val: "fa-solid fa-location-dot", label: "Location (Campus Venue & Hall)" },
+    { val: "fa-solid fa-envelope", label: "Envelope (Inquiries & RSVP)" },
+    { val: "fa-solid fa-circle-question", label: "Question (FAQ & Help)" },
+    { val: "fa-solid fa-book-open", label: "Open Book (Publications & Papers)" },
+    { val: "fa-solid fa-certificate", label: "Certificate (Accreditation)" },
+    { val: "fa-solid fa-star", label: "Star (Keynote & Highlight)" }
+  ];
+
+  // Curated High-Res Scientific Stock Presets
+  const SCIENTIFIC_STOCK_IMAGES = [
+    { label: "🔬 Lab", url: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=900&auto=format&fit=crop&q=80" },
+    { label: "🧬 DNA", url: "https://images.unsplash.com/photo-1530497610245-94d3c16cda28?w=900&auto=format&fit=crop&q=80" },
+    { label: "🏛️ Hall", url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&auto=format&fit=crop&q=80" },
+    { label: "🩺 Clinic", url: "https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?w=900&auto=format&fit=crop&q=80" },
+    { label: "🧪 Biotech", url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80" },
+    { label: "💻 DeepTech", url: "https://images.unsplash.com/photo-1507413245164-6160d8298b31?w=900&auto=format&fit=crop&q=80" }
+  ];
+
+  // Speaker Avatar Presets
+  const SPEAKER_AVATAR_PRESETS = [
+    { label: "Prof. Elena", url: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80" },
+    { label: "Dr. Marcus", url: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&auto=format&fit=crop&q=80" },
+    { label: "Dr. Sarah", url: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80" },
+    { label: "Prof. David", url: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&auto=format&fit=crop&q=80" }
+  ];
+
+  function renderVectorIcon(iconStr, defaultColor = "#38bdf8") {
+    if (!iconStr) return `<i class="fa-solid fa-microscope" style="color:${defaultColor}"></i>`;
+    const s = String(iconStr).trim();
+    if (s.includes("fa-")) {
+      return `<i class="${s}" style="color:${defaultColor}"></i>`;
+    }
+    return `<span>${s}</span>`;
+  }
 
   const btnOpenCreateSiteModal = document.getElementById("btn-open-create-site-modal");
   const modalCreateSite = document.getElementById("modal-create-site");
@@ -2571,7 +2645,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     try {
-      showToast("Generating website from template...", "info");
+      showToast("Generating SciStudio website from template...", "info");
       const res = await fetch("/api/builder/sites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2581,7 +2655,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(data.detail || "Failed to create website");
 
       closeCreateSiteModal();
-      showToast("Website generated successfully!", "success");
+      showToast("SciStudio website generated successfully!", "success");
       openBuilderStudio(data.site.site_id);
     } catch (err) {
       showToast(`Error: ${err.message}`, "error");
@@ -2591,6 +2665,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Fetch and Render Websites Dashboard
   async function fetchBuilderSites() {
     try {
+      fetchTemplatesAndRenderWizard();
       const res = await fetch("/api/builder/sites");
       if (!res.ok) return;
       const data = await res.json();
@@ -2603,16 +2678,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function renderBuilderSites(sites) {
     if (!builderSitesGrid) return;
-    if (statTotalSites) statTotalSites.textContent = `${sites.length} Website${sites.length === 1 ? '' : 's'}`;
 
-    if (!sites || sites.length === 0) {
+    if (statTotalSites) {
+      statTotalSites.textContent = `${sites.length} Website${sites.length === 1 ? '' : 's'}`;
+    }
+
+    if (sites.length === 0) {
       builderSitesGrid.innerHTML = `
-        <div style="grid-column: 1 / -1; text-align: center; padding: 4rem 1rem; color: #64748b; background: #0f172a; border: 1px dashed rgba(255,255,255,0.1); border-radius: 16px;">
-          <div style="font-size: 2.5rem; margin-bottom: 0.85rem;">🌐</div>
-          <h3 style="color: #fff; font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">No Websites Created Yet</h3>
-          <p style="max-width: 460px; margin: 0 auto 1.5rem auto; font-size: 0.92rem;">Build dynamic conference sites, research lab portals, or campaign landing pages with live components.</p>
+        <div class="empty-builder-state">
+          <div class="empty-builder-icon">🌐</div>
+          <h3>No Websites Created Yet</h3>
+          <p>Choose from 15 pre-built templates to publish your first academic or symposium website in minutes.</p>
           <button class="btn-primary-action" onclick="document.getElementById('btn-open-create-site-modal').click()">
-            <span>+ Create Your First Website</span>
+            <span>+ Create First Website</span>
           </button>
         </div>
       `;
@@ -2621,50 +2699,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
     builderSitesGrid.innerHTML = sites.map(site => {
       const isPub = (site.status === "published");
-      const pubUrl = site.url || `/sites/${site.slug}`;
+      const url = `/sites/${site.slug}`;
+      const updatedDate = site.updated_at ? site.updated_at.split('T')[0] : 'Recently';
+
       return `
-        <div class="builder-site-card">
-          <!-- Browser Mockup Window Bar -->
-          <div class="site-card-browser-bar">
-            <span class="browser-dot dot-red"></span>
-            <span class="browser-dot dot-yellow"></span>
-            <span class="browser-dot dot-green"></span>
-            <span class="browser-url-preview">${pubUrl}</span>
-          </div>
-
-          <div>
-            <div class="site-card-header">
-              <div>
-                <h3 class="site-card-title">${site.name}</h3>
-                <div style="display:flex;align-items:center;gap:0.4rem;margin-top:0.35rem;">
-                  <span class="site-card-slug">${pubUrl}</span>
-                  <button type="button" class="btn-site-tool" style="padding:2px 6px;font-size:0.7rem;" title="Copy Public URL" onclick="navigator.clipboard.writeText(window.location.origin + '${pubUrl}'); showToast('URL copied to clipboard!', 'success');">📋 Copy</button>
-                </div>
-              </div>
-              <span class="site-status-badge ${isPub ? 'published' : 'draft'}">
-                <span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${isPub ? '#10b981' : '#94a3b8'};margin-right:4px;"></span>
-                ${isPub ? 'Published' : 'Draft'}
-              </span>
+        <div class="builder-site-card" data-site-id="${site.site_id}">
+          <div class="builder-site-card-header">
+            <div>
+              <h4 class="builder-site-title">${escapeHtml(site.name)}</h4>
+              <a href="${url}" target="_blank" class="builder-site-slug">${url}</a>
             </div>
-            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.85rem;">
-              Last updated: ${site.updated_at ? site.updated_at.substring(0, 16).replace('T', ' ') : 'Recently'}
-            </p>
+            <span class="site-status-badge ${isPub ? 'published' : 'draft'}">
+              ${isPub ? 'PUBLISHED' : 'DRAFT'}
+            </span>
           </div>
 
-          <div class="site-card-actions">
+          <div class="builder-site-meta">
+            <span>Last updated: ${updatedDate}</span>
+          </div>
+
+          <div class="builder-site-actions">
             <button class="btn-site-edit" onclick="openBuilderStudio('${site.site_id}')">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
               <span>Edit Studio</span>
             </button>
-            <a href="${pubUrl}" target="_blank" class="btn-site-tool" title="View live page in new tab">
+            <a href="${url}" target="_blank" class="btn-site-preview" title="View published website in new tab">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
               <span>View</span>
             </a>
-            <a href="/api/builder/sites/${site.site_id}/export" class="btn-site-tool" title="Download standalone ZIP">
+            <a href="/api/builder/sites/${site.site_id}/export" class="btn-site-preview" title="Download standalone website ZIP">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>ZIP</span>
             </a>
-            <button class="btn-site-tool text-danger" onclick="deleteBuilderSite('${site.site_id}')" title="Delete Website">
+            <button class="btn-site-delete" onclick="handleDeleteSite('${site.site_id}', '${escapeHtml(site.name)}')" title="Delete website">
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
@@ -2673,25 +2740,21 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("");
   }
 
-  // Search Filter
+  // Filter / Search Websites
   if (builderSearchSites) {
-    builderSearchSites.addEventListener("input", () => {
-      const q = builderSearchSites.value.trim().toLowerCase();
-      if (!q) {
-        renderBuilderSites(userWebsites);
-      } else {
-        const filtered = userWebsites.filter(s =>
-          (s.name && s.name.toLowerCase().includes(q)) ||
-          (s.slug && s.slug.toLowerCase().includes(q))
-        );
-        renderBuilderSites(filtered);
-      }
+    builderSearchSites.addEventListener("input", (e) => {
+      const q = e.target.value.toLowerCase().trim();
+      const filtered = userWebsites.filter(s =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.slug || '').toLowerCase().includes(q)
+      );
+      renderBuilderSites(filtered);
     });
   }
 
-  // Delete Site
-  window.deleteBuilderSite = async function(siteId) {
-    if (!confirm("Are you sure you want to permanently delete this website?")) return;
+  // Delete Site Handler
+  window.handleDeleteSite = async function(siteId, siteName) {
+    if (!confirm(`Are you sure you want to permanently delete "${siteName}"?`)) return;
     try {
       const res = await fetch(`/api/builder/sites/${siteId}`, { method: "DELETE" });
       const data = await res.json();
@@ -2706,7 +2769,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Open Studio (Fullscreen Experience)
   window.openBuilderStudio = async function(siteId) {
     try {
-      showToast("Loading Website Studio...", "info");
+      showToast("Loading SciStudio...", "info");
       const res = await fetch(`/api/builder/sites/${siteId}`);
       if (!res.ok) throw new Error("Failed to load site");
       currentSite = await res.json();
@@ -2796,7 +2859,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Theme Controls
+  // Theme Controls in Studio Bottom Bar
   if (themePrimaryColor) {
     themePrimaryColor.addEventListener("input", () => {
       if (!currentSite) return;
@@ -2900,111 +2963,127 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (type === "hero") {
       compData = {
-        eyebrow: "🌟 NEW HIGHLIGHT",
+        eyebrow: "🌟 NEW HIGHLIGHT 2026",
         headline: "Innovative Research & Outreach",
-        subheadline: "Empowering breakthrough collaboration across life sciences, oncology, and biotech.",
-        primary_btn_text: "Register Now",
-        primary_btn_url: "#pricing",
-        secondary_btn_text: "Learn More",
+        headline_gradient: true,
+        gradient_preset: "cyan_blue",
+        subheadline: "Join leading researchers, faculty, and industry pioneers for groundbreaking discoveries.",
+        primary_btn_text: "Register Today",
+        primary_btn_url: "#contact",
+        primary_btn_style: "gradient",
+        primary_btn_radius: "pill",
+        secondary_btn_text: "Explore Tracks",
         secondary_btn_url: "#features",
-        hero_image: "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80"
+        hero_image: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=900&auto=format&fit=crop&q=80",
+        hero_image_radius: "14px",
+        hero_image_shadow: "deep",
+        hero_image_aspect: "16/9"
       };
     } else if (type === "features") {
       compData = {
-        section_tag: "HIGHLIGHTS",
-        section_title: "Conference Features",
-        section_subtitle: "Accelerating researcher impact with high-value technical sessions.",
+        section_tag: "KEY PILLARS",
+        section_title: "Conference Scientific Tracks",
+        section_subtitle: "Accelerating discovery across multidisciplinary boundaries.",
         items: [
-          { icon: "🔬", title: "Laboratory Sessions", description: "Hands-on data modeling workshops." },
-          { icon: "📊", title: "Publication Insights", description: "Strategies for high-impact journal submissions." },
-          { icon: "🌐", title: "Global Outreach", description: "Network with NIH and European grant recipients." }
+          { icon: "fa-solid fa-microscope", title: "Laboratory Discoveries", description: "Novel diagnostic tools and biochemical methods." },
+          { icon: "fa-solid fa-dna", title: "Precision Genetics", description: "Targeted cellular therapies and molecular markers." },
+          { icon: "fa-solid fa-brain", title: "Computational Models", description: "High-throughput modeling and predictive biomarkers." }
         ]
       };
     } else if (type === "speakers") {
       compData = {
-        section_tag: "KEYNOTES",
-        section_title: "Featured Faculty",
-        section_subtitle: "Renowned principal investigators and laboratory chairs.",
+        section_tag: "FACULTY",
+        section_title: "Distinguished Keynote Speakers",
+        section_subtitle: "Pioneering faculty and principal investigators presenting revolutionary work.",
         speakers: [
           {
-            name: "Dr. Alexander Ross",
-            role: "Professor of Molecular Genetics",
-            affiliation: "Cambridge BioTech Lab",
-            photo: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?auto=format&fit=crop&w=600&q=80",
-            bio: "Leader in computational genetic architecture."
+            name: "Prof. Elena Rostova",
+            role: "Chief Scientist & Chair",
+            affiliation: "Oxford Genomic Technologies",
+            photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
+            bio: "Leader in next-generation single-cell analysis and clinical genomics."
+          },
+          {
+            name: "Dr. Marcus Vance",
+            role: "Director of Research",
+            affiliation: "Stanford Research Institute",
+            photo: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&auto=format&fit=crop&q=80",
+            bio: "Principal Investigator on ongoing NIH-funded translational programs."
           }
         ]
       };
     } else if (type === "pricing") {
       compData = {
-        section_tag: "PRICING",
-        section_title: "Registration Tiers",
-        section_subtitle: "Choose your access pass.",
+        section_tag: "PASSES & TICKETS",
+        section_title: "Registration Options",
+        section_subtitle: "Choose the admission tier that best fits your attendance mode.",
         tiers: [
           {
-            name: "Standard Pass",
-            price: "$299",
-            period: "one-time",
+            name: "Academic Pass",
+            price: "$199",
+            period: "/ delegate",
+            featured: false,
+            description: "Full access for faculty, students, and postdocs.",
+            features: ["All Scientific Sessions", "Poster Hall Admission", "Digital Proceedings"],
+            btn_label: "Select Academic",
+            btn_url: "#contact"
+          },
+          {
+            name: "Industry Full Pass",
+            price: "$499",
+            period: "/ delegate",
             featured: true,
-            badge: "POPULAR",
-            description: "Full event access including workshop archives.",
-            features: ["Keynotes Access", "Networking Hall", "Certificate"],
-            btn_label: "Select Pass",
+            description: "Complete access for commercial, pharma, and biotech teams.",
+            features: ["Full Priority Admission", "VIP Networking Lounge", "Access to Raw Datasets", "Gala Reception"],
+            btn_label: "Select Industry VIP",
             btn_url: "#contact"
           }
         ]
       };
     } else if (type === "gallery") {
       compData = {
-        section_tag: "GALLERY",
-        section_title: "Symposium Highlights",
-        section_subtitle: "Photos from previous summits.",
+        section_tag: "CAMPUS & VENUE",
+        section_title: "Symposium Venue & Posters",
         images: [
-          { url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?auto=format&fit=crop&w=800&q=80", caption: "Main Hall" },
-          { url: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?auto=format&fit=crop&w=800&q=80", caption: "Poster Session" }
+          { url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&auto=format&fit=crop&q=80", caption: "Grand Science Auditorium" },
+          { url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80", caption: "Biochemical Lab Demo" }
         ]
       };
     } else if (type === "faq") {
       compData = {
         section_tag: "FAQ",
         section_title: "Frequently Asked Questions",
-        section_subtitle: "Common questions regarding registration and abstracts.",
         faqs: [
-          { q: "How can I register my laboratory team?", a: "Fill out the contact form below to receive a group discount invoice." }
+          { q: "How can I submit an abstract?", a: "Abstract submissions open through the official portal until 60 days before the conference date." },
+          { q: "Are CME / CPD credits provided?", a: "Yes, certified educational credits are awarded for all registered attendees upon session completion." }
         ]
       };
     } else if (type === "contact") {
       compData = {
-        section_tag: "CONTACT",
-        section_title: "Inquiries & RSVPs",
-        section_subtitle: "Reach out to the conference coordination desk.",
-        email: "contact@sciprospect.internal",
-        phone: "+1 800 555-0199",
-        address: "Innovation Center",
-        form_button_label: "Submit Inquiry"
-      };
-    } else if (type === "footer") {
-      compData = {
-        brand_name: currentSite.name,
-        tagline: "Empowering researcher intelligence and scientific outreach.",
-        copyright: `© ${new Date().getFullYear()} ${currentSite.name}. All rights reserved.`,
-        links: [{ label: "Terms", url: "#" }, { label: "Privacy", url: "#" }]
+        section_tag: "REGISTRATION",
+        section_title: "Connect & Reserve Your Pass",
+        section_subtitle: "Contact the symposium secretariat with any questions.",
+        email: "symposium2026@conference.org",
+        phone: "+1 (555) 329-8472",
+        location: "BioTech Innovation Hub, Cambridge, MA",
+        btn_text: "Submit Inquiry"
       };
     }
 
-    currentSite.schema_json.push({
+    const newComp = {
       id: newId,
       type: type,
       title: type.toUpperCase(),
       data: compData
-    });
+    };
 
+    currentSite.schema_json.push(newComp);
     renderCanvas();
     selectComponentForEditing(newId);
-    showToast(`Added ${type} section`, "info");
+    showToast(`Added ${type} section`, "success");
   }
 
-  // Render Canvas
+  // RENDER CANVAS WITH DYNAMIC HIGH-CONTRAST LIGHT & DARK MODES
   function renderCanvas() {
     if (!canvasSectionsList || !currentSite) return;
     const comps = currentSite.schema_json || [];
@@ -3012,20 +3091,24 @@ document.addEventListener("DOMContentLoaded", () => {
     if (comps.length === 0) {
       canvasSectionsList.innerHTML = `
         <div style="text-align: center; padding: 5rem 1rem; color: #64748b;">
-          <h3>Canvas is Empty</h3>
-          <p>Click any component on the left palette to begin designing your website.</p>
+          <span style="font-size: 2.5rem; display:block; margin-bottom: 0.5rem;">🎨</span>
+          <h3 style="color: #cbd5e1; margin-bottom: 0.5rem;">Canvas is Empty</h3>
+          <p>Click any component on the left palette to insert into your page.</p>
         </div>
       `;
       return;
     }
 
     const theme = currentSite.theme_config || {};
-    const primary = theme.primary_color || "#38bdf8";
-    const bg = theme.bg_color || "#0b0f19";
+    const mode = theme.mode || "dark";
+    const isLight = (mode === "light" || theme.bg_color === "#f8fafc" || theme.bg_color === "#ffffff" || theme.bg_color === "#f0fdf4");
+    const primary = theme.primary_color || (isLight ? "#2563eb" : "#38bdf8");
+    const bg = theme.bg_color || (isLight ? "#f8fafc" : "#0b0f19");
 
     canvasSectionsList.style.backgroundColor = bg;
+    canvasSectionsList.className = isLight ? "theme-light-canvas" : "theme-dark-canvas";
 
-    canvasSectionsList.innerHTML = comps.map((comp, idx) => {
+    canvasSectionsList.innerHTML = comps.map((comp) => {
       const isSelected = (comp.id === activeComponentId);
       return `
         <div class="canvas-section-wrapper ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
@@ -3046,159 +3129,226 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("");
   }
 
+  // RENDER INDIVIDUAL COMPONENT WITH PROPER CONTRAST & VECTOR ICONS
   function renderComponentHTML(comp, primary) {
     const d = comp.data || {};
     const t = comp.type;
+    const theme = currentSite.theme_config || {};
+    const mode = theme.mode || "dark";
+    const isLight = (mode === "light" || theme.bg_color === "#f8fafc" || theme.bg_color === "#ffffff" || theme.bg_color === "#f0fdf4");
+    const accent = theme.accent_color || (isLight ? "#0284c7" : "#6366f1");
+
+    // Dynamic contrast colors
+    const textTitle = isLight ? "#0f172a" : "#ffffff";
+    const textMuted = isLight ? "#475569" : "#94a3b8";
+    const cardBg = isLight ? "#ffffff" : "rgba(255, 255, 255, 0.04)";
+    const cardBorder = isLight ? "#e2e8f0" : "rgba(255, 255, 255, 0.08)";
+    const cardShadow = isLight ? "0 4px 16px rgba(0, 0, 0, 0.06)" : "none";
+    const navBorder = isLight ? "#e2e8f0" : "rgba(255, 255, 255, 0.08)";
+    const navBg = isLight ? "rgba(255, 255, 255, 0.95)" : "rgba(11, 15, 25, 0.9)";
 
     if (t === "navbar") {
-      const links = (d.links || []).map(l => `<a href="#" style="color:#cbd5e1;font-size:0.85rem;margin-right:1rem;">${l.label}</a>`).join("");
+      const links = (d.links || []).map(l => `<a href="#" style="color:${isLight ? '#334155' : '#cbd5e1'};font-size:0.88rem;margin-right:1.25rem;font-weight:500;">${escapeHtml(l.label)}</a>`).join("");
       return `
-        <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.08);">
-          <div style="font-weight:800;color:#fff;font-size:1.15rem;">${d.brand_name || 'Brand'}</div>
-          <div>${links} <span style="background:${primary};color:#fff;padding:0.35rem 0.85rem;border-radius:6px;font-size:0.82rem;font-weight:700;">${d.cta_label || 'Register'}</span></div>
+        <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${navBorder};background:${navBg};">
+          <div style="font-weight:800;color:${textTitle};font-size:1.2rem;display:flex;align-items:center;gap:0.5rem;">
+            <i class="fa-solid fa-atom" style="color:${primary};font-size:1.15rem;"></i>
+            <span>${escapeHtml(d.brand_name || 'Brand')}</span>
+          </div>
+          <div>${links} <span style="background:${primary};color:#fff;padding:0.45rem 1rem;border-radius:6px;font-size:0.85rem;font-weight:700;">${escapeHtml(d.cta_label || 'Register')}</span></div>
         </div>
       `;
     } else if (t === "hero") {
+      // Headline Gradient logic
+      let headlineStyle = `font-size:${d.font_size || '2.4rem'};font-weight:800;line-height:1.2;margin:0.6rem 0;`;
+      if (d.headline_gradient !== false) {
+        let gradStr = "";
+        const preset = d.gradient_preset || (isLight ? "navy_blue" : "cyan_blue");
+        if (preset === "cyan_blue") gradStr = "linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%)";
+        else if (preset === "emerald_teal") gradStr = "linear-gradient(135deg, #34d399 0%, #06b6d4 100%)";
+        else if (preset === "purple_violet") gradStr = "linear-gradient(135deg, #c084fc 0%, #ec4899 100%)";
+        else if (preset === "sunset_amber") gradStr = "linear-gradient(135deg, #fbbf24 0%, #f43f5e 100%)";
+        else if (preset === "navy_blue") gradStr = "linear-gradient(135deg, #0f172a 0%, #2563eb 100%)";
+        else if (preset === "custom" && d.custom_grad_color1 && d.custom_grad_color2) {
+          gradStr = `linear-gradient(135deg, ${d.custom_grad_color1} 0%, ${d.custom_grad_color2} 100%)`;
+        } else {
+          gradStr = isLight ? "linear-gradient(135deg, #0f172a 0%, #2563eb 100%)" : `linear-gradient(135deg, ${primary} 0%, #818cf8 100%)`;
+        }
+        headlineStyle += `background:${gradStr};-webkit-background-clip:text;-webkit-text-fill-color:transparent;`;
+      } else {
+        headlineStyle += `color:${textTitle};`;
+      }
+
+      // Button styling
+      const btnRadius = d.primary_btn_radius === "pill" ? "9999px" : (d.primary_btn_radius === "sharp" ? "2px" : "8px");
+      let btnBg = primary;
+      if (d.primary_btn_style === "gradient") {
+        btnBg = `linear-gradient(135deg, ${d.primary_btn_bg || primary}, ${accent})`;
+      } else if (d.primary_btn_bg) {
+        btnBg = d.primary_btn_bg;
+      }
+      const btnGlow = d.primary_btn_glow ? `box-shadow: 0 0 20px rgba(56, 189, 248, 0.45);` : (isLight ? `box-shadow: 0 4px 14px rgba(37,99,235,0.22);` : "");
+
+      // Image styling
+      const imgRadius = d.hero_image_radius || "14px";
+      const imgShadow = (d.hero_image_shadow === "none") ? "none" : (d.hero_image_shadow === "deep" ? "0 20px 45px rgba(0,0,0,0.5)" : "0 10px 25px rgba(0,0,0,0.35)");
+      const imgAspect = (d.hero_image_aspect && d.hero_image_aspect !== "auto") ? `aspect-ratio:${d.hero_image_aspect};object-fit:cover;` : "object-fit:cover;";
+
+      const isCentered = (d.text_align === "center");
+
       return `
-        <div style="padding:3.5rem 1.5rem;display:grid;grid-template-columns:1.2fr 0.8fr;gap:2rem;align-items:center;">
-          <div>
-            <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;">${d.eyebrow || ''}</span>
-            <h1 style="font-size:2.2rem;font-weight:800;color:#fff;line-height:1.2;margin:0.5rem 0;">${d.headline || 'Headline'}</h1>
-            <p style="color:#94a3b8;font-size:0.95rem;margin-bottom:1.5rem;">${d.subheadline || ''}</p>
-            <div>
-              <span style="background:${primary};color:#fff;padding:0.6rem 1.4rem;border-radius:8px;font-weight:700;margin-right:0.6rem;">${d.primary_btn_text || 'Action'}</span>
-              <span style="border:1px solid rgba(255,255,255,0.2);color:#fff;padding:0.6rem 1.4rem;border-radius:8px;">${d.secondary_btn_text || 'Learn More'}</span>
+        <div style="padding:3.5rem 1.5rem;${isCentered ? 'text-align:center;' : 'display:grid;grid-template-columns:1.2fr 0.8fr;gap:2.5rem;align-items:center;'}">
+          <div style="${isCentered ? 'max-width:800px;margin:0 auto 2rem auto;' : ''}">
+            <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.eyebrow || '')}</span>
+            <h1 style="${headlineStyle}">${escapeHtml(d.headline || 'Headline')}</h1>
+            <p style="color:${textMuted};font-size:1rem;line-height:1.6;margin-bottom:1.75rem;">${escapeHtml(d.subheadline || '')}</p>
+            <div style="display:flex;gap:0.75rem;${isCentered ? 'justify-content:center;' : ''}align-items:center;flex-wrap:wrap;">
+              <span style="background:${btnBg};color:${d.primary_btn_text_color || '#fff'};padding:0.75rem 1.6rem;border-radius:${btnRadius};font-weight:700;font-size:0.92rem;${btnGlow}">${escapeHtml(d.primary_btn_text || 'Action')}</span>
+              <span style="border:1px solid ${isLight ? '#cbd5e1' : 'rgba(255,255,255,0.2)'};color:${isLight ? '#0f172a' : '#fff'};background:${isLight ? '#fff' : 'transparent'};padding:0.75rem 1.6rem;border-radius:${btnRadius};font-size:0.92rem;font-weight:600;">${escapeHtml(d.secondary_btn_text || 'Learn More')}</span>
             </div>
           </div>
-          <div>
-            <img src="${d.hero_image || ''}" style="width:100%;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,0.5);" onerror="this.style.display='none'">
+          <div style="${isCentered ? 'max-width:750px;margin:0 auto;' : ''}">
+            <img src="${escapeHtml(d.hero_image || '')}" style="width:100%;border-radius:${imgRadius};box-shadow:${imgShadow};${imgAspect}" onerror="this.style.display='none'">
           </div>
         </div>
       `;
     } else if (t === "features") {
-      const items = (d.items || []).map(i => `
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:10px;padding:1.25rem;">
-          <div style="font-size:1.5rem;margin-bottom:0.5rem;">${i.icon || '✦'}</div>
-          <h4 style="color:#fff;font-size:1rem;margin-bottom:0.35rem;">${i.title}</h4>
-          <p style="color:#94a3b8;font-size:0.82rem;">${i.description}</p>
-        </div>
-      `).join("");
+      const items = (d.items || []).map(i => {
+        const iconClass = i.icon || "fa-solid fa-microscope";
+        const iconColor = i.icon_color || primary;
+        return `
+          <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;padding:1.6rem;box-shadow:${cardShadow};">
+            <div style="width:50px;height:50px;border-radius:12px;background:${isLight ? 'rgba(37,99,235,0.08)' : 'rgba(56,189,248,0.12)'};border:1px solid ${isLight ? 'rgba(37,99,235,0.18)' : 'rgba(56,189,248,0.25)'};display:flex;align-items:center;justify-content:center;margin-bottom:1.15rem;">
+              ${renderVectorIcon(iconClass, iconColor)}
+            </div>
+            <h4 style="color:${textTitle};font-size:1.05rem;font-weight:700;margin-bottom:0.45rem;">${escapeHtml(i.title || '')}</h4>
+            <p style="color:${textMuted};font-size:0.88rem;line-height:1.55;">${escapeHtml(i.description || '')}</p>
+          </div>
+        `;
+      }).join("");
       return `
-        <div style="padding:3rem 1.5rem;text-align:center;">
-          <span style="font-size:0.72rem;font-weight:700;color:${primary};letter-spacing:1px;">${d.section_tag || ''}</span>
-          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
-          <p style="color:#94a3b8;font-size:0.9rem;max-width:550px;margin:0 auto 2rem auto;">${d.section_subtitle || ''}</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.25rem;text-align:left;">
+        <div style="padding:3.5rem 1.5rem;text-align:center;">
+          <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.section_tag || '')}</span>
+          <h2 style="color:${textTitle};font-size:2rem;font-weight:800;margin:0.4rem 0 0.6rem 0;">${escapeHtml(d.section_title || '')}</h2>
+          <p style="color:${textMuted};font-size:0.95rem;max-width:600px;margin:0 auto 2.5rem auto;line-height:1.6;">${escapeHtml(d.section_subtitle || '')}</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.5rem;text-align:left;">
             ${items}
           </div>
         </div>
       `;
     } else if (t === "speakers") {
       const spk = (d.speakers || []).map(s => `
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:12px;overflow:hidden;">
-          <img src="${s.photo}" style="width:100%;height:160px;object-fit:cover;" onerror="this.src='https://via.placeholder.com/300'">
-          <div style="padding:1rem;">
-            <h4 style="color:#fff;font-size:0.95rem;">${s.name}</h4>
-            <div style="color:${primary};font-size:0.78rem;font-weight:600;">${s.role}</div>
-            <div style="color:#64748b;font-size:0.72rem;margin-bottom:0.4rem;">${s.affiliation}</div>
-            <p style="color:#94a3b8;font-size:0.75rem;">${s.bio}</p>
+        <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:14px;overflow:hidden;box-shadow:${cardShadow};">
+          <img src="${escapeHtml(s.photo || '')}" style="width:100%;height:180px;object-fit:cover;" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80'">
+          <div style="padding:1.15rem;">
+            <h4 style="color:${textTitle};font-size:1.05rem;font-weight:700;">${escapeHtml(s.name || '')}</h4>
+            <div style="color:${primary};font-size:0.82rem;font-weight:600;margin-top:2px;">${escapeHtml(s.role || '')}</div>
+            <div style="color:${textMuted};font-size:0.78rem;margin-bottom:0.6rem;">${escapeHtml(s.affiliation || '')}</div>
+            <p style="color:${textMuted};font-size:0.8rem;line-height:1.5;">${escapeHtml(s.bio || '')}</p>
           </div>
         </div>
       `).join("");
       return `
-        <div style="padding:3rem 1.5rem;text-align:center;">
-          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
-          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
-          <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:2rem;">${d.section_subtitle || ''}</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1.25rem;text-align:left;">
+        <div style="padding:3.5rem 1.5rem;text-align:center;">
+          <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.section_tag || '')}</span>
+          <h2 style="color:${textTitle};font-size:2rem;font-weight:800;margin:0.4rem 0 0.6rem 0;">${escapeHtml(d.section_title || '')}</h2>
+          <p style="color:${textMuted};font-size:0.95rem;max-width:600px;margin:0 auto 2.5rem auto;line-height:1.6;">${escapeHtml(d.section_subtitle || '')}</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1.5rem;text-align:left;">
             ${spk}
           </div>
         </div>
       `;
     } else if (t === "pricing") {
       const tiers = (d.tiers || []).map(ti => `
-        <div style="background:rgba(255,255,255,0.04);border:1px solid ${ti.featured ? primary : 'rgba(255,255,255,0.08)'};border-radius:14px;padding:1.5rem;text-align:center;">
-          <h4 style="color:#fff;font-size:1.05rem;">${ti.name}</h4>
-          <div style="font-size:2rem;font-weight:800;color:#fff;margin:0.5rem 0;">${ti.price}</div>
-          <p style="color:#94a3b8;font-size:0.78rem;margin-bottom:1rem;">${ti.description}</p>
-          <ul style="list-style:none;text-align:left;color:#cbd5e1;font-size:0.8rem;margin-bottom:1.5rem;">
-            ${(ti.features || []).map(f => `<li style="margin-bottom:0.35rem;">✓ ${f}</li>`).join('')}
+        <div style="background:${cardBg};border:1.5px solid ${ti.featured ? primary : cardBorder};border-radius:14px;padding:1.75rem;text-align:center;box-shadow:${ti.featured ? (isLight ? '0 10px 25px rgba(37,99,235,0.15)' : '0 0 25px rgba(56,189,248,0.25)') : cardShadow};position:relative;">
+          ${ti.featured ? `<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:${primary};color:#fff;font-size:0.7rem;font-weight:800;padding:2px 10px;border-radius:9999px;letter-spacing:1px;">RECOMMENDED</div>` : ''}
+          <h4 style="color:${textTitle};font-size:1.15rem;font-weight:700;">${escapeHtml(ti.name || '')}</h4>
+          <div style="font-size:2.2rem;font-weight:800;color:${textTitle};margin:0.5rem 0;">${escapeHtml(ti.price || '')} <small style="font-size:0.8rem;color:${textMuted};font-weight:500;">${escapeHtml(ti.period || '')}</small></div>
+          <p style="color:${textMuted};font-size:0.82rem;margin-bottom:1.25rem;line-height:1.5;">${escapeHtml(ti.description || '')}</p>
+          <ul style="list-style:none;text-align:left;color:${isLight ? '#334155' : '#cbd5e1'};font-size:0.85rem;margin-bottom:1.75rem;">
+            ${(ti.features || []).map(f => `<li style="margin-bottom:0.45rem;display:flex;align-items:center;gap:0.45rem;"><i class="fa-solid fa-check" style="color:${primary};font-size:0.75rem;"></i><span>${escapeHtml(f)}</span></li>`).join('')}
           </ul>
-          <span style="background:${ti.featured ? primary : 'rgba(255,255,255,0.1)'};color:#fff;padding:0.5rem 1rem;border-radius:6px;display:block;font-weight:700;font-size:0.85rem;">${ti.btn_label || 'Select'}</span>
+          <span style="background:${ti.featured ? `linear-gradient(135deg, ${accent}, ${primary})` : (isLight ? '#f1f5f9' : 'rgba(255,255,255,0.08)')};color:${ti.featured ? '#fff' : textTitle};border:1px solid ${cardBorder};padding:0.65rem 1rem;border-radius:8px;display:block;font-weight:700;font-size:0.88rem;">${escapeHtml(ti.btn_label || 'Select Pass')}</span>
         </div>
       `).join("");
       return `
-        <div style="padding:3rem 1.5rem;text-align:center;">
-          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
-          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
-          <p style="color:#94a3b8;font-size:0.9rem;margin-bottom:2rem;">${d.section_subtitle || ''}</p>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:1.5rem;">
+        <div style="padding:3.5rem 1.5rem;text-align:center;">
+          <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.section_tag || '')}</span>
+          <h2 style="color:${textTitle};font-size:2rem;font-weight:800;margin:0.4rem 0 0.6rem 0;">${escapeHtml(d.section_title || '')}</h2>
+          <p style="color:${textMuted};font-size:0.95rem;max-width:600px;margin:0 auto 2.5rem auto;line-height:1.6;">${escapeHtml(d.section_subtitle || '')}</p>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:1.5rem;">
             ${tiers}
           </div>
         </div>
       `;
     } else if (t === "gallery") {
       const imgs = (d.images || []).map(img => `
-        <div style="border-radius:10px;overflow:hidden;height:140px;position:relative;">
-          <img src="${img.url}" style="width:100%;height:100%;object-fit:cover;">
-          <div style="position:absolute;bottom:0;left:0;right:0;padding:0.4rem;background:rgba(0,0,0,0.7);font-size:0.7rem;color:#fff;">${img.caption}</div>
+        <div style="border-radius:12px;overflow:hidden;height:160px;position:relative;box-shadow:${cardShadow};">
+          <img src="${escapeHtml(img.url || '')}" style="width:100%;height:100%;object-fit:cover;">
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:0.5rem;background:rgba(0,0,0,0.7);font-size:0.75rem;color:#fff;backdrop-filter:blur(4px);">${escapeHtml(img.caption || '')}</div>
         </div>
       `).join("");
       return `
-        <div style="padding:3rem 1.5rem;text-align:center;">
-          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
-          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
-          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1rem;margin-top:1.5rem;">
+        <div style="padding:3.5rem 1.5rem;text-align:center;">
+          <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.section_tag || '')}</span>
+          <h2 style="color:${textTitle};font-size:2rem;font-weight:800;margin:0.4rem 0 0.6rem 0;">${escapeHtml(d.section_title || '')}</h2>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.25rem;margin-top:2rem;">
             ${imgs}
           </div>
         </div>
       `;
     } else if (t === "faq") {
       const faqs = (d.faqs || []).map(f => `
-        <div style="background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);border-radius:8px;padding:0.85rem 1rem;margin-bottom:0.65rem;text-align:left;">
-          <div style="font-weight:700;color:#fff;font-size:0.9rem;">${f.q}</div>
-          <div style="color:#94a3b8;font-size:0.82rem;margin-top:0.35rem;">${f.a}</div>
+        <div style="background:${cardBg};border:1px solid ${cardBorder};border-radius:10px;padding:1.15rem 1.35rem;margin-bottom:0.75rem;text-align:left;box-shadow:${cardShadow};">
+          <div style="font-weight:700;color:${textTitle};font-size:0.95rem;display:flex;justify-content:space-between;align-items:center;">
+            <span>${escapeHtml(f.q)}</span>
+            <i class="fa-solid fa-chevron-down" style="color:${primary};font-size:0.75rem;"></i>
+          </div>
+          <div style="color:${textMuted};font-size:0.85rem;margin-top:0.45rem;line-height:1.6;">${escapeHtml(f.a)}</div>
         </div>
       `).join("");
       return `
-        <div style="padding:3rem 1.5rem;text-align:center;">
-          <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || ''}</span>
-          <h2 style="color:#fff;font-size:1.8rem;margin:0.35rem 0;">${d.section_title || ''}</h2>
-          <div style="max-width:600px;margin:1.5rem auto 0 auto;">
+        <div style="padding:3.5rem 1.5rem;text-align:center;">
+          <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.section_tag || '')}</span>
+          <h2 style="color:${textTitle};font-size:2rem;font-weight:800;margin:0.4rem 0 0.6rem 0;">${escapeHtml(d.section_title || '')}</h2>
+          <div style="max-width:650px;margin:2rem auto 0 auto;">
             ${faqs}
           </div>
         </div>
       `;
     } else if (t === "contact") {
       return `
-        <div style="padding:3rem 1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:2rem;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:14px;margin:2rem 1.5rem;">
+        <div style="padding:3rem 1.5rem;display:grid;grid-template-columns:1fr 1fr;gap:2rem;background:${cardBg};border:1px solid ${cardBorder};border-radius:16px;margin:2rem 1.5rem;box-shadow:${cardShadow};">
           <div>
-            <span style="font-size:0.72rem;font-weight:700;color:${primary};">${d.section_tag || 'CONTACT'}</span>
-            <h3 style="color:#fff;font-size:1.5rem;margin:0.35rem 0;">${d.section_title || 'Get in Touch'}</h3>
-            <p style="color:#94a3b8;font-size:0.85rem;margin-bottom:1rem;">${d.section_subtitle || ''}</p>
-            <div style="color:#cbd5e1;font-size:0.85rem;line-height:1.7;">
-              <div>📧 ${d.email || ''}</div>
-              <div>📞 ${d.phone || ''}</div>
-              <div>📍 ${d.address || ''}</div>
+            <span style="font-size:0.75rem;font-weight:700;color:${primary};text-transform:uppercase;letter-spacing:1px;">${escapeHtml(d.section_tag || 'CONTACT')}</span>
+            <h3 style="color:${textTitle};font-size:1.6rem;font-weight:800;margin:0.4rem 0 0.75rem 0;">${escapeHtml(d.section_title || 'Get in Touch')}</h3>
+            <p style="color:${textMuted};font-size:0.88rem;margin-bottom:1.5rem;line-height:1.6;">${escapeHtml(d.section_subtitle || '')}</p>
+            <div style="font-size:0.85rem;line-height:2;">
+              <div style="display:flex;align-items:center;gap:0.75rem;"><i class="fa-solid fa-envelope" style="color:${primary};width:16px;"></i> <span style="color:${textTitle};">${escapeHtml(d.email || '')}</span></div>
+              <div style="display:flex;align-items:center;gap:0.75rem;"><i class="fa-solid fa-phone" style="color:${primary};width:16px;"></i> <span style="color:${textTitle};">${escapeHtml(d.phone || '')}</span></div>
+              <div style="display:flex;align-items:center;gap:0.75rem;"><i class="fa-solid fa-location-dot" style="color:${primary};width:16px;"></i> <span style="color:${textTitle};">${escapeHtml(d.location || '')}</span></div>
             </div>
           </div>
-          <div>
-            <div style="background:rgba(0,0,0,0.3);padding:1rem;border-radius:8px;border:1px solid rgba(255,255,255,0.08);">
-              <div style="color:#94a3b8;font-size:0.82rem;margin-bottom:0.75rem;">[Live Form Input Fields]</div>
-              <span style="background:${primary};color:#fff;padding:0.45rem 1rem;border-radius:6px;font-size:0.8rem;font-weight:700;display:inline-block;">${d.form_button_label || 'Submit'}</span>
-            </div>
+          <div style="display:flex;flex-direction:column;gap:0.75rem;justify-content:center;">
+            <input type="text" placeholder="Your Full Name" style="background:${isLight ? '#f8fafc' : '#0f172a'};border:1px solid ${cardBorder};padding:0.65rem 0.85rem;border-radius:8px;color:${textTitle};font-size:0.85rem;" disabled>
+            <input type="email" placeholder="Academic / Institutional Email" style="background:${isLight ? '#f8fafc' : '#0f172a'};border:1px solid ${cardBorder};padding:0.65rem 0.85rem;border-radius:8px;color:${textTitle};font-size:0.85rem;" disabled>
+            <textarea placeholder="Message / Abstract Inquiry" style="background:${isLight ? '#f8fafc' : '#0f172a'};border:1px solid ${cardBorder};padding:0.65rem 0.85rem;border-radius:8px;color:${textTitle};font-size:0.85rem;min-height:70px;" disabled></textarea>
+            <button style="background:${primary};color:#fff;border:none;padding:0.75rem;border-radius:8px;font-weight:700;font-size:0.88rem;cursor:default;">${escapeHtml(d.btn_text || 'Submit Inquiry')}</button>
           </div>
         </div>
       `;
     } else if (t === "footer") {
       return `
-        <div style="padding:2rem 1.5rem;border-top:1px solid rgba(255,255,255,0.08);display:flex;justify-content:space-between;align-items:center;color:#94a3b8;font-size:0.8rem;">
-          <div>${d.brand_name || 'Brand'} — ${d.tagline || ''}</div>
-          <div>${d.copyright || ''}</div>
+        <div style="padding:2.5rem 1.5rem;text-align:center;border-top:1px solid ${cardBorder};background:${isLight ? '#ffffff' : 'rgba(0,0,0,0.3)'};">
+          <div style="font-weight:800;color:${textTitle};font-size:1.15rem;margin-bottom:0.5rem;display:flex;align-items:center;justify-content:center;gap:0.5rem;">
+            <i class="fa-solid fa-atom" style="color:${primary};"></i>
+            <span>${escapeHtml(d.brand_name || 'Conference 2026')}</span>
+          </div>
+          <p style="color:${textMuted};font-size:0.82rem;">${escapeHtml(d.copyright || '© 2026 All Rights Reserved.')}</p>
         </div>
       `;
     }
-    return `<div style="padding:1.5rem;color:#94a3b8;">${comp.title}</div>`;
+    return `<div style="padding:1.5rem;color:${textMuted};">${escapeHtml(comp.title)}</div>`;
   }
 
   // Component Reordering & Deletion
@@ -3227,8 +3377,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (inspectorContent) {
         inspectorContent.innerHTML = `
           <div class="empty-inspector-notice">
-            <span style="font-size: 2rem;">👈</span>
-            <p>Click any block on the canvas to configure its text, images, speakers, and pricing tiers.</p>
+            <span style="font-size: 2.2rem; display:block; margin-bottom: 0.5rem;">👈</span>
+            <p>Click any block on the canvas to configure its typography, text gradient, buttons, images, and FontAwesome icons.</p>
           </div>
         `;
       }
@@ -3252,186 +3402,533 @@ document.addEventListener("DOMContentLoaded", () => {
     renderInspector(comp);
   };
 
+  // COMPREHENSIVE BLOCK INSPECTOR CONTROLS
   function renderInspector(comp) {
     if (!inspectorContent) return;
     const d = comp.data || {};
     const t = comp.type;
 
     let html = `
-      <div style="margin-bottom: 1.25rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1);">
-        <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">${t.toUpperCase()} BLOCK</span>
-        <h3 style="font-size: 1.1rem; color: #fff; margin-top: 0.15rem;">${comp.title}</h3>
+      <div style="margin-bottom: 1.15rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">${t.toUpperCase()} BLOCK</span>
+          <h3 style="font-size: 1.1rem; color: #fff; margin: 0.15rem 0 0 0;">${escapeHtml(comp.title)}</h3>
+        </div>
+        <div style="display:flex; gap:0.35rem;">
+          <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
+          <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move Down">⬇</button>
+          <button class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete">🗑</button>
+        </div>
       </div>
     `;
 
     if (t === "hero") {
       html += `
-        <div class="inspector-field">
-          <label>Eyebrow Badge</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.eyebrow || '')}" oninput="updateField('${comp.id}', 'eyebrow', this.value)">
+        <!-- Section 1: Typography & Headline -->
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-heading"></i>
+            <span>Typography & Headline</span>
+          </div>
+
+          <div class="inspector-field">
+            <label>Eyebrow Badge</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.eyebrow || '')}" oninput="updateField('${comp.id}', 'eyebrow', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Main Headline</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.headline || '')}" oninput="updateField('${comp.id}', 'headline', this.value)">
+          </div>
+
+          <!-- Headline Gradient Toggle -->
+          <label class="inspector-toggle-label">
+            <input type="checkbox" ${d.headline_gradient !== false ? 'checked' : ''} onchange="updateField('${comp.id}', 'headline_gradient', this.checked)">
+            <span>✨ Apply Vibrant Text Gradient</span>
+          </label>
+
+          <div class="inspector-field" style="margin-top:0.5rem;">
+            <label>Gradient Theme Preset</label>
+            <select class="inspector-select" onchange="updateField('${comp.id}', 'gradient_preset', this.value)">
+              <option value="cyan_blue" ${(d.gradient_preset === 'cyan_blue' || !d.gradient_preset) ? 'selected' : ''}>Cyan & Royal Blue (Tech / Bio)</option>
+              <option value="emerald_teal" ${d.gradient_preset === 'emerald_teal' ? 'selected' : ''}>Emerald & Teal (Biotech / Green)</option>
+              <option value="purple_violet" ${d.gradient_preset === 'purple_violet' ? 'selected' : ''}>Violet & Pink (Neuro / Genomics)</option>
+              <option value="sunset_amber" ${d.gradient_preset === 'sunset_amber' ? 'selected' : ''}>Sunset & Amber (Energy / High-Tech)</option>
+              <option value="navy_blue" ${d.gradient_preset === 'navy_blue' ? 'selected' : ''}>Deep Navy & Blue (Clean Light Mode)</option>
+              <option value="custom" ${d.gradient_preset === 'custom' ? 'selected' : ''}>🎨 Custom Two-Color Gradient</option>
+            </select>
+          </div>
+
+          ${d.gradient_preset === 'custom' ? `
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem; margin-top:0.4rem;">
+              <div>
+                <label style="font-size:0.72rem; color:#94a3b8;">Start Color</label>
+                <input type="color" class="inspector-input" style="padding:2px; height:36px;" value="${d.custom_grad_color1 || '#38bdf8'}" onchange="updateField('${comp.id}', 'custom_grad_color1', this.value)">
+              </div>
+              <div>
+                <label style="font-size:0.72rem; color:#94a3b8;">End Color</label>
+                <input type="color" class="inspector-input" style="padding:2px; height:36px;" value="${d.custom_grad_color2 || '#818cf8'}" onchange="updateField('${comp.id}', 'custom_grad_color2', this.value)">
+              </div>
+            </div>
+          ` : ''}
+
+          <div class="inspector-field" style="margin-top:0.75rem;">
+            <label>Layout Alignment</label>
+            <div class="segmented-control">
+              <button class="segmented-btn ${(d.text_align !== 'center') ? 'active' : ''}" onclick="setHeroTextAlign('${comp.id}', 'left')">Left Align (Split Grid)</button>
+              <button class="segmented-btn ${(d.text_align === 'center') ? 'active' : ''}" onclick="setHeroTextAlign('${comp.id}', 'center')">Center Align</button>
+            </div>
+          </div>
+
+          <div class="inspector-field">
+            <label>Subheadline</label>
+            <textarea class="inspector-input" oninput="updateField('${comp.id}', 'subheadline', this.value)">${escapeHtml(d.subheadline || '')}</textarea>
+          </div>
         </div>
-        <div class="inspector-field">
-          <label>Headline</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.headline || '')}" oninput="updateField('${comp.id}', 'headline', this.value)">
+
+        <!-- Section 2: Call-to-Action Buttons -->
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-square-check"></i>
+            <span>Primary & Secondary Buttons</span>
+          </div>
+
+          <div class="inspector-field">
+            <label>Primary Button Label</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.primary_btn_text || 'Register Today')}" oninput="updateField('${comp.id}', 'primary_btn_text', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Primary Button Destination (URL / Anchor)</label>
+            <input type="text" class="inspector-input" placeholder="#pricing or https://..." value="${escapeHtml(d.primary_btn_url || '#pricing')}" oninput="updateField('${comp.id}', 'primary_btn_url', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Primary Button Style</label>
+            <select class="inspector-select" onchange="updateField('${comp.id}', 'primary_btn_style', this.value)">
+              <option value="gradient" ${(d.primary_btn_style === 'gradient' || !d.primary_btn_style) ? 'selected' : ''}>Vibrant Gradient</option>
+              <option value="solid" ${d.primary_btn_style === 'solid' ? 'selected' : ''}>Solid Custom Color</option>
+            </select>
+          </div>
+
+          ${d.primary_btn_style === 'solid' ? `
+            <div class="inspector-field">
+              <label>Button Background Color</label>
+              <input type="color" class="inspector-input" style="padding:2px; height:36px;" value="${d.primary_btn_bg || '#0284c7'}" onchange="updateField('${comp.id}', 'primary_btn_bg', this.value)">
+            </div>
+          ` : `
+            <div class="inspector-field">
+              <label>Button Gradient Scheme</label>
+              <select class="inspector-select" onchange="updateField('${comp.id}', 'primary_btn_grad', this.value)">
+                <option value="cyan_indigo" ${(d.primary_btn_grad === 'cyan_indigo' || !d.primary_btn_grad) ? 'selected' : ''}>Cyan & Indigo</option>
+                <option value="emerald_teal" ${d.primary_btn_grad === 'emerald_teal' ? 'selected' : ''}>Emerald & Teal</option>
+                <option value="violet_pink" ${d.primary_btn_grad === 'violet_pink' ? 'selected' : ''}>Violet & Pink</option>
+                <option value="sunset" ${d.primary_btn_grad === 'sunset' ? 'selected' : ''}>Sunset Flame</option>
+              </select>
+            </div>
+          `}
+
+          <div class="inspector-field">
+            <label>Button Shape</label>
+            <div class="segmented-control">
+              <button class="segmented-btn ${(d.primary_btn_radius === 'pill' || !d.primary_btn_radius) ? 'active' : ''}" onclick="setPrimaryBtnRadius('${comp.id}', 'pill')">Pill</button>
+              <button class="segmented-btn ${d.primary_btn_radius === 'rounded' ? 'active' : ''}" onclick="setPrimaryBtnRadius('${comp.id}', 'rounded')">Rounded</button>
+              <button class="segmented-btn ${d.primary_btn_radius === 'sharp' ? 'active' : ''}" onclick="setPrimaryBtnRadius('${comp.id}', 'sharp')">Sharp</button>
+            </div>
+          </div>
+
+          <label class="inspector-toggle-label" style="margin-top:0.6rem;">
+            <input type="checkbox" ${d.primary_btn_glow ? 'checked' : ''} onchange="updateField('${comp.id}', 'primary_btn_glow', this.checked)">
+            <span>Add High-Glow Shadow Effect</span>
+          </label>
+
+          <div class="inspector-field" style="margin-top:0.75rem;">
+            <label>Secondary Button Label</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.secondary_btn_text || 'Explore Faculty')}" oninput="updateField('${comp.id}', 'secondary_btn_text', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Secondary Button Link</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.secondary_btn_url || '#features')}" oninput="updateField('${comp.id}', 'secondary_btn_url', this.value)">
+          </div>
         </div>
-        <div class="inspector-field">
-          <label>Subheadline</label>
-          <textarea class="inspector-input" oninput="updateField('${comp.id}', 'subheadline', this.value)">${escapeHtml(d.subheadline || '')}</textarea>
-        </div>
-        <div class="inspector-field">
-          <label>Primary Button Label</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.primary_btn_text || '')}" oninput="updateField('${comp.id}', 'primary_btn_text', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Secondary Button Label</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.secondary_btn_text || '')}" oninput="updateField('${comp.id}', 'secondary_btn_text', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Hero Image URL</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.hero_image || '')}" oninput="updateField('${comp.id}', 'hero_image', this.value)">
+
+        <!-- Section 3: Hero Image & Media -->
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-image"></i>
+            <span>Hero Image & Media</span>
+          </div>
+
+          <div class="inspector-field">
+            <label>Image URL</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.hero_image || '')}" oninput="updateField('${comp.id}', 'hero_image', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Quick Scientific Stock Presets</label>
+            <div class="stock-preset-pills">
+              ${SCIENTIFIC_STOCK_IMAGES.map(img => `
+                <button type="button" class="btn-stock-pill" onclick="setHeroStockImage('${comp.id}', '${img.url}')">${img.label}</button>
+              `).join('')}
+            </div>
+          </div>
+
+          <div class="inspector-field" style="margin-top:0.75rem;">
+            <label>Image Border Radius</label>
+            <select class="inspector-select" onchange="updateField('${comp.id}', 'hero_image_radius', this.value)">
+              <option value="14px" ${(d.hero_image_radius === '14px' || !d.hero_image_radius) ? 'selected' : ''}>Modern Rounded (14px)</option>
+              <option value="24px" ${d.hero_image_radius === '24px' ? 'selected' : ''}>Soft Pill (24px)</option>
+              <option value="0px" ${d.hero_image_radius === '0px' ? 'selected' : ''}>Sharp Edges (0px)</option>
+            </select>
+          </div>
+
+          <div class="inspector-field">
+            <label>Shadow Effect</label>
+            <select class="inspector-select" onchange="updateField('${comp.id}', 'hero_image_shadow', this.value)">
+              <option value="deep" ${(d.hero_image_shadow === 'deep' || !d.hero_image_shadow) ? 'selected' : ''}>Deep 3D Shadow</option>
+              <option value="ambient" ${d.hero_image_shadow === 'ambient' ? 'selected' : ''}>Ambient Glow</option>
+              <option value="none" ${d.hero_image_shadow === 'none' ? 'selected' : ''}>Flat (No Shadow)</option>
+            </select>
+          </div>
+
+          <div class="inspector-field">
+            <label>Aspect Ratio</label>
+            <select class="inspector-select" onchange="updateField('${comp.id}', 'hero_image_aspect', this.value)">
+              <option value="16/9" ${(d.hero_image_aspect === '16/9' || !d.hero_image_aspect) ? 'selected' : ''}>16:9 Widescreen</option>
+              <option value="4/3" ${d.hero_image_aspect === '4/3' ? 'selected' : ''}>4:3 Classic</option>
+              <option value="1/1" ${d.hero_image_aspect === '1/1' ? 'selected' : ''}>1:1 Square</option>
+              <option value="auto" ${d.hero_image_aspect === 'auto' ? 'selected' : ''}>Auto Height</option>
+            </select>
+          </div>
         </div>
       `;
     } else if (t === "features") {
       html += `
-        <div class="inspector-field">
-          <label>Section Tag</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-list-check"></i>
+            <span>Section Header</span>
+          </div>
+          <div class="inspector-field">
+            <label>Section Tag</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Title</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Subtitle</label>
+            <textarea class="inspector-input" oninput="updateField('${comp.id}', 'section_subtitle', this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
+          </div>
         </div>
-        <div class="inspector-field">
-          <label>Section Title</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Section Subtitle</label>
-          <textarea class="inspector-input" oninput="updateField('${comp.id}', 'section_subtitle', this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
-          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">Feature Items (${(d.items || []).length})</label>
-          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addFeatureItem('${comp.id}')">+ Add Item</button>
-        </div>
-        <div class="dynamic-items-container">
-          ${(d.items || []).map((item, idx) => `
-            <div class="dynamic-sub-card">
-              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'items', ${idx})">&times;</button>
-              <div style="display:flex;gap:0.5rem;margin-bottom:0.4rem;">
-                <input type="text" style="width:40px;text-align:center;" class="inspector-input" value="${escapeHtml(item.icon || '✦')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'icon', this.value)">
-                <input type="text" style="flex:1;" class="inspector-input" placeholder="Title" value="${escapeHtml(item.title || '')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'title', this.value)">
-              </div>
-              <input type="text" class="inspector-input" placeholder="Description" value="${escapeHtml(item.description || '')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'description', this.value)">
+
+        <div class="inspector-card-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div class="inspector-group-title" style="margin:0;">
+              <i class="fa-solid fa-cubes"></i>
+              <span>Feature Cards (${(d.items || []).length})</span>
             </div>
-          `).join('')}
+            <button type="button" class="btn-stock-pill" style="border-color:#38bdf8; color:#38bdf8;" onclick="addFeatureItem('${comp.id}')">+ Add Card</button>
+          </div>
+
+          <div class="dynamic-items-container">
+            ${(d.items || []).map((item, idx) => `
+              <div class="dynamic-sub-card">
+                <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'items', ${idx})" title="Delete Card">&times;</button>
+                
+                <!-- FontAwesome / Lumina Icon Selector -->
+                <label style="font-size:0.72rem; color:#94a3b8; margin-bottom:0.3rem; display:block;">Vector Icon (FontAwesome)</label>
+                <div class="icon-picker-row">
+                  <div class="icon-preview-box">
+                    ${renderVectorIcon(item.icon || 'fa-solid fa-microscope')}
+                  </div>
+                  <div style="flex:1;">
+                    <select class="inspector-select" onchange="updateSubField('${comp.id}', 'items', ${idx}, 'icon', this.value)">
+                      ${SCIENTIFIC_ICONS.map(ic => `
+                        <option value="${ic.val}" ${item.icon === ic.val ? 'selected' : ''}>${ic.label}</option>
+                      `).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <div class="inspector-field" style="margin-top:0.4rem;">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Custom Icon Class (Optional)</label>
+                  <input type="text" class="inspector-input" placeholder="e.g. fa-solid fa-dna" value="${escapeHtml(item.icon || '')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'icon', this.value)">
+                </div>
+
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Feature Title</label>
+                  <input type="text" class="inspector-input" placeholder="Card Title" value="${escapeHtml(item.title || '')}" oninput="updateSubField('${comp.id}', 'items', ${idx}, 'title', this.value)">
+                </div>
+
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Card Description</label>
+                  <textarea class="inspector-input" style="min-height:55px;" placeholder="Description..." oninput="updateSubField('${comp.id}', 'items', ${idx}, 'description', this.value)">${escapeHtml(item.description || '')}</textarea>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
       `;
     } else if (t === "speakers") {
       html += `
-        <div class="inspector-field">
-          <label>Section Tag</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-users"></i>
+            <span>Faculty Header</span>
+          </div>
+          <div class="inspector-field">
+            <label>Section Tag</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Title</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Subtitle</label>
+            <textarea class="inspector-input" oninput="updateField('${comp.id}', 'section_subtitle', this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
+          </div>
         </div>
-        <div class="inspector-field">
-          <label>Section Title</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
-          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">Speakers (${(d.speakers || []).length})</label>
-          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addSpeakerItem('${comp.id}')">+ Add Speaker</button>
-        </div>
-        <div class="dynamic-items-container">
-          ${(d.speakers || []).map((spk, idx) => `
-            <div class="dynamic-sub-card">
-              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'speakers', ${idx})">&times;</button>
-              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Speaker Full Name" value="${escapeHtml(spk.name || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'name', this.value)">
-              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Role / Title" value="${escapeHtml(spk.role || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'role', this.value)">
-              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Affiliation / University" value="${escapeHtml(spk.affiliation || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'affiliation', this.value)">
-              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Photo URL" value="${escapeHtml(spk.photo || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'photo', this.value)">
-              <textarea class="inspector-input" placeholder="Bio" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'bio', this.value)">${escapeHtml(spk.bio || '')}</textarea>
+
+        <div class="inspector-card-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div class="inspector-group-title" style="margin:0;">
+              <i class="fa-solid fa-id-card"></i>
+              <span>Faculty Members (${(d.speakers || []).length})</span>
             </div>
-          `).join('')}
+            <button type="button" class="btn-stock-pill" style="border-color:#38bdf8; color:#38bdf8;" onclick="addSpeakerItem('${comp.id}')">+ Add Speaker</button>
+          </div>
+
+          <div class="dynamic-items-container">
+            ${(d.speakers || []).map((spk, idx) => `
+              <div class="dynamic-sub-card">
+                <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'speakers', ${idx})" title="Delete Speaker">&times;</button>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Full Name & Degree</label>
+                  <input type="text" class="inspector-input" placeholder="e.g. Dr. Jane Smith, MD, PhD" value="${escapeHtml(spk.name || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'name', this.value)">
+                </div>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Title / Role</label>
+                  <input type="text" class="inspector-input" placeholder="e.g. Chair of Immunology" value="${escapeHtml(spk.role || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'role', this.value)">
+                </div>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Affiliation / Institute</label>
+                  <input type="text" class="inspector-input" placeholder="e.g. Harvard Medical School" value="${escapeHtml(spk.affiliation || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'affiliation', this.value)">
+                </div>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Photo URL</label>
+                  <input type="text" class="inspector-input" value="${escapeHtml(spk.photo || '')}" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'photo', this.value)">
+                  <div class="stock-preset-pills">
+                    ${SPEAKER_AVATAR_PRESETS.map(av => `
+                      <button type="button" class="btn-stock-pill" onclick="setSpeakerAvatar('${comp.id}', ${idx}, '${av.url}')">${av.label}</button>
+                    `).join('')}
+                  </div>
+                </div>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Short Bio</label>
+                  <textarea class="inspector-input" style="min-height:50px;" oninput="updateSubField('${comp.id}', 'speakers', ${idx}, 'bio', this.value)">${escapeHtml(spk.bio || '')}</textarea>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
       `;
     } else if (t === "pricing") {
       html += `
-        <div class="inspector-field">
-          <label>Section Title</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-ticket"></i>
+            <span>Tickets & Pricing Header</span>
+          </div>
+          <div class="inspector-field">
+            <label>Section Tag</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Title</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Subtitle</label>
+            <textarea class="inspector-input" oninput="updateField('${comp.id}', 'section_subtitle', this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
-          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">Pricing Tiers (${(d.tiers || []).length})</label>
-          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addPricingItem('${comp.id}')">+ Add Tier</button>
-        </div>
-        <div class="dynamic-items-container">
-          ${(d.tiers || []).map((ti, idx) => `
-            <div class="dynamic-sub-card">
-              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'tiers', ${idx})">&times;</button>
-              <div style="display:flex;gap:0.4rem;margin-bottom:0.35rem;">
-                <input type="text" style="flex:1;" class="inspector-input" placeholder="Tier Name" value="${escapeHtml(ti.name || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'name', this.value)">
-                <input type="text" style="width:80px;" class="inspector-input" placeholder="Price" value="${escapeHtml(ti.price || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'price', this.value)">
-              </div>
-              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Description" value="${escapeHtml(ti.description || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'description', this.value)">
-              <div style="margin-bottom:0.35rem;">
-                <label style="font-size:0.72rem;color:#94a3b8;"><input type="checkbox" ${ti.featured ? 'checked' : ''} onchange="updateSubField('${comp.id}', 'tiers', ${idx}, 'featured', this.checked)"> Highlight as Most Popular</label>
-              </div>
-              <textarea class="inspector-input" placeholder="Features (one per line)" oninput="updateTierFeatures('${comp.id}', ${idx}, this.value)">${(ti.features || []).join('\n')}</textarea>
+
+        <div class="inspector-card-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div class="inspector-group-title" style="margin:0;">
+              <i class="fa-solid fa-credit-card"></i>
+              <span>Pass Tiers (${(d.tiers || []).length})</span>
             </div>
-          `).join('')}
+            <button type="button" class="btn-stock-pill" style="border-color:#38bdf8; color:#38bdf8;" onclick="addPricingItem('${comp.id}')">+ Add Tier</button>
+          </div>
+
+          <div class="dynamic-items-container">
+            ${(d.tiers || []).map((ti, idx) => `
+              <div class="dynamic-sub-card">
+                <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'tiers', ${idx})" title="Delete Tier">&times;</button>
+                <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:0.5rem;">
+                  <div>
+                    <label style="font-size:0.72rem; color:#94a3b8;">Tier Name</label>
+                    <input type="text" class="inspector-input" value="${escapeHtml(ti.name || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'name', this.value)">
+                  </div>
+                  <div>
+                    <label style="font-size:0.72rem; color:#94a3b8;">Price</label>
+                    <input type="text" class="inspector-input" value="${escapeHtml(ti.price || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'price', this.value)">
+                  </div>
+                </div>
+
+                <div class="inspector-field" style="margin-top:0.4rem;">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Sub-label / Period</label>
+                  <input type="text" class="inspector-input" placeholder="/ delegate" value="${escapeHtml(ti.period || '')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'period', this.value)">
+                </div>
+
+                <label class="inspector-toggle-label" style="margin-top:0.4rem;">
+                  <input type="checkbox" ${ti.featured ? 'checked' : ''} onchange="updateSubField('${comp.id}', 'tiers', ${idx}, 'featured', this.checked)">
+                  <span>Highlight as Recommended / Featured</span>
+                </label>
+
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Button Label</label>
+                  <input type="text" class="inspector-input" value="${escapeHtml(ti.btn_label || 'Select Pass')}" oninput="updateSubField('${comp.id}', 'tiers', ${idx}, 'btn_label', this.value)">
+                </div>
+
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Included Features (1 per line)</label>
+                  <textarea class="inspector-input" style="min-height:60px;" oninput="updateTierFeatures('${comp.id}', ${idx}, this.value)">${(ti.features || []).join('\n')}</textarea>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+    } else if (t === "gallery") {
+      html += `
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-images"></i>
+            <span>Photo Gallery</span>
+          </div>
+          <div class="inspector-field">
+            <label>Section Tag</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Title</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+          </div>
+        </div>
+
+        <div class="inspector-card-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div class="inspector-group-title" style="margin:0;">
+              <span>Images (${(d.images || []).length})</span>
+            </div>
+            <button type="button" class="btn-stock-pill" style="border-color:#38bdf8; color:#38bdf8;" onclick="addGalleryItem('${comp.id}')">+ Add Photo</button>
+          </div>
+
+          <div class="dynamic-items-container">
+            ${(d.images || []).map((img, idx) => `
+              <div class="dynamic-sub-card">
+                <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'images', ${idx})">&times;</button>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Image URL</label>
+                  <input type="text" class="inspector-input" value="${escapeHtml(img.url || '')}" oninput="updateSubField('${comp.id}', 'images', ${idx}, 'url', this.value)">
+                  <div class="stock-preset-pills">
+                    ${SCIENTIFIC_STOCK_IMAGES.map(stk => `
+                      <button type="button" class="btn-stock-pill" onclick="setGalleryStockImage('${comp.id}', ${idx}, '${stk.url}')">${stk.label}</button>
+                    `).join('')}
+                  </div>
+                </div>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Caption</label>
+                  <input type="text" class="inspector-input" value="${escapeHtml(img.caption || '')}" oninput="updateSubField('${comp.id}', 'images', ${idx}, 'caption', this.value)">
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
       `;
     } else if (t === "faq") {
       html += `
-        <div class="inspector-field">
-          <label>Section Title</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-circle-question"></i>
+            <span>FAQ Header</span>
+          </div>
+          <div class="inspector-field">
+            <label>Section Tag</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Title</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+          </div>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;">
-          <label style="font-size:0.78rem;font-weight:700;color:#cbd5e1;">FAQs (${(d.faqs || []).length})</label>
-          <button type="button" style="background:#1e293b;border:1px solid #38bdf8;color:#38bdf8;border-radius:4px;padding:2px 8px;font-size:0.75rem;cursor:pointer;" onclick="addFaqItem('${comp.id}')">+ Add FAQ</button>
-        </div>
-        <div class="dynamic-items-container">
-          ${(d.faqs || []).map((faq, idx) => `
-            <div class="dynamic-sub-card">
-              <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'faqs', ${idx})">&times;</button>
-              <input type="text" class="inspector-input" style="margin-bottom:0.35rem;" placeholder="Question" value="${escapeHtml(faq.q || '')}" oninput="updateSubField('${comp.id}', 'faqs', ${idx}, 'q', this.value)">
-              <textarea class="inspector-input" placeholder="Answer" oninput="updateSubField('${comp.id}', 'faqs', ${idx}, 'a', this.value)">${escapeHtml(faq.a || '')}</textarea>
+
+        <div class="inspector-card-group">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <div class="inspector-group-title" style="margin:0;">
+              <span>Questions & Answers (${(d.faqs || []).length})</span>
             </div>
-          `).join('')}
+            <button type="button" class="btn-stock-pill" style="border-color:#38bdf8; color:#38bdf8;" onclick="addFaqItem('${comp.id}')">+ Add FAQ</button>
+          </div>
+
+          <div class="dynamic-items-container">
+            ${(d.faqs || []).map((faq, idx) => `
+              <div class="dynamic-sub-card">
+                <button class="btn-del-subitem" onclick="deleteSubItem('${comp.id}', 'faqs', ${idx})">&times;</button>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Question</label>
+                  <input type="text" class="inspector-input" value="${escapeHtml(faq.q || '')}" oninput="updateSubField('${comp.id}', 'faqs', ${idx}, 'q', this.value)">
+                </div>
+                <div class="inspector-field">
+                  <label style="font-size:0.72rem; color:#94a3b8;">Answer</label>
+                  <textarea class="inspector-input" style="min-height:55px;" oninput="updateSubField('${comp.id}', 'faqs', ${idx}, 'a', this.value)">${escapeHtml(faq.a || '')}</textarea>
+                </div>
+              </div>
+            `).join('')}
+          </div>
         </div>
       `;
     } else if (t === "contact") {
       html += `
-        <div class="inspector-field">
-          <label>Section Title</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Contact Email</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.email || '')}" oninput="updateField('${comp.id}', 'email', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Contact Phone</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.phone || '')}" oninput="updateField('${comp.id}', 'phone', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Venue / Address</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.address || '')}" oninput="updateField('${comp.id}', 'address', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Submit Button Text</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.form_button_label || '')}" oninput="updateField('${comp.id}', 'form_button_label', this.value)">
-        </div>
-      `;
-    } else if (t === "footer") {
-      html += `
-        <div class="inspector-field">
-          <label>Brand Name</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.brand_name || '')}" oninput="updateField('${comp.id}', 'brand_name', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Tagline</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.tagline || '')}" oninput="updateField('${comp.id}', 'tagline', this.value)">
-        </div>
-        <div class="inspector-field">
-          <label>Copyright Text</label>
-          <input type="text" class="inspector-input" value="${escapeHtml(d.copyright || '')}" oninput="updateField('${comp.id}', 'copyright', this.value)">
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-envelope"></i>
+            <span>Contact & RSVP Details</span>
+          </div>
+          <div class="inspector-field">
+            <label>Section Tag</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_tag || '')}" oninput="updateField('${comp.id}', 'section_tag', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Title</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}', 'section_title', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Section Subtitle</label>
+            <textarea class="inspector-input" oninput="updateField('${comp.id}', 'section_subtitle', this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
+          </div>
+          <div class="inspector-field">
+            <label>Contact Email</label>
+            <input type="email" class="inspector-input" value="${escapeHtml(d.email || '')}" oninput="updateField('${comp.id}', 'email', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Phone / Office</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.phone || '')}" oninput="updateField('${comp.id}', 'phone', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Campus / Venue Location</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.location || '')}" oninput="updateField('${comp.id}', 'location', this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Submit Button Text</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.btn_text || 'Submit Inquiry')}" oninput="updateField('${comp.id}', 'btn_text', this.value)">
+          </div>
         </div>
       `;
     }
@@ -3447,6 +3944,9 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!comp.data) comp.data = {};
     comp.data[field] = val;
     renderCanvas();
+    if (field === 'headline_gradient' || field === 'gradient_preset' || field === 'primary_btn_style') {
+      renderInspector(comp);
+    }
   };
 
   window.updateSubField = function(compId, arrName, idx, field, val) {
@@ -3455,6 +3955,39 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!comp || !comp.data || !comp.data[arrName] || !comp.data[arrName][idx]) return;
     comp.data[arrName][idx][field] = val;
     renderCanvas();
+    if (field === 'icon') {
+      renderInspector(comp);
+    }
+  };
+
+  window.setHeroStockImage = function(compId, url) {
+    window.updateField(compId, 'hero_image', url);
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (comp) renderInspector(comp);
+  };
+
+  window.setHeroTextAlign = function(compId, align) {
+    window.updateField(compId, 'text_align', align);
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (comp) renderInspector(comp);
+  };
+
+  window.setPrimaryBtnRadius = function(compId, radius) {
+    window.updateField(compId, 'primary_btn_radius', radius);
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (comp) renderInspector(comp);
+  };
+
+  window.setSpeakerAvatar = function(compId, idx, url) {
+    window.updateSubField(compId, 'speakers', idx, 'photo', url);
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (comp) renderInspector(comp);
+  };
+
+  window.setGalleryStockImage = function(compId, idx, url) {
+    window.updateSubField(compId, 'images', idx, 'url', url);
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (comp) renderInspector(comp);
   };
 
   window.updateTierFeatures = function(compId, idx, textVal) {
@@ -3479,7 +4012,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const comp = currentSite.schema_json.find(c => c.id === compId);
     if (!comp || !comp.data) return;
     if (!comp.data.items) comp.data.items = [];
-    comp.data.items.push({ icon: "⚡", title: "New Feature", description: "Describe this key offering." });
+    comp.data.items.push({ icon: "fa-solid fa-microscope", title: "New Feature", description: "Describe this key offering." });
     renderCanvas();
     renderInspector(comp);
   };
@@ -3490,11 +4023,11 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!comp || !comp.data) return;
     if (!comp.data.speakers) comp.data.speakers = [];
     comp.data.speakers.push({
-      name: "New Speaker",
-      role: "Lead Researcher",
-      affiliation: "Academic Institute",
-      photo: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80",
-      bio: "Brief biography and research focus."
+      name: "Dr. Jane Doe, PhD",
+      role: "Lead Investigator",
+      affiliation: "Academic Medical Center",
+      photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
+      bio: "Pioneering novel biochemical pathways and clinical trials."
     });
     renderCanvas();
     renderInspector(comp);
@@ -3506,14 +4039,27 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!comp || !comp.data) return;
     if (!comp.data.tiers) comp.data.tiers = [];
     comp.data.tiers.push({
-      name: "VIP Pass",
-      price: "$499",
-      period: "one-time",
+      name: "Standard Pass",
+      price: "$299",
+      period: "/ delegate",
       featured: false,
-      description: "Comprehensive symposium pass.",
-      features: ["All Session Access", "Conference Materials"],
+      description: "Access to all conference sessions.",
+      features: ["Full Session Access", "Conference Materials", "Digital Badge"],
       btn_label: "Select Pass",
       btn_url: "#contact"
+    });
+    renderCanvas();
+    renderInspector(comp);
+  };
+
+  window.addGalleryItem = function(compId) {
+    if (!currentSite || !currentSite.schema_json) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    if (!comp || !comp.data) return;
+    if (!comp.data.images) comp.data.images = [];
+    comp.data.images.push({
+      url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&auto=format&fit=crop&q=80",
+      caption: "Main Auditorium Hall"
     });
     renderCanvas();
     renderInspector(comp);
@@ -3524,7 +4070,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const comp = currentSite.schema_json.find(c => c.id === compId);
     if (!comp || !comp.data) return;
     if (!comp.data.faqs) comp.data.faqs = [];
-    comp.data.faqs.push({ q: "What are the session dates?", a: "The symposium schedule is listed in the conference agenda." });
+    comp.data.faqs.push({ q: "What is the conference schedule?", a: "The detailed schedule will be shared with all registered delegates." });
     renderCanvas();
     renderInspector(comp);
   };
@@ -3547,8 +4093,6 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     });
   });
-
-
 
   // ---------------------------------------------------------------------------
   // URL Routing Initialization (/dashboard, /websitebuilder, /nih, etc.)

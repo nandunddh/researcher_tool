@@ -1,25 +1,10 @@
 {
   "_metadata": {
     "version": "1.0",
-    "updated_at": "2026-10-29T17:36:00.344587",
+    "updated_at": "2026-11-02T18:05:40.762084",
     "root_password": "admin2026"
   },
   "licenses": {
-    "SCIP-PRO-ROOT-MASTER": {
-      "license_key": "SCIP-PRO-ROOT-MASTER",
-      "client_name": "Root Administrator",
-      "client_email": "root@sciprospect.internal",
-      "tier": "pro",
-      "status": "active",
-      "daily_limit": -1,
-      "used_today": 0,
-      "expires_at": "never",
-      "created_at": "2026-10-28 18:07:51.814899",
-      "last_active_date": "",
-      "total_extracted": 0,
-      "notes": "Master Root Pro Key (Never Expires)",
-      "password_hash": ""
-    },
     "SCIP-PRO-ENWL-XAMY": {
       "license_key": "SCIP-PRO-ENWL-XAMY",
       "client_name": "Dr. Alan Turing",
@@ -48,7 +33,23 @@
       "last_active_date": "",
       "total_extracted": 0,
       "notes": "Created via cloud test",
-      "password_hash": ""
+      "password_hash": "5ad5c3419c0dbb72a42bdeb2099ab655:c07212fedcb9324832479569f87708461fd62bb459cf21552ffcdd1f6112716f",
+      "scistudio_access": true
+    },
+    "SCIP-PRO-ROOT-MASTER": {
+      "license_key": "SCIP-PRO-ROOT-MASTER",
+      "client_name": "Root Administrator",
+      "client_email": "root@sciprospect.internal",
+      "tier": "pro",
+      "status": "active",
+      "daily_limit": -1,
+      "used_today": 0,
+      "expires_at": "never",
+      "created_at": "2026-10-28 18:07:51.814899",
+      "last_active_date": "",
+      "total_extracted": 0,
+      "notes": "Master Root Pro Key (Never Expires)",
+      "password_hash": "f635f65e007b9b7ea2f4513a0e8b36af:7871b8551c7fc9d5952377862931334777759ec85c0af0ec242e4b5b8b6e0a3c"
     }
   }
 }

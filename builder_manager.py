@@ -273,18 +273,18 @@ def build_template_components(
                 "section_subtitle": "Designed by researchers for researchers to accelerate scientific outreach.",
                 "items": [
                     {
-                        "icon": tmpl["icon"],
+                        "icon": "fa-solid fa-microscope",
                         "title": "Cutting-Edge Research",
                         "description": "Explore high-impact findings, peer-reviewed data, and novel methodologies."
                     },
                     {
-                        "icon": "🤝",
-                        "title": "Principal Investigator Outreach",
+                        "icon": "fa-solid fa-dna",
+                        "title": "Precision Genetics & Biomarkers",
                         "description": "Connect directly with laboratory directors, grant recipients, and lead authors."
                     },
                     {
-                        "icon": "⚡",
-                        "title": "Accelerated Collaboration",
+                        "icon": "fa-solid fa-chart-line",
+                        "title": "Accelerated Collaboration & Data",
                         "description": "Establish partnerships, co-author publications, and share verified datasets."
                     }
                 ]
@@ -1072,7 +1072,9 @@ textarea.form-input {{
         elif c_type == "features":
             items_html = "".join([f"""
 <div class="feature-card">
-  <div class="feature-icon">{item.get("icon", "✦")}</div>
+  <div class="feature-icon">
+    {f'<i class="{item.get("icon", "fa-solid fa-microscope")}"></i>' if "fa-" in str(item.get("icon", "")) else f'<span>{item.get("icon", "✦")}</span>'}
+  </div>
   <h3 class="feature-title">{item.get("title", "")}</h3>
   <p class="feature-desc">{item.get("description", "")}</p>
 </div>
@@ -1244,6 +1246,7 @@ textarea.form-input {{
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
 {css}
   </style>

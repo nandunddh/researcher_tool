@@ -238,6 +238,7 @@ class LicenseManager:
         daily_limit: Optional[int] = None,
         notes: str = "",
         password: Optional[str] = None,
+        scistudio_access: bool = True,
     ) -> dict:
         """
         Creates a new user account and issues a license key.
@@ -281,6 +282,7 @@ class LicenseManager:
             "total_extracted": 0,
             "notes": notes.strip(),
             "password_hash": hash_password(password) if password else "",
+            "scistudio_access": bool(scistudio_access),
         }
 
         db["licenses"][key] = account
@@ -369,6 +371,29 @@ class LicenseManager:
         self._save_db(db)
         return True, f"Account upgraded to {new_tier.upper()}.", account
 
+    def toggle_scistudio_access(self, license_key: str, enable: Optional[bool] = None) -> Tuple[bool, str, dict]:
+        """Enables or disables SciStudio (Website Builder) access for an account."""
+        db = self._load_db()
+        key_clean = (license_key or "").strip().upper()
+        if key_clean not in db.get("licenses", {}):
+            return False, f"License key '{license_key}' not found.", {}
+
+        acc = db["licenses"][key_clean]
+        current = acc.get("scistudio_access", True)
+        new_state = (not current) if enable is None else bool(enable)
+        acc["scistudio_access"] = new_state
+        self._save_db(db)
+
+        # Update active in-memory sessions for this license
+        for s in self._sessions.values():
+            u = s.get("user")
+            if u and u.get("license_key", "").strip().upper() == key_clean:
+                u["scistudio_access"] = new_state
+
+        status_text = "enabled" if new_state else "disabled"
+        print(f"[LICENSE] SciStudio access {status_text} for {acc.get('client_name')} ({key_clean})")
+        return True, f"SciStudio access successfully {status_text} for {acc.get('client_name')}.", acc
+
     def delete_account(self, license_key: str) -> Tuple[bool, str]:
         """Permanently deletes an account record locally and from PostgreSQL cloud database."""
         key_clean = (license_key or "").strip().upper()
@@ -440,6 +465,7 @@ class LicenseManager:
 
             acc_copy["days_left"] = days_left
             acc_copy["is_expired"] = is_expired
+            acc_copy["scistudio_access"] = acc_copy.get("scistudio_access", True)
 
             # Apply filters
             if filter_tier != "all" and acc_copy.get("tier") != filter_tier:
@@ -543,6 +569,7 @@ class LicenseManager:
                     "days_left": "Unlimited",
                     "daily_limit": "Unlimited",
                     "remaining_today": 999999,
+                    "scistudio_access": True,
                     "message": "Full Lifetime Commercial Access (Root Master)",
                 }
             return {
@@ -612,6 +639,7 @@ class LicenseManager:
             "daily_limit": limit_display,
             "today_verified": used_today,
             "remaining_verified_today": remaining_today,
+            "scistudio_access": account.get("scistudio_access", True),
             "message": f"Active {tier.capitalize()} License for {client_name}",
         }
 
@@ -657,6 +685,7 @@ class LicenseManager:
                     "client_email": "root@sciprospect.internal",
                     "tier": "pro",
                     "is_admin": True,
+                    "scistudio_access": True,
                     "daily_limit": "Unlimited",
                     "status": "active"
                 }
@@ -699,6 +728,7 @@ class LicenseManager:
             "client_email": val.get("client_email", ""),
             "tier": val.get("tier", "pro"),
             "is_admin": (found_key == "SCIP-PRO-ROOT-MASTER"),
+            "scistudio_access": val.get("scistudio_access", True),
             "daily_limit": val.get("daily_limit", "Unlimited"),
             "status": "active"
         }
@@ -714,38 +744,43 @@ class LicenseManager:
         }
         return token
 
-    def get_session(self, token: Optional[str]) -> Optional[dict]:
-        """Validates a session token and returns the user info if valid and active."""
+    def get_session_info(self, token: Optional[str]) -> Tuple[Optional[dict], Optional[str]]:
+        """Validates a session token and returns (user_info, error_reason)."""
         if not token:
-            return None
+            return None, "Not authenticated"
         session = self._sessions.get(token)
         if not session:
-            return None
+            return None, "Not authenticated"
         if time.time() > session.get("expires_at", 0):
             self._sessions.pop(token, None)
-            return None
+            return None, "Session expired"
         user = session.get("user")
         if not user:
-            return None
+            return None, "Not authenticated"
 
         # Root admin session is always valid
         if user.get("is_admin"):
-            return user
+            return user, None
 
         # Real-time license status validation
         key = user.get("license_key")
         if key:
             val = self.validate_license(key)
             if not val.get("valid") or val.get("status") == "stopped":
-                # Account suspended or expired: destroy session immediately
                 self._sessions.pop(token, None)
-                return None
+                msg = val.get("message") or "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin."
+                return None, msg
             # Keep user details synchronized
             user["status"] = val.get("status", "active")
             user["tier"] = val.get("tier", user.get("tier", "pro"))
             user["daily_limit"] = val.get("daily_limit", "Unlimited")
             user["days_left"] = val.get("days_left", "Unlimited")
+            user["scistudio_access"] = val.get("scistudio_access", True)
 
+        return user, None
+
+    def get_session(self, token: Optional[str]) -> Optional[dict]:
+        user, _ = self.get_session_info(token)
         return user
 
     def revoke_session(self, token: Optional[str]) -> bool:
