@@ -10,6 +10,7 @@ and saves verified leads (Score >= 50) directly to datasets and central archive.
 
 import calendar
 import csv
+from collector_store import save_leads
 import json
 import os
 import re
@@ -182,24 +183,15 @@ def calculate_biorxiv_match_score(
     return final_score, breakdown_str
 
 
-def fetch_email_from_jatsxml(jats_url: str) -> str:
+def fetch_email_from_jatsxml(jats_url: str, author_name: str) -> str:
     """Fetches author email directly from bioRxiv JATS XML document."""
     if not jats_url:
         return ""
     try:
         res = requests.get(jats_url, headers=HEADERS, timeout=8)
         if res.status_code == 200:
-            # Check <email>...</email> tags first
-            email_tags = re.findall(r"<email>([^<]+)</email>", res.text, re.IGNORECASE)
-            for raw in email_tags:
-                clean = clean_email(raw)
-                if clean:
-                    return clean
-            # Fallback to general regex in XML
-            for raw in EMAIL_PATTERN.findall(res.text):
-                clean = clean_email(raw)
-                if clean:
-                    return clean
+            from collector_identity import author_email
+            return author_email(res.text, author_name)
     except Exception:
         pass
     return ""
@@ -323,7 +315,13 @@ def run_biorxiv_pipeline(
         "doi",
         "search_keyword",
         "review_status",
+        "email_source_url",
     ]
+
+    if output_csv.exists():
+        with output_csv.open(encoding="utf-8-sig", newline="") as prior:
+            if next(csv.reader(prior), []) != fieldnames:
+                output_csv = output_csv.with_name(output_csv.stem + "_v2.csv")
 
     if not output_csv.exists():
         with open(output_csv, "w", encoding="utf-8-sig", newline="") as f:
@@ -342,15 +340,19 @@ def run_biorxiv_pipeline(
 
     session = requests.Session()
 
+    consecutive_failures = 0
     while collected_leads < target_leads and not STOP_REQUESTED:
         page_url = f"{base_url}/{cursor}"
         print(f"\n[CURSOR {cursor}] Querying bioRxiv preprints...")
 
+        consecutive_failures += 1
+        if consecutive_failures > 5:
+            raise RuntimeError("bioRxiv failed after 5 attempts; partial results retained")
         try:
             res = session.get(page_url, headers=HEADERS, timeout=18)
             if res.status_code != 200:
                 print(f"[bioRxiv API] Returned status {res.status_code}. Retrying cursor {cursor}...")
-                time.sleep(2)
+                time.sleep(min(30, 2 ** consecutive_failures))
                 continue
             data = res.json()
             collection = data.get("collection", [])
@@ -362,6 +364,7 @@ def run_biorxiv_pipeline(
             time.sleep(2)
             continue
 
+        consecutive_failures = 0
         scanned_preprints += len(collection)
         cursor += len(collection)
 
@@ -406,7 +409,8 @@ def run_biorxiv_pipeline(
                 return None
 
             # 1. Direct JATS XML lookup
-            verified_email = fetch_email_from_jatsxml(jatsxml)
+            verified_email = fetch_email_from_jatsxml(jatsxml, author_corr)
+            author_linked = bool(verified_email)
 
             # 2. Europe PMC lookup
             if not verified_email and doi:
@@ -420,7 +424,8 @@ def run_biorxiv_pipeline(
                 return None
 
             clean_em = clean_email(verified_email)
-            if not clean_em:
+            from collector_identity import name_matches_email
+            if not clean_em or (not author_linked and not name_matches_email(author_corr, clean_em)):
                 return None
 
             score, breakdown = calculate_biorxiv_match_score(
@@ -437,11 +442,11 @@ def run_biorxiv_pipeline(
                 return None
 
             if score >= 85:
-                rating = f"Excellent Match ({score}%)"
+                rating = f"Excellent Match ({score}/100)"
             elif score >= 70:
-                rating = f"Strong Match ({score}%)"
+                rating = f"Strong Match ({score}/100)"
             else:
-                rating = f"Verified Match ({score}%)"
+                rating = f"Candidate Match ({score}/100)"
 
             return {
                 "researcher_name": author_corr,
@@ -456,7 +461,8 @@ def run_biorxiv_pipeline(
                 "publication_year": pub_year,
                 "doi": f"https://doi.org/{doi}" if doi and not doi.startswith("http") else doi,
                 "search_keyword": keyword,
-                "review_status": "verified",
+                "review_status": "author_linked" if author_linked else "needs_review",
+                "email_source_url": jatsxml if author_linked else (f"https://doi.org/{doi}" if doi else ""),
             }
 
         # Multi-threaded verification
@@ -487,11 +493,7 @@ def run_biorxiv_pipeline(
                             writer.writerow(res_row)
 
                         # Append to central master CSV
-                        with open(CENTRAL_MASTER_FILE, "a", encoding="utf-8-sig", newline="") as mf:
-                            m_writer = csv.DictWriter(mf, fieldnames=fieldnames)
-                            if CENTRAL_MASTER_FILE.stat().st_size == 0:
-                                m_writer.writeheader()
-                            m_writer.writerow(res_row)
+                        save_leads(CENTRAL_MASTER_FILE, [res_row])
 
                     pct = (collected_leads / target_leads) * 100
                     name = res_row["researcher_name"]
@@ -499,7 +501,7 @@ def run_biorxiv_pipeline(
                     inst = res_row["affiliation"][:35]
                     print(f"🎯 [{collected_leads}/{target_leads} | {pct:.1f}%] {name} <{em}> | Score: {sc}/100 | {inst}")
                 except Exception as ex:
-                    pass
+                    raise RuntimeError(f"bioRxiv processing/save failed: {ex}") from ex
 
         time.sleep(0.3)
 

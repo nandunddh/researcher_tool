@@ -23,12 +23,12 @@ from app_config import get_data_dir
 
 # Oracle PostgreSQL Cloud Config
 PG_CONFIG = {
-    "host": "129.225.69.188",
-    "port": 5432,
-    "dbname": "sciprospect_db",
-    "user": "sciprospect",
-    "password": "Sc!Pr0$pect*2026#",
-    "connect_timeout": 3
+    "host": os.environ.get("SCIPROSPECT_DB_HOST", ""),
+    "port": int(os.environ.get("SCIPROSPECT_DB_PORT", "5432")),
+    "dbname": os.environ.get("SCIPROSPECT_DB_NAME", "sciprospect_db"),
+    "user": os.environ.get("SCIPROSPECT_DB_USER", ""),
+    "password": os.environ.get("SCIPROSPECT_DB_PASSWORD", ""),
+    "connect_timeout": 3,
 }
 
 def get_websites_dir() -> Path:
@@ -1272,6 +1272,8 @@ class WebsiteBuilderEngine:
     def _ensure_storage(self):
         get_websites_dir()
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
@@ -1304,6 +1306,8 @@ class WebsiteBuilderEngine:
 
         # 1. Try PostgreSQL
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     if user_email_clean in ("root@sciprospect.internal", "admin"):
@@ -1409,6 +1413,8 @@ class WebsiteBuilderEngine:
 
         # 2. Save in PostgreSQL
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
@@ -1435,6 +1441,8 @@ class WebsiteBuilderEngine:
 
         # 1. Try PostgreSQL
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
@@ -1501,6 +1509,8 @@ class WebsiteBuilderEngine:
 
         # Save to PostgreSQL
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
@@ -1536,6 +1546,8 @@ class WebsiteBuilderEngine:
         clean_id = site_id.strip()
 
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM user_websites WHERE site_id = %s;", (clean_id,))
@@ -1555,6 +1567,8 @@ class WebsiteBuilderEngine:
         clean_slug = slug.strip().lower()
 
         try:
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""

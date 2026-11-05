@@ -1,4 +1,5 @@
 import csv
+from collector_store import save_leads
 import json
 import re
 import sys
@@ -81,42 +82,8 @@ def extract_name_parts(full_name):
 
 
 def is_name_match(author_name, email):
-    """
-    STRICT VERIFICATION:
-    Returns True ONLY if author's last name or initials match the email handle.
-    Rejects co-author/PI emails so 100% of saved emails belong to the researcher.
-    """
-    if not email or "@" not in email:
-        return False
-    handle, _, _ = email.lower().partition("@")
-    clean_handle = re.sub(r"[^a-z]", "", normalize_text(handle))
-    first, last, words, initials = extract_name_parts(author_name)
-
-    if not last:
-        return False
-
-    # 1. Exact last name in handle (e.g. 'green' in 'whgreen@mit.edu', 'barroso' in 'barroso@...')
-    if last in clean_handle:
-        return True
-
-    # 2. Initials + last name (e.g. 'whgreen', 'jsmith')
-    if initials and (initials + last) in clean_handle:
-        return True
-    if first and (first[0] + last) in clean_handle:
-        return True
-    if first and (last + first[0]) in clean_handle:
-        return True
-
-    # 3. Compound name parts (e.g. 'barroso' or 'flores' from 'Barroso-Flores')
-    for w in words:
-        if len(w) >= 4 and w in clean_handle:
-            return True
-
-    # 4. First name in handle (e.g. 'ralfk@hawaii.edu' for Ralf I. Kaiser)
-    if first and len(first) >= 3 and first in clean_handle:
-        return True
-
-    return False
+    from collector_identity import name_matches_email
+    return name_matches_email(author_name, email)
 
 
 # --------------------------------------------------
@@ -339,7 +306,7 @@ def process_researcher(row):
         matched = [e.strip() for e in existing_email.split(";") if is_name_match(author_name, e.strip())]
         if matched:
             row["professional_email"] = matched[0]
-            row["email_status"] = "Verified Name Match"
+            row["email_status"] = "Name heuristic; needs review"
             row["review_status"] = "found"
             return row
 
@@ -351,7 +318,7 @@ def process_researcher(row):
             row["professional_email"] = email
             row["email_source_url"] = source_url
             row["email_status"] = "Found (ORCID public profile)"
-            row["review_status"] = "found"
+            row["review_status"] = "author_linked"
             return row
 
     # 2. Check paper DOIs with STRICT name matching
@@ -498,7 +465,7 @@ def main():
     # Identify pending researchers (not yet processed or verified)
     pending_indices = [
         i for i, r in enumerate(rows)
-        if r.get("email_status") not in {"Verified Name Match", "No email found in available sources", "Skipped (Duplicate from Central Archive)"}
+        if r.get("email_status") not in {"Name heuristic; needs review", "No email found in available sources", "Skipped (Duplicate from Central Archive)"}
     ]
 
     already_found = sum(1 for r in rows if r.get("review_status") == "found")
@@ -565,12 +532,8 @@ def main():
                     writer.writerows(today_verified_rows)
 
                 # 2. Append new unique leads into CENTRAL MASTER ARCHIVE
-                archive_exists = CENTRAL_MASTER_FILE.exists()
-                with CENTRAL_MASTER_FILE.open("a", encoding="utf-8-sig", newline="") as cf:
-                    writer = csv.DictWriter(cf, fieldnames=central_fieldnames)
-                    if not archive_exists:
-                        writer.writeheader()
-                    writer.writerows(today_verified_rows)
+                save_leads(CENTRAL_MASTER_FILE, today_verified_rows)
+
 
 
     try:
@@ -643,6 +606,7 @@ def main():
         print("\n[INFO] Interrupted by user. Safely persisting all progress...")
     except Exception as e:
         print(f"\n[ERROR] Unexpected error: {e}. Persisting progress...")
+        raise
     finally:
         save_all_progress()
 

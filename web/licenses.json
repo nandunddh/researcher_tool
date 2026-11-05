@@ -1,8 +1,8 @@
 {
   "_metadata": {
     "version": "1.0",
-    "updated_at": "2026-11-05T17:59:21.743205",
-    "root_password": "admin2026"
+    "updated_at": "2026-11-05T18:25:41.502839",
+    "root_password_hash": "pbkdf2_sha256$600000$4b9554a98a9b62ee99a2fa4997217339$a71cd8aee36118eb3d722d52e0d4f56fc1b9580eab022c75ff832022d835850d"
   },
   "licenses": {
     "SCIP-PRO-ENWL-XAMY": {

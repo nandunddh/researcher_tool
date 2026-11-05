@@ -225,9 +225,59 @@
         }
 
         .kpi-card.total::before { background: linear-gradient(90deg, #6366F1, #8B5CF6); }
-        .kpi-card.trial::before { background: linear-gradient(90deg, #F59E0B, #F97316); }
-        .kpi-card.pro::before { background: linear-gradient(90deg, #10B981, #06B6D4); }
+        .kpi-card.org::before { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+        .kpi-card.single::before { background: linear-gradient(90deg, #8b5cf6, #c084fc); }
+        .kpi-card.scistudio::before { background: linear-gradient(90deg, #06b6d4, #10b981); }
         .kpi-card.stopped::before { background: linear-gradient(90deg, #EF4444, #F43F5E); }
+
+        .radio-pill-label.active-type {
+            background: rgba(56, 189, 248, 0.15);
+            border-color: #38bdf8;
+            color: #38bdf8;
+        }
+        .badge-org {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            background: rgba(56, 189, 248, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.35);
+            font-size: 0.72rem;
+            font-weight: 700;
+        }
+        .badge-single {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            background: rgba(148, 163, 184, 0.15);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            font-size: 0.72rem;
+            font-weight: 600;
+        }
+        .btn-manage-team {
+            padding: 0.25rem 0.6rem;
+            border-radius: 6px;
+            background: rgba(99, 102, 241, 0.15);
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            color: #a5b4fc;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+        .btn-manage-team:hover {
+            background: rgba(99, 102, 241, 0.35);
+            color: #fff;
+            border-color: #818cf8;
+        }
 
         .kpi-header {
             display: flex;
@@ -813,42 +863,51 @@
             </div>
         </div>
 
-        <!-- 4 KPI Metrics -->
-        <div class="kpi-grid">
+        <!-- 5 KPI Metrics: Total, Orgs, Single Clients, SciStudio, Suspended -->
+        <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));">
             <div class="kpi-card total">
                 <div class="kpi-header">
                     <span>Total Accounts</span>
                     <span>📑</span>
                 </div>
                 <div class="kpi-val" id="stat-total">0</div>
-                <div class="kpi-desc">Issued in system database</div>
+                <div class="kpi-desc">Issued in database</div>
             </div>
 
-            <div class="kpi-card trial">
+            <div class="kpi-card org">
                 <div class="kpi-header">
-                    <span>Active Trials</span>
-                    <span>🧪</span>
+                    <span>Organizations</span>
+                    <span>🏢</span>
                 </div>
-                <div class="kpi-val" id="stat-trial" style="color: #FBBF24;">0</div>
-                <div class="kpi-desc">7-Day evaluation clients</div>
+                <div class="kpi-val" id="stat-orgs" style="color: #38bdf8;">0</div>
+                <div class="kpi-desc" id="stat-orgs-desc">0 team members total</div>
             </div>
 
-            <div class="kpi-card pro">
+            <div class="kpi-card single">
                 <div class="kpi-header">
-                    <span>Active Pro</span>
-                    <span>💎</span>
+                    <span>Single Clients</span>
+                    <span>👤</span>
                 </div>
-                <div class="kpi-val" id="stat-pro" style="color: #34D399;">0</div>
-                <div class="kpi-desc">Full commercial lifetime access</div>
+                <div class="kpi-val" id="stat-single" style="color: #c084fc;">0</div>
+                <div class="kpi-desc">Individual researchers</div>
+            </div>
+
+            <div class="kpi-card scistudio">
+                <div class="kpi-header">
+                    <span>SciStudio Access</span>
+                    <span>🎨</span>
+                </div>
+                <div class="kpi-val" id="stat-scistudio" style="color: #06b6d4;">0</div>
+                <div class="kpi-desc">Website builders enabled</div>
             </div>
 
             <div class="kpi-card stopped">
                 <div class="kpi-header">
-                    <span>Suspended / Stopped</span>
+                    <span>Suspended</span>
                     <span>⛔</span>
                 </div>
                 <div class="kpi-val" id="stat-stopped" style="color: #F87171;">0</div>
-                <div class="kpi-desc">Access blocked via kill-switch</div>
+                <div class="kpi-desc">Access blocked via switch</div>
             </div>
         </div>
 
@@ -865,18 +924,55 @@
 
                 <form id="createAccountForm" onsubmit="handleCreateAccount(event)">
                     <div class="form-group">
-                        <label class="form-label">Client / User Name *</label>
+                        <label class="form-label">Account Model / Type *</label>
+                        <div class="radio-pills">
+                            <label class="radio-pill-label active-type" id="typeLabelSingle">
+                                <input type="radio" name="accountTypeRadio" value="single" checked onchange="toggleAccountTypeSelection('single')">
+                                👤 Single Client
+                            </label>
+                            <label class="radio-pill-label" id="typeLabelOrg">
+                                <input type="radio" name="accountTypeRadio" value="org" onchange="toggleAccountTypeSelection('org')">
+                                🏢 Organization / Team
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="form-group" id="groupOrgName" style="margin-top: 0.75rem; display: none;">
+                        <label class="form-label">Organization / Institute Name *</label>
+                        <input type="text" id="inputOrgName" class="form-input" placeholder="e.g., Dana-Farber Cancer Institute, Oxford Biotech">
+                    </div>
+
+                    <div class="form-group" style="margin-top: 0.75rem;">
+                        <label class="form-label" id="lblName">Client / Administrator Name *</label>
                         <input type="text" id="inputName" class="form-input" placeholder="e.g., Dr. Sarah Jenkins" required>
                     </div>
 
                     <div class="form-group" style="margin-top: 0.75rem;">
-                        <label class="form-label">Client Email / Affiliation *</label>
+                        <label class="form-label" id="lblEmail">Client Email / Affiliation *</label>
                         <input type="email" id="inputEmail" class="form-input" placeholder="s.jenkins@harvard.edu" required>
                     </div>
 
                     <div class="form-group" style="margin-top: 0.75rem;">
                         <label class="form-label">Client Password (Optional)</label>
                         <input type="text" id="inputPassword" class="form-input" placeholder="Optional password (client can also use License Key)">
+                    </div>
+
+                    <div class="form-group" id="groupSeatLimit" style="margin-top: 0.75rem; display: none;">
+                        <label class="form-label">Team Member Seats Limit</label>
+                        <select id="inputSeatLimit" class="form-select">
+                            <option value="3">3 Team Members</option>
+                            <option value="5" selected>5 Team Members</option>
+                            <option value="10">10 Team Members</option>
+                            <option value="25">25 Team Members</option>
+                            <option value="-1">Unlimited Seats</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group" id="groupSingleInvite" style="margin-top: 0.75rem;">
+                        <label class="checkbox-pill-label" style="display: flex; align-items: center; gap: 0.65rem; background: rgba(30, 41, 59, 0.6); border: 1px solid rgba(255, 255, 255, 0.12); padding: 0.65rem 0.85rem; border-radius: 8px; cursor: pointer;">
+                            <input type="checkbox" id="inputCanInviteUsers" style="accent-color: #8b5cf6; width: 17px; height: 17px; cursor: pointer;">
+                            <span style="font-size: 0.85rem; color: #f1f5f9; font-weight: 600;">Allow Client to Add Sub-Users (Small Team)</span>
+                        </label>
                     </div>
 
                     <div class="form-group" style="margin-top: 0.75rem;">
@@ -945,15 +1041,17 @@
                 <div class="table-controls">
                     <div class="search-box">
                         <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-                        <input type="text" id="searchAccounts" class="search-input" placeholder="Search by name, email, or key..." oninput="filterAccounts()">
+                        <input type="text" id="searchAccounts" class="search-input" placeholder="Search by name, email, org, or key..." oninput="filterAccounts()">
                     </div>
 
                     <div class="filter-tabs">
                         <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
-                        <button class="filter-btn" data-filter="active" onclick="setFilter('active', this)">Active</button>
+                        <button class="filter-btn" data-filter="org" onclick="setFilter('org', this)">🏢 Orgs</button>
+                        <button class="filter-btn" data-filter="single" onclick="setFilter('single', this)">👤 Single</button>
+                        <button class="filter-btn" data-filter="scistudio" onclick="setFilter('scistudio', this)">🎨 SciStudio</button>
+                        <button class="filter-btn" data-filter="pro" onclick="setFilter('pro', this)">💎 Pro</button>
+                        <button class="filter-btn" data-filter="trial" onclick="setFilter('trial', this)">🧪 Trial</button>
                         <button class="filter-btn" data-filter="stopped" onclick="setFilter('stopped', this)">Stopped ⛔</button>
-                        <button class="filter-btn" data-filter="trial" onclick="setFilter('trial', this)">Trial</button>
-                        <button class="filter-btn" data-filter="pro" onclick="setFilter('pro', this)">Pro</button>
                     </div>
                 </div>
 
@@ -961,8 +1059,9 @@
                     <table class="admin-table">
                         <thead>
                             <tr>
-                                <th>Client Details</th>
+                                <th>Client / Organization</th>
                                 <th>License Key</th>
+                                <th>Type & Seats</th>
                                 <th>Tier</th>
                                 <th>Status</th>
                                 <th>SciStudio</th>
@@ -973,7 +1072,7 @@
                         </thead>
                         <tbody id="accountsTableBody">
                             <tr>
-                                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
                                     Loading accounts database...
                                 </td>
                             </tr>
@@ -997,7 +1096,7 @@
                 <div class="form-group" style="text-align: left;">
                     <label class="form-label">Root Master Password / PIN</label>
                     <input type="password" id="rootPassInput" class="form-input" placeholder="Enter root password..." required autofocus>
-                    <small style="color: var(--text-subtle); margin-top: 0.35rem; display: block;">Default password: <code>admin2026</code></small>
+                    <small style="color: var(--text-subtle); margin-top: 0.35rem; display: block;">Use your configured administrator password.</small>
                 </div>
                 <button type="submit" class="btn-create" style="margin-top: 1.25rem;">
                     Unlock Console
@@ -1073,14 +1172,7 @@
                     showToast(data.detail || 'Incorrect root password', 'error');
                 }
             } catch (err) {
-                // If offline or direct fallback
-                if (pass === 'admin2026') {
-                    sessionStorage.setItem('scip_root_token', pass);
-                    document.getElementById('loginModal').classList.remove('active');
-                    refreshDashboard();
-                } else {
-                    showToast('Could not verify root password: ' + err.message, 'error');
-                }
+                showToast('Could not verify root password: ' + err.message, 'error');
             }
         }
 
@@ -1091,8 +1183,38 @@
         }
 
         function getAuthHeader() {
-            const token = sessionStorage.getItem('scip_root_token') || localStorage.getItem('scip_root_token') || 'admin2026';
+            const token = sessionStorage.getItem('scip_root_token') || localStorage.getItem('scip_root_token') || '';
             return { 'X-Root-Auth': token, 'Content-Type': 'application/json' };
+        }
+
+        
+        // Toggle Account Model / Type (Single vs Org)
+        function toggleAccountTypeSelection(type) {
+            const singleLabel = document.getElementById('typeLabelSingle');
+            const orgLabel = document.getElementById('typeLabelOrg');
+            const grpOrg = document.getElementById('groupOrgName');
+            const grpSeat = document.getElementById('groupSeatLimit');
+            const grpSingleInvite = document.getElementById('groupSingleInvite');
+            const lblName = document.getElementById('lblName');
+            const lblEmail = document.getElementById('lblEmail');
+
+            if (type === 'org') {
+                singleLabel.className = 'radio-pill-label';
+                orgLabel.className = 'radio-pill-label active-type';
+                if (grpOrg) grpOrg.style.display = 'block';
+                if (grpSeat) grpSeat.style.display = 'block';
+                if (grpSingleInvite) grpSingleInvite.style.display = 'none';
+                if (lblName) lblName.textContent = 'Organization Administrator Name *';
+                if (lblEmail) lblEmail.textContent = 'Admin Email Address *';
+            } else {
+                singleLabel.className = 'radio-pill-label active-type';
+                orgLabel.className = 'radio-pill-label';
+                if (grpOrg) grpOrg.style.display = 'none';
+                if (grpSeat) grpSeat.style.display = 'none';
+                if (grpSingleInvite) grpSingleInvite.style.display = 'block';
+                if (lblName) lblName.textContent = 'Client / User Name *';
+                if (lblEmail) lblEmail.textContent = 'Client Email / Affiliation *';
+            }
         }
 
         // Toggle Tier Pills
@@ -1134,8 +1256,16 @@
                 }
                 const stats = await statsRes.json();
                 document.getElementById('stat-total').textContent = stats.total_accounts || 0;
-                document.getElementById('stat-trial').textContent = stats.active_trials || 0;
-                document.getElementById('stat-pro').textContent = stats.active_pros || 0;
+                if (document.getElementById('stat-orgs')) {
+                    document.getElementById('stat-orgs').textContent = stats.org_count || 0;
+                    document.getElementById('stat-orgs-desc').textContent = `${stats.total_members || 0} team members total`;
+                }
+                if (document.getElementById('stat-single')) {
+                    document.getElementById('stat-single').textContent = stats.single_count || 0;
+                }
+                if (document.getElementById('stat-scistudio')) {
+                    document.getElementById('stat-scistudio').textContent = stats.scistudio_count || 0;
+                }
                 document.getElementById('stat-stopped').textContent = stats.stopped_accounts || 0;
 
                 // 2. Fetch Accounts
@@ -1176,13 +1306,17 @@
                 if (currentFilter === 'stopped' && acc.status !== 'stopped') return false;
                 if (currentFilter === 'trial' && acc.tier !== 'trial') return false;
                 if (currentFilter === 'pro' && acc.tier !== 'pro') return false;
+                if (currentFilter === 'org' && acc.account_type !== 'org') return false;
+                if (currentFilter === 'single' && acc.account_type === 'org') return false;
+                if (currentFilter === 'scistudio' && acc.scistudio_access === false) return false;
 
                 if (searchVal) {
                     const match = (
                         (acc.client_name || '').toLowerCase().includes(searchVal) ||
                         (acc.client_email || '').toLowerCase().includes(searchVal) ||
                         (acc.license_key || '').toLowerCase().includes(searchVal) ||
-                        (acc.notes || '').toLowerCase().includes(searchVal)
+                        (acc.notes || '').toLowerCase().includes(searchVal) ||
+                        (acc.org_name || '').toLowerCase().includes(searchVal)
                     );
                     if (!match) return false;
                 }
@@ -1242,21 +1376,42 @@
                     `;
                 }
 
+                const isOrg = acc.account_type === 'org';
+                const orgDisplay = isOrg 
+                    ? `<div class="client-info">
+                         <span class="badge-org"><i class="fa-solid fa-building"></i> Org</span>
+                         <span style="font-weight:700;color:#f8fafc;font-size:0.92rem;">${escapeHtml(acc.org_name || acc.client_name)}</span>
+                         <span class="client-email">${escapeHtml(acc.client_email)} <small style="color:#94a3b8;">(Admin: ${escapeHtml(acc.client_name)})</small></span>
+                         ${acc.notes ? `<small style="color:var(--text-subtle);font-size:0.75rem;">📝 ${escapeHtml(acc.notes)}</small>` : ''}
+                       </div>`
+                    : `<div class="client-info">
+                         <span class="badge-single"><i class="fa-solid fa-user"></i> Single</span>
+                         <span class="client-name">${escapeHtml(acc.client_name)}</span>
+                         <span class="client-email">${escapeHtml(acc.client_email)}</span>
+                         ${acc.notes ? `<small style="color:var(--text-subtle);font-size:0.75rem;">📝 ${escapeHtml(acc.notes)}</small>` : ''}
+                       </div>`;
+
+                const memberCount = acc.members ? acc.members.length : 0;
+                const seatLimitDisplay = (acc.seat_limit === -1 || acc.seat_limit === 'Unlimited') ? '∞' : (acc.seat_limit || 1);
+                const seatsCell = (isOrg || acc.can_invite_users) 
+                    ? `<div style="display:flex;align-items:center;gap:0.4rem;">
+                         <span style="font-weight:600;color:#cbd5e1;font-size:0.8rem;">${memberCount}/${seatLimitDisplay}</span>
+                         <button class="btn-manage-team" onclick="openTeamModal('${acc.license_key}')" title="Manage team members & permissions">
+                           <i class="fa-solid fa-users"></i> Team
+                         </button>
+                       </div>`
+                    : `<span style="color:var(--text-subtle);font-size:0.75rem;">Solo</span>`;
+
                 return `
                     <tr>
-                        <td>
-                            <div class="client-info">
-                                <span class="client-name">${escapeHtml(acc.client_name)}</span>
-                                <span class="client-email">${escapeHtml(acc.client_email)}</span>
-                                ${acc.notes ? `<small style="color:var(--text-subtle);font-size:0.75rem;">📝 ${escapeHtml(acc.notes)}</small>` : ''}
-                            </div>
-                        </td>
+                        <td>${orgDisplay}</td>
                         <td>
                             <span class="key-badge" onclick="copyText('${acc.license_key}')" title="Click to copy key">
                                 ${acc.license_key}
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                             </span>
                         </td>
+                        <td>${seatsCell}</td>
                         <td>${tierBadge}</td>
                         <td>${statusBadge}</td>
                         <td>
@@ -1329,6 +1484,10 @@
                         daily_limit: limit,
                         notes: notes,
                         scistudio_access: scistudioAccess,
+                        account_type: document.querySelector('input[name="accountTypeRadio"]:checked')?.value || 'single',
+                        org_name: document.getElementById('inputOrgName')?.value.trim() || '',
+                        seat_limit: parseInt(document.getElementById('inputSeatLimit')?.value || '5'),
+                        can_invite_users: document.getElementById('inputCanInviteUsers')?.checked || false,
                         password: document.getElementById('inputPassword')?.value.trim() || undefined
                     })
                 });
@@ -1529,5 +1688,229 @@ Launch your desktop application and enter this License Key to activate!`;
                 .replace(/'/g, '&#039;');
         }
     </script>
+
+    <!-- Team Members Management Modal -->
+    <div class="modal-overlay" id="teamModal">
+        <div class="modal-box" style="max-width: 650px; width: 92%; text-align: left;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                <div>
+                    <h2 id="modalTeamTitle" style="font-family: 'Outfit', sans-serif; font-size: 1.35rem; font-weight: 700; margin: 0; color: #fff;">🏢 Organization Team Members</h2>
+                    <p id="modalTeamSubtitle" style="color: var(--text-muted); font-size: 0.82rem; margin-top: 4px;">Manage staff, conference managers, and editors</p>
+                </div>
+                <button type="button" class="btn-action" onclick="closeTeamModal()" style="font-size: 1.2rem; padding: 0.2rem 0.6rem; cursor: pointer;">&times;</button>
+            </div>
+
+            <!-- Add Member Form -->
+            <form id="addMemberForm" onsubmit="handleAddMember(event)" style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(255, 255, 255, 0.08); padding: 1rem; border-radius: 10px; margin-bottom: 1.25rem;">
+                <div style="font-size: 0.82rem; font-weight: 700; color: #38bdf8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.65rem;">+ Add Team Member</div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;">
+                    <div>
+                        <label class="form-label">Member Name *</label>
+                        <input type="text" id="inputMemberName" class="form-input" placeholder="e.g. Dr. Alex Mercer" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Member Email *</label>
+                        <input type="email" id="inputMemberEmail" class="form-input" placeholder="a.mercer@institute.org" required>
+                    </div>
+                </div>
+                <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 0.65rem; margin-top: 0.65rem; align-items: flex-end;">
+                    <div>
+                        <label class="form-label">Role</label>
+                        <select id="inputMemberRole" class="form-select">
+                            <option value="editor" selected>Editor (Can edit sites & leads)</option>
+                            <option value="admin">Admin (Full org manager)</option>
+                            <option value="viewer">Viewer (Read-only)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label">Password (Optional)</label>
+                        <input type="text" id="inputMemberPassword" class="form-input" placeholder="Optional password">
+                    </div>
+                    <div>
+                        <button type="submit" class="btn-action btn-scistudio-on" style="padding: 0.65rem 1rem; font-weight: 700; cursor: pointer;">
+                            Add Member
+                        </button>
+                    </div>
+                </div>
+                <div style="margin-top: 0.65rem;">
+                    <label style="display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.8rem; color: #cbd5e1; cursor: pointer;">
+                        <input type="checkbox" id="inputMemberSciStudio" checked style="accent-color: #0284c7;">
+                        <span>Grant SciStudio Website Builder access to this member</span>
+                    </label>
+                </div>
+            </form>
+
+            <!-- Members List -->
+            <div style="font-size: 0.82rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.5rem;">Current Members</div>
+            <div id="teamMembersList" style="max-height: 250px; overflow-y: auto;">
+                <!-- Populated dynamically -->
+            </div>
+        </div>
+    </div>
+
+<script>
+        // Team Management Functions
+        let activeTeamKey = null;
+
+        async function openTeamModal(key) {
+            activeTeamKey = key;
+            const modal = document.getElementById('teamModal');
+            const titleEl = document.getElementById('modalTeamTitle');
+            const subEl = document.getElementById('modalTeamSubtitle');
+            const listEl = document.getElementById('teamMembersList');
+
+            const acc = allAccounts.find(a => a.license_key === key);
+            if (acc) {
+                const isOrg = acc.account_type === 'org';
+                titleEl.textContent = isOrg ? `🏢 ${acc.org_name || acc.client_name}` : `👤 ${acc.client_name}'s Team`;
+                subEl.textContent = `License: ${key} • Seats: ${acc.members ? acc.members.length : 0} / ${acc.seat_limit === -1 ? 'Unlimited' : acc.seat_limit}`;
+            }
+
+            modal.classList.add('active');
+            await loadTeamMembers(key);
+        }
+
+        function closeTeamModal() {
+            activeTeamKey = null;
+            document.getElementById('teamModal').classList.remove('active');
+            document.getElementById('addMemberForm').reset();
+        }
+
+        async function loadTeamMembers(key) {
+            const listEl = document.getElementById('teamMembersList');
+            listEl.innerHTML = '<div style="color:var(--text-muted);padding:1rem;">Loading team members...</div>';
+
+            try {
+                const res = await fetch(`/api/admin/licenses/org-members/${key}`, { headers: getAuthHeader() });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to load team members');
+
+                const members = data.members || [];
+                if (members.length === 0) {
+                    listEl.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;padding:1.5rem;text-align:center;background:rgba(255,255,255,0.02);border-radius:8px;">No sub-users added yet. Use the form above to add staff or managers.</div>';
+                    return;
+                }
+
+                listEl.innerHTML = `
+                    <table style="width:100%;border-collapse:collapse;font-size:0.83rem;">
+                        <thead>
+                            <tr style="border-bottom:1px solid rgba(255,255,255,0.1);color:var(--text-muted);text-align:left;">
+                                <th style="padding:0.4rem 0.5rem;">Member</th>
+                                <th style="padding:0.4rem 0.5rem;">Role</th>
+                                <th style="padding:0.4rem 0.5rem;">SciStudio</th>
+                                <th style="padding:0.4rem 0.5rem;text-align:right;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${members.map(m => `
+                                <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+                                    <td style="padding:0.55rem 0.5rem;">
+                                        <div style="font-weight:600;color:#f8fafc;">${escapeHtml(m.name)}</div>
+                                        <div style="color:#94a3b8;font-size:0.75rem;">${escapeHtml(m.email)}</div>
+                                    </td>
+                                    <td style="padding:0.55rem 0.5rem;">
+                                        <span class="status-pill status-active" style="text-transform:capitalize;font-size:0.7rem;">${escapeHtml(m.role || 'editor')}</span>
+                                    </td>
+                                    <td style="padding:0.55rem 0.5rem;">
+                                        <button class="btn-action ${m.scistudio_access !== false ? 'btn-scistudio-on' : 'btn-scistudio-off'}" 
+                                                onclick="toggleMemberSciStudio('${m.member_id}', ${m.scistudio_access === false})" 
+                                                title="Toggle SciStudio access for member">
+                                            ${m.scistudio_access !== false ? '🎨 Active' : '🔒 Disabled'}
+                                        </button>
+                                    </td>
+                                    <td style="padding:0.55rem 0.5rem;text-align:right;">
+                                        <button class="btn-action btn-delete" onclick="removeMember('${m.member_id}')" title="Remove member from team">
+                                            🗑️ Remove
+                                        </button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                `;
+            } catch (err) {
+                listEl.innerHTML = `<div style="color:#f87171;padding:1rem;">Error: ${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        async function handleAddMember(e) {
+            e.preventDefault();
+            if (!activeTeamKey) return;
+
+            const name = document.getElementById('inputMemberName').value.trim();
+            const email = document.getElementById('inputMemberEmail').value.trim();
+            const role = document.getElementById('inputMemberRole').value;
+            const password = document.getElementById('inputMemberPassword').value.trim() || undefined;
+            const scistudio = document.getElementById('inputMemberSciStudio').checked;
+
+            try {
+                const res = await fetch('/api/admin/licenses/org-members/add', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({
+                        license_key: activeTeamKey,
+                        name: name,
+                        email: email,
+                        role: role,
+                        password: password,
+                        scistudio_access: scistudio
+                    })
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to add member');
+
+                showToast(`Added ${name} to team`, 'success');
+                document.getElementById('addMemberForm').reset();
+                await loadTeamMembers(activeTeamKey);
+                refreshDashboard();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function removeMember(memberId) {
+            if (!confirm('Are you sure you want to remove this team member?')) return;
+            try {
+                const res = await fetch('/api/admin/licenses/org-members/remove', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({
+                        license_key: activeTeamKey,
+                        member_id: memberId
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to remove member');
+
+                showToast('Member removed', 'info');
+                await loadTeamMembers(activeTeamKey);
+                refreshDashboard();
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+
+        async function toggleMemberSciStudio(memberId, enable) {
+            try {
+                const res = await fetch('/api/admin/licenses/org-members/toggle-scistudio', {
+                    method: 'POST',
+                    headers: getAuthHeader(),
+                    body: JSON.stringify({
+                        license_key: activeTeamKey,
+                        member_id: memberId,
+                        enabled: enable
+                    })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.detail || 'Failed to update member permission');
+
+                showToast(data.message, 'success');
+                await loadTeamMembers(activeTeamKey);
+            } catch (err) {
+                showToast(err.message, 'error');
+            }
+        }
+</script>
 </body>
 </html>

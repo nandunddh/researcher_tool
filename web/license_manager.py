@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 # Default Root Admin Password
-DEFAULT_ROOT_PASSWORD = os.environ.get("SCIPROSPECT_ROOT_PASS", "admin2026")
+DEFAULT_ROOT_PASSWORD = os.environ.get("SCIPROSPECT_ROOT_PASS", "")
 
 import hashlib
 import time
@@ -30,11 +30,18 @@ def hash_password(password: str) -> str:
     if not password:
         return ""
     salt = secrets.token_hex(16)
-    h = hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
-    return f"{salt}:{h}"
+    h = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("ascii"), 600000).hex()
+    return f"pbkdf2_sha256$600000${salt}${h}"
 
 def verify_password(password: str, stored_hash: str) -> bool:
     """Verifies a raw password against stored salt:hash string."""
+    if stored_hash and stored_hash.startswith("pbkdf2_sha256$"):
+        try:
+            _, rounds, salt, digest = stored_hash.split("$")
+            expected = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("ascii"), int(rounds)).hex()
+            return secrets.compare_digest(expected, digest)
+        except (ValueError, TypeError):
+            return False
     if not stored_hash or ":" not in stored_hash:
         return False
     try:
@@ -50,12 +57,12 @@ LICENSES_FILE = BASE_DIR / "licenses.json"
 
 # Cloud Database Configuration (Oracle Cloud PostgreSQL)
 PG_CONFIG = {
-    "host": "129.225.69.188",
-    "port": 5432,
-    "dbname": "sciprospect_db",
-    "user": "sciprospect",
-    "password": "Sc!Pr0$pect*2026#",
-    "connect_timeout": 3
+    "host": os.environ.get("SCIPROSPECT_DB_HOST", ""),
+    "port": int(os.environ.get("SCIPROSPECT_DB_PORT", "5432")),
+    "dbname": os.environ.get("SCIPROSPECT_DB_NAME", "sciprospect_db"),
+    "user": os.environ.get("SCIPROSPECT_DB_USER", ""),
+    "password": os.environ.get("SCIPROSPECT_DB_PASSWORD", ""),
+    "connect_timeout": 3,
 }
 
 
@@ -84,7 +91,7 @@ class LicenseManager:
                 "_metadata": {
                     "version": "1.0",
                     "updated_at": datetime.utcnow().isoformat(),
-                    "root_password": DEFAULT_ROOT_PASSWORD,
+                    "root_password_hash": hash_password(DEFAULT_ROOT_PASSWORD),
                 },
                 "licenses": {
                     "SCIP-PRO-ROOT-MASTER": {
@@ -117,6 +124,8 @@ class LicenseManager:
         # Cloud Sync: Load from Oracle Cloud PostgreSQL (Authoritative Source of Truth)
         try:
             import psycopg2
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
@@ -168,6 +177,8 @@ class LicenseManager:
         # Cloud Sync: Save to Oracle Cloud PostgreSQL
         try:
             import psycopg2
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     for lk, lic in data.get("licenses", {}).items():
@@ -211,13 +222,22 @@ class LicenseManager:
 
     def verify_root_auth(self, password_or_key: str) -> bool:
         """Verifies root credentials."""
+        if not password_or_key:
+            return False
         db = self._load_db()
-        configured_pass = db.get("_metadata", {}).get("root_password", DEFAULT_ROOT_PASSWORD)
-        return (
-            password_or_key == configured_pass
-            or password_or_key == DEFAULT_ROOT_PASSWORD
-            or password_or_key == "SCIP-PRO-ROOT-MASTER"
-        )
+        metadata = db.get("_metadata", {})
+        stored = metadata.get("root_password_hash", "")
+        if stored:
+            return verify_password(password_or_key, stored)
+        # Preserve an existing installation's password during the hash migration.
+        # This accepts only its saved credential, never a built-in default/key.
+        configured = DEFAULT_ROOT_PASSWORD or metadata.get("root_password", "")
+        if not configured or not secrets.compare_digest(password_or_key, configured):
+            return False
+        metadata.pop("root_password", None)
+        metadata["root_password_hash"] = hash_password(configured)
+        self._save_db(db)
+        return True
 
     def update_root_password(self, old_pass: str, new_pass: str) -> Tuple[bool, str]:
         if not self.verify_root_auth(old_pass):
@@ -225,7 +245,8 @@ class LicenseManager:
         if len(new_pass.strip()) < 6:
             return False, "New password must be at least 6 characters long."
         db = self._load_db()
-        db["_metadata"]["root_password"] = new_pass.strip()
+        db["_metadata"].pop("root_password", None)
+        db["_metadata"]["root_password_hash"] = hash_password(new_pass.strip())
         self._save_db(db)
         return True, "Root password successfully updated."
 
@@ -239,12 +260,17 @@ class LicenseManager:
         notes: str = "",
         password: Optional[str] = None,
         scistudio_access: bool = True,
+        account_type: str = "single",
+        org_name: str = "",
+        can_invite_users: bool = False,
+        seat_limit: Optional[int] = None,
     ) -> dict:
         """
         Creates a new user account and issues a license key.
         - tier: 'trial' or 'pro'
         - duration_days: e.g. 7 for trial, 365 or -1 for Pro lifetime
         - daily_limit: e.g. 1000 for trial, -1 for unlimited
+        - account_type: 'org' (Organization/Team) or 'single' (Individual client)
         """
         db = self._load_db()
         tier_clean = tier.strip().lower()
@@ -267,12 +293,23 @@ class LicenseManager:
         while key in db["licenses"]:
             key = _generate_key(tier=tier_clean)
 
+        acct_type = "org" if str(account_type).lower() == "org" else "single"
+        if seat_limit is None or seat_limit <= 0:
+            final_seat_limit = 5 if acct_type == "org" else (1 if not can_invite_users else 3)
+        else:
+            final_seat_limit = int(seat_limit)
+
         account = {
             "license_key": key,
-            "client_name": name.strip() or "Unnamed Client",
+            "account_type": acct_type,
+            "org_name": org_name.strip() if acct_type == "org" else "",
+            "client_name": name.strip() or ("Organization Admin" if acct_type == "org" else "Unnamed Client"),
             "client_email": email.strip().lower() or "client@example.com",
             "tier": tier_clean,
             "status": "active",
+            "can_invite_users": bool(can_invite_users or acct_type == "org"),
+            "seat_limit": final_seat_limit,
+            "members": [],
             "created_at": now.strftime("%Y-%m-%d %H:%M:%S UTC"),
             "expires_at": expires_at,
             "duration_days": duration_days,
@@ -287,8 +324,14 @@ class LicenseManager:
 
         db["licenses"][key] = account
         self._save_db(db)
-        print(f"[LICENSE] Created {tier_clean.upper()} account for {name} ({key})")
+        print(f"[LICENSE] Created {acct_type.upper()} ({tier_clean.upper()}) account for {name} ({key})")
         return account
+
+    def get_account(self, license_key: str) -> Optional[dict]:
+        """Returns the raw account record by key."""
+        db = self._load_db()
+        key_clean = (license_key or "").strip().upper()
+        return db.get("licenses", {}).get(key_clean)
 
     def stop_account(self, license_key: str) -> Tuple[bool, str]:
         """Instantly stops/suspends an account. Client app will be locked out and active sessions revoked."""
@@ -412,6 +455,8 @@ class LicenseManager:
         # 2. Cloud Sync: Delete from Oracle Cloud PostgreSQL
         try:
             import psycopg2
+            if not PG_CONFIG["host"]:
+                raise RuntimeError("Cloud database is not configured")
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("DELETE FROM admin_licenses WHERE UPPER(license_key) = %s;", (key_clean,))
@@ -467,6 +512,13 @@ class LicenseManager:
             acc_copy["is_expired"] = is_expired
             acc_copy["scistudio_access"] = acc_copy.get("scistudio_access", True)
 
+            acc_copy["account_type"] = acc_copy.get("account_type", "single")
+            acc_copy["org_name"] = acc_copy.get("org_name", "")
+            acc_copy["can_invite_users"] = acc_copy.get("can_invite_users", acc_copy["account_type"] == "org")
+            acc_copy["seat_limit"] = acc_copy.get("seat_limit", 5 if acc_copy["account_type"] == "org" else 1)
+            acc_copy["members"] = acc_copy.get("members", [])
+            acc_copy["member_count"] = len(acc_copy["members"])
+
             # Apply filters
             if filter_tier != "all" and acc_copy.get("tier") != filter_tier:
                 continue
@@ -479,6 +531,7 @@ class LicenseManager:
                     or query in acc_copy.get("client_email", "").lower()
                     or query in acc_copy.get("license_key", "").lower()
                     or query in acc_copy.get("notes", "").lower()
+                    or query in acc_copy.get("org_name", "").lower()
                 )
                 if not matches:
                     continue
@@ -489,6 +542,85 @@ class LicenseManager:
         accounts.sort(key=lambda x: x.get("created_at", ""), reverse=True)
         return accounts
 
+    def add_org_member(
+        self,
+        parent_key: str,
+        name: str,
+        email: str,
+        role: str = "editor",
+        scistudio_access: bool = True,
+        password: Optional[str] = None
+    ) -> Tuple[bool, str, Optional[dict]]:
+        """Adds a team member/user to an Organization or Client account."""
+        db = self._load_db()
+        key_clean = (parent_key or "").strip().upper()
+        if key_clean not in db.get("licenses", {}):
+            return False, "Parent account / Organization not found.", None
+
+        parent = db["licenses"][key_clean]
+        members = parent.setdefault("members", [])
+        seat_limit = parent.get("seat_limit", 5 if parent.get("account_type") == "org" else 1)
+
+        if seat_limit != -1 and len(members) >= seat_limit:
+            return False, f"Team seat limit reached ({seat_limit} seats). Upgrade limit in Admin Console.", None
+
+        clean_email = email.strip().lower()
+        if not clean_email or "@" not in clean_email:
+            return False, "A valid member email address is required.", None
+
+        if any(m.get("email", "").lower() == clean_email for m in members):
+            return False, f"Member with email '{clean_email}' already exists in this team.", None
+
+        import uuid
+        member_id = f"mem-{uuid.uuid4().hex[:8]}"
+        new_member = {
+            "member_id": member_id,
+            "name": name.strip() or "Team Member",
+            "email": clean_email,
+            "role": role if role in ("admin", "editor", "viewer") else "editor",
+            "scistudio_access": bool(scistudio_access),
+            "created_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "password_hash": hash_password(password) if password else "",
+        }
+        members.append(new_member)
+        self._save_db(db)
+        return True, f"Member '{new_member['name']}' successfully added.", new_member
+
+    def remove_org_member(self, parent_key: str, member_id: str) -> Tuple[bool, str]:
+        """Removes a team member from an Organization or Client account."""
+        db = self._load_db()
+        key_clean = (parent_key or "").strip().upper()
+        if key_clean not in db.get("licenses", {}):
+            return False, "Parent account / Organization not found."
+
+        parent = db["licenses"][key_clean]
+        members = parent.get("members", [])
+        initial_len = len(members)
+        parent["members"] = [m for m in members if m.get("member_id") != member_id]
+        if len(parent["members"]) == initial_len:
+            return False, "Member not found."
+        self._save_db(db)
+        return True, "Team member successfully removed."
+
+    def toggle_member_scistudio(self, parent_key: str, member_id: str, enable: Optional[bool] = None) -> Tuple[bool, str, Optional[dict]]:
+        """Toggles SciStudio access for a specific team member."""
+        db = self._load_db()
+        key_clean = (parent_key or "").strip().upper()
+        if key_clean not in db.get("licenses", {}):
+            return False, "Parent account / Organization not found.", None
+
+        parent = db["licenses"][key_clean]
+        for m in parent.get("members", []):
+            if m.get("member_id") == member_id:
+                if enable is None:
+                    m["scistudio_access"] = not m.get("scistudio_access", True)
+                else:
+                    m["scistudio_access"] = bool(enable)
+                self._save_db(db)
+                status_str = "enabled" if m["scistudio_access"] else "disabled"
+                return True, f"SciStudio access {status_str} for member '{m.get('name')}'.", m
+        return False, "Member not found.", None
+
     def get_stats(self) -> dict:
         """Computes summary KPI stats for the Root Dashboard."""
         db = self._load_db()
@@ -498,6 +630,10 @@ class LicenseManager:
         active_pro = 0
         stopped = 0
         expired = 0
+        org_count = 0
+        single_count = 0
+        scistudio_count = 0
+        total_members = 0
 
         now = datetime.utcnow()
 
@@ -505,6 +641,18 @@ class LicenseManager:
             status = acc.get("status", "active")
             tier = acc.get("tier", "trial")
             expires_at = acc.get("expires_at", "never")
+            acct_type = acc.get("account_type", "single")
+
+            if acct_type == "org":
+                org_count += 1
+            else:
+                single_count += 1
+
+            members = acc.get("members", [])
+            total_members += len(members)
+
+            if acc.get("scistudio_access", True):
+                scistudio_count += 1
 
             if status == "stopped":
                 stopped += 1
@@ -531,6 +679,10 @@ class LicenseManager:
             "active_pros": active_pro,
             "stopped_accounts": stopped,
             "expired_accounts": expired,
+            "org_count": org_count,
+            "single_count": single_count,
+            "scistudio_count": scistudio_count,
+            "total_members": total_members,
         }
 
     def validate_license(self, license_key: str) -> dict:

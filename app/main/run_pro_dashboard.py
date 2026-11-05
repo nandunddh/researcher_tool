@@ -13,6 +13,9 @@ import time
 import webbrowser
 from pathlib import Path
 
+WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+sys.path.insert(0, str(WEB_DIR))
+
 # Safe stream to prevent NoneType crashes in windowed mode
 class SafeStream:
     def write(self, s):

@@ -68,7 +68,7 @@ python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
 - **Web App / SciStudio:** [http://localhost:8000](http://localhost:8000)
 - **Admin Portal:** [http://localhost:8000/admin](http://localhost:8000/admin)
-- **Default Master Key:** `SCIP-PRO-ROOT-MASTER` (or Username `admin` / Password `admin2026`)
+- **Administrator:** username `admin`; set `SCIPROSPECT_ROOT_PASS` before launch. There is no default password.
 
 ### 2. Launch Desktop Application
 Double click `run_desktop.bat` or run:
@@ -77,3 +77,25 @@ cd app/main
 python run_pro_dashboard.py
 ```
 
+
+## Configuration and validation
+
+Set environment variables in the same terminal that launches the app:
+
+```powershell
+$env:SCIPROSPECT_ROOT_PASS = '<choose-a-unique-password>'
+.\run_web.bat
+```
+
+Cloud storage is optional. To enable it, set `SCIPROSPECT_DB_HOST`,
+`SCIPROSPECT_DB_PORT`, `SCIPROSPECT_DB_NAME`, `SCIPROSPECT_DB_USER`, and
+`SCIPROSPECT_DB_PASSWORD`. Without a host, local storage is used.
+Environment variables must be set explicitly; `.env` files are not loaded automatically.
+Previously embedded database credentials must be rotated on the database server.
+Existing local account files are preserved. A saved legacy administrator password
+is migrated to a secure hash on successful login. New installations require the
+environment password.
+
+Run regression checks with `python -m unittest discover -s tests`.
+`app/test` contains the trial product, while `tests` contains automated checks.
+Production and trial pipelines remain separate because trial quota behavior differs.

@@ -24,6 +24,7 @@ from fastapi.staticfiles import StaticFiles
 
 import requests
 from app_config import get_data_dir, set_data_dir
+sys.path.append(str(Path(__file__).resolve().parent.parent / "app" / "main"))
 from license_manager import license_engine
 
 ACTIVE_LICENSE_FILE = Path(__file__).resolve().parent / ".active_license"
@@ -192,7 +193,7 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
     broadcast_log(f"Starting {stage_name}...", stage=stage_name, status="running")
 
     py_exe = sys.executable
-    script_path = BASE_DIR / script_name
+    script_path = ROOT_DIR / "app" / "main" / script_name
 
     if action == "openalex":
         cmd = [
@@ -214,7 +215,7 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
             str(params.get("keyword", "cell biology")),
             str(params.get("target_leads", 100)),
         ]
-    elif action in ("unified", "openalex_unified"):
+    elif action in ("unified", "openalex_unified", "auto") :
         cmd = [
             py_exe, "-u", str(script_path),
             str(params.get("keyword", "cell biology")),
@@ -507,15 +508,99 @@ async def admin_create_license(request: Request):
     limit = int(body.get("daily_limit") if body.get("daily_limit") is not None else (-1 if tier == "pro" else 1000))
     notes = (body.get("notes") or "").strip()
     scistudio_access = bool(body.get("scistudio_access", True))
+    account_type = (body.get("account_type") or "single").strip().lower()
+    org_name = (body.get("org_name") or "").strip()
+    can_invite_users = bool(body.get("can_invite_users", account_type == "org"))
+    seat_limit = body.get("seat_limit")
+    if seat_limit is not None:
+        try:
+            seat_limit = int(seat_limit)
+        except ValueError:
+            seat_limit = 5 if account_type == "org" else 1
 
     if not name or not email:
         raise HTTPException(status_code=400, detail="Client name and email are required.")
 
     password = (body.get("password") or "").strip() or None
     created = license_engine.create_account(
-        name=name, email=email, tier=tier, duration_days=duration, daily_limit=limit, notes=notes, password=password, scistudio_access=scistudio_access
+        name=name,
+        email=email,
+        tier=tier,
+        duration_days=duration,
+        daily_limit=limit,
+        notes=notes,
+        password=password,
+        scistudio_access=scistudio_access,
+        account_type=account_type,
+        org_name=org_name,
+        can_invite_users=can_invite_users,
+        seat_limit=seat_limit,
     )
     return created
+
+
+@app.get("/api/admin/licenses/org-members/{license_key}")
+async def admin_get_org_members(license_key: str, request: Request):
+    _verify_admin_auth(request)
+    account = license_engine.get_account(license_key)
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    return {
+        "license_key": license_key,
+        "account_type": account.get("account_type", "single"),
+        "org_name": account.get("org_name", ""),
+        "seat_limit": account.get("seat_limit", 5),
+        "members": account.get("members", []),
+    }
+
+
+@app.post("/api/admin/licenses/org-members/add")
+async def admin_add_org_member(request: Request):
+    _verify_admin_auth(request)
+    body = await request.json()
+    parent_key = (body.get("license_key") or "").strip()
+    name = (body.get("name") or "").strip()
+    email = (body.get("email") or "").strip()
+    role = (body.get("role") or "editor").strip()
+    scistudio_access = bool(body.get("scistudio_access", True))
+    password = (body.get("password") or "").strip() or None
+
+    ok, msg, member = license_engine.add_org_member(
+        parent_key=parent_key,
+        name=name,
+        email=email,
+        role=role,
+        scistudio_access=scistudio_access,
+        password=password,
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "member": member}
+
+
+@app.post("/api/admin/licenses/org-members/remove")
+async def admin_remove_org_member(request: Request):
+    _verify_admin_auth(request)
+    body = await request.json()
+    parent_key = (body.get("license_key") or "").strip()
+    member_id = (body.get("member_id") or "").strip()
+    ok, msg = license_engine.remove_org_member(parent_key, member_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.post("/api/admin/licenses/org-members/toggle-scistudio")
+async def admin_toggle_member_scistudio(request: Request):
+    _verify_admin_auth(request)
+    body = await request.json()
+    parent_key = (body.get("license_key") or "").strip()
+    member_id = (body.get("member_id") or "").strip()
+    enabled = body.get("enabled")
+    ok, msg, member = license_engine.toggle_member_scistudio(parent_key, member_id, enable=enabled)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "member": member}
 
 
 @app.post("/api/admin/licenses/toggle-scistudio")
@@ -827,63 +912,26 @@ async def merge_and_deduplicate_endpoint(request: Request):
         if any(token in p.name.lower() for token in ["found", "verified", "nih", "master", "send_ready"]):
             target_files.append(p)
 
-    unified = {}
-    total_scanned = 0
-    duplicates_count = 0
-
-    preferred_fields = [
-        "researcher_name", "professional_email", "affiliations_seen_on_matching_papers",
-        "matched_search_terms", "orcid", "example_papers", "example_paper_dois",
-        "email_source_url", "review_status", "email_status"
-    ]
-
-    for f in target_files:
-        try:
-            with open(f, "r", encoding="utf-8-sig", errors="replace") as cf:
-                reader = csv.DictReader(cf)
-                for row in reader:
-                    email = (row.get("professional_email") or row.get("email") or "").strip().lower()
-                    if not email or "@" not in email:
-                        continue
-                    total_scanned += 1
-
-                    if email in unified:
-                        duplicates_count += 1
-                        existing = unified[email]
-                        for k in ["orcid", "affiliations_seen_on_matching_papers", "example_paper_dois", "example_papers"]:
-                            if not existing.get(k) and row.get(k):
-                                existing[k] = row.get(k)
-                    else:
-                        unified[email] = {k: row.get(k, "") for k in preferred_fields}
-                        unified[email]["professional_email"] = email
-                        if not unified[email]["review_status"]:
-                            unified[email]["review_status"] = "found"
-        except Exception:
-            continue
-
-    master_path = data_dir / "central_master_leads.csv"
-    if unified:
-        with open(master_path, "w", encoding="utf-8-sig", newline="") as mf:
-            writer = csv.DictWriter(mf, fieldnames=preferred_fields)
-            writer.writeheader()
-            for r in unified.values():
-                writer.writerow(r)
-
-    return {
-        "status": "success",
-        "files_scanned": len(target_files),
-        "total_leads_scanned": total_scanned,
-        "duplicates_removed": duplicates_count,
-        "unique_master_leads": len(unified),
-        "output_file": master_path.name,
-    }
+    from collector_store import merge_files
+    try:
+        result = merge_files(data_dir / "central_master_leads.csv", target_files)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"status": "success", "files_scanned": len(target_files),
+            "output_file": "central_master_leads.csv", **result}
 
 
 @app.post("/api/leads/clear-all")
 async def clear_all_leads(request: Request):
     """Wipes old generated CSV lead files and resets central master to give a fresh, clean slate."""
     _require_authenticated_user(request)
+    if process_state["status"] == "running":
+        raise HTTPException(status_code=409, detail="Stop collection before clearing datasets.")
     data_dir = get_data_dir()
+    from collector_store import clear_archive
+    for folder in (data_dir, BASE_DIR / "data"):
+        if (folder / "central_master_leads.sqlite3").exists():
+            clear_archive(folder / "central_master_leads.csv")
     deleted = []
     clean_master_hdr = (
         "researcher_name,professional_email,match_score,match_rating,data_source,"
@@ -982,7 +1030,7 @@ async def start_pipeline(request: Request):
         script_name = "04_extract_nih_researchers.py"
         stage_name = f"NIH Funded PIs ({keyword} | Target: {leads})"
 
-    elif action in ("unified", "openalex_unified"):
+    elif action in ("unified", "openalex_unified", "auto") :
         keyword = body.get("keyword", "cell biology").strip()
         target_leads = int(body.get("target_leads", 1000))
         min_score = int(body.get("min_score", 50))
@@ -993,7 +1041,7 @@ async def start_pipeline(request: Request):
         params["min_score"] = min_score
         params["from_date"] = from_date
         params["to_date"] = to_date
-        script_name = "03_unified_lead_pipeline.py"
+        script_name = "collect_all.py" if action == "auto" else "03_unified_lead_pipeline.py"
         stage_name = f"Source 1: OpenAlex Pipeline ({keyword} | {from_date} to {to_date} | Target: {target_leads:,} | Score >= {min_score})"
 
     elif action == "biorxiv":
@@ -1280,6 +1328,17 @@ def _require_scistudio_access(user: dict):
             detail="SciStudio access is disabled for your account. Please contact an administrator to request access."
         )
 
+def _require_owned_site(site_id: str, user: dict) -> dict:
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id):
+        raise HTTPException(status_code=404, detail="Website not found.")
+    site = builder_engine.get_site(site_id)
+    owner = (site or {}).get("user_email", "").strip().lower()
+    email = user.get("client_email", "").strip().lower()
+    if not site or not (user.get("is_admin") or (email and owner == email)):
+        raise HTTPException(status_code=404, detail="Website not found.")
+    return site
+
+
 @app.get("/api/builder/templates")
 async def builder_list_templates():
     return {"templates": builder_engine.list_templates()}
@@ -1319,6 +1378,7 @@ async def builder_create_site(request: Request):
 async def builder_get_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
     site = builder_engine.get_site(site_id)
     if not site:
         raise HTTPException(status_code=404, detail="Website not found.")
@@ -1329,6 +1389,7 @@ async def builder_get_site(site_id: str, request: Request):
 async def builder_update_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
     body = await request.json()
     ok, msg, site = builder_engine.update_site(site_id, body)
     if not ok:
@@ -1340,6 +1401,7 @@ async def builder_update_site(site_id: str, request: Request):
 async def builder_delete_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
     ok, msg = builder_engine.delete_site(site_id)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -1350,6 +1412,7 @@ async def builder_delete_site(site_id: str, request: Request):
 async def builder_publish_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
     ok, msg, site = builder_engine.update_site(site_id, {"status": "published"})
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -1360,6 +1423,7 @@ async def builder_publish_site(site_id: str, request: Request):
 async def builder_export_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
     zip_bytes, filename = builder_engine.export_site_zip(site_id)
     if not zip_bytes:
         raise HTTPException(status_code=404, detail="Site not found or could not be compiled.")
@@ -1374,7 +1438,7 @@ async def builder_export_site(site_id: str, request: Request):
 async def serve_public_website(slug: str):
     """Public delivery endpoint for published websites."""
     site = builder_engine.get_site_by_slug(slug)
-    if not site:
+    if not site or site.get("status") != "published":
         return HTMLResponse(
             "<!DOCTYPE html><html><head><title>Site Not Found</title></head><body style='font-family:sans-serif;text-align:center;padding:5rem;background:#0f172a;color:#fff;'><h1>404 - Website Not Found</h1><p>The requested website does not exist or has not been published yet.</p></body></html>",
             status_code=404

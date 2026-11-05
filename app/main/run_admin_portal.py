@@ -15,6 +15,9 @@ import time
 import webbrowser
 from pathlib import Path
 
+WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+sys.path.insert(0, str(WEB_DIR))
+
 BASE_DIR = Path(__file__).resolve().parent
 
 

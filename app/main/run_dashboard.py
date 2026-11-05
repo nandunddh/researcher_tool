@@ -9,6 +9,9 @@ import sys
 import webbrowser
 from pathlib import Path
 
+WEB_DIR = Path(__file__).resolve().parents[2] / "web"
+sys.path.insert(0, str(WEB_DIR))
+
 import socket
 import uvicorn
 
@@ -39,4 +42,4 @@ if __name__ == "__main__":
     except Exception:
         pass
 
-    uvicorn.run("app:app", host="127.0.0.1", port=port, reload=True, app_dir=str(BASE_DIR))
+    uvicorn.run("app:app", host="127.0.0.1", port=port, reload=True, app_dir=str(WEB_DIR))

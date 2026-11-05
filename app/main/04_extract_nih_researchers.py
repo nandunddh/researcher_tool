@@ -18,6 +18,7 @@ Workflow:
 """
 
 import csv
+from collector_store import save_leads
 import json
 import re
 import sys
@@ -38,7 +39,7 @@ KEYWORDS = [
 ]
 
 # Fiscal years with active funding
-FISCAL_YEARS = [2026]
+FISCAL_YEARS = [datetime.now().year]
 
 # Target leads to collect
 TARGET_LEADS = 500
@@ -137,37 +138,8 @@ def is_same_person(author_name, candidate_name):
 
 
 def is_email_match(author_name, email):
-    """Verifies that the extracted email belongs to the PI."""
-    if not email or "@" not in email:
-        return False
-    
-    local = email.split("@")[0].lower()
-    norm_name = normalize_text(author_name)
-    parts = [p for p in re.split(r"[^a-z0-9]+", norm_name) if len(p) >= 2]
-    
-    if not parts:
-        return False
-    
-    last = parts[-1]
-    first = parts[0]
-    
-    # 1. Last name appears in local part
-    if last in local:
-        return True
-    
-    # 2. First initial + last name (e.g. jsmith)
-    if len(first) >= 1 and (first[0] + last) in local:
-        return True
-        
-    # 3. Last name + first initial (e.g. smithj)
-    if len(first) >= 1 and (last + first[0]) in local:
-        return True
-
-    # 4. First name appears in local part (min 4 chars)
-    if len(first) >= 4 and first in local:
-        return True
-        
-    return False
+    from collector_identity import name_matches_email
+    return name_matches_email(author_name, email)
 
 
 def get_author_affiliations(author_dict):
@@ -194,15 +166,14 @@ def load_dedup_set():
     for path in [CENTRAL_MASTER_FILE, MASTER_POOL_FILE]:
         if path.exists():
             try:
-                with open(path, "r", encoding="utf-8", errors="replace") as f:
+                with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
                     reader = csv.DictReader(f)
                     for row in reader:
-                        email = (row.get("email") or "").strip().lower()
+                        email = (row.get("professional_email") or row.get("email") or "").strip().lower()
                         if email:
                             dedup.add(email)
                         name = normalize_text(row.get("full_name") or row.get("author_name") or "")
-                        if name:
-                            dedup.add(name)
+                        # Names alone cannot uniquely identify a researcher.
             except Exception as e:
                 print(f"[WARN] Failed to read {path.name}: {e}")
     return dedup
@@ -414,7 +385,7 @@ def main():
     unique_pis = []
     seen = set()
     for pi in all_pis:
-        norm = normalize_text(pi["full_name"])
+        norm = (normalize_text(pi["full_name"]), normalize_text(pi.get("organization", "")))
         if norm and norm not in seen and norm not in dedup:
             seen.add(norm)
             unique_pis.append(pi)
@@ -473,13 +444,8 @@ def main():
             writer.writerows(collected_leads)
             
         # Append to Central Master Archive
-        master_exists = CENTRAL_MASTER_FILE.exists()
-        with open(CENTRAL_MASTER_FILE, "a", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            if not master_exists:
-                writer.writeheader()
-            writer.writerows(collected_leads)
-            
+        save_leads(CENTRAL_MASTER_FILE, collected_leads)
+
         print("\n" + "=" * 70)
         print(f"✅ EXPORT COMPLETE: {len(collected_leads)} funded PI leads saved!")
         print(f"📁 Daily Export: {EXPORT_CSV}")

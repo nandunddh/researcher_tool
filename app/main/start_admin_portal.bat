@@ -6,7 +6,7 @@ echo   🛡️  SCIPROSPECT ROOT ADMIN LICENSING COMMAND CENTER
 echo ========================================================
 echo.
 echo Launching Root Licensing Console...
-echo Default Root Master Password: admin2026
+echo Set SCIPROSPECT_ROOT_PASS before starting this launcher.
 echo.
 
 cd /d "%~dp0"

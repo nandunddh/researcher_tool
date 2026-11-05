@@ -25,3 +25,14 @@ app/test/dist_installer/
 test_app/dist/
 test_app/build/
 test_app/dist_installer/
+
+# Local credentials and backup artifacts
+*.bak
+web/licenses.json
+.active_license
+
+# Collector runtime archives
+*.sqlite3
+*.sqlite3-journal
+*.csv.tmp
+*.backup-*

@@ -9,6 +9,7 @@ Live ETA / Progress Tracking, and Oracle PostgreSQL Cloud Sync.
 
 import calendar
 import csv
+from collector_store import save_leads
 import json
 import os
 import re
@@ -44,12 +45,12 @@ def request_stop():
 
 # Cloud Database Configuration (Oracle Cloud PostgreSQL)
 PG_CONFIG = {
-    "host": "129.225.69.188",
-    "port": 5432,
-    "dbname": "sciprospect_db",
-    "user": "sciprospect",
-    "password": "Sc!Pr0$pect*2026#",
-    "connect_timeout": 5
+    "host": os.environ.get("SCIPROSPECT_DB_HOST", ""),
+    "port": int(os.environ.get("SCIPROSPECT_DB_PORT", "5432")),
+    "dbname": os.environ.get("SCIPROSPECT_DB_NAME", "sciprospect_db"),
+    "user": os.environ.get("SCIPROSPECT_DB_USER", ""),
+    "password": os.environ.get("SCIPROSPECT_DB_PASSWORD", ""),
+    "connect_timeout": 3,
 }
 
 API_KEY = os.environ.get("OPENALEX_API_KEY", "").strip()
@@ -125,30 +126,8 @@ def extract_name_parts(full_name: str):
 
 def is_name_match(author_name: str, email: str) -> bool:
     """Strict verification: Returns True ONLY if author's last name or initials match email handle."""
-    if not email or "@" not in email:
-        return False
-    handle, _, _ = email.lower().partition("@")
-    clean_handle = re.sub(r"[^a-z]", "", normalize_text(handle))
-    first, last, words, initials = extract_name_parts(author_name)
-
-    if not last or len(last) < 2:
-        return False
-
-    if last in clean_handle:
-        return True
-    if initials and (initials + last) in clean_handle:
-        return True
-    if first and (first[0] + last) in clean_handle:
-        return True
-    if first and (last + first[0]) in clean_handle:
-        return True
-    for w in words:
-        if len(w) >= 4 and w in clean_handle:
-            return True
-    if first and len(first) >= 4 and first in clean_handle:
-        return True
-
-    return False
+    from collector_identity import name_matches_email
+    return name_matches_email(author_name, email)
 
 
 def clean_email(email_str: str) -> str:
@@ -311,6 +290,14 @@ def fetch_emails_for_doi(doi: str) -> list[str]:
             if resp.status_code == 200:
                 data = resp.json()
                 for res in data.get("resultList", {}).get("result", []):
+                    pmcid = res.get("pmcid", "")
+                    if re.fullmatch(r"PMC\d+", pmcid):
+                        full = http_session.get(f"https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML", timeout=10)
+                        if full.status_code == 200:
+                            for raw_em in EMAIL_PATTERN.findall(full.text):
+                                em = clean_email(raw_em)
+                                if em and em not in found:
+                                    found.append(em)
                     for a in res.get("authorList", {}).get("author", []):
                         aff = a.get("affiliation", "")
                         for raw_em in EMAIL_PATTERN.findall(aff):
@@ -427,11 +414,11 @@ def process_single_work(work: dict, keyword: str, min_score: int, existing_email
             continue
 
         if score >= 85:
-            rating = f"Excellent Match ({score}%)"
+            rating = f"Excellent Match ({score}/100)"
         elif score >= 70:
-            rating = f"Strong Match ({score}%)"
+            rating = f"Strong Match ({score}/100)"
         else:
-            rating = f"Verified Match ({score}%)"
+            rating = f"Candidate Match ({score}/100)"
 
         lead_row = {
             "researcher_name": author_name,
@@ -446,7 +433,8 @@ def process_single_work(work: dict, keyword: str, min_score: int, existing_email
             "publication_year": pub_year,
             "doi": doi,
             "search_keyword": keyword,
-            "review_status": "verified",
+            "review_status": "author_linked" if is_orcid_email else "needs_review",
+            "email_source_url": orcid_url if is_orcid_email else (f"https://doi.org/{doi}" if doi else ""),
         }
         resolved_leads.append(lead_row)
 
@@ -505,6 +493,8 @@ def run_unified_pipeline(
     db_conn = None
     try:
         import psycopg2
+        if not PG_CONFIG["host"]:
+            raise RuntimeError("Cloud database is not configured")
         db_conn = psycopg2.connect(**PG_CONFIG)
         with db_conn.cursor() as cur:
             cur.execute("SELECT email FROM verified_leads;")
@@ -531,7 +521,13 @@ def run_unified_pipeline(
         "doi",
         "search_keyword",
         "review_status",
+        "email_source_url",
     ]
+
+    if output_csv.exists():
+        with output_csv.open(encoding="utf-8-sig", newline="") as prior:
+            if next(csv.reader(prior), []) != fieldnames:
+                output_csv = output_csv.with_name(output_csv.stem + "_v2.csv")
 
     # Initialize CSV if new
     if not output_csv.exists():
@@ -548,6 +544,7 @@ def run_unified_pipeline(
 
     executor = ThreadPoolExecutor(max_workers=10)
 
+    consecutive_failures = 0
     try:
         while collected_leads < target_leads and not STOP_REQUESTED:
             print(f"\n[PAGE {page}] Querying OpenAlex publications for '{keyword}'...")
@@ -561,6 +558,10 @@ def run_unified_pipeline(
                 "sort": "publication_date:desc",
             }
 
+            consecutive_failures += 1
+            if consecutive_failures > 5:
+                raise RuntimeError("OpenAlex failed after 5 attempts; partial results retained")
+            permanent_error = None
             try:
                 if API_KEY:
                     params["api_key"] = API_KEY
@@ -571,19 +572,24 @@ def run_unified_pipeline(
                     if not works:
                         print("[API] No more matching publications found in OpenAlex.")
                         break
+                elif 400 <= resp.status_code < 500 and resp.status_code not in (408, 429):
+                    permanent_error = f"OpenAlex HTTP {resp.status_code}; check request and API credentials"
                 elif resp.status_code == 429:
                     print("[API] OpenAlex rate limit hit. Sleeping 3 seconds...")
-                    time.sleep(3)
+                    time.sleep(min(30, 2 ** consecutive_failures))
                     continue
                 else:
                     print(f"[API] HTTP error {resp.status_code} fetching works. Retrying in 2s...")
-                    time.sleep(2)
+                    time.sleep(min(30, 2 ** consecutive_failures))
                     continue
             except Exception as exc:
                 print(f"[API] Network error: {exc}. Retrying...")
                 time.sleep(2)
                 continue
 
+            if permanent_error:
+                raise RuntimeError(permanent_error)
+            consecutive_failures = 0
             scanned_works += len(works)
 
             # Parallel resolution across works in this page
@@ -598,7 +604,8 @@ def run_unified_pipeline(
 
                 try:
                     leads_found = future.result()
-                except Exception:
+                except Exception as exc:
+                    print(f"[WARN] Work enrichment failed: {exc}")
                     leads_found = []
 
                 for row in leads_found:
@@ -616,11 +623,7 @@ def run_unified_pipeline(
                             w.writerow(row)
 
                         # 2. Append to Central Master CSV
-                        with open(CENTRAL_MASTER_FILE, "a", encoding="utf-8-sig", newline="") as mf:
-                            mw = csv.DictWriter(mf, fieldnames=fieldnames)
-                            if CENTRAL_MASTER_FILE.stat().st_size == 0:
-                                mw.writeheader()
-                            mw.writerow(row)
+                        save_leads(CENTRAL_MASTER_FILE, [row])
 
                     # 3. Save directly to Oracle PostgreSQL
                     if db_conn:
