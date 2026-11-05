@@ -12,3 +12,4 @@ start "" powershell -NoProfile -Command "Start-Sleep -Seconds 2; Start-Process '
 :: Start Uvicorn Server
 python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 pause
+

@@ -7,3 +7,4 @@ echo.
 cd /d "%~dp0app\main"
 python run_pro_dashboard.py
 pause
+

@@ -132,11 +132,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     const titleMap = {
-      pipeline: "Dashboard",
+      pipeline: "Lead Harvester",
       nih: "NIH Grant PIs",
       explorer: "Leads Explorer",
       datasets: "Datasets Archive",
-      builder: "SciStudio"
+      builder: "SciStudio Websites"
     };
     const titleEl = document.getElementById("topbar-view-title");
     if (titleEl && titleMap[tabName]) titleEl.textContent = titleMap[tabName];
@@ -144,13 +144,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const badgeEl = document.getElementById("view-context-badge");
     if (badgeEl) {
       const badgeMap = {
-        pipeline: "2-Stage Lead Prospecting",
+        pipeline: "Universal Literature Harvester",
         nih: "NIH Grant Intelligence",
-        explorer: "Verified Lead Management",
-        datasets: "Central Dataset Storage",
-        builder: "SciStudio Visual Studio & Drag-and-Drop Publishing"
+        explorer: "Verified Lead Database",
+        datasets: "Data Archives & Exports",
+        builder: "SciStudio Drag-and-Drop Publishing"
       };
-      badgeEl.textContent = badgeMap[tabName] || "Lead Intelligence Console";
+      badgeEl.textContent = badgeMap[tabName] || "Scientific Platform";
     }
 
     // Clean SPA Browser URL Routing
@@ -290,12 +290,12 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       const footerStoragePath = document.getElementById("footer-storage-path");
-      if (footerStoragePath && data.data_dir) {
-        footerStoragePath.textContent = `Data Folder: ${data.data_dir}`;
+      if (footerStoragePath) {
+        footerStoragePath.textContent = "Cloud Database Connected";
       }
       const footerVersionDisplay = document.getElementById("footer-version-display");
       if (footerVersionDisplay) {
-        footerVersionDisplay.textContent = `SciProspect v1.0.1 (Evaluation Edition)`;
+        footerVersionDisplay.textContent = "SciProspect & SciStudio v2.0";
       }
     } catch (e) {
       console.warn("Failed to fetch dashboard stats", e);
@@ -2144,13 +2144,65 @@ document.addEventListener("DOMContentLoaded", () => {
       shell.classList.add("authenticated");
       shell.style.removeProperty("display");
     }
+
+    // Modern Unified User Profile Dropdown
+    const userMenuContainer = document.getElementById("user-menu-container");
+    if (userMenuContainer) userMenuContainer.style.display = "inline-flex";
+
     const chip = document.getElementById("user-profile-chip");
     if (chip) {
       const nameEl = document.getElementById("user-chip-name");
       if (nameEl) nameEl.textContent = user.client_name || user.client_email || "Account";
       const tierEl = document.getElementById("user-chip-tier");
       if (tierEl) tierEl.textContent = (user.tier || "pro").toUpperCase();
-      chip.style.display = "flex";
+
+      const ddName = document.getElementById("user-dd-name");
+      if (ddName) ddName.textContent = user.client_name || "Account";
+      const ddEmail = document.getElementById("user-dd-email");
+      if (ddEmail) ddEmail.textContent = user.client_email || user.license_key || "Enterprise Access";
+      const ddBadge = document.getElementById("user-dd-badge");
+      if (ddBadge) {
+        ddBadge.innerHTML = `<span class="badge-dot"></span> ${(user.tier || "pro").toUpperCase()} License Active`;
+      }
+
+      chip.onclick = (e) => {
+        e.stopPropagation();
+        if (userMenuContainer) userMenuContainer.classList.toggle("open");
+      };
+    }
+
+    if (!window._userDropdownListenerAttached) {
+      document.addEventListener("click", (e) => {
+        const umc = document.getElementById("user-menu-container");
+        if (umc && !umc.contains(e.target)) {
+          umc.classList.remove("open");
+        }
+      });
+      window._userDropdownListenerAttached = true;
+    }
+
+    const ddBtnRefresh = document.getElementById("dd-btn-refresh");
+    if (ddBtnRefresh) {
+      ddBtnRefresh.onclick = () => {
+        const umc = document.getElementById("user-menu-container");
+        if (umc) umc.classList.remove("open");
+        fetchStats();
+        showToast("Dashboard metrics refreshed", "info");
+      };
+    }
+
+    const ddBtnSignOut = document.getElementById("dd-btn-sign-out");
+    if (ddBtnSignOut) {
+      ddBtnSignOut.onclick = () => {
+        const umc = document.getElementById("user-menu-container");
+        if (umc) umc.classList.remove("open");
+        const mainSignOut = document.getElementById("btn-sign-out");
+        if (mainSignOut) {
+          mainSignOut.click();
+        } else {
+          renderUnauthenticatedState();
+        }
+      };
     }
 
     // Toggle Left Menu Trial Badge (Trial only, hidden for Pro)
@@ -2159,11 +2211,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const isTrialUser = ((user.tier || "").toLowerCase() === "trial");
       trialPillEl.style.display = isTrialUser ? "block" : "none";
     }
-    const btnSignOut = document.getElementById("btn-sign-out");
-    if (btnSignOut) btnSignOut.style.display = "flex";
 
     // ONLY SHOW ROOT ADMIN IF CURRENT USER IS ROOT ADMIN
     const isAdmin = !!(user && user.is_admin);
+    const ddBtnRootAdmin = document.getElementById("dd-btn-root-admin");
+    if (ddBtnRootAdmin) ddBtnRootAdmin.style.display = isAdmin ? "flex" : "none";
     const btnRootAdmin = document.getElementById("btn-root-admin");
     if (btnRootAdmin) btnRootAdmin.style.display = isAdmin ? "inline-flex" : "none";
     const menuRootAdmin = document.getElementById("menu-root-admin");
@@ -2198,11 +2250,19 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     const overlay = document.getElementById("auth-gate-overlay");
     if (overlay) overlay.style.display = "flex";
+    
+    const userMenuContainer = document.getElementById("user-menu-container");
+    if (userMenuContainer) {
+      userMenuContainer.style.display = "none";
+      userMenuContainer.classList.remove("open");
+    }
     const chip = document.getElementById("user-profile-chip");
     if (chip) chip.style.display = "none";
     const btnSignOut = document.getElementById("btn-sign-out");
     if (btnSignOut) btnSignOut.style.display = "none";
 
+    const ddBtnRootAdmin = document.getElementById("dd-btn-root-admin");
+    if (ddBtnRootAdmin) ddBtnRootAdmin.style.display = "none";
     const btnRootAdmin = document.getElementById("btn-root-admin");
     if (btnRootAdmin) btnRootAdmin.style.display = "none";
     const menuRootAdmin = document.getElementById("menu-root-admin");

@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="index.css?v=5.1">
+  <link rel="stylesheet" href="index.css?v=5.2">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -184,42 +184,74 @@
       </div>
 
       <div class="titlebar-right">
-        <a href="/admin" target="_blank" class="btn-refresh" id="btn-root-admin" title="Open Root User Licensing Command Center" style="text-decoration:none; color:#C4B5FD; border-color:rgba(139,92,246,0.4); background:rgba(139,92,246,0.12); font-weight:600; display: none;">
-          <span>🛡️ Root Admin</span>
-        </a>
-                <!-- Logged-in User Profile Chip & Sign Out -->
-        <div class="user-profile-chip" id="user-profile-chip" style="display: none;">
-          <span class="user-chip-avatar">👤</span>
-          <span class="user-chip-name" id="user-chip-name">Account</span>
-          <span class="user-chip-tier" id="user-chip-tier">PRO</span>
+        <!-- Modern Unified User Profile Dropdown -->
+        <div class="user-menu-container" id="user-menu-container" style="display: none;">
+          <button class="user-profile-chip" id="user-profile-chip" type="button" aria-haspopup="true" aria-expanded="false" title="Click to view account details & settings">
+            <span class="user-chip-avatar">👤</span>
+            <span class="user-chip-name" id="user-chip-name">Account</span>
+            <span class="user-chip-tier" id="user-chip-tier">PRO</span>
+            <svg class="user-chip-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+          
+          <div class="user-dropdown-menu" id="user-dropdown-menu">
+            <div class="user-dropdown-header">
+              <div class="user-dd-name" id="user-dd-name">Root Administrator</div>
+              <div class="user-dd-email" id="user-dd-email">root@sciprospect.internal</div>
+              <div class="user-dd-badge" id="user-dd-badge"><span class="badge-dot"></span> Full Access Active</div>
+            </div>
+            <div class="dropdown-divider"></div>
+            <a href="/admin" target="_blank" class="dropdown-item" id="dd-btn-root-admin" style="display: none;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              <span>Admin Command Center</span>
+              <span class="dd-badge-pill">Admin</span>
+            </a>
+            <button class="dropdown-item" id="dd-btn-refresh" type="button">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+              <span>Refresh App & Sync</span>
+            </button>
+            <div class="dropdown-divider"></div>
+            <button class="dropdown-item dd-signout" id="dd-btn-sign-out" type="button">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+              <span>Sign Out</span>
+            </button>
+          </div>
         </div>
-        <button class="btn-signout" id="btn-sign-out" title="Sign out of SciProspect" style="display: none;">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-          <span>Sign Out</span>
-        </button>
 
-        <button class="btn-refresh" id="btn-refresh-all" title="Refresh dashboard data and metrics">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          <span>Refresh</span>
-        </button>
+        <!-- Hidden legacy fallback hooks for existing JS compatibility -->
+        <a href="/admin" target="_blank" id="btn-root-admin" style="display:none;"></a>
+        <button id="btn-sign-out" style="display:none;"></button>
+        <button id="btn-refresh-all" style="display:none;"></button>
       </div>
     </header>
 
     <!-- 2. Main Body Container (Sidebar + Workspace) -->
     <div class="app-body-container">
       
-      <!-- Left Navigation Sidebar (Dark Slate Theme) -->
+      <!-- Left Navigation Sidebar (Clean Dual-Suite Architecture) -->
       <aside class="app-sidebar">
         <div class="sidebar-brand">
-          <img src="sciprospect_logo_transparent.png" alt="SciProspect Lead Intelligence" class="sidebar-logo">
+          <img src="sciprospect_logo_transparent.png" alt="SciProspect & SciStudio" class="sidebar-logo">
         </div>
 
+        <!-- Suite 1: Web Development Suite -->
         <div class="sidebar-section">
-          <div class="sidebar-heading">NAVIGATION</div>
+          <div class="sidebar-heading">SCISTUDIO SUITE</div>
+          <nav class="sidebar-nav" role="tablist">
+            <button class="nav-tab" data-tab="builder" id="tab-btn-builder">
+              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+              <span class="nav-label">Websites & Studio</span>
+              <span class="scistudio-lock-badge" id="scistudio-lock-badge" style="display: none; margin-left: auto; font-size: 0.72rem; color: #f87171;" title="SciStudio access disabled">🔒</span>
+            </button>
+          </nav>
+        </div>
+
+        <!-- Suite 2: Scientific Lead Intelligence Suite -->
+        <div class="sidebar-section" style="margin-top: 1.15rem;">
+          <div class="sidebar-heading">LEAD INTELLIGENCE</div>
           <nav class="sidebar-nav" role="tablist">
             <button class="nav-tab active" data-tab="pipeline" id="tab-btn-pipeline">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-              <span class="nav-label">Dashboard</span>
+              <span class="nav-label">Prospecting Engine</span>
             </button>
             <button class="nav-tab" data-tab="nih" id="tab-btn-nih">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
@@ -232,11 +264,6 @@
             <button class="nav-tab" data-tab="datasets" id="tab-btn-datasets">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
               <span class="nav-label">Datasets Archive</span>
-            </button>
-            <button class="nav-tab" data-tab="builder" id="tab-btn-builder">
-              <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
-              <span class="nav-label">SciStudio</span>
-              <span class="scistudio-lock-badge" id="scistudio-lock-badge" style="display: none; margin-left: auto; font-size: 0.72rem; color: #f87171;" title="SciStudio access disabled">🔒</span>
             </button>
           </nav>
         </div>
@@ -356,14 +383,14 @@
 
         <!-- UNIFIED 1-CLICK PIPELINE CARD -->
         <div class="workflow-card unified-pipeline-card" id="card-unified-pipeline" style="margin-bottom: 1.5rem; border: 1px solid rgba(99, 102, 241, 0.25); box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);">
-          <div class="card-step-badge" id="unified-card-badge" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;">Source 1 • OpenAlex Engine</div>
+          <div class="card-step-badge" id="unified-card-badge" style="background: linear-gradient(135deg, #4f46e5, #7c3aed); color: #fff;">OpenAlex Engine</div>
           <div class="card-header-clean">
             <div>
-              <h3 id="unified-card-title">OpenAlex Scientific Lead Intelligence</h3>
-              <p class="card-subtitle" id="unified-card-subtitle">Direct API connection to 250M+ peer-reviewed works (Universal: Chemistry, Biology, Physics, Medicine, AI). Strict Name & Title Match (Score ≥ 50) with verified emails.</p>
+              <h3 id="unified-card-title">Scientific Lead Prospecting</h3>
+              <p class="card-subtitle" id="unified-card-subtitle">Direct API access to 250M+ peer-reviewed scholarly publications with verified author emails and citation ranking.</p>
             </div>
             <div class="header-tag-pill" id="unified-card-pill" style="display:flex; align-items:center; gap:0.4rem; background:rgba(99,102,241,0.08); border:1px solid rgba(99,102,241,0.25); color:#6366f1; padding:4px 10px; border-radius:9999px; font-size:0.75rem; font-weight:700;">
-              <span>✨ 1-Click Lead Discovery</span>
+              <span>✨ Universal Scholarly Search</span>
             </div>
           </div>
 
@@ -1132,18 +1159,18 @@
     </div><!-- .app-workspace -->
   </div><!-- .app-body-container -->
 
-  <!-- Full-width Desktop Footer Status Bar (shows Version & Data Storage) -->
+  <!-- Modern Full-width SaaS Footer Status Bar -->
   <footer class="app-status-bar">
     <div class="status-bar-left">
       <span class="status-item">
-        <span class="status-dot"></span>
-        <span id="footer-version-display">SciProspect v1.0.1 (Evaluation Edition)</span>
+        <span class="status-dot online"></span>
+        <span id="footer-version-display">SciProspect & SciStudio v2.0</span>
       </span>
       <span class="status-sep">•</span>
-      <span class="status-item" id="footer-storage-path">Data Folder: D:\SciProspect Data</span>
+      <span class="status-item" id="footer-storage-path">Cloud Database Connected</span>
     </div>
     <div class="status-bar-right">
-      <span class="status-bar-copyright">© 2026 SciProspect Lead Intelligence. All rights reserved.</span>
+      <span class="status-bar-copyright">© 2026 SciProspect & SciStudio. Enterprise Scientific Intelligence.</span>
     </div>
   </footer>
 </div><!-- .app-shell -->
@@ -1162,7 +1189,7 @@
     </div>
   </div>
 
-  <script src="app.js?v=5.1"></script>
+  <script src="app.js?v=5.2"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->
