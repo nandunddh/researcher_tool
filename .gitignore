@@ -19,6 +19,9 @@ env/
 # Local trial cache & builds
 .license_cache
 *.spec
+app/test/dist/
+app/test/build/
+app/test/dist_installer/
 test_app/dist/
 test_app/build/
 test_app/dist_installer/
