@@ -124,6 +124,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function switchTab(tabName, updateHistory = true) {
     currentTab = tabName;
+    try { sessionStorage.setItem("scip_active_tab", tabName); } catch (e) {}
     navTabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-tab") === tabName));
     tabViews.forEach((v) => {
       const isActive = (v.id === `view-${tabName}`);
@@ -1620,51 +1621,6 @@ document.addEventListener("DOMContentLoaded", () => {
       .replace(/'/g, "&#039;");
   }
 
-  // ---------------------------------------------------------------------------
-  // Startup Splash Screen & Progress Bar Animation
-  // ---------------------------------------------------------------------------
-  function initSplashScreen() {
-    const splash = document.getElementById("app-splash");
-    const bar = document.getElementById("splash-progress-bar");
-    const statusText = document.getElementById("splash-status-text");
-    const percentText = document.getElementById("splash-percent-text");
-
-    if (!splash || !bar) return;
-
-    const stages = [
-      { pct: 15, msg: "Initializing SciProspect Desktop Engine..." },
-      { pct: 38, msg: "Connecting to OpenAlex & CrossRef Scholar APIs..." },
-      { pct: 68, msg: "Connecting to Europe PMC & ORCID validation network..." },
-      { pct: 88, msg: "Synchronizing SQLite Central Leads Repository..." },
-      { pct: 100, msg: "Lead Intelligence Suite Ready!" }
-    ];
-
-    let currentStageIndex = 0;
-
-    function advanceStage() {
-      if (currentStageIndex >= stages.length) {
-        setTimeout(() => {
-          splash.classList.add("fade-out");
-          setTimeout(() => {
-            if (splash.parentNode) splash.remove();
-          }, 600);
-        }, 220);
-        return;
-      }
-
-      const stage = stages[currentStageIndex];
-      bar.style.width = `${stage.pct}%`;
-      if (percentText) percentText.textContent = `${stage.pct}%`;
-      if (statusText) statusText.textContent = stage.msg;
-
-      currentStageIndex++;
-      const nextDelay = currentStageIndex === stages.length ? 320 : Math.floor(Math.random() * 140) + 240;
-      setTimeout(advanceStage, nextDelay);
-    }
-
-    // Start progression smoothly after initial paint
-    setTimeout(advanceStage, 80);
-  }
 
   if (btnRefreshAll) {
     btnRefreshAll.addEventListener("click", () => {
@@ -2105,29 +2061,12 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   // DevTools Anti-Tampering Defense Watchdog
   // ---------------------------------------------------------------------------
+  let isInitialAuthCheckComplete = false;
+  let isSessionAuthenticated = false;
+
   const antiTamperObserver = new MutationObserver(() => {
-    if (!isSessionAuthenticated) {
-      const overlay = document.getElementById("auth-gate-overlay");
+    if (!isSessionAuthenticated && isInitialAuthCheckComplete) {
       const shell = document.getElementById("app-shell");
-
-      // 1. Check if overlay was deleted from DOM or hidden via DevTools
-      const isOverlayMissing = !overlay || !document.body.contains(overlay);
-      const isOverlayHidden = overlay && (
-        overlay.style.display === "none" ||
-        overlay.style.visibility === "hidden" ||
-        overlay.style.opacity === "0" ||
-        overlay.hidden ||
-        window.getComputedStyle(overlay).display === "none"
-      );
-
-      if (isOverlayMissing || isOverlayHidden) {
-        console.warn("🚨 DevTools tampering detected: Authentication Gate removed.");
-        if (shell) shell.innerHTML = "";
-        window.location.reload();
-        return;
-      }
-
-      // 2. Check if app shell was unhidden without authenticating
       if (shell) {
         if (shell.style.display !== "none" || shell.classList.contains("authenticated")) {
           shell.style.setProperty("display", "none", "important");
@@ -2147,6 +2086,7 @@ document.addEventListener("DOMContentLoaded", () => {
   async function checkAuthSession() {
     try {
       const res = await fetch("/api/auth/me");
+      isInitialAuthCheckComplete = true;
       if (res.ok) {
         const data = await res.json();
         renderAuthenticatedState(data.user);
@@ -2161,11 +2101,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
     } catch (e) {
+      isInitialAuthCheckComplete = true;
       renderUnauthenticatedState("");
     }
   }
-
-  let isSessionAuthenticated = false;
 
   function renderAuthenticatedState(user) {
     isSessionAuthenticated = true;
@@ -2183,6 +2122,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const chip = document.getElementById("user-profile-chip");
     if (chip) {
+      chip.style.removeProperty("display");
       const nameEl = document.getElementById("user-chip-name");
       if (nameEl) nameEl.textContent = user.client_name || user.client_email || "Account";
       const tierEl = document.getElementById("user-chip-tier");
@@ -2260,6 +2200,14 @@ document.addEventListener("DOMContentLoaded", () => {
       scistudioLockBadge.style.display = hasSciStudioAccess ? "none" : "inline";
     }
 
+    const btnSignOut = document.getElementById("btn-sign-out");
+    if (btnSignOut) btnSignOut.style.display = "inline-flex";
+    const btnRefreshAll = document.getElementById("btn-refresh-all");
+    if (btnRefreshAll) btnRefreshAll.style.display = "inline-flex";
+
+    // Initialize browser routing to retain current page or active tab
+    initBrowserRouting();
+
     // Initialize authenticated data loads
     fetchStats();
     loadDatasetsDropdown();
@@ -2292,6 +2240,8 @@ document.addEventListener("DOMContentLoaded", () => {
     if (chip) chip.style.display = "none";
     const btnSignOut = document.getElementById("btn-sign-out");
     if (btnSignOut) btnSignOut.style.display = "none";
+    const btnRefreshAll = document.getElementById("btn-refresh-all");
+    if (btnRefreshAll) btnRefreshAll.style.display = "none";
 
     const ddBtnRootAdmin = document.getElementById("dd-btn-root-admin");
     if (ddBtnRootAdmin) ddBtnRootAdmin.style.display = "none";
@@ -4202,30 +4152,34 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   function initBrowserRouting() {
     const p = window.location.pathname.toLowerCase();
+    let targetTab = "pipeline";
     if (p.includes("websitebuilder") || p.includes("builder")) {
-      switchTab("builder", false);
+      targetTab = "builder";
     } else if (p.includes("nih")) {
-      switchTab("nih", false);
+      targetTab = "nih";
     } else if (p.includes("explorer")) {
-      switchTab("explorer", false);
+      targetTab = "explorer";
     } else if (p.includes("datasets")) {
-      switchTab("datasets", false);
+      targetTab = "datasets";
     } else {
-      switchTab("pipeline", false);
+      try {
+        const savedTab = sessionStorage.getItem("scip_active_tab");
+        if (savedTab && ["pipeline", "nih", "explorer", "datasets", "builder"].includes(savedTab)) {
+          targetTab = savedTab;
+        }
+      } catch (e) {}
     }
-
-    window.addEventListener("popstate", (e) => {
-      if (e.state && e.state.tab) {
-        switchTab(e.state.tab, false);
-      } else {
-        initBrowserRouting();
-      }
-    });
+    switchTab(targetTab, false);
   }
 
-  initBrowserRouting();
+  window.addEventListener("popstate", (e) => {
+    if (e.state && e.state.tab) {
+      switchTab(e.state.tab, false);
+    } else {
+      initBrowserRouting();
+    }
+  });
 
-  initSplashScreen();
   checkAuthSession();
   setInterval(checkAuthSession, 4000);
 });

@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="index.css?v=8.2">
+  <link rel="stylesheet" href="index.css?v=9.0">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -48,32 +48,6 @@
   <!-- Toast notification -->
   <div id="toast-container" class="toast-container"></div>
 
-  <!-- App Launch Starting Splash Screen Overlay -->
-  <div id="app-splash" class="app-splash-screen">
-    <div class="splash-card">
-      <div class="splash-logo-wrap">
-        <img src="sciprospect_logo_transparent.png" alt="SciProspect Lead Intelligence" class="splash-logo">
-        <div class="splash-glow"></div>
-      </div>
-      
-      <!-- Starting Progress Bar & Animated Status Text -->
-      <div class="splash-progress-container">
-        <div class="splash-progress-track">
-          <div id="splash-progress-bar" class="splash-progress-fill"></div>
-        </div>
-        <div class="splash-progress-info">
-          <span id="splash-status-text" class="splash-status-text">Initializing SciProspect Engine...</span>
-          <span id="splash-percent-text" class="splash-percent-text">0%</span>
-        </div>
-      </div>
-
-      <div class="splash-footer-meta">
-        <span class="splash-meta-badge">Desktop Edition v1.0</span>
-        <span class="splash-meta-sep">•</span>
-        <span>Lead Intelligence Platform</span>
-      </div>
-    </div>
-  </div>
 
   <!-- Desktop App Shell (Fixed 100vh / 100vw Native Container) -->
   <div class="app-shell" id="app-shell" style="display: none !important;">
@@ -1159,11 +1133,11 @@
     </div>
   </div>
 
-  <script src="app.js?v=8.2"></script>
+  <script src="app.js?v=9.0"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->
-  <div class="auth-gate-overlay" id="auth-gate-overlay" style="display: flex;">
+  <div class="auth-gate-overlay" id="auth-gate-overlay" style="display: none;">
     <div class="auth-gate-card">
       <div class="auth-gate-header">
         <div class="auth-brand-badge">
