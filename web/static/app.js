@@ -132,7 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     const titleMap = {
-      pipeline: "Lead Harvester",
+      pipeline: "Dashboard",
       nih: "NIH Grant PIs",
       explorer: "Leads Explorer",
       datasets: "Datasets Archive",
@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const badgeEl = document.getElementById("view-context-badge");
     if (badgeEl) {
       const badgeMap = {
-        pipeline: "Universal Literature Harvester",
+        pipeline: "Research workspace",
         nih: "NIH Grant Intelligence",
         explorer: "Verified Lead Database",
         datasets: "Data Archives & Exports",
@@ -360,6 +360,25 @@ document.addEventListener("DOMContentLoaded", () => {
             }
           }
         }
+        if (payload.text && payload.text.startsWith("COLLECTION_RESULT ")) {
+          const result = JSON.parse(payload.text.slice("COLLECTION_RESULT ".length));
+          const box = document.getElementById("collection-result");
+          if (box) {
+            box.hidden = false;
+            box.textContent = `${result.collected} / ${result.target} contacts collected. ` + (result.shortfall ? `${result.shortfall} fewer than requested. ` : "Target reached. ");
+            const link = document.createElement("a");
+            link.href = `/api/leads/export?file=${encodeURIComponent(result.file)}`;
+            link.textContent = "Download CSV";
+            link.setAttribute("download", "");
+            box.appendChild(link);
+          }
+          const count = document.getElementById("progress-leads-count");
+          if (count) count.textContent = `${result.collected} / ${result.target} Contacts`;
+          const bar = document.getElementById("pipeline-progress-bar");
+          if (bar) bar.style.width = `${100 * result.collected / result.target}%`;
+          fetchStats();
+          loadDatasetsDropdown();
+        }
         if (payload.status) {
           updateProcessUIState(payload.status, payload.stage);
         }
@@ -457,6 +476,11 @@ document.addEventListener("DOMContentLoaded", () => {
       btnStopPipeline.style.display = isRunning ? "inline-flex" : "none";
     }
     if (progressBar) progressBar.classList.toggle("active", isRunning);
+    const collectButton = document.getElementById("btn-run-unified");
+    if (collectButton) collectButton.disabled = isRunning;
+    const label = document.getElementById("unified-btn-text");
+    if (label && isRunning) label.textContent = "Collecting contacts?";
+    else if (label) label.textContent = `Collect ${document.getElementById("unified-target")?.value || 100} contacts`;
 
     if (systemStatusIndicator) {
       const pulse = systemStatusIndicator.querySelector(".pulse-dot");
@@ -521,6 +545,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   async function triggerRun(action, payload = {}) {
     try {
+      const resultBox = document.getElementById("collection-result");
+      if (resultBox) resultBox.hidden = true;
       updateProcessUIState("running", action);
       const pBar = document.getElementById("pipeline-progress-bar");
       if (pBar) { pBar.style.width = "0%"; pBar.classList.remove("completed"); }
@@ -629,33 +655,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setDataSource(sourceName) {
     activeDataSource = sourceName;
-    [pillOpenalex, pillBiorxiv, pillNih].forEach(p => {
-      if (p) p.classList.remove("active");
-    });
-
-    if (sourceName === "openalex") {
-      if (pillOpenalex) pillOpenalex.classList.add("active");
-      if (unifiedCardBadge) {
-        unifiedCardBadge.textContent = "Source 1 • OpenAlex Engine";
-        unifiedCardBadge.style.background = "linear-gradient(135deg, #4f46e5, #7c3aed)";
-      }
-      if (unifiedCardTitle) unifiedCardTitle.textContent = "OpenAlex Scientific Lead Intelligence";
-      if (unifiedCardSubtitle) unifiedCardSubtitle.textContent = "Direct API connection to 250M+ peer-reviewed works (Universal: Chemistry, Biology, Physics, Medicine, AI). Strict Name & Title Match (Score ≥ 50) with verified emails.";
-      if (unifiedBtnText) unifiedBtnText.textContent = "🚀 Run OpenAlex 1-Click Pipeline (Score ≥ 50)";
-      if (sourceMetaText) sourceMetaText.textContent = "250M+ Universal Literature Works";
-      if (lblUnifiedKeyword) lblUnifiedKeyword.textContent = "Scientific / Medical Field / Keyword *";
-    } else if (sourceName === "biorxiv") {
-      if (pillBiorxiv) pillBiorxiv.classList.add("active");
-      if (unifiedCardBadge) {
-        unifiedCardBadge.textContent = "Source 2 • bioRxiv & medRxiv Engine";
-        unifiedCardBadge.style.background = "linear-gradient(135deg, #0891b2, #2563eb)";
-      }
-      if (unifiedCardTitle) unifiedCardTitle.textContent = "bioRxiv & medRxiv Preprint Intelligence";
-      if (unifiedCardSubtitle) unifiedCardSubtitle.textContent = "Direct API connection to Cold Spring Harbor Laboratory preprints (Cell Biology, Genetics, Cancer, etc.). Extracts active 2025–2026 lab heads and verified author emails.";
-      if (unifiedBtnText) unifiedBtnText.textContent = "🚀 Run bioRxiv 1-Click Pipeline (Score ≥ 50)";
-      if (sourceMetaText) sourceMetaText.textContent = "3M+ Biomedical Preprints (Cold Spring Harbor)";
-      if (lblUnifiedKeyword) lblUnifiedKeyword.textContent = "Preprint Category or Research Topic *";
-    }
+    pillOpenalex?.classList.toggle("active", sourceName === "openalex");
+    pillBiorxiv?.classList.toggle("active", sourceName === "biorxiv");
+    refreshCollectLabel();
   }
 
   if (pillOpenalex) {
@@ -698,9 +700,39 @@ document.addEventListener("DOMContentLoaded", () => {
     return val;
   }
 
+  const autoToggle = document.getElementById("collect-auto");
+  function refreshCollectLabel() {
+    const count = inputUnifiedTarget?.value || "100";
+    if (unifiedBtnText) unifiedBtnText.textContent = `Collect ${count} contacts`;
+    const summary = document.querySelector(".collector-settings summary span");
+    if (summary) summary.textContent = `Score ${selectUnifiedMinScore?.value || 50}+ ? ${autoToggle?.checked ? "Automatic sources" : activeDataSource}`;
+    document.querySelectorAll("[data-contact-count]").forEach(button => {
+      const selected = button.dataset.contactCount === count;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    });
+  }
+  document.querySelectorAll("[data-contact-count]").forEach(button => {
+    button.addEventListener("click", () => { inputUnifiedTarget.value = button.dataset.contactCount; refreshCollectLabel(); });
+  });
+  inputUnifiedTarget?.addEventListener("input", refreshCollectLabel);
+  selectUnifiedMinScore?.addEventListener("change", refreshCollectLabel);
+  if (inputUnifiedDateTo) inputUnifiedDateTo.value = new Date().toLocaleDateString("en-CA");
+  if (autoToggle) autoToggle.addEventListener("change", () => {
+    setDataSource(activeDataSource);
+    refreshCollectLabel();
+  });
+  refreshCollectLabel();
   if (btnRunUnified) {
     btnRunUnified.addEventListener("click", () => {
-      const keyword = (inputUnifiedKeyword ? inputUnifiedKeyword.value.trim() : "") || "cell biology";
+      if (!inputUnifiedKeyword.reportValidity() || !inputUnifiedTarget.reportValidity()) return;
+      if (inputUnifiedDateFrom.value > inputUnifiedDateTo.value) {
+        showToast("Choose an end date after the start date.", "warning");
+        inputUnifiedDateTo.focus();
+        return;
+      }
+      const keyword = inputUnifiedKeyword.value.trim();
+      if (!keyword) { inputUnifiedKeyword.focus(); return; }
       const targetLeads = parseInt(inputUnifiedTarget ? inputUnifiedTarget.value : 1000) || 1000;
       const minScore = parseInt(selectUnifiedMinScore ? selectUnifiedMinScore.value : 50) || 50;
       const rawFrom = inputUnifiedDateFrom ? inputUnifiedDateFrom.value : "";
@@ -708,7 +740,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const fromDate = normalizeDateInput(rawFrom, "2025-01-01");
       const toDate = normalizeDateInput(rawTo, "2026-12-31");
 
-      const actionName = activeDataSource === "biorxiv" ? "biorxiv" : "unified";
+      const actionName = document.getElementById("collect-auto")?.checked ? "auto" : (activeDataSource === "biorxiv" ? "biorxiv" : "unified");
 
       triggerRun(actionName, {
         keyword,
@@ -986,11 +1018,11 @@ document.addEventListener("DOMContentLoaded", () => {
       let scoreBadge = `<span style="color:var(--text-dim);font-size:0.75rem;">—</span>`;
       if (rawScore !== null && !isNaN(rawScore)) {
         if (rawScore >= 80) {
-          scoreBadge = `<span class="pill-badge pill-emerald" style="font-weight:700;">🟢 ${rawScore}%</span>`;
+          scoreBadge = `<span class="pill-badge pill-emerald" style="font-weight:700;">🟢 ${rawScore}/100</span>`;
         } else if (rawScore >= 65) {
-          scoreBadge = `<span class="pill-badge pill-cyan" style="font-weight:700;">🔵 ${rawScore}%</span>`;
+          scoreBadge = `<span class="pill-badge pill-cyan" style="font-weight:700;">🔵 ${rawScore}/100</span>`;
         } else {
-          scoreBadge = `<span class="pill-badge pill-amber" style="font-weight:700;">🟡 ${rawScore}%</span>`;
+          scoreBadge = `<span class="pill-badge pill-amber" style="font-weight:700;">🟡 ${rawScore}/100</span>`;
         }
       }
 
@@ -1006,12 +1038,12 @@ document.addEventListener("DOMContentLoaded", () => {
       let badgeClass = "needs-review";
       let badgeLabel = "Needs Review";
 
-      if (statusRaw.includes("Verified") || statusRaw.includes("found")) {
+      if (statusRaw === "author_linked" || row.email_confidence === "author_linked") {
         badgeClass = "verified";
-        badgeLabel = "Verified";
+        badgeLabel = "Author linked";
       } else if (email) {
         badgeClass = "found";
-        badgeLabel = "Email Attached";
+        badgeLabel = "Review email";
       }
 
       const tr = document.createElement("tr");
@@ -1122,7 +1154,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const orcid = row.orcid || "";
     const papers = row.example_papers || "";
     const dois = row.example_paper_dois || "";
-    const status = row.email_status || row.review_status || (email ? "Verified" : "Needs Review");
+    const status = row.email_status || row.review_status || (email ? "Needs review" : "No email");
     const source = row.email_source_url || "ORCID / Europe PMC";
 
     const initials = name.split(" ").map(p => p[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "SC";
@@ -2205,12 +2237,6 @@ document.addEventListener("DOMContentLoaded", () => {
       };
     }
 
-    const btnSignOut = document.getElementById("btn-sign-out");
-    if (btnSignOut) btnSignOut.style.display = "inline-flex";
-
-    const btnRefreshAll = document.getElementById("btn-refresh-all");
-    if (btnRefreshAll) btnRefreshAll.style.display = "inline-flex";
-
     // Toggle Left Menu Trial Badge (Trial only, hidden for Pro)
     const trialPillEl = document.getElementById("header-trial-pill");
     if (trialPillEl) {
@@ -2266,8 +2292,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (chip) chip.style.display = "none";
     const btnSignOut = document.getElementById("btn-sign-out");
     if (btnSignOut) btnSignOut.style.display = "none";
-    const btnRefreshAll = document.getElementById("btn-refresh-all");
-    if (btnRefreshAll) btnRefreshAll.style.display = "none";
 
     const ddBtnRootAdmin = document.getElementById("dd-btn-root-admin");
     if (ddBtnRootAdmin) ddBtnRootAdmin.style.display = "none";
@@ -2411,6 +2435,14 @@ document.addEventListener("DOMContentLoaded", () => {
   );
   if (new URLSearchParams(window.location.search).get('mode') === 'app') {
     sessionStorage.setItem('scip_app_mode', 'true');
+  }
+
+  document.body.classList.toggle("desktop-app-mode", isAppMode);
+  // Move the existing account control, preserving its listeners and login state.
+  if (!isAppMode) {
+    const webActions = document.querySelector(".app-topbar .topbar-right");
+    const accountMenu = document.getElementById("user-menu-container");
+    if (webActions && accountMenu) webActions.appendChild(accountMenu);
   }
 
   const desktopMenubar = document.getElementById("desktop-menubar");
@@ -2957,7 +2989,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Save Site Draft
   async function saveSiteDraft(silent = false) {
-    if (!currentSite) return;
+    if (!currentSite) return false;
     try {
       if (studioSiteName) currentSite.name = studioSiteName.value.trim() || currentSite.name;
       const res = await fetch(`/api/builder/sites/${currentSite.site_id}`, {
@@ -2969,8 +3001,11 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(data.detail || "Failed to save draft");
       currentSite = data.site;
       if (!silent) showToast("Website draft saved successfully!", "success");
+      return true;
     } catch (e) {
       if (!silent) showToast(`Save error: ${e.message}`, "error");
+      if (silent) throw e;
+      return false;
     }
   }
 
@@ -3007,9 +3042,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Export ZIP
   if (btnStudioExport) {
-    btnStudioExport.addEventListener("click", () => {
+    btnStudioExport.addEventListener("click", async () => {
       if (!currentSite) return;
-      window.location.href = `/api/builder/sites/${currentSite.site_id}/export`;
+      if (await saveSiteDraft(false)) window.location.href = `/api/builder/sites/${currentSite.site_id}/export`;
     });
   }
 
