@@ -117,6 +117,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // ---------------------------------------------------------------------------
   navTabs.forEach((tab) => {
     tab.addEventListener("click", () => {
+      if (tab.getAttribute("target") === "_blank") return;
       const target = tab.getAttribute("data-tab");
       switchTab(target);
     });
@@ -124,6 +125,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function switchTab(tabName, updateHistory = true) {
     currentTab = tabName;
+    const studioCreateAction = document.getElementById('btn-open-create-site-modal');
+    if (studioCreateAction) studioCreateAction.hidden = tabName !== 'builder';
     try { sessionStorage.setItem("scip_active_tab", tabName); } catch (e) {}
     navTabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-tab") === tabName));
     tabViews.forEach((v) => {
@@ -158,7 +161,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (updateHistory) {
       const routeMap = {
         pipeline: "/dashboard",
-        builder: "/websitebuilder",
+        builder: "/scistudio",
         nih: "/nih",
         explorer: "/explorer",
         datasets: "/datasets"
@@ -2587,9 +2590,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const tmpl = starterTemplates.find(t => t.id === tmplId);
     if (!tmpl) return;
 
+    const briefName = briefConfNameInput ? briefConfNameInput.value.trim() : "";
+    const siteTitle = briefName || tmpl.name;
+
     if (createSiteNameInput) {
-      createSiteNameInput.value = tmpl.name;
-      const slugVal = tmpl.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      createSiteNameInput.value = siteTitle;
+      const slugVal = siteTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
       if (createSiteSlugInput) createSiteSlugInput.value = slugVal;
     }
     if (createSiteThemeMode && tmpl.theme) {
@@ -2600,16 +2606,16 @@ document.addEventListener("DOMContentLoaded", () => {
       if (labelCreatePrimary) labelCreatePrimary.textContent = createPrimaryColor.value;
     }
     if (createNavBrand) {
-      createNavBrand.value = tmpl.name;
+      createNavBrand.value = siteTitle;
     }
     if (createNavCta) {
       createNavCta.value = "Register Now";
     }
     if (createHeroEyebrow) {
-      createHeroEyebrow.value = `🌟 ${tmpl.name.toUpperCase()} 2026`;
+      createHeroEyebrow.value = `🌟 ${siteTitle.toUpperCase()} 2026`;
     }
     if (createHeroHeadline) {
-      createHeroHeadline.value = `${tmpl.name}: Advancing Discovery & Collaboration`;
+      createHeroHeadline.value = `${siteTitle}: Breakthroughs & Collaborative Discovery`;
     }
     if (createHeroSubheadline) {
       createHeroSubheadline.value = tmpl.description || "";
@@ -2618,11 +2624,216 @@ document.addEventListener("DOMContentLoaded", () => {
     if (createHeroBtn2) createHeroBtn2.value = "Explore Faculty";
   }
 
+  // ---------------------------------------------------------------------------
+  // Client Briefing & Multi-Step Wizard Flow
+  // ---------------------------------------------------------------------------
+  const wizardPane1 = document.getElementById("wizard-pane-1");
+  const wizardPane2 = document.getElementById("wizard-pane-2");
+  const wizardPane3 = document.getElementById("wizard-pane-3");
+  const wizardHeaderSubtitle = document.getElementById("wizard-header-subtitle");
+
+  const stepIndicator1 = document.getElementById("wizard-step-indicator-1");
+  const stepIndicator2 = document.getElementById("wizard-step-indicator-2");
+  const stepIndicator3 = document.getElementById("wizard-step-indicator-3");
+
+  const briefConfNameInput = document.getElementById("brief-conf-name");
+  const briefStartDateInput = document.getElementById("brief-start-date");
+  const briefEndDateInput = document.getElementById("brief-end-date");
+  const briefVenueFormatInput = document.getElementById("brief-venue-format");
+  const briefContactEmailInput = document.getElementById("brief-contact-email");
+
+  const btnBriefNext = document.getElementById("btn-brief-next");
+  const btnReviewBack = document.getElementById("btn-review-back");
+  const btnReviewProceed = document.getElementById("btn-review-proceed");
+  const btnTemplatesBack = document.getElementById("btn-templates-back");
+
+  const reviewSummaryContainer = document.getElementById("review-summary-container");
+  const reviewMissingAlert = document.getElementById("review-missing-alert");
+
+  let currentWizardStep = 1;
+
+  function switchWizardStep(step) {
+    currentWizardStep = step;
+    if (wizardPane1) wizardPane1.style.display = (step === 1) ? "block" : "none";
+    if (wizardPane2) wizardPane2.style.display = (step === 2) ? "block" : "none";
+    if (wizardPane3) wizardPane3.style.display = (step === 3) ? "block" : "none";
+
+    if (stepIndicator1) {
+      stepIndicator1.className = `wizard-stepper-step ${step === 1 ? 'active' : (step > 1 ? 'completed' : '')}`;
+    }
+    if (stepIndicator2) {
+      stepIndicator2.className = `wizard-stepper-step ${step === 2 ? 'active' : (step > 2 ? 'completed' : '')}`;
+    }
+    if (stepIndicator3) {
+      stepIndicator3.className = `wizard-stepper-step ${step === 3 ? 'active' : ''}`;
+    }
+
+    if (wizardHeaderSubtitle) {
+      if (step === 1) wizardHeaderSubtitle.textContent = "Step 1 of 3: Conference Client Briefing";
+      else if (step === 2) wizardHeaderSubtitle.textContent = "Step 2 of 3: Review Client Briefing";
+      else if (step === 3) wizardHeaderSubtitle.textContent = "Step 3 of 3: Starter Template & Visual Customization";
+    }
+
+    if (step === 1 && briefConfNameInput) {
+      setTimeout(() => briefConfNameInput.focus({ preventScroll: true }), 60);
+    } else if (step === 2) {
+      renderReviewSummary();
+      const reviewBody = reviewSummaryContainer?.closest(".wizard-body");
+      if (reviewBody) reviewBody.scrollTop = 0;
+    } else if (step === 3) {
+      syncBriefToTemplateForm();
+    }
+  }
+
+  function renderReviewSummary() {
+    if (!reviewSummaryContainer) return;
+    const name = briefConfNameInput ? briefConfNameInput.value.trim() : "";
+    const startDate = briefStartDateInput ? briefStartDateInput.value.trim() : "";
+    const endDate = briefEndDateInput ? briefEndDateInput.value.trim() : "";
+    const venue = briefVenueFormatInput ? briefVenueFormatInput.value.trim() : "";
+    const email = briefContactEmailInput ? briefContactEmailInput.value.trim() : "";
+
+    const items = [
+      {
+        label: "Conference Name",
+        required: true,
+        val: name,
+        fallbackText: "Required"
+      },
+      {
+        label: "Start Date",
+        required: false,
+        val: startDate,
+        fallbackText: "Upcoming conference schedule"
+      },
+      {
+        label: "End Date",
+        required: false,
+        val: endDate,
+        fallbackText: "Standard event duration"
+      },
+      {
+        label: "Venue or Online Format",
+        required: false,
+        val: venue,
+        fallbackText: "Hybrid (In-Person & Live Stream)"
+      },
+      {
+        label: "Contact Email",
+        required: false,
+        val: email,
+        fallbackText: "Organization secretariat email"
+      }
+    ];
+
+    const missingOptional = items.filter(i => !i.required && !i.val);
+
+    reviewSummaryContainer.innerHTML = items.map(item => {
+      const hasVal = Boolean(item.val);
+      const badgeHtml = hasVal
+        ? `<span class="badge-provided">Provided</span>`
+        : (item.required
+            ? `<span class="badge-missing" style="color:#ef4444; border-color:rgba(239,68,68,0.3); background:rgba(239,68,68,0.1);"><i class="fa-solid fa-asterisk"></i> Required</span>`
+            : `<span class="badge-missing">Optional</span>`);
+
+      const valDisplay = hasVal
+        ? `<span class="review-field-val">${escapeHtml(item.val)}</span>`
+        : `<span class="review-field-val missing">Not provided</span>`;
+
+      return `
+        <div class="review-row">
+          <div class="review-field-meta">
+            <span class="review-field-name">${escapeHtml(item.label)}</span>
+            ${valDisplay}
+          </div>
+          <div>
+            ${badgeHtml}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+    if (reviewMissingAlert) {
+      if (missingOptional.length > 0) {
+        const missingNames = missingOptional.map(m => m.label).join(", ");
+        reviewMissingAlert.innerHTML = `
+          <div class="review-notice-banner">
+            <strong>You can continue.</strong> Optional details not provided: ${escapeHtml(missingNames)}. Review any generated placeholder content before publishing.
+          </div>
+        `;
+      } else {
+        reviewMissingAlert.innerHTML = `
+          <div class="review-notice-banner all-complete">
+            <strong>Your brief is ready.</strong> Continue to choose your website design.
+          </div>
+        `;
+      }
+    }
+  }
+
+  function syncBriefToTemplateForm() {
+    const name = briefConfNameInput ? briefConfNameInput.value.trim() : "";
+    if (!name) return;
+
+    if (createSiteNameInput) {
+      createSiteNameInput.value = name;
+    }
+    if (createSiteSlugInput) {
+      const slugVal = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+      createSiteSlugInput.value = slugVal;
+    }
+    if (createNavBrand) {
+      createNavBrand.value = name;
+    }
+    if (createHeroHeadline) {
+      createHeroHeadline.value = `${name}: Breakthroughs & Collaborative Discovery`;
+    }
+    const startDate = briefStartDateInput ? briefStartDateInput.value.trim() : "";
+    const endDate = briefEndDateInput ? briefEndDateInput.value.trim() : "";
+    if (startDate && createHeroEyebrow) {
+      createHeroEyebrow.value = `🌟 ${name.toUpperCase()} (${startDate}${endDate ? ' – ' + endDate : ''})`;
+    }
+  }
+
+  if (btnBriefNext) {
+    btnBriefNext.addEventListener("click", () => {
+      const name = briefConfNameInput ? briefConfNameInput.value.trim() : "";
+      if (!name) {
+        if (briefConfNameInput) {
+          briefConfNameInput.focus();
+        }
+        showToast("Please provide the conference name (required)", "warning");
+        return;
+      }
+      switchWizardStep(2);
+    });
+  }
+
+  if (btnReviewBack) {
+    btnReviewBack.addEventListener("click", () => {
+      // Return to step 1 without losing any entered answers!
+      switchWizardStep(1);
+    });
+  }
+
+  if (btnReviewProceed) {
+    btnReviewProceed.addEventListener("click", () => {
+      switchWizardStep(3);
+    });
+  }
+
+  if (btnTemplatesBack) {
+    btnTemplatesBack.addEventListener("click", () => {
+      switchWizardStep(2);
+    });
+  }
+
   // Open / Close Create Modal with Active Class
   if (btnOpenCreateSiteModal && modalCreateSite) {
     btnOpenCreateSiteModal.addEventListener("click", () => {
       modalCreateSite.classList.add("active");
       modalCreateSite.style.display = "flex";
+      switchWizardStep(1);
       fetchTemplatesAndRenderWizard();
       if (!selectedTemplateId && starterTemplates.length > 0) {
         selectedTemplateId = starterTemplates[0].id;
@@ -2630,7 +2841,6 @@ document.addEventListener("DOMContentLoaded", () => {
       if (selectedTemplateId) {
         applyTemplateDefaultsToWizard(selectedTemplateId);
       }
-      if (createSiteNameInput) createSiteNameInput.focus();
     });
   }
 
@@ -2647,9 +2857,21 @@ document.addEventListener("DOMContentLoaded", () => {
   // Submit Create Site from Comprehensive Wizard
   window.handleCreateSiteSubmit = async function(e) {
     e.preventDefault();
-    const name = createSiteNameInput ? createSiteNameInput.value.trim() : "";
+    const briefName = briefConfNameInput ? briefConfNameInput.value.trim() : "";
+    const name = (createSiteNameInput ? createSiteNameInput.value.trim() : "") || briefName;
     const slug = createSiteSlugInput ? createSiteSlugInput.value.trim() : "";
-    if (!name) return;
+    if (!name) {
+      showToast("Conference / website title is required", "warning");
+      return;
+    }
+
+    const clientBrief = {
+      conference_name: briefName || name,
+      start_date: briefStartDateInput ? briefStartDateInput.value.trim() : "",
+      end_date: briefEndDateInput ? briefEndDateInput.value.trim() : "",
+      venue_format: briefVenueFormatInput ? briefVenueFormatInput.value.trim() : "",
+      contact_email: briefContactEmailInput ? briefContactEmailInput.value.trim() : ""
+    };
 
     const themeMode = createSiteThemeMode ? createSiteThemeMode.value : "dark";
     const primaryColor = createPrimaryColor ? createPrimaryColor.value : "#38bdf8";
@@ -2680,6 +2902,7 @@ document.addEventListener("DOMContentLoaded", () => {
         mode: themeMode,
         primary_color: primaryColor
       },
+      client_brief: clientBrief,
       custom_options: {
         mode: themeMode,
         primary_color: primaryColor,
@@ -2690,12 +2913,14 @@ document.addEventListener("DOMContentLoaded", () => {
         hero_subheadline: heroSubheadline,
         hero_btn1: heroBtn1,
         hero_btn2: heroBtn2,
-        sections: sections
-      }
+        sections: sections,
+        client_brief: clientBrief
+      },
+      conference_id: (document.getElementById("create-site-conference") ? document.getElementById("create-site-conference").value : "") || null
     };
 
     try {
-      showToast("Generating SciStudio website from template...", "info");
+      showToast("Generating SciStudio website from client brief...", "info");
       const res = await fetch("/api/builder/sites", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -2705,9 +2930,178 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error(data.detail || "Failed to create website");
 
       closeCreateSiteModal();
-      showToast("SciStudio website generated successfully!", "success");
+      showToast("SciStudio website generated successfully from brief!", "success");
+      await fetchConferences();
       openBuilderStudio(data.site.site_id);
     } catch (err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Conference Workspaces Manager
+  // ---------------------------------------------------------------------------
+  let userConferences = [];
+  let selectedConferenceId = "all";
+
+  async function fetchConferences() {
+    try {
+      const res = await fetch("/api/builder/conferences");
+      if (!res.ok) return;
+      const data = await res.json();
+      userConferences = data.conferences || [];
+      renderConferenceSelector();
+    } catch (e) {
+      console.warn("Failed to load conferences:", e);
+    }
+  }
+
+  function renderConferenceSelector() {
+    const sel = document.getElementById("conference-workspace-select");
+    const wizardSel = document.getElementById("create-site-conference");
+
+    try {
+      const saved = sessionStorage.getItem("scip_selected_conference");
+      if (saved && (saved === "all" || userConferences.some(c => c.conference_id === saved))) {
+        selectedConferenceId = saved;
+      }
+    } catch(e) {}
+
+    if (sel) {
+      let optionsHtml = `<option value="all" ${selectedConferenceId === "all" ? "selected" : ""}>All conferences (${userWebsites.length})</option>`;
+      userConferences.forEach(c => {
+        const siteCount = userWebsites.filter(s => s.conference_id === c.conference_id).length;
+        optionsHtml += `<option value="${c.conference_id}" ${selectedConferenceId === c.conference_id ? "selected" : ""}>${escapeHtml(c.name)} (${siteCount} site${siteCount === 1 ? '' : 's'})</option>`;
+      });
+      sel.innerHTML = optionsHtml;
+    }
+
+    if (wizardSel) {
+      let wizardHtml = `<option value="">(None / General Website)</option>`;
+      userConferences.forEach(c => {
+        const isPreselected = (selectedConferenceId !== "all" && selectedConferenceId === c.conference_id);
+        wizardHtml += `<option value="${c.conference_id}" ${isPreselected ? "selected" : ""}>${escapeHtml(c.name)}</option>`;
+      });
+      wizardSel.innerHTML = wizardHtml;
+    }
+
+    const pill = document.getElementById("conf-site-count-pill");
+    if (pill) {
+      if (selectedConferenceId === "all") {
+        pill.textContent = `${userWebsites.length} Total Website${userWebsites.length === 1 ? '' : 's'}`;
+      } else {
+        const conf = userConferences.find(c => c.conference_id === selectedConferenceId);
+        const count = userWebsites.filter(s => s.conference_id === selectedConferenceId).length;
+        pill.textContent = `${count} Website${count === 1 ? '' : 's'} in ${conf ? conf.name : 'Workspace'}`;
+      }
+    }
+  }
+
+  const confSelectEl = document.getElementById("conference-workspace-select");
+  if (confSelectEl) {
+    confSelectEl.addEventListener("change", (e) => {
+      selectedConferenceId = e.target.value;
+      try { sessionStorage.setItem("scip_selected_conference", selectedConferenceId); } catch(e) {}
+      applyConferenceFilter();
+    });
+  }
+
+  function applyConferenceFilter() {
+    let filtered = userWebsites;
+    if (selectedConferenceId !== "all") {
+      filtered = userWebsites.filter(s => s.conference_id === selectedConferenceId);
+    }
+    const hasWorkspaceSites = filtered.length > 0;
+    const toolbar = document.querySelector('#builder-dashboard-view .scistudio-toolbar');
+    if (toolbar) toolbar.hidden = !hasWorkspaceSites;
+    if (!hasWorkspaceSites && builderSearchSites) {
+      builderSearchSites.value = '';
+      const clearSearch = document.getElementById('btn-clear-search');
+      if (clearSearch) clearSearch.style.display = 'none';
+    }
+    const q = (builderSearchSites ? builderSearchSites.value : "").toLowerCase().trim();
+    if (q) {
+      filtered = filtered.filter(s =>
+        (s.name || '').toLowerCase().includes(q) ||
+        (s.slug || '').toLowerCase().includes(q)
+      );
+    }
+    renderBuilderSites(filtered);
+    renderConferenceSelector();
+  }
+
+  // Create Conference Modal
+  const modalCreateConf = document.getElementById("modal-create-conference");
+  const btnOpenCreateConf = document.getElementById("btn-open-create-conf-modal");
+  const btnCloseCreateConf = document.getElementById("btn-close-create-conf");
+  const btnCancelCreateConf = document.getElementById("btn-cancel-create-conf");
+
+  if (btnOpenCreateConf) {
+    btnOpenCreateConf.addEventListener("click", () => {
+      if (modalCreateConf) {
+        modalCreateConf.style.display = "flex";
+        const nameInput = document.getElementById("conf-input-name");
+        if (nameInput) {
+          nameInput.value = "";
+          nameInput.focus();
+        }
+        const descInput = document.getElementById("conf-input-desc");
+        if (descInput) descInput.value = "";
+      }
+    });
+  }
+
+  function closeCreateConfModal() {
+    if (modalCreateConf) modalCreateConf.style.display = "none";
+  }
+  if (btnCloseCreateConf) btnCloseCreateConf.addEventListener("click", closeCreateConfModal);
+  if (btnCancelCreateConf) btnCancelCreateConf.addEventListener("click", closeCreateConfModal);
+
+  window.handleCreateConferenceSubmit = async function(event) {
+    event.preventDefault();
+    const nameInput = document.getElementById("conf-input-name");
+    const descInput = document.getElementById("conf-input-desc");
+    const name = nameInput ? nameInput.value.trim() : "";
+    const description = descInput ? descInput.value.trim() : "";
+
+    if (!name) {
+      showToast("Conference name is required", "error");
+      return;
+    }
+
+    try {
+      showToast("Creating conference workspace...", "info");
+      const res = await fetch("/api/builder/conferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, description })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to create conference");
+
+      closeCreateConfModal();
+      showToast(`Conference "${data.conference.name}" created!`, "success");
+      selectedConferenceId = data.conference.conference_id;
+      try { sessionStorage.setItem("scip_selected_conference", selectedConferenceId); } catch(e) {}
+      await fetchConferences();
+      await fetchBuilderSites();
+    } catch(err) {
+      showToast(`Error: ${err.message}`, "error");
+    }
+  };
+
+  window.handleAssignConference = async function(siteId, conferenceId) {
+    try {
+      const res = await fetch(`/api/builder/sites/${siteId}/conference`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conference_id: conferenceId || null })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Failed to update conference");
+      showToast("Website conference updated", "success");
+      await fetchBuilderSites();
+    } catch(err) {
       showToast(`Error: ${err.message}`, "error");
     }
   };
@@ -2716,11 +3110,12 @@ document.addEventListener("DOMContentLoaded", () => {
   async function fetchBuilderSites() {
     try {
       fetchTemplatesAndRenderWizard();
+      await fetchConferences();
       const res = await fetch("/api/builder/sites");
       if (!res.ok) return;
       const data = await res.json();
       userWebsites = data.sites || [];
-      renderBuilderSites(userWebsites);
+      applyConferenceFilter();
     } catch (e) {
       console.warn("Failed to load websites:", e);
     }
@@ -2734,55 +3129,92 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     if (sites.length === 0) {
-      builderSitesGrid.innerHTML = `
-        <div class="empty-builder-state">
-          <div class="empty-builder-icon">🌐</div>
-          <h3>No Websites Created Yet</h3>
-          <p>Choose from 15 pre-built templates to publish your first academic or symposium website in minutes.</p>
-          <button class="btn-primary-action" onclick="document.getElementById('btn-open-create-site-modal').click()">
-            <span>+ Create First Website</span>
-          </button>
-        </div>
-      `;
+      const q = (builderSearchSites ? builderSearchSites.value : "").trim();
+      if (q) {
+        builderSitesGrid.innerHTML = `
+          <div class="empty-builder-state">
+            <div class="empty-builder-icon" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg></div>
+            <h3>No Websites Found</h3>
+            <p>No websites in this workspace match "<strong>${escapeHtml(q)}</strong>".</p>
+            <button class="btn-secondary" onclick="document.getElementById('builder-search-sites').value=''; applyConferenceFilter();" style="margin-top: 0.75rem;">
+              <span>Clear Search Filter</span>
+            </button>
+          </div>
+        `;
+      } else {
+        const conf = userConferences.find(c => c.conference_id === selectedConferenceId);
+        const confTitle = conf ? conf.name : "SciStudio Workspace";
+        builderSitesGrid.innerHTML = `
+          <div class="empty-builder-state">
+            <div class="studio-empty-preview" aria-hidden="true"><div class="studio-preview-top"><i></i><i></i><i></i></div><div class="studio-preview-layout"><div><b></b><b></b><span></span><em></em></div><div class="studio-preview-art"></div></div><div class="studio-preview-tiles"><i></i><i></i><i></i></div></div>
+            <span class="studio-empty-kicker">${escapeHtml(confTitle)}</span>
+            <h3>Your next conference starts here.</h3>
+            <p>Tell us about your event, choose a design, and make it yours in SciStudio.</p>
+            <button class="btn-primary-action btn-scistudio-create" onclick="document.getElementById('btn-open-create-site-modal').click()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Create Website</span>
+            </button>
+          </div>
+        `;
+      }
       return;
     }
 
     builderSitesGrid.innerHTML = sites.map(site => {
       const isPub = (site.status === "published");
       const url = `/sites/${site.slug}`;
+      const viewUrl = isPub ? url : `/api/builder/sites/${encodeURIComponent(site.site_id)}/preview`;
       const updatedDate = site.updated_at ? site.updated_at.split('T')[0] : 'Recently';
+      const conf = userConferences.find(c => c.conference_id === site.conference_id);
 
       return `
         <div class="builder-site-card" data-site-id="${site.site_id}">
-          <div class="builder-site-card-header">
-            <div>
-              <h4 class="builder-site-title">${escapeHtml(site.name)}</h4>
-              <a href="${url}" target="_blank" class="builder-site-slug">${url}</a>
+          <div class="site-card-top">
+            <div class="site-card-title-group">
+              <h3 class="builder-site-title" title="${escapeHtml(site.name)}">${escapeHtml(site.name)}</h3>
+              <div class="site-slug-pill-wrap">
+                <span class="site-slug-icon" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg></span>
+                <span class="site-slug-text">${url}</span>
+                <a href="${viewUrl}" target="_blank" rel="noopener" class="site-slug-link-arrow" title="${isPub ? 'Open published website' : 'Preview draft'}">↗</a>
+              </div>
             </div>
             <span class="site-status-badge ${isPub ? 'published' : 'draft'}">
+              <span class="badge-dot"></span>
               ${isPub ? 'PUBLISHED' : 'DRAFT'}
             </span>
           </div>
 
-          <div class="builder-site-meta">
-            <span>Last updated: ${updatedDate}</span>
+          <div class="site-card-meta-row">
+            ${conf 
+              ? `<span class="site-conf-tag active"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4"/></svg> ${escapeHtml(conf.name)}</span>`
+              : `<span class="site-conf-tag unassigned">No conference</span>`
+            }
+            <span class="site-date-text">Updated ${updatedDate}</span>
+          </div>
+
+          <div class="site-card-conf-row">
+            <label for="conf-assign-${site.site_id}" class="site-conf-label">Conference:</label>
+            <select id="conf-assign-${site.site_id}" class="site-conf-select" onchange="handleAssignConference('${site.site_id}', this.value)" title="Move site to another conference workspace">
+              <option value="">Unassigned</option>
+              ${userConferences.map(c => `<option value="${c.conference_id}" ${c.conference_id === site.conference_id ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('')}
+            </select>
           </div>
 
           <div class="builder-site-actions">
-            <button class="btn-site-edit" onclick="openBuilderStudio('${site.site_id}')">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-              <span>Edit Studio</span>
+            <button class="btn-card-action edit" onclick="openBuilderStudio('${site.site_id}')" title="Edit in SciStudio visual canvas">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Edit</span>
             </button>
-            <a href="${url}" target="_blank" class="btn-site-preview" title="View published website in new tab">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              <span>View</span>
+            <a href="${viewUrl}" target="_blank" rel="noopener" class="btn-card-action view" title="${isPub ? 'View published website' : 'Preview draft'}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+              <span>${isPub ? 'View' : 'Preview'}</span>
             </a>
-            <a href="/api/builder/sites/${site.site_id}/export" class="btn-site-preview" title="Download standalone website ZIP">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <a href="/api/builder/sites/${site.site_id}/export" class="btn-card-action export" title="Download standalone website ZIP package">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>ZIP</span>
             </a>
-            <button class="btn-site-delete" onclick="handleDeleteSite('${site.site_id}', '${escapeHtml(site.name)}')" title="Delete website">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            <button class="btn-card-action delete" onclick="handleDeleteSite('${site.site_id}', '${escapeHtml(site.name)}')" title="Delete website permanently">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
           </div>
         </div>
@@ -2791,14 +3223,20 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Filter / Search Websites
+  const btnClearSearch = document.getElementById("btn-clear-search");
   if (builderSearchSites) {
-    builderSearchSites.addEventListener("input", (e) => {
-      const q = e.target.value.toLowerCase().trim();
-      const filtered = userWebsites.filter(s =>
-        (s.name || '').toLowerCase().includes(q) ||
-        (s.slug || '').toLowerCase().includes(q)
-      );
-      renderBuilderSites(filtered);
+    builderSearchSites.addEventListener("input", () => {
+      if (btnClearSearch) {
+        btnClearSearch.style.display = builderSearchSites.value ? "block" : "none";
+      }
+      applyConferenceFilter();
+    });
+  }
+  if (btnClearSearch) {
+    btnClearSearch.addEventListener("click", () => {
+      if (builderSearchSites) builderSearchSites.value = "";
+      btnClearSearch.style.display = "none";
+      applyConferenceFilter();
     });
   }
 
@@ -2817,12 +3255,166 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // Open Studio (Fullscreen Experience)
+
+  // Editor history stores only editable content, never account or session data.
+  let studioHistory = [], studioHistoryIndex = -1, studioSaved = '', studioSaving = false;
+  const studioSnapshot = () => JSON.stringify({name: currentSite.name, theme_config: currentSite.theme_config, schema_json: currentSite.schema_json});
+  function studioStatus() {
+    const dirty = currentSite && studioSnapshot() !== studioSaved;
+    const label = document.getElementById('studio-save-state');
+    if (label) label.textContent = studioSaving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
+    document.getElementById('studio-undo').disabled = studioHistoryIndex <= 0;
+    document.getElementById('studio-redo').disabled = studioHistoryIndex >= studioHistory.length - 1;
+    return dirty;
+  }
+  function studioRecord() {
+    if (!currentSite) return;
+    const state = studioSnapshot();
+    if (studioHistory[studioHistoryIndex] !== state) {
+      studioHistory.splice(studioHistoryIndex + 1);
+      studioHistory.push(state);
+      if (studioHistory.length > 100) studioHistory.shift();
+      studioHistoryIndex = studioHistory.length - 1;
+    }
+    studioStatus();
+    renderStudioLayers();
+  }
+  function studioTravel(direction) {
+    const next = studioHistoryIndex + direction;
+    if (!currentSite || next < 0 || next >= studioHistory.length) return;
+    studioHistoryIndex = next;
+    Object.assign(currentSite, JSON.parse(studioHistory[next]));
+    studioSiteName.value = currentSite.name;
+    const theme = currentSite.theme_config || {};
+    themePrimaryColor.value = theme.primary_color || '#38bdf8';
+    themeAccentColor.value = theme.accent_color || '#6366f1';
+    themeBgPreset.value = theme.bg_color || '#0b0f19';
+    studioFont.value = theme.font_family || "Inter, sans-serif";
+    labelPrimaryColor.textContent = themePrimaryColor.value;
+    labelAccentColor.textContent = themeAccentColor.value;
+    renderCanvas();
+    const selected = currentSite.schema_json.find(c => c.id === activeComponentId);
+    if (selected) renderInspector(selected); else inspectorContent.innerHTML = '<p class="empty-inspector-notice">Select a section to customize it.</p>';
+  }
+  document.getElementById('studio-undo').onclick = () => studioTravel(-1);
+  document.getElementById('studio-redo').onclick = () => studioTravel(1);
+  studioSiteName.addEventListener('input', () => {
+    if (currentSite) { currentSite.name = studioSiteName.value; studioRecord(); }
+  });
+  window.addEventListener('beforeunload', event => {
+    if (currentSite && studioStatus()) { event.preventDefault(); event.returnValue = ''; }
+  });
+  document.addEventListener('keydown', event => {
+    if (!currentSite || !(event.ctrlKey || event.metaKey)) return;
+    if (event.key.toLowerCase() === 's') { event.preventDefault(); saveSiteDraft(); }
+    if (event.target.closest('input,textarea,[contenteditable="true"]')) return;
+    if (event.key.toLowerCase() === 'z') { event.preventDefault(); studioTravel(event.shiftKey ? 1 : -1); }
+  });
+  document.getElementById('studio-library-search').addEventListener('input', event => {
+    const term = event.target.value.toLowerCase();
+    document.querySelectorAll('.btn-add-comp').forEach(button => button.hidden = !button.textContent.toLowerCase().includes(term));
+  });
+  function renderStudioLayers() {
+    const list = document.getElementById('studio-layer-list');
+    list.replaceChildren();
+    (currentSite.schema_json || []).forEach((comp, index) => {
+      const row = document.createElement('button');
+      row.type = 'button'; row.className = 'studio-layer' + (comp.id === activeComponentId ? ' selected' : '');
+      row.draggable = true; row.dataset.layerId = comp.id;
+      row.textContent = `⠿  ${String(index + 1).padStart(2, '0')}  ${comp.title || comp.type}${comp.hidden ? ' · Hidden' : ''}`;
+      row.onclick = () => { selectComponentForEditing(comp.id); document.querySelectorAll('[data-comp-id]').forEach(el => { if (el.dataset.compId === comp.id) el.scrollIntoView({block:'nearest'}); }); };
+      list.append(row);
+    });
+  }
+  window.duplicateStudioSection = id => {
+    const index = currentSite.schema_json.findIndex(c => c.id === id);
+    if (index < 0) return;
+    const copy = JSON.parse(JSON.stringify(currentSite.schema_json[index]));
+    copy.id = 'comp_' + crypto.randomUUID(); copy.title = (copy.title || copy.type) + ' copy';
+    currentSite.schema_json.splice(index + 1, 0, copy);
+    activeComponentId = copy.id; renderCanvas(); renderInspector(copy);
+  };
+  window.addStudioContentItem = id => {
+    const comp = currentSite.schema_json.find(c => c.id === id);
+    if (!comp) return;
+    comp.data.items ||= []; comp.data.items.push({title:'New item',description:'',image:''});
+    renderCanvas(); renderInspector(comp);
+  };
+  window.updateStudioStyle = (id, key, value) => {
+    const comp = currentSite.schema_json.find(c => c.id === id);
+    if (!comp) return;
+    if (key === 'title') comp.title = value;
+    else { comp.studio_style ||= {}; comp.studio_style[key] = value; }
+    renderCanvas();
+  };
+  function studioSectionStyle(comp) {
+    const style = comp.studio_style || {}, rules = [];
+    for (const [key, css, max] of [['padding','padding',160],['radius','border-radius',80]]) {
+      if (style[key] !== undefined && style[key] !== '') rules.push(`${css}:${Math.min(max, Math.max(0, Number(style[key]) || 0))}px`);
+    }
+    if (/^#[0-9a-f]{6}$/i.test(style.background || '')) rules.push(`background:${style.background}`,`--studio-section-ink:${StudioFormatting.contrast(style.background)}`);
+    return rules.join(';');
+  }
+  function studioAppearanceControls(comp) {
+    const style = comp.studio_style || {};
+    return `<div class="inspector-card-group studio-appearance"><div class="inspector-group-title">Section appearance</div>
+      <label>Section name<input class="inspector-input" value="${escapeHtml(comp.title || comp.type)}" oninput="updateStudioStyle('${comp.id}','title',this.value)"></label>
+      <label>Outer spacing (px)<input class="inspector-input" type="range" min="0" max="160" value="${Number(style.padding) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','padding',this.value)"><output>${style.padding === undefined || style.padding === '' ? 'Default' : Number(style.padding)+' px'}</output></label>
+      <label>Corner radius (px)<input class="inspector-input" type="range" min="0" max="80" value="${Number(style.radius) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','radius',this.value)"><output>${style.radius === undefined || style.radius === '' ? 'Default' : Number(style.radius)+' px'}</output></label>
+      <label>Background<input class="inspector-input" type="color" value="${/^#[0-9a-f]{6}$/i.test(style.background || '') ? style.background : '#ffffff'}" oninput="updateStudioStyle('${comp.id}','background',this.value)"></label>
+      <button type="button" class="btn-sec-tool" onclick="updateStudioStyle('${comp.id}','background','')">Reset background</button>
+      <button type="button" class="btn-sec-tool" onclick="duplicateStudioSection('${comp.id}')">Duplicate section</button></div>`;
+  }
+  const studioFont = document.getElementById('studio-font');
+  studioFont.addEventListener('change', () => { if (currentSite) { currentSite.theme_config ||= {}; currentSite.theme_config.font_family = studioFont.value; renderCanvas(); } });
+  let studioDrag = null;
+  document.querySelectorAll('.btn-add-comp').forEach(button => button.draggable = true);
+  builderStudioView.addEventListener('dragstart', event => {
+    const palette = event.target.closest('.btn-add-comp'), layer = event.target.closest('[data-layer-id]'), handle = event.target.closest('[data-drag-section]');
+    studioDrag = palette ? {type:palette.dataset.type} : layer ? {id:layer.dataset.layerId} : handle ? {id:handle.dataset.dragSection} : null;
+    if (!studioDrag) return;
+    event.dataTransfer.setData('text/plain', JSON.stringify(studioDrag));
+    event.dataTransfer.effectAllowed = studioDrag.type ? 'copy' : 'move';
+  });
+  function clearDropMark() { document.querySelectorAll('.studio-drop-before,.studio-drop-after').forEach(el => el.classList.remove('studio-drop-before','studio-drop-after')); }
+  builderStudioView.addEventListener('dragover', event => {
+    if (!studioDrag || !event.target.closest('#canvas-sections-list,#studio-layer-list')) return;
+    event.preventDefault(); clearDropMark();
+    const target = event.target.closest('[data-comp-id],[data-layer-id]');
+    if (target) target.classList.add(event.clientY > target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2 ? 'studio-drop-after' : 'studio-drop-before');
+  });
+  builderStudioView.addEventListener('drop', event => {
+    if (!studioDrag || !event.target.closest('#canvas-sections-list,#studio-layer-list')) return;
+    event.preventDefault();
+    const target = event.target.closest('[data-comp-id],[data-layer-id]');
+    const targetId = target?.dataset.compId || target?.dataset.layerId;
+    const after = target?.classList.contains('studio-drop-after');
+    clearDropMark();
+    let id = studioDrag.id;
+    if (studioDrag.type) { addNewComponent(studioDrag.type); id = activeComponentId; }
+    if (id !== targetId) {
+      const sections = currentSite.schema_json;
+      const from = sections.findIndex(c => c.id === id);
+      if (from >= 0) {
+        const [moved] = sections.splice(from, 1);
+        const to = sections.findIndex(c => c.id === targetId);
+        sections.splice(to < 0 ? sections.length : to + (after ? 1 : 0), 0, moved);
+        renderCanvas(); selectComponentForEditing(id);
+      }
+    }
+    studioDrag = null;
+  });
+  builderStudioView.addEventListener('dragend', () => { studioDrag = null; clearDropMark(); });
+
   window.openBuilderStudio = async function(siteId) {
     try {
       showToast("Loading SciStudio...", "info");
       const res = await fetch(`/api/builder/sites/${siteId}`);
       if (!res.ok) throw new Error("Failed to load site");
       currentSite = await res.json();
+      activeComponentId = null;
+      studioHistory = []; studioHistoryIndex = -1; studioSaved = studioSnapshot();
+      inspectorContent.innerHTML = '<p class="empty-inspector-notice">Select a section to customize its content and appearance.</p>';
 
       // Enter Fullscreen Studio Mode: hide app sidebar, topbar, status bar
       document.body.classList.add("studio-fullscreen-mode");
@@ -2852,6 +3444,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const btnStudioSignout = document.getElementById("btn-studio-signout");
       if (btnStudioSignout) {
         btnStudioSignout.onclick = () => {
+          if (studioStatus() && !confirm("Sign out and discard unsaved changes?")) return;
           document.body.classList.remove("studio-fullscreen-mode");
           const mainSignOut = document.getElementById("btn-sign-out");
           if (mainSignOut) {
@@ -2862,6 +3455,7 @@ document.addEventListener("DOMContentLoaded", () => {
         };
       }
 
+      studioFont.value = currentSite.theme_config?.font_family || "Inter, sans-serif";
       // Initialize Theme Pickers
       const theme = currentSite.theme_config || {};
       if (themePrimaryColor) {
@@ -2886,6 +3480,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Back to Dashboard (Exit Fullscreen Studio)
   if (btnStudioBack) {
     btnStudioBack.addEventListener("click", () => {
+      if (studioStatus() && !confirm("Leave the editor and discard unsaved changes?")) return;
       document.body.classList.remove("studio-fullscreen-mode");
       currentSite = null;
       activeComponentId = null;
@@ -2895,17 +3490,328 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+
+  let studioInspectorTab = 'content';
+  let studioInsertBefore = null;
+  const studioLayoutChoices = [ ['split','Split showcase'], ['conference_program','Event details'], ['centered','Centered'], ['image_left','Image left'], ['image_top','Image first'], ['text_only','Typography'] ];
+  const studioGenericTypes = ['about','stats','agenda','sponsors','testimonials','announcement'];
+  function studioMiniature(key) {
+    return `<span class="studio-miniature miniature-${key}" aria-hidden="true"><i class="mini-copy"><b></b><b></b><em></em></i><i class="mini-image"></i><i class="mini-bottom"></i></span>`;
+  }
+  function applyInspectorTab() {
+    document.querySelectorAll('[data-inspector-tab]').forEach(button => button.setAttribute('aria-selected', String(button.dataset.inspectorTab === studioInspectorTab)));
+    inspectorContent.querySelectorAll('[data-settings-pane]').forEach(pane => pane.hidden = pane.dataset.settingsPane !== studioInspectorTab);
+  }
+  document.querySelectorAll('[data-inspector-tab]').forEach(button => button.addEventListener('click', () => {
+    studioInspectorTab = button.dataset.inspectorTab; applyInspectorTab();
+  }));
+  function organizeStudioInspector(comp) {
+    const content = document.createElement('div'); content.dataset.settingsPane = 'content';
+    const design = document.createElement('div'); design.dataset.settingsPane = 'design';
+    const advanced = document.createElement('div'); advanced.dataset.settingsPane = 'advanced';
+    // Keep every existing editor control; move whole groups rather than cloning listeners.
+    [...inspectorContent.children].forEach(child => {
+      const heading = child.querySelector('.inspector-group-title')?.textContent.trim() || '';
+      if (child.classList.contains('studio-appearance')) design.append(child);
+      else if (heading === 'Media Display') design.append(child);
+      else content.append(child);
+    });
+    const visualFields = document.createElement('div'); visualFields.className='inspector-card-group';
+    const visualHeading = document.createElement('div'); visualHeading.className='inspector-group-title'; visualHeading.textContent='Typography, buttons & images';
+    visualFields.append(visualHeading);
+    content.querySelectorAll('.inspector-field').forEach(field=>{
+      const controls=[...field.querySelectorAll('input,select,button')];
+      const handlers=controls.map(control=>(control.getAttribute('onchange') || '')+' '+(control.getAttribute('oninput') || '')+' '+(control.getAttribute('onclick') || '')).join(' ');
+      if (/headline_size|headline_weight|headline_gradient|gradient_preset|primary_btn_style|primary_btn_radius|primary_btn_text_color|hero_image_radius|hero_image_shadow|hero_image_aspect|setHeroTextAlign|setPrimaryBtnRadius/.test(handlers)) visualFields.append(field);
+    });
+    if(visualFields.children.length>1) design.append(visualFields);
+    // Replace the existing layout dropdowns with visual design choices.
+    const choices = comp.type === 'hero' ? studioLayoutChoices : studioGenericTypes.includes(comp.type) ? [['grid','Card grid'],['list','Editorial list'],['spotlight','Spotlight']] : [];
+    if (choices.length) {
+      const key = comp.type === 'hero' ? 'layout_variant' : 'design';
+      content.querySelectorAll('select').forEach(select => {
+        const handler = select.getAttribute('onchange') || '';
+        if (handler.includes('setHeroLayoutVariant') || handler.includes("'design'")) select.parentElement.remove();
+      });
+      const picker = document.createElement('div'); picker.className = 'studio-design-picker';
+      const active = comp.data?.[key] || choices[0][0];
+      picker.innerHTML = `<p class="studio-settings-help">Choose a layout. Your content stays intact.</p><div class="studio-design-grid">${choices.map(([value,label]) => `<button type="button" data-design="${value}" aria-pressed="${active === value}">${studioMiniature(value)}<span>${label}</span></button>`).join('')}</div>`;
+      picker.querySelectorAll('button').forEach(button => button.onclick = () => {
+        updateField(comp.id,key,button.dataset.design); renderInspector(comp);
+      });
+      design.prepend(picker);
+    }
+    const heading = document.createElement('div'); heading.className = 'studio-selection-heading';
+    heading.textContent = comp.title || comp.type;
+    advanced.innerHTML = `<p class="studio-settings-help">Section visibility</p><label class="studio-setting-check"><input type="checkbox" ${comp.hidden ? 'checked' : ''}> Hide on the website</label><p class="studio-settings-help">Hidden sections remain in the outline and can be restored.</p><button type="button" class="studio-reset-style">Reset section appearance</button>`;
+    advanced.querySelector('input').onchange = event => {
+      comp.hidden = event.target.checked; renderCanvas(); renderInspector(comp);
+    };
+    advanced.querySelector('button').onclick = () => {
+      if (!confirm('Reset this section’s spacing, background and corners? Content will be kept.')) return;
+      comp.studio_style = {}; renderCanvas(); renderInspector(comp);
+    };
+    if (comp.type === 'custom') { while (content.firstChild) advanced.append(content.firstChild); content.innerHTML = '<p class="studio-settings-help">Edit this HTML/CSS embed in Advanced.</p>'; }
+    inspectorContent.replaceChildren(heading,content,design,advanced);
+    applyInspectorTab();
+  }
+  const studioLibrary = document.createElement('dialog');
+  studioLibrary.className = 'studio-library-dialog';
+  studioLibrary.innerHTML = `<div class="studio-library-heading"><div><span class="studio-library-eyebrow">BUILD YOUR PAGE</span><h2>Add a section</h2><p>Choose a starting point. Make it yours on the canvas.</p></div><button type="button" class="studio-library-close" aria-label="Close section library">×</button></div><input type="search" class="studio-library-filter" aria-label="Search section library" placeholder="Search sections…"><div class="studio-library-cards"></div>`;
+  document.body.append(studioLibrary);
+  studioLibrary.querySelector('.studio-library-close').onclick = () => studioLibrary.close();
+  studioLibrary.addEventListener('click', event => { if (event.target === studioLibrary) { const r=studioLibrary.getBoundingClientRect(); if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom) studioLibrary.close(); } });
+  studioLibrary.querySelector('input').oninput = event => {
+    const q = event.target.value.toLowerCase();
+    studioLibrary.querySelectorAll('[data-library-type]').forEach(card => card.hidden = !card.textContent.toLowerCase().includes(q));
+  };
+  window.openStudioLibrary = (beforeId = null) => {
+    if (!currentSite) return;
+    studioInsertBefore = beforeId;
+    const cards = studioLibrary.querySelector('.studio-library-cards'); cards.replaceChildren();
+    document.querySelectorAll('.btn-add-comp').forEach(source => {
+      const button = document.createElement('button'); button.type='button'; button.dataset.libraryType=source.dataset.type;
+      const title=source.querySelector('.comp-title')?.textContent || source.dataset.type;
+      const description=source.querySelector('.comp-desc')?.textContent || '';
+      const visual = source.dataset.type === 'hero' ? 'split' : ['gallery','speakers','pricing'].includes(source.dataset.type) ? 'grid' : 'list';
+      button.innerHTML=studioMiniature(visual)+`<strong>${escapeHtml(title)}</strong><span>${escapeHtml(description)}</span>`;
+      button.onclick=() => {
+        addNewComponent(source.dataset.type);
+        const sections=currentSite.schema_json; const index=sections.findIndex(c=>c.id===studioInsertBefore);
+        if(index>=0) { const inserted=sections.pop(); sections.splice(index,0,inserted); renderCanvas(); }
+        studioLibrary.close(); selectComponentForEditing(activeComponentId);
+      };
+      cards.append(button);
+    });
+    studioLibrary.querySelector('input').value=''; studioLibrary.showModal();
+    studioLibrary.querySelector('input').focus();
+  };
+  document.getElementById('studio-zoom').addEventListener('change',fitStudioCanvas);
+  for (const [id,cls] of [['studio-left-toggle','studio-left-hidden'],['studio-right-toggle','studio-right-hidden']]) {
+    document.getElementById(id).onclick=event=>{
+      builderStudioView.classList.remove('studio-panels-hidden');
+      document.getElementById('studio-toggle-panels').textContent='Expand canvas';
+      document.getElementById('studio-toggle-panels').setAttribute('aria-pressed','false');
+      const hidden=builderStudioView.classList.toggle(cls);
+      event.currentTarget.setAttribute('aria-pressed',String(!hidden));
+      requestAnimationFrame(fitStudioCanvas);
+    };
+  }
+  document.getElementById('btn-device-tablet').onclick=()=>{
+    builderCanvasFrame.classList.remove('mobile-view'); builderCanvasFrame.classList.add('tablet-view');
+    document.querySelectorAll('.btn-device-toggle').forEach(button=>button.classList.toggle('active',button.id==='btn-device-tablet'));
+    fitStudioCanvas();
+  };
+
+  let studioQuickTarget=null, studioCopiedStyle=null;
+  const studioQuick=document.createElement('div');studioQuick.className='studio-quick-toolbar';studioQuick.hidden=true;
+  studioQuick.setAttribute('role','region');studioQuick.setAttribute('aria-label','Selected element controls');document.body.append(studioQuick);
+  function studioValue(comp,path) {return path.reduce((obj,key)=>obj?.[key],comp.data);}
+  function studioSetValue(comp,path,value) {let obj=comp.data;for(const key of path.slice(0,-1))obj=obj[key];obj[path.at(-1)]=value;}
+  function studioAllFields(object,path=[],result=[]) {Object.entries(object||{}).forEach(([key,value])=>{if(typeof value==='string')result.push({path:[...path,key],value});else if(value&&typeof value==='object')studioAllFields(value,[...path,key],result);});return result;}
+  function sectionStudioTheme(comp) {
+    const theme={...(currentSite.theme_config||{})},bg=comp.studio_style?.background;
+    if(/^#[0-9a-f]{6}$/i.test(bg||'')){theme.bg_color=bg;theme.mode=StudioFormatting.contrast(bg)==='#ffffff'?'dark':'light';theme.primary_color=StudioFormatting.contrast(bg,theme.primary_color||'#6658d9');}
+    return theme;
+  }
+  function closeStudioQuick(){studioQuick.hidden=true;studioQuickTarget=null;}
+  function positionStudioQuick(node) {
+    const r=node.getBoundingClientRect(),width=Math.min(620,window.innerWidth-24);
+    studioQuick.style.width=width+'px';studioQuick.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.left))+'px';
+    studioQuick.style.top=Math.max(12,Math.min(window.innerHeight-studioQuick.offsetHeight-12,r.top-studioQuick.offsetHeight-10))+'px';
+  }
+  function reopenStudioQuick() {
+    if(!studioQuickTarget)return;
+    const {comp,path,kind}=studioQuickTarget,key=JSON.stringify(path);
+    const node=[...canvasSectionsList.querySelectorAll('[data-studio-format-key]')].find(el=>el.dataset.studioFormatKey===key&&el.closest('[data-comp-id]').dataset.compId===comp.id);
+    if(node){studioQuickTarget.node=node;positionStudioQuick(node);}else closeStudioQuick();
+  }
+  function refreshStudioQuick() {renderCanvas();renderInspector(studioQuickTarget.comp);reopenStudioQuick();}
+  function applyQuickStyle(patch) {
+    if(!studioQuickTarget)return;
+    if(patch.href&&!/^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(patch.href)){showToast('Use an https:// URL, #section, mailto: or tel: link.','error');return;}
+    const {comp,path,kind,start,end}=studioQuickTarget,key=JSON.stringify(path);
+    if(kind==='image'){comp.image_formats||={};Object.assign(comp.image_formats[key]||={},patch);}
+    else {
+      comp.field_formats||={};const format=comp.field_formats[key]||={style:{},runs:[]};
+      if(Number.isInteger(start)&&end>start&&!patch.align&&!patch.lineHeight){format.runs.push({start,end,style:patch});format.runs=format.runs.slice(-100);}
+      else Object.assign(format.style,patch);
+    }
+    refreshStudioQuick();
+  }
+  window.chooseStudioImage = id => {
+    const comp=currentSite.schema_json.find(item=>item.id===id);if(!comp)return;
+    const node=[...canvasSectionsList.querySelectorAll('[data-comp-id]')].find(item=>item.dataset.compId===id);
+    studioQuickTarget={comp,path:['image_url'],node,kind:'image'};
+    const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp,image/gif';input.onchange=()=>uploadStudioImage(input.files[0]);input.click();
+  };
+  async function uploadStudioImage(file) {
+    if(!studioQuickTarget||!file)return;
+    const target=studioQuickTarget;
+    if(!['image/png','image/jpeg','image/webp','image/gif'].includes(file.type)||file.size>8*1024*1024){showToast('Choose a PNG, JPG, WebP or GIF under 8 MB.','error');return;}
+    try {
+      const bitmap=await createImageBitmap(file),ratio=Math.min(1,1600/Math.max(bitmap.width,bitmap.height));
+      const canvas=document.createElement('canvas');canvas.width=Math.round(bitmap.width*ratio);canvas.height=Math.round(bitmap.height*ratio);
+      canvas.getContext('2d').drawImage(bitmap,0,0,canvas.width,canvas.height);bitmap.close();
+      const url=canvas.toDataURL('image/webp',.85);
+      if(url.length>3*1024*1024)throw new Error('Image is too large after compression. Please choose a smaller image.');
+      if(!currentSite?.schema_json.includes(target.comp))return;
+      studioSetValue(target.comp,target.path,url);renderCanvas();renderInspector(target.comp);reopenStudioQuick();showToast('Image added and optimized. Save to keep your changes.','success');
+    }catch(error){showToast(error.message||'Unable to read this image.','error');}
+  }
+  function openStudioQuick(comp,path,node,kind='text') {
+    const linkKeys={primary_btn_text:'primary_btn_url',secondary_btn_text:'secondary_btn_url',cta_label:'cta_url',btn_label:'btn_url'};
+    const linkKey=kind==='text'?linkKeys[path.at(-1)]:null;
+    const linkPath=linkKey?[...path.slice(0,-1),linkKey]:null;
+    studioQuickTarget={comp,path,node,kind,start:null,end:null};
+    const key=JSON.stringify(path),style=kind==='image'?(comp.image_formats?.[key]||{}):(comp.field_formats?.[key]?.style||{});
+    studioQuick.hidden=false;
+    const select=(name,label,values,value)=>`<label>${label}<select data-quick="${name}">${values.map(([v,t])=>`<option value="${v}" ${String(value)===v?'selected':''}>${t}</option>`).join('')}</select></label>`;
+    studioQuick.innerHTML=`<div class="studio-quick-heading"><strong>${kind==='image'?'Image':linkKey?'Button':'Text'}</strong><span class="studio-quick-scope">${kind==='image'?'Drop an image here to replace':'Whole text · select words to format part'}</span><button type="button" data-action="close" aria-label="Close formatting">×</button></div><div class="studio-quick-controls">${kind==='text'?`
+      ${select('font','Font',StudioFormatting.fonts.map(font=>[font,font.split(',')[0]]),style.font||'Inter, sans-serif')}
+      <label>Size<input data-quick="size" type="number" min="10" max="120" value="${style.size||Math.round(parseFloat(getComputedStyle(node).fontSize))}"></label>
+      <label>Color<input data-quick="color" type="color" value="${style.color||StudioFormatting.contrast(comp.studio_style?.background||currentSite.theme_config?.bg_color||'#ffffff')}"></label>
+      <button type="button" data-action="bold" aria-label="Toggle bold"><b>B</b></button><button type="button" data-action="italic" aria-label="Toggle italic"><i>I</i></button><button type="button" data-action="underline" aria-label="Toggle underline"><u>U</u></button>
+      ${select('align','Align',[['left','Left'],['center','Center'],['right','Right']],style.align||'left')}
+      ${select('lineHeight','Line height',[['1.2','Tight'],['1.5','Normal'],['1.8','Relaxed'],['2','Wide']],String(style.lineHeight||1.5))}
+      <button type="button" data-action="edit">Edit text</button><button type="button" data-action="whole">Whole text</button>${linkPath?`<label>Button destination<input data-button-url value="${escapeHtml(studioValue(comp,linkPath)||'#')}" placeholder="https://… or #section"></label>`:`<label>Link<input data-quick="href" value="${escapeHtml(style.href||'')}" placeholder="https://… or #section"></label>`}`:`
+      <button type="button" data-action="upload">Upload image</button><input type="file" class="studio-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+      <label class="studio-image-url">Image URL<input data-image-url value="${String(studioValue(comp,path)).startsWith('data:')?'':escapeHtml(studioValue(comp,path)||'')}" placeholder="https://…"></label>
+      ${select('fit','Fit',[['cover','Fill / crop'],['contain','Fit inside']],style.fit||'cover')}
+      ${select('position','Focus',[['center','Center'],['top','Top'],['bottom','Bottom'],['left','Left'],['right','Right']],style.position||'center')}
+      <label>Height<input data-quick="height" type="number" min="40" max="1200" value="${style.height||Math.round(node.getBoundingClientRect().height)}"></label>
+      <label>Corners<input data-quick="radius" type="number" min="0" max="100" value="${style.radius||0}"></label>
+      <label>Alt text<input data-quick="alt" value="${escapeHtml(style.alt||node.alt||'')}"></label>`}
+      <button type="button" data-action="copy">Copy style</button><button type="button" data-action="paste" ${studioCopiedStyle?.kind===kind?'':'disabled'}>Paste style</button><button type="button" data-action="reset">Reset</button></div>`;
+    studioQuick.querySelectorAll('[data-quick]').forEach(control=>control.onchange=()=>applyQuickStyle({[control.dataset.quick]:control.value}));
+    studioQuick.querySelectorAll('button').forEach(button=>{
+      button.onmousedown=event=>event.preventDefault();
+      button.onclick=()=>{
+        const action=button.dataset.action,target=studioQuickTarget;if(!target)return;
+        const format=target.comp.field_formats?.[key];
+        const effective={...(format?.style||{})};
+        if(target.end>target.start)for(const run of format?.runs||[])if(run.start<=target.start&&run.end>=target.end)Object.assign(effective,run.style);
+        if(action==='close')closeStudioQuick();
+        else if(action==='bold')applyQuickStyle({weight:effective.weight==='700'?'400':'700'});
+        else if(action==='italic')applyQuickStyle({italic:effective.italic==='italic'?'normal':'italic'});
+        else if(action==='underline')applyQuickStyle({decoration:effective.decoration==='underline'?'none':'underline'});
+        else if(action==='whole'){target.start=null;target.end=null;studioQuick.querySelector('.studio-quick-scope').textContent='Whole text';}
+        else if(action==='edit')target.node.ondblclick?.({preventDefault(){},stopPropagation(){}});
+        else if(action==='copy'){studioCopiedStyle={kind,style:structuredClone(kind==='image'?(comp.image_formats?.[key]||{}):effective)};studioQuick.querySelector('[data-action=paste]').disabled=false;showToast('Style copied. Select another element to paste it.','info');}
+        else if(action==='paste'&&studioCopiedStyle?.kind===kind)applyQuickStyle(studioCopiedStyle.style);
+        else if(action==='reset'){if(kind==='image')delete (comp.image_formats||{})[key];else delete (comp.field_formats||{})[key];refreshStudioQuick();openStudioQuick(comp,path,studioQuickTarget.node,kind);}
+        else if(action==='upload')studioQuick.querySelector('.studio-image-file').click();
+      };
+    });
+    if(linkPath)studioQuick.querySelector('[data-button-url]').onchange=event=>{const url=event.target.value.trim();if(!/^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(url)){showToast('Use an https:// URL, #section, mailto: or tel: link.','error');return;}studioSetValue(comp,linkPath,url);refreshStudioQuick();};
+    if(kind==='image'){
+      studioQuick.querySelector('.studio-image-file').onchange=event=>uploadStudioImage(event.target.files[0]);
+      studioQuick.querySelector('[data-image-url]').onchange=event=>{const url=event.target.value.trim();if(!/^(https?:\/\/|\/(?!\/))/.test(url)){showToast('Use an https:// image URL or upload an image.','error');return;}studioSetValue(comp,path,url);refreshStudioQuick();};
+    }
+    positionStudioQuick(node);
+    captureStudioSelection();
+  }
+  function captureStudioSelection(){
+    if(!studioQuickTarget||studioQuickTarget.kind!=='text')return;
+    const selection=window.getSelection();if(!selection.rangeCount||selection.isCollapsed)return;
+    const range=selection.getRangeAt(0),node=studioQuickTarget.node;
+    if(!node.contains(range.startContainer)||!node.contains(range.endContainer))return;
+    const before=range.cloneRange();before.selectNodeContents(node);before.setEnd(range.startContainer,range.startOffset);
+    studioQuickTarget.start=Array.from(before.toString()).length;studioQuickTarget.end=studioQuickTarget.start+Array.from(range.toString()).length;
+    studioQuick.querySelector('.studio-quick-scope').textContent='Selected words';
+  }
+  document.addEventListener('selectionchange',captureStudioSelection);
+  document.addEventListener('pointerdown',event=>{if(!studioQuick.hidden&&!studioQuick.contains(event.target)&&!event.target.closest('.studio-inline-text,.studio-edit-image'))closeStudioQuick();});
+  window.addEventListener('resize',closeStudioQuick);
+  builderCanvasFrame.parentElement.addEventListener('scroll',closeStudioQuick);
+
+  // Find unambiguous leaf text fields; editing never rewrites a section's HTML.
+  function wireStudioInlineEditing() {
+    canvasSectionsList.querySelectorAll('[data-comp-id]').forEach(wrapper=>{
+      const comp=currentSite.schema_json.find(c=>c.id===wrapper.dataset.compId); if(!comp || comp.hidden) return;
+      const fields=[];
+      function visit(object,path=[]) {
+        Object.entries(object || {}).forEach(([key,value])=>{
+          if(typeof value==='string' && value.trim() && !/url|image|photo|icon|html|color|variant|style|preset|align|radius|shadow|aspect|design/i.test(key)) fields.push({path:[...path,key],value});
+          else if(value && typeof value==='object') visit(value,[...path,key]);
+        });
+      }
+      visit(comp.data);
+      wrapper.querySelectorAll('.section-preview-render h1,.section-preview-render h2,.section-preview-render h3,.section-preview-render h4,.section-preview-render p,.section-preview-render span').forEach(node=>{
+        if(node.children.length) return;
+        const matches=fields.filter(field=>field.value.trim()===node.textContent.trim()); if(matches.length!==1) return;
+        node.dataset.studioFormatKey=JSON.stringify(matches[0].path);
+        node.onclick=event=>{event.stopPropagation();if(studioQuickTarget?.node!==node)openStudioQuick(comp,matches[0].path,node);captureStudioSelection();};
+        node.classList.add('studio-inline-text'); node.tabIndex=0; node.title='Double-click to edit text';
+        const startEdit=event=>{
+          event.preventDefault(); event.stopPropagation(); if(node.isContentEditable) return;
+          selectComponentForEditing(comp.id);
+          const before=node.textContent; node.contentEditable='plaintext-only'; node.focus();
+          const range=document.createRange(); range.selectNodeContents(node); const selection=window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+          let cancelled=false;
+          node.onkeydown=e=>{ if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s'){e.preventDefault();node.blur();saveSiteDraft();} else if(e.key==='Escape'){cancelled=true;node.blur();} else if(e.key==='Enter' && !e.shiftKey){e.preventDefault();node.blur();} e.stopPropagation(); };
+          node.onblur=()=>{
+            const value=cancelled ? before : node.textContent;
+            node.contentEditable='false'; node.onkeydown=null; node.onblur=null;
+            let target=comp.data; const path=matches[0].path; for(const key of path.slice(0,-1)) target=target[key];
+            target[path.at(-1)]=value; if(value!==before&&comp.field_formats?.[JSON.stringify(path)])comp.field_formats[JSON.stringify(path)].runs=[]; renderCanvas(); renderInspector(comp);reopenStudioQuick();
+          };
+        };
+        node.ondblclick=startEdit;
+        node.onkeydown=event=>{if(event.key==='Enter')startEdit(event);};
+        const format=comp.field_formats?.[JSON.stringify(matches[0].path)];if(format){node.innerHTML=StudioFormatting.markup(node.textContent,format,/btn_text|btn_label|cta_label/.test(matches[0].path.at(-1))?null:comp.studio_style?.background||currentSite.theme_config?.bg_color);node.querySelectorAll('a').forEach(link=>link.onclick=event=>event.preventDefault());}
+      });
+      wrapper.querySelectorAll('.section-preview-render img').forEach(image=>{
+        const candidates=studioAllFields(comp.data).filter(field=>field.value===image.getAttribute('src'));if(candidates.length!==1)return;
+        const path=candidates[0].path,key=JSON.stringify(path);image.dataset.studioFormatKey=key;
+        const format=comp.image_formats?.[key];if(format){image.style.cssText+=';'+StudioFormatting.css(format);if(format.alt!==undefined)image.alt=format.alt;}
+        image.classList.add('studio-edit-image');image.title='Click to replace or style this image';
+        image.onclick=event=>{event.preventDefault();event.stopPropagation();openStudioQuick(comp,path,image,'image');};
+        image.ondragover=event=>{if(event.dataTransfer.types.includes('Files'))event.preventDefault();};
+        image.ondrop=event=>{if(event.dataTransfer.files.length){event.preventDefault();event.stopPropagation();openStudioQuick(comp,path,image,'image');uploadStudioImage(event.dataTransfer.files[0]);}};
+      });
+    });
+  }
+
+  // Preserve the selected viewport width; scale the canvas instead of squeezing it.
+  function fitStudioCanvas() {
+    if (!builderCanvasFrame || !currentSite) return;
+    const wrapper = builderCanvasFrame.parentElement;
+    if (!wrapper.clientWidth) return;
+    const box = getComputedStyle(wrapper);
+    const available = wrapper.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight);
+    const width = builderCanvasFrame.classList.contains('mobile-view') ? 380 : builderCanvasFrame.classList.contains('tablet-view') ? 768 : 1440;
+    const zoom = document.getElementById('studio-zoom').value;
+    const scale = zoom === 'fit' ? Math.min(1, Math.max(0.1, available / width)) : Number(zoom);
+    builderCanvasFrame.style.width = width + 'px';
+    builderCanvasFrame.style.zoom = String(scale);
+    document.getElementById('studio-canvas-scale').textContent = `${width}px · ${Math.round(scale * 100)}%`;
+  }
+  const canvasResizeObserver = new ResizeObserver(() => fitStudioCanvas());
+  if (builderCanvasFrame) canvasResizeObserver.observe(builderCanvasFrame.parentElement);
+  document.getElementById('studio-toggle-panels').addEventListener('click', event => {
+    const expanded = builderStudioView.classList.toggle('studio-panels-hidden');
+    event.currentTarget.setAttribute('aria-pressed', String(expanded));
+    event.currentTarget.textContent = expanded ? 'Show panels' : 'Expand canvas';
+    requestAnimationFrame(fitStudioCanvas);
+  });
+
   // Device Responsive Switchers
   if (btnDeviceDesktop && btnDeviceMobile && builderCanvasFrame) {
     btnDeviceDesktop.addEventListener("click", () => {
       btnDeviceDesktop.classList.add("active");
       btnDeviceMobile.classList.remove("active");
-      builderCanvasFrame.classList.remove("mobile-view");
+      builderCanvasFrame.classList.remove("mobile-view", "tablet-view");
+      document.getElementById("btn-device-tablet").classList.remove("active");
+      fitStudioCanvas();
     });
     btnDeviceMobile.addEventListener("click", () => {
       btnDeviceMobile.classList.add("active");
       btnDeviceDesktop.classList.remove("active");
+      builderCanvasFrame.classList.remove("tablet-view");
+      document.getElementById("btn-device-tablet").classList.remove("active");
       builderCanvasFrame.classList.add("mobile-view");
+      fitStudioCanvas();
     });
   }
 
@@ -2933,15 +3839,19 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!currentSite) return;
       if (!currentSite.theme_config) currentSite.theme_config = {};
       currentSite.theme_config.bg_color = themeBgPreset.value;
+      currentSite.theme_config.mode = ["#ffffff", "#f8fafc"].includes(themeBgPreset.value) ? "light" : "dark";
       renderCanvas();
     });
   }
 
   // Save Site Draft
   async function saveSiteDraft(silent = false) {
-    if (!currentSite) return false;
+    if (!currentSite || studioSaving) return false;
+    studioSaving = true; studioStatus();
+    const savingSite = currentSite;
     try {
       if (studioSiteName) currentSite.name = studioSiteName.value.trim() || currentSite.name;
+      const savedSnapshot = studioSnapshot();
       const res = await fetch(`/api/builder/sites/${currentSite.site_id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -2949,14 +3859,14 @@ document.addEventListener("DOMContentLoaded", () => {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Failed to save draft");
-      currentSite = data.site;
+      if (currentSite === savingSite) studioSaved = savedSnapshot;
       if (!silent) showToast("Website draft saved successfully!", "success");
       return true;
     } catch (e) {
       if (!silent) showToast(`Save error: ${e.message}`, "error");
       if (silent) throw e;
       return false;
-    }
+    } finally { studioSaving = false; studioStatus(); }
   }
 
   if (btnStudioSave) btnStudioSave.addEventListener("click", () => saveSiteDraft(false));
@@ -2966,7 +3876,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btnStudioPublish.addEventListener("click", async () => {
       if (!currentSite) return;
       try {
-        await saveSiteDraft(true);
+        if (!await saveSiteDraft(true)) return;
         const res = await fetch(`/api/builder/sites/${currentSite.site_id}/publish`, { method: "POST" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Publish failed");
@@ -2984,9 +3894,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Preview Site in New Tab
   if (btnStudioPreview) {
-    btnStudioPreview.addEventListener("click", () => {
-      if (!currentSite) return;
-      window.open(`/sites/${currentSite.slug}`, "_blank");
+    btnStudioPreview.addEventListener("click", async () => {
+      if (!currentSite || studioSaving) return;
+      const previewSite = currentSite;
+      const previewWindow = window.open('about:blank', '_blank');
+      if (!previewWindow) { showToast('Allow popups to open the website preview.', 'info'); return; }
+      previewWindow.opener = null;
+      if (await saveSiteDraft(false)) previewWindow.location.href = `/api/builder/sites/${encodeURIComponent(previewSite.site_id)}/preview`;
+      else previewWindow.close();
     });
   }
 
@@ -3011,10 +3926,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!currentSite) return;
     if (!currentSite.schema_json) currentSite.schema_json = [];
 
-    const newId = `comp_${type}_${Date.now()}`;
+    const newId = `comp_${type}_${crypto.randomUUID()}`;
     let compData = {};
 
-    if (type === "hero") {
+    if(type==='image'){compData={image_url:'',caption:''};}
+    else if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(type)) {
+      compData = {section_title: {about:'About the conference',stats:'Our conference in numbers',agenda:'Scientific program',sponsors:'Partners and exhibitors',testimonials:'What participants say',announcement:'Important update'}[type], section_subtitle:'Add your conference details here.', design:'grid', items:[{title:'Add a title',description:'Add your content.',image:''}]};
+    } else if (type === "custom") {
+      compData = {html: '<section style="padding:40px;font-family:system-ui"><h2>Your custom section</h2><p>Edit this HTML and add your own CSS.</p></section>', height: 300};
+    } else if (type === "hero") {
       compData = {
         eyebrow: "🌟 NEW HIGHLIGHT 2026",
         headline: "Innovative Research & Outreach",
@@ -3139,6 +4059,9 @@ document.addEventListener("DOMContentLoaded", () => {
   // RENDER CANVAS WITH DYNAMIC HIGH-CONTRAST LIGHT & DARK MODES
   function renderCanvas() {
     if (!canvasSectionsList || !currentSite) return;
+    if (studioQuickTarget && !currentSite.schema_json.includes(studioQuickTarget.comp)) closeStudioQuick();
+    studioRecord();
+    requestAnimationFrame(fitStudioCanvas);
     const comps = currentSite.schema_json || [];
 
     if (comps.length === 0) {
@@ -3146,7 +4069,7 @@ document.addEventListener("DOMContentLoaded", () => {
         <div style="text-align: center; padding: 5rem 1rem; color: #64748b;">
           <span style="font-size: 2.5rem; display:block; margin-bottom: 0.5rem;">🎨</span>
           <h3 style="color: #cbd5e1; margin-bottom: 0.5rem;">Canvas is Empty</h3>
-          <p>Click any component on the left palette to insert into your page.</p>
+          <p>Choose a section to start building your page.</p><button type="button" class="studio-add-open" onclick="openStudioLibrary()">+ Add your first section</button>
         </div>
       `;
       return;
@@ -3159,34 +4082,49 @@ document.addEventListener("DOMContentLoaded", () => {
     const bg = theme.bg_color || (isLight ? "#f8fafc" : "#0b0f19");
 
     canvasSectionsList.style.backgroundColor = bg;
+    canvasSectionsList.style.fontFamily = theme.font_family || "Inter, sans-serif";
     canvasSectionsList.className = isLight ? "theme-light-canvas" : "theme-dark-canvas";
 
     canvasSectionsList.innerHTML = comps.map((comp) => {
       const isSelected = (comp.id === activeComponentId);
       return `
-        <div class="canvas-section-wrapper ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
+        <div class="studio-insert-line"><button type="button" onclick="openStudioLibrary('${comp.id}')" aria-label="Insert section before ${escapeHtml(comp.title || comp.type)}">+ Add section</button></div>
+        <div class="canvas-section-wrapper ${comp.hidden ? 'studio-section-hidden' : ''} ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
           <!-- Floating Toolbar -->
           <div class="section-hover-bar" onclick="event.stopPropagation()">
+            <button class="btn-sec-tool" draggable="true" data-drag-section="${comp.id}" title="Drag section">⠿</button>
+            <button class="btn-sec-tool" onclick="duplicateStudioSection('${comp.id}')" title="Duplicate">Duplicate</button>
             <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
             <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move Down">⬇</button>
             <button class="btn-sec-tool" onclick="selectComponentForEditing('${comp.id}')" title="Configure">⚙ Settings</button>
+            <label class="studio-section-color" title="Section background · text contrast adjusts automatically"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?comp.studio_style.background:'#ffffff'}" onchange="updateStudioStyle('${comp.id}','background',this.value)">Background</label>
             <button class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete">🗑</button>
           </div>
 
           <!-- Section Render -->
-          <div class="section-preview-render" style="pointer-events: none;">
-            ${renderComponentHTML(comp, primary)}
+          <div class="section-preview-render ${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?'studio-contrast-section':''}" style="pointer-events:none;${studioSectionStyle(comp)}">
+            ${comp.hidden ? '<div class="studio-hidden-notice">Hidden section · Select Advanced to restore</div>' : renderComponentHTML(comp, primary)}
           </div>
         </div>
       `;
-    }).join("");
+    }).join("") + '<div class="studio-insert-line last"><button type="button" onclick="openStudioLibrary()">+ Add section</button></div>';
+    wireStudioInlineEditing();
   }
 
   // RENDER INDIVIDUAL COMPONENT WITH PROPER CONTRAST & VECTOR ICONS
   function renderComponentHTML(comp, primary) {
     const d = comp.data || {};
     const t = comp.type;
-    const theme = currentSite.theme_config || {};
+    if(t==='image') return d.image_url ? `<figure style="margin:0;padding:24px"><img src="${escapeHtml(d.image_url)}" alt="${escapeHtml(d.caption||'')}" style="display:block;width:100%;height:auto;border-radius:12px"><figcaption>${escapeHtml(d.caption||'')}</figcaption></figure>` : `<div class="studio-image-placeholder"><button type="button" onclick="event.stopPropagation();chooseStudioImage('${comp.id}')">+ Upload an image</button><p>PNG, JPG, WebP or GIF · automatically optimized</p></div>`;
+    if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(t)) {
+      const theme = sectionStudioTheme(comp);
+      const light = theme.mode === 'light';
+      const design = ['grid','list','spotlight'].includes(d.design) ? d.design : 'grid';
+      const safeImage = value => /^(https?:\/\/|\/(?!\/)|data:image\/(?:png|jpeg|webp|gif);base64,)/.test(value || '') ? value : '';
+      return `<section class="studio-content-section design-${design}" style="--section-ink:${light ? '#18233b' : '#f8fafc'};--section-muted:${light ? '#64748b' : '#a5b4cc'};--section-card:${light ? '#f4f6fb' : '#172033'}"><h2>${escapeHtml(d.section_title || '')}</h2><p>${escapeHtml(d.section_subtitle || '')}</p><div class="studio-content-items">${(d.items || []).map(item => `<article>${safeImage(item.image) ? `<img src="${escapeHtml(safeImage(item.image))}" alt="${escapeHtml(item.title || '')}" loading="lazy">` : ''}<h3>${escapeHtml(item.title || '')}</h3><p>${escapeHtml(item.description || '')}</p></article>`).join('')}</div></section>`;
+    }
+    if (t === 'custom') return `<iframe title="Custom section preview" sandbox="" srcdoc="${escapeHtml(d.html || '')}" style="display:block;width:100%;height:${Math.min(2000, Math.max(100, Number(d.height) || 300))}px;border:0"></iframe>`;
+    const theme = sectionStudioTheme(comp);
     const mode = theme.mode || "dark";
     const isLight = (mode === "light" || theme.bg_color === "#f8fafc" || theme.bg_color === "#ffffff" || theme.bg_color === "#f0fdf4");
     const accent = theme.accent_color || (isLight ? "#0284c7" : "#6366f1");
@@ -3242,15 +4180,94 @@ document.addEventListener("DOMContentLoaded", () => {
       }
       const btnGlow = d.primary_btn_glow ? `box-shadow: 0 0 20px rgba(56, 189, 248, 0.45);` : (isLight ? `box-shadow: 0 4px 14px rgba(37,99,235,0.22);` : "");
 
+      // Check Layout Variant: Conference Program vs Standard Split
+      if (d.layout_variant === "conference_program") {
+        const eventDate = escapeHtml(d.event_date || "October 14–18, 2026");
+        const eventLoc = escapeHtml(d.event_location || "Boston Convention Center, MA");
+        const eventFmt = escapeHtml(d.event_format || "Hybrid (In-Person & Live Stream)");
+        const cardBorderColor = isLight ? "rgba(0,0,0,0.08)" : "rgba(255,255,255,0.1)";
+        const metaIconBg = isLight ? "rgba(37,99,235,0.08)" : "rgba(56,189,248,0.12)";
+        const metaIconBorder = isLight ? "rgba(37,99,235,0.18)" : "rgba(56,189,248,0.25)";
+        const badgeBg = isLight ? "rgba(37,99,235,0.1)" : "rgba(56,189,248,0.15)";
+        const badgeColor = isLight ? primary : "#38bdf8";
+
+        return `
+          <div class="canvas-hero-program-wrap" style="padding:3.5rem 1.5rem;display:grid;grid-template-columns:1.2fr 0.8fr;gap:2.5rem;align-items:center;">
+            <div>
+              <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.eyebrow || '')}</span>
+              <h1 style="${headlineStyle}">${escapeHtml(d.headline || 'Headline')}</h1>
+              <p style="color:${textMuted};font-size:1rem;line-height:1.6;margin-bottom:1.75rem;">${escapeHtml(d.subheadline || '')}</p>
+              ${d.secondary_btn_text ? `
+                <div style="display:flex;gap:0.75rem;align-items:center;">
+                  <span style="border:1px solid ${isLight ? '#cbd5e1' : 'rgba(255,255,255,0.2)'};color:${isLight ? '#0f172a' : '#fff'};background:${isLight ? '#fff' : 'transparent'};padding:0.6rem 1.4rem;border-radius:${btnRadius};font-size:0.9rem;font-weight:600;">${escapeHtml(d.secondary_btn_text)}</span>
+                </div>
+              ` : ''}
+            </div>
+            <div>
+              <div class="canvas-hero-program-card" style="background:${cardBg};border:1px solid ${cardBorderColor};border-radius:18px;padding:2rem;box-shadow:${cardShadow};position:relative;overflow:hidden;">
+                <div style="position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg, ${primary}, ${accent});"></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
+                  <div style="font-weight:800;font-size:1.05rem;color:${textTitle};display:flex;align-items:center;gap:0.5rem;">
+                    <i class="fa-solid fa-calendar-check" style="color:${primary};"></i>
+                    <span>Conference Program</span>
+                  </div>
+                  <span style="background:${badgeBg};color:${badgeColor};font-size:0.72rem;font-weight:700;text-transform:uppercase;padding:0.25rem 0.65rem;border-radius:9999px;border:1px solid ${metaIconBorder};">Official Event</span>
+                </div>
+
+                <div style="display:flex;flex-direction:column;gap:1.25rem;margin-bottom:1.75rem;">
+                  <!-- Date -->
+                  <div style="display:flex;align-items:flex-start;gap:0.9rem;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:${metaIconBg};border:1px solid ${metaIconBorder};display:flex;align-items:center;justify-content:center;color:${primary};font-size:1rem;flex-shrink:0;">
+                      <i class="fa-regular fa-calendar-days"></i>
+                    </div>
+                    <div>
+                      <div style="font-size:0.72rem;color:${textMuted};text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Dates & Schedule</div>
+                      <div style="font-size:0.96rem;font-weight:700;color:${textTitle};margin-top:0.15rem;">${eventDate}</div>
+                    </div>
+                  </div>
+
+                  <!-- Location -->
+                  <div style="display:flex;align-items:flex-start;gap:0.9rem;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:${metaIconBg};border:1px solid ${metaIconBorder};display:flex;align-items:center;justify-content:center;color:${primary};font-size:1rem;flex-shrink:0;">
+                      <i class="fa-solid fa-location-dot"></i>
+                    </div>
+                    <div>
+                      <div style="font-size:0.72rem;color:${textMuted};text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Location & Venue</div>
+                      <div style="font-size:0.96rem;font-weight:700;color:${textTitle};margin-top:0.15rem;">${eventLoc}</div>
+                    </div>
+                  </div>
+
+                  <!-- Format -->
+                  <div style="display:flex;align-items:flex-start;gap:0.9rem;">
+                    <div style="width:40px;height:40px;border-radius:10px;background:${metaIconBg};border:1px solid ${metaIconBorder};display:flex;align-items:center;justify-content:center;color:${primary};font-size:1rem;flex-shrink:0;">
+                      <i class="fa-solid fa-video"></i>
+                    </div>
+                    <div>
+                      <div style="font-size:0.72rem;color:${textMuted};text-transform:uppercase;font-weight:700;letter-spacing:0.5px;">Event Format</div>
+                      <div style="font-size:0.96rem;font-weight:700;color:${textTitle};margin-top:0.15rem;">${eventFmt}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Registration Button -->
+                <div style="display:block;text-align:center;">
+                  <span style="display:block;background:${btnBg};color:${d.primary_btn_text_color || '#fff'};padding:0.85rem 1.5rem;border-radius:${btnRadius};font-weight:700;font-size:0.95rem;${btnGlow};text-align:center;">${escapeHtml(d.primary_btn_text || 'Register for Conference')}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
       // Image styling
       const imgRadius = d.hero_image_radius || "14px";
       const imgShadow = (d.hero_image_shadow === "none") ? "none" : (d.hero_image_shadow === "deep" ? "0 20px 45px rgba(0,0,0,0.5)" : "0 10px 25px rgba(0,0,0,0.35)");
       const imgAspect = (d.hero_image_aspect && d.hero_image_aspect !== "auto") ? `aspect-ratio:${d.hero_image_aspect};object-fit:cover;` : "object-fit:cover;";
 
-      const isCentered = (d.text_align === "center");
+      const isCentered = (d.text_align === "center" || ["centered", "image_top", "text_only"].includes(d.layout_variant));
 
       return `
-        <div style="padding:3.5rem 1.5rem;${isCentered ? 'text-align:center;' : 'display:grid;grid-template-columns:1.2fr 0.8fr;gap:2.5rem;align-items:center;'}">
+        <div class="studio-hero-layout hero-design-${["centered","image_left","image_top","text_only"].includes(d.layout_variant) ? d.layout_variant : "split"}" style="padding:3.5rem 1.5rem;${isCentered ? 'text-align:center;' : 'display:grid;grid-template-columns:1.2fr 0.8fr;gap:2.5rem;align-items:center;'}">
           <div style="${isCentered ? 'max-width:800px;margin:0 auto 2rem auto;' : ''}">
             <span style="font-size:0.75rem;font-weight:700;color:${primary};letter-spacing:1px;text-transform:uppercase;">${escapeHtml(d.eyebrow || '')}</span>
             <h1 style="${headlineStyle}">${escapeHtml(d.headline || 'Headline')}</h1>
@@ -3453,6 +4470,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     renderInspector(comp);
+    renderStudioLayers();
   };
 
   // COMPREHENSIVE BLOCK INSPECTOR CONTROLS
@@ -3465,7 +4483,7 @@ document.addEventListener("DOMContentLoaded", () => {
       <div style="margin-bottom: 1.15rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
         <div>
           <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">${t.toUpperCase()} BLOCK</span>
-          <h3 style="font-size: 1.1rem; color: #fff; margin: 0.15rem 0 0 0;">${escapeHtml(comp.title)}</h3>
+          <h3 style="font-size: 1.1rem; color: #283752; margin: 0.15rem 0 0 0;">${escapeHtml(comp.title)}</h3>
         </div>
         <div style="display:flex; gap:0.35rem;">
           <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
@@ -3477,6 +4495,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (t === "hero") {
       html += `
+
+
         <!-- Section 1: Typography & Headline -->
         <div class="inspector-card-group">
           <div class="inspector-group-title">
@@ -3525,6 +4545,7 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
           ` : ''}
 
+          ${d.layout_variant !== 'conference_program' ? `
           <div class="inspector-field" style="margin-top:0.75rem;">
             <label>Layout Alignment</label>
             <div class="segmented-control">
@@ -3532,12 +4553,38 @@ document.addEventListener("DOMContentLoaded", () => {
               <button class="segmented-btn ${(d.text_align === 'center') ? 'active' : ''}" onclick="setHeroTextAlign('${comp.id}', 'center')">Center Align</button>
             </div>
           </div>
+          ` : ''}
 
           <div class="inspector-field">
             <label>Subheadline</label>
             <textarea class="inspector-input" oninput="updateField('${comp.id}', 'subheadline', this.value)">${escapeHtml(d.subheadline || '')}</textarea>
           </div>
         </div>
+
+        ${d.layout_variant === 'conference_program' ? `
+        <!-- Section: Conference Program Details -->
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-calendar-check"></i>
+            <span>Conference Program Details</span>
+          </div>
+
+          <div class="inspector-field">
+            <label>Dates & Schedule</label>
+            <input type="text" class="inspector-input" placeholder="e.g. October 14–18, 2026" value="${escapeHtml(d.event_date || 'October 14–18, 2026')}" oninput="updateField('${comp.id}', 'event_date', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Location & Venue</label>
+            <input type="text" class="inspector-input" placeholder="e.g. Boston Convention Center, MA" value="${escapeHtml(d.event_location || 'Boston Convention Center, MA')}" oninput="updateField('${comp.id}', 'event_location', this.value)">
+          </div>
+
+          <div class="inspector-field">
+            <label>Event Format</label>
+            <input type="text" class="inspector-input" placeholder="e.g. Hybrid (In-Person & Live Stream)" value="${escapeHtml(d.event_format || 'Hybrid (In-Person & Live Stream)')}" oninput="updateField('${comp.id}', 'event_format', this.value)">
+          </div>
+        </div>
+        ` : ''}
 
         <!-- Section 2: Call-to-Action Buttons -->
         <div class="inspector-card-group">
@@ -3607,6 +4654,7 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
 
         <!-- Section 3: Hero Image & Media -->
+        ${d.layout_variant !== 'conference_program' ? `
         <div class="inspector-card-group">
           <div class="inspector-group-title">
             <i class="fa-solid fa-image"></i>
@@ -3655,6 +4703,17 @@ document.addEventListener("DOMContentLoaded", () => {
             </select>
           </div>
         </div>
+        ` : `
+        <div class="inspector-card-group" style="opacity: 0.85;">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-circle-info"></i>
+            <span>Media Display</span>
+          </div>
+          <p style="font-size:0.8rem; color:#94a3b8; line-height:1.45; margin:0;">
+            In <strong>Conference Program</strong> layout, the media column displays the structured program card with event date, location, format, and registration CTA. To customize standalone media or stock photography, switch back to <strong>Split Showcase</strong>.
+          </p>
+        </div>
+        `}
       `;
     } else if (t === "features") {
       html += `
@@ -3986,7 +5045,21 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     }
 
-    inspectorContent.innerHTML = html;
+    if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(t)) {
+      html += `<div class="inspector-field"><label>Section design</label><select class="inspector-select" onchange="updateField('${comp.id}','design',this.value)">${[['grid','Card grid'],['list','Editorial list'],['spotlight','Centered spotlight']].map(([value,label]) => `<option value="${value}" ${(d.design || 'grid') === value ? 'selected' : ''}>${label}</option>`).join('')}</select></div>`;
+      for (const [key,label] of [['section_title','Heading'],['section_subtitle','Introduction']]) html += `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateField('${comp.id}','${key}',this.value)">${escapeHtml(d[key] || '')}</textarea></div>`;
+      html += (d.items || []).map((item,index) => `<div class="inspector-card-group"><div class="inspector-group-title">Item ${index+1}</div>${[['title','Title / name / number'],['description','Description / quote / session details'],['image','Image or logo URL (optional)']].map(([key,label]) => `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateSubField('${comp.id}','items',${index},'${key}',this.value)">${escapeHtml(item[key] || '')}</textarea></div>`).join('')}<button type="button" class="btn-sec-tool" onclick="deleteSubItem('${comp.id}','items',${index})">Remove item</button></div>`).join('');
+      html += `<button type="button" class="btn-sec-tool" onclick="addStudioContentItem('${comp.id}')">+ Add item</button>`;
+    }
+    if(t==='image')html+=`<button class="studio-add-open" type="button" onclick="chooseStudioImage('${comp.id}')">Upload / replace image</button><div class="inspector-field"><label>Caption</label><input class="inspector-input" value="${escapeHtml(d.caption||'')}" oninput="updateField('${comp.id}','caption',this.value)"></div>`;
+    if (t === 'navbar' || t === 'footer') {
+      const fields = t === 'navbar' ? [['brand_name','Brand name'],['cta_label','Button label'],['cta_url','Button link']] : [['brand_name','Brand name'],['tagline','Short introduction'],['copyright','Copyright text']];
+      html += fields.map(([key,label]) => `<div class="inspector-field"><label>${label}</label><input class="inspector-input" value="${escapeHtml(d[key] || '')}" oninput="updateField('${comp.id}','${key}',this.value)"></div>`).join('');
+    }
+    if (t === 'custom') html += `<div class="inspector-field"><label>HTML and CSS (scripts disabled)</label><textarea class="inspector-input studio-code-input" spellcheck="false" oninput="updateField('${comp.id}','html',this.value)">${escapeHtml(d.html || '')}</textarea><label>Embed height (px)</label><input type="number" class="inspector-input" min="100" max="2000" value="${Number(d.height) || 300}" onchange="updateField('${comp.id}','height',this.value)"></div>`;
+    if (t === 'hero') html = `<div class="inspector-card-group"><label class="control-label">Hero design</label><select class="inspector-select" onchange="setHeroLayoutVariant('${comp.id}',this.value)">${[['split','Split showcase'],['conference_program','Conference program'],['centered','Centered spotlight'],['image_left','Image on left'],['image_top','Image first'],['text_only','Minimal typography']].map(([value,label]) => `<option value="${value}" ${(d.layout_variant || 'split') === value ? 'selected' : ''}>${label}</option>`).join('')}</select><p class="panel-section-subtitle">Switch designs without losing your content.</p></div>` + html;
+    inspectorContent.innerHTML = studioAppearanceControls(comp) + html;
+    organizeStudioInspector(comp);
   }
 
   // Real-Time Field Update Handlers
@@ -3997,9 +5070,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!comp.data) comp.data = {};
     comp.data[field] = val;
     renderCanvas();
-    if (field === 'headline_gradient' || field === 'gradient_preset' || field === 'primary_btn_style') {
+    if (field === 'headline_gradient' || field === 'gradient_preset' || field === 'primary_btn_style' || field === 'layout_variant') {
       renderInspector(comp);
     }
+  };
+
+  window.setHeroLayoutVariant = function(compId, variant) {
+    window.updateField(compId, 'layout_variant', variant);
   };
 
   window.updateSubField = function(compId, arrName, idx, field, val) {
@@ -4141,7 +5218,7 @@ document.addEventListener("DOMContentLoaded", () => {
   navTabs.forEach(tab => {
     tab.addEventListener("click", () => {
       const target = tab.dataset.tab;
-      if (target === "builder") {
+      if (target === "builder" && tab.getAttribute("target") !== "_blank") {
         fetchBuilderSites();
       }
     });
@@ -4153,8 +5230,11 @@ document.addEventListener("DOMContentLoaded", () => {
   function initBrowserRouting() {
     const p = window.location.pathname.toLowerCase();
     let targetTab = "pipeline";
-    if (p.includes("websitebuilder") || p.includes("builder")) {
+    if (p.includes("scistudio") || p.includes("websitebuilder") || p.includes("builder")) {
       targetTab = "builder";
+      if (p.includes("websitebuilder") || p.includes("builder")) {
+        try { window.history.replaceState({ tab: "builder" }, "", "/scistudio"); } catch(e) {}
+      }
     } else if (p.includes("nih")) {
       targetTab = "nih";
     } else if (p.includes("explorer")) {

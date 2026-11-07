@@ -35,9 +35,9 @@ class StartupFlowTests(unittest.TestCase):
         self.assertIsNotNone(match_shell)
         self.assertIn('style="display: none !important;"', match_shell.group(0), "App shell must start with display: none !important")
 
-        # 4. Cache busters should be v=9.0
-        self.assertIn('index.css?v=9.0', html, "index.css should have ?v=9.0 cache buster")
-        self.assertIn('app.js?v=9.0', html, "app.js should have ?v=9.0 cache buster")
+        # 4. Cache busters should be present on css and js
+        self.assertRegex(html, r'index\.css\?v=[0-9.]+', "index.css should have a cache buster")
+        self.assertRegex(html, r'app\.js\?v=[0-9.]+', "app.js should have a cache buster")
 
     def test_02_css_suppression_of_splash(self):
         """Verify CSS contains no splash keyframes or active splash rules, and auth overlay defaults to hidden."""

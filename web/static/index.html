@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="index.css?v=9.0">
+  <link rel="stylesheet" href="index.css?v=12.0">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -51,7 +51,7 @@
 
   <!-- Desktop App Shell (Fixed 100vh / 100vw Native Container) -->
   <div class="app-shell" id="app-shell" style="display: none !important;">
-    
+
     <!-- 1. Real Native Desktop Top Menu Bar across 100% Window Width -->
     <header class="app-desktop-titlebar" id="app-desktop-titlebar">
       <div class="titlebar-left">
@@ -166,7 +166,7 @@
             <span class="user-chip-tier" id="user-chip-tier">PRO</span>
             <svg class="user-chip-caret" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6"/></svg>
           </button>
-          
+
           <div class="user-dropdown-menu" id="user-dropdown-menu">
             <div class="user-dropdown-header">
               <div class="user-dd-name" id="user-dd-name">Root Administrator</div>
@@ -200,7 +200,7 @@
 
     <!-- 2. Main Body Container (Sidebar + Workspace) -->
     <div class="app-body-container">
-      
+
       <!-- Left Navigation Sidebar (Clean Dual-Suite Architecture) -->
       <aside class="app-sidebar">
         <div class="sidebar-brand">
@@ -234,11 +234,11 @@
         <div class="sidebar-section sidebar-studio-section">
           <div class="sidebar-heading">STUDIO</div>
           <nav class="sidebar-nav" role="tablist">
-            <button class="nav-tab" data-tab="builder" id="tab-btn-builder">
+            <a href="/scistudio" target="_blank" rel="noopener" aria-label="SciStudio (opens in a new tab)" class="nav-tab" data-tab="builder" id="tab-btn-builder">
               <svg class="nav-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
               <span class="nav-label studio-nav-copy"><span>SciStudio</span><small>Website builder</small></span>
               <span class="scistudio-lock-badge" id="scistudio-lock-badge" style="display: none; margin-left: auto; font-size: 0.72rem; color: #f87171;" title="SciStudio access disabled">🔒</span>
-            </button>
+            </a>
           </nav>
         </div>
 
@@ -256,14 +256,17 @@
 
       <!-- Main Desktop Workspace (Right Pane) -->
       <div class="app-workspace">
-        
+
         <!-- Top Desktop Control / Breadcrumb Bar -->
         <header class="app-topbar">
           <div class="topbar-left">
             <span class="workspace-header-icon" aria-hidden="true"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></span>
             <div class="workspace-header-copy"><span id="topbar-view-title">Dashboard</span><span id="view-context-badge">Research workspace</span></div>
           </div>
-          <div class="topbar-right"></div>
+          <div class="topbar-right"><button class="btn-primary-action btn-scistudio-create" id="btn-open-create-site-modal" hidden>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              <span>Create Website</span>
+            </button></div>
         </header>
 
         <!-- Scrollable Main Viewport -->
@@ -275,7 +278,7 @@
     <section class="tab-view active" id="view-pipeline">
       <div class="pipeline-flow-container">
 
-        
+
         <!-- Top Metrics Overview (Exclusive to Dashboard) -->
         <section class="stats-grid" id="stats-overview">
           <div class="stat-card">
@@ -443,7 +446,7 @@
     <!-- =================================================================== -->
     <section class="tab-view" id="view-nih">
       <div class="module-container">
-        
+
         <div class="module-hero-banner">
           <div class="hero-left">
             <div class="hero-tag">Specialized Module</div>
@@ -699,7 +702,7 @@
     <!-- MODULE 05: WEBSITE BUILDER STUDIO (V1)                          -->
     <!-- =============================================================== -->
         <section class="tab-view" id="view-builder">
-      
+
       <!-- ACCESS RESTRICTED OVERLAY WHEN SCISTUDIO ACCESS IS DISABLED -->
       <div id="scistudio-locked-view" style="display: none; text-align: center; padding: 4.5rem 2rem; background: rgba(15, 23, 42, 0.4); border: 1px dashed rgba(239, 68, 68, 0.35); border-radius: 16px; margin: 2rem auto; max-width: 620px;">
         <div style="font-size: 3.5rem; margin-bottom: 1rem;">🔒</div>
@@ -709,30 +712,42 @@
           <span>⛔ Permission Required</span>
         </div>
       </div>
-      
+
       <!-- SUB-VIEW A: WEBSITES DASHBOARD (SITE MANAGER) -->
-      <div id="builder-dashboard-view">
-        <div class="view-header-strip">
-          <div class="view-header-left">
-            <h1 class="view-title">🌐 SciStudio Website Builder</h1>
-            <p class="view-subtitle">Create, customize, and publish dynamic conference, lab, and research outreach websites with modular drag-and-drop components.</p>
+      <div id="builder-dashboard-view" class="scistudio-dashboard-view">
+        <!-- Conference Workspace Selector Bar -->
+        <div class="conference-workspace-bar" id="conference-workspace-bar">
+          <div class="conf-bar-left">
+            <div class="conf-icon-badge">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4"/></svg>
+            </div>
+            <div class="conf-selector-info">
+              <span class="conf-selector-eyebrow">Conference</span>
+              <div class="conf-select-controls">
+                <select id="conference-workspace-select" class="conference-select-dropdown" aria-label="Select Conference Workspace">
+                  <option value="all">All Conferences & Websites</option>
+                </select>
+        <!-- Filter & Search Toolbar -->
+        <div class="scistudio-toolbar" hidden>
+          <div class="scistudio-search-wrap">
+            <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="builder-search-sites" aria-label="Search websites" placeholder="Search your websites…" autocomplete="off">
+            <button type="button" class="btn-clear-search" id="btn-clear-search" title="Clear search" style="display: none;">&times;</button>
           </div>
-          <div class="view-header-right">
-            <button class="btn-primary-action" id="btn-open-create-site-modal">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-              <span>+ Create New Website</span>
-            </button>
+          <div class="scistudio-toolbar-stats" id="builder-stats-summary">
+            <span class="scistudio-stat-badge" id="stat-total-sites">0 Websites</span>
           </div>
         </div>
 
-        <!-- Filter & Search Toolbar -->
-        <div class="archive-search-toolbar" style="margin-bottom: 1.5rem;">
-          <div class="archive-search-input-wrap" style="max-width: 450px;">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-            <input type="text" id="builder-search-sites" placeholder="Search your websites by name or slug...">
+                <button type="button" class="btn-create-conference" id="btn-open-create-conf-modal" title="Create a new Conference Workspace">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
+                  <span>New Conference</span>
+                </button>
+              </div>
+            </div>
           </div>
-          <div class="builder-stats-summary" id="builder-stats-summary">
-            <span class="builder-stat-pill" id="stat-total-sites">0 Websites</span>
+          <div class="conf-bar-right" id="conf-active-summary">
+            <span class="conf-badge-pill" id="conf-site-count-pill">0 Websites</span>
           </div>
         </div>
 
@@ -757,18 +772,25 @@
             </div>
           </div>
 
+          <div class="studio-panel-toggles"><button type="button" id="studio-left-toggle" aria-pressed="true" title="Toggle sections panel">Sections</button><button type="button" id="studio-right-toggle" aria-pressed="true" title="Toggle settings panel">Settings</button></div>
           <!-- Responsive View Toggles (Desktop / Mobile Preview) -->
           <div class="studio-device-toggles">
             <button class="btn-device-toggle active" data-device="desktop" id="btn-device-desktop" title="Desktop View (100%)">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
               <span>Desktop</span>
             </button>
+            <button type="button" class="btn-device-toggle" id="btn-device-tablet" title="Tablet view (768px)">Tablet</button>
             <button class="btn-device-toggle" data-device="mobile" id="btn-device-mobile" title="Mobile Phone View (380px)">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></svg>
               <span>Mobile</span>
             </button>
           </div>
 
+          <span id="studio-save-state" role="status" aria-live="polite">Saved</span>
+          <div class="studio-canvas-tools">
+            <select id="studio-zoom" aria-label="Canvas zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option></select><span id="studio-canvas-scale" aria-live="polite">1440px · Fit</span>
+            <button type="button" class="btn-studio-action" id="studio-toggle-panels" aria-pressed="false" title="Hide editing panels to expand the canvas">Expand canvas</button>
+          </div>
           <!-- Studio Action Buttons -->
           <div class="studio-topbar-right">
             <button class="btn-studio-action" id="btn-studio-preview" title="Open live preview in new tab">
@@ -805,16 +827,30 @@
 
         <!-- Three-Column Builder Studio Workspace -->
         <div class="builder-studio-workspace">
-          
-          <!-- Column 1: Components Library (Drag / Click to Add) -->
+
+          <!-- Section outline and component library -->
           <aside class="builder-components-panel">
+            <div class="studio-panel-heading"><span>Your page</span><button type="button" class="studio-add-open" onclick="openStudioLibrary()">+ Add section</button></div>
+            <div class="panel-section-title">PAGE SECTIONS</div>
+            <p class="panel-section-subtitle">Drag to reorder. Select to customize.</p>
+            <div id="studio-layer-list" aria-label="Page sections"></div>
+            <div class="studio-history-controls"><button type="button" id="studio-undo" title="Undo (Ctrl+Z)">↶ Undo</button><button type="button" id="studio-redo" title="Redo (Ctrl+Shift+Z)">↷ Redo</button></div>
             <div class="panel-section-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               <span>ADD COMPONENT</span>
             </div>
-            <p class="panel-section-subtitle">Click any block to insert into page:</p>
+            <p class="panel-section-subtitle">Drag a section onto the page, or click to add:</p>
 
-            <div class="components-palette-list">
+            <input id="studio-library-search" class="studio-select" type="search" placeholder="Find a section…" aria-label="Find a section">
+            <div class="components-palette-list"><button class="btn-add-comp" data-type="image"><span class="comp-icon">▧</span><div class="comp-text"><div class="comp-title">Image</div><div class="comp-desc">Upload a photo, banner or logo</div></div></button>
+<button class="btn-add-comp" data-type="about"><span class="comp-icon">◇</span><div class="comp-text"><div class="comp-title">About the event</div><div class="comp-desc">Introduction and event purpose</div></div></button>
+<button class="btn-add-comp" data-type="stats"><span class="comp-icon">◇</span><div class="comp-text"><div class="comp-title">Conference numbers</div><div class="comp-desc">Editions, delegates and countries</div></div></button>
+<button class="btn-add-comp" data-type="agenda"><span class="comp-icon">◇</span><div class="comp-text"><div class="comp-title">Scientific program</div><div class="comp-desc">Sessions, times and descriptions</div></div></button>
+<button class="btn-add-comp" data-type="sponsors"><span class="comp-icon">◇</span><div class="comp-text"><div class="comp-title">Partners & exhibitors</div><div class="comp-desc">Names, logos and introductions</div></div></button>
+<button class="btn-add-comp" data-type="testimonials"><span class="comp-icon">◇</span><div class="comp-text"><div class="comp-title">Testimonials</div><div class="comp-desc">Quotes and participant names</div></div></button>
+<button class="btn-add-comp" data-type="announcement"><span class="comp-icon">◇</span><div class="comp-text"><div class="comp-title">Announcement ribbon</div><div class="comp-desc">Deadlines and important updates</div></div></button>
+
+              <button class="btn-add-comp" data-type="custom"><span class="comp-icon">&lt;/&gt;</span><div class="comp-text"><div class="comp-title">Custom HTML</div><div class="comp-desc">Isolated HTML and CSS embed</div></div></button>
               <button class="btn-add-comp" data-type="hero">
                 <span class="comp-icon">🌟</span>
                 <div class="comp-text">
@@ -886,6 +922,8 @@
               <span>THEME STYLING</span>
             </div>
             <div class="theme-controls-box">
+              <label class="control-label" for="studio-font">Website font</label>
+              <select id="studio-font" class="studio-select"><option value="Inter, sans-serif">Inter · Modern</option><option value="Outfit, sans-serif">Outfit · Editorial</option><option value="Georgia, serif">Georgia · Classic</option><option value="Arial, sans-serif">Arial · Simple</option></select>
               <label class="control-label">Primary Color</label>
               <div class="color-picker-row">
                 <input type="color" id="theme-primary-color" value="#38bdf8">
@@ -900,7 +938,7 @@
 
               <label class="control-label" style="margin-top: 0.75rem;">Background Mode</label>
               <select id="theme-bg-preset" class="studio-select">
-                <option value="#0b0f19">Midnight Navy (Dark)</option>
+                <option value="#ffffff">Clean White (Light)</option><option value="#f8fafc">Soft Slate (Light)</option><option value="#0b0f19">Midnight Navy (Dark)</option>
                 <option value="#090d16">Obsidian Deep (Pitch)</option>
                 <option value="#0f172a">Slate Steel (Pro)</option>
               </select>
@@ -922,7 +960,12 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
               <span>BLOCK SETTINGS</span>
             </div>
-            
+
+            <div class="studio-inspector-tabs" role="tablist" aria-label="Section settings">
+              <button type="button" role="tab" aria-selected="true" data-inspector-tab="content">Content</button>
+              <button type="button" role="tab" aria-selected="false" data-inspector-tab="design">Design</button>
+              <button type="button" role="tab" aria-selected="false" data-inspector-tab="advanced">Advanced</button>
+            </div>
             <div id="inspector-content">
               <div class="empty-inspector-notice">
                 <span style="font-size: 2rem;">👈</span>
@@ -942,158 +985,318 @@
           <div style="display: flex; align-items: center; gap: 0.65rem;">
             <span style="font-size: 1.4rem;">🌐</span>
             <div>
-              <h3 style="color: #fff; font-size: 1.25rem; font-weight: 800; margin: 0;">Create New Website</h3>
-              <p style="color: #94a3b8; font-size: 0.82rem; margin: 0;">Configure your template, branding, hero content, and sections</p>
+              <h3 style=" font-size: 1.25rem; font-weight: 800; margin: 0;">Create Conference Website</h3>
+              <p style=" font-size: 0.82rem; margin: 0;" id="wizard-header-subtitle">Step 1 of 3: Conference Client Briefing</p>
             </div>
           </div>
           <button class="modal-close" id="btn-close-create-site">&times;</button>
         </div>
 
+        <!-- Wizard Stepper Indicator -->
+        <div class="wizard-stepper" id="wizard-stepper">
+          <div class="wizard-stepper-step active" id="wizard-step-indicator-1">
+            <span class="step-num">1</span>
+            <span class="step-title">Client Brief</span>
+          </div>
+          <div class="wizard-stepper-divider"></div>
+          <div class="wizard-stepper-step" id="wizard-step-indicator-2">
+            <span class="step-num">2</span>
+            <span class="step-title">Review Brief</span>
+          </div>
+          <div class="wizard-stepper-divider"></div>
+          <div class="wizard-stepper-step" id="wizard-step-indicator-3">
+            <span class="step-num">3</span>
+            <span class="step-title">Template & Design</span>
+          </div>
+        </div>
+
         <form class="modal-body wizard-body" id="form-create-site" onsubmit="handleCreateSiteSubmit(event)">
-          
-          <!-- Section 1: Choose a Template (15 Curated Scientific & Tech Templates) -->
-          <div class="wizard-section">
-            <div class="wizard-sec-label">
-              <span class="wizard-step-num">1</span>
-              <span>CHOOSE A PRE-BUILT STARTER TEMPLATE (15 AVAILABLE)</span>
+
+          <!-- ============================================================ -->
+          <!-- PANE 1: CLIENT BRIEFING FORM -->
+          <!-- ============================================================ -->
+          <div class="wizard-step-pane" id="wizard-pane-1">
+            <div class="brief-intro-box">
+              <div style="font-weight: 700;  font-size: 1rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span>📋</span>
+                <span>Conference Project Brief</span>
+              </div>
+              <p style="font-size: 0.84rem;  margin: 0; line-height: 1.45;">
+                Enter the primary details for your conference or symposium website. Only the <strong>Conference Name</strong> is required; all other details are optional and can be refined later in the studio.
+              </p>
             </div>
-            <div class="wizard-templates-grid" id="wizard-templates-grid">
-              <!-- Dynamically populated 15 template cards -->
+
+            <div class="wizard-section" style="margin-top: 1.25rem;">
+              <div class="auth-field">
+                <label for="brief-conf-name" style="font-weight: 700;  font-size: 0.88rem;">
+                  Conference Name <span style="color: #ef4444;">* (Required)</span>
+                </label>
+                <input type="text" id="brief-conf-name" class="form-input" placeholder="e.g. International Symposium on Molecular Oncology 2026" autocomplete="off">
+                <span style="font-size: 0.74rem; color: #64748b; margin-top: 0.25rem; display: block;">Official event or summit name.</span>
+              </div>
+
+              <div class="wizard-fields-grid-2" style="margin-top: 1rem;">
+                <div class="auth-field">
+                  <label for="brief-start-date" style=" font-size: 0.85rem;">
+                    Start Date <span style="color: #64748b; font-weight: normal;">(Optional)</span>
+                  </label>
+                  <input type="text" id="brief-start-date" class="form-input" placeholder="e.g. Oct 14, 2026 or 2026-10-14">
+                </div>
+                <div class="auth-field">
+                  <label for="brief-end-date" style=" font-size: 0.85rem;">
+                    End Date <span style="color: #64748b; font-weight: normal;">(Optional)</span>
+                  </label>
+                  <input type="text" id="brief-end-date" class="form-input" placeholder="e.g. Oct 18, 2026 or 2026-10-18">
+                </div>
+              </div>
+
+              <div class="auth-field" style="margin-top: 1rem;">
+                <label for="brief-venue-format" style=" font-size: 0.85rem;">
+                  Venue or Online Format <span style="color: #64748b; font-weight: normal;">(Optional)</span>
+                </label>
+                <input type="text" id="brief-venue-format" class="form-input" placeholder="e.g. Boston Convention Center, MA or Hybrid (In-Person & Live Stream)">
+                <span style="font-size: 0.74rem; color: #64748b; margin-top: 0.25rem; display: block;">Physical convention center, hotel, or virtual streaming setup.</span>
+              </div>
+
+              <div class="auth-field" style="margin-top: 1rem;">
+                <label for="brief-contact-email" style=" font-size: 0.85rem;">
+                  Contact Email <span style="color: #64748b; font-weight: normal;">(Optional)</span>
+                </label>
+                <input type="email" id="brief-contact-email" class="form-input" placeholder="e.g. secretariat@molecularoncology2026.org">
+                <span style="font-size: 0.74rem; color: #64748b; margin-top: 0.25rem; display: block;">Primary organizer email for inquiries and submissions.</span>
+              </div>
+            </div>
+
+            <div class="wizard-footer-bar">
+              <button type="button" class="btn-secondary" id="btn-cancel-create-site" style="padding: 0.7rem 1.4rem;">Cancel</button>
+              <button type="button" class="btn-primary-action" id="btn-brief-next" style="padding: 0.75rem 1.85rem;">
+                <span>Next: Review Brief →</span>
+              </button>
             </div>
           </div>
 
-          <!-- Section 2: Identity & Theme Mode -->
-          <div class="wizard-section" style="margin-top: 1.5rem;">
-            <div class="wizard-sec-label">
-              <span class="wizard-step-num">2</span>
-              <span>WEBSITE IDENTITY & COLOR THEME</span>
+          <!-- ============================================================ -->
+          <!-- PANE 2: REVIEW CLIENT BRIEF -->
+          <!-- ============================================================ -->
+          <div class="wizard-step-pane" id="wizard-pane-2" style="display: none;">
+            <div class="review-header-box">
+              <div style="font-weight: 700;  font-size: 1rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem;">
+                <span>Review your conference details</span>
+              </div>
+              <p style="font-size: 0.84rem;  margin: 0; line-height: 1.45;">
+                Check your brief before choosing a design. Go back to edit any details; your answers will be kept.
+              </p>
             </div>
-            
-            <div class="wizard-fields-grid-2">
-              <div class="auth-field">
-                <label for="create-site-name">Website / Conference Title *</label>
-                <input type="text" id="create-site-name" class="form-input" placeholder="e.g. Annual Precision Oncology Summit 2026" required>
+
+            <div class="review-summary-card" id="review-summary-container" style="margin-top: 1.25rem;">
+              <!-- Populated via JavaScript -->
+            </div>
+
+            <div id="review-missing-alert" style="margin-top: 1.15rem;">
+              <!-- Populated via JavaScript -->
+            </div>
+
+            <div class="wizard-footer-bar" style="margin-top: 1.75rem;">
+              <button type="button" class="btn-secondary" id="btn-review-back" style="padding: 0.7rem 1.4rem;">
+                <span>← Edit details</span>
+              </button>
+              <button type="button" class="btn-primary-action" id="btn-review-proceed" style="padding: 0.75rem 1.85rem;">
+                <span>Choose a design →</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- ============================================================ -->
+          <!-- PANE 3: TEMPLATE & DESIGN (PRESERVED EXISTING FLOW) -->
+          <!-- ============================================================ -->
+          <div class="wizard-step-pane" id="wizard-pane-3" style="display: none;">
+            <!-- Section 1: Choose a Template (15 Curated Scientific & Tech Templates) -->
+            <div class="wizard-section">
+              <div class="wizard-sec-label">
+                <span class="wizard-step-num">1</span>
+                <span>CHOOSE A PRE-BUILT STARTER TEMPLATE (15 AVAILABLE)</span>
+              </div>
+              <div class="wizard-templates-grid" id="wizard-templates-grid">
+                <!-- Dynamically populated 15 template cards -->
+              </div>
+            </div>
+
+            <!-- Section 2: Identity & Theme Mode -->
+            <div class="wizard-section" style="margin-top: 1.5rem;">
+              <div class="wizard-sec-label">
+                <span class="wizard-step-num">2</span>
+                <span>WEBSITE IDENTITY & COLOR THEME</span>
               </div>
 
-              <div class="auth-field">
-                <label for="create-site-slug">URL Slug *</label>
-                <div class="wizard-slug-wrap">
-                  <span class="slug-prefix">/sites/</span>
-                  <input type="text" id="create-site-slug" class="slug-input" placeholder="precision-oncology-2026" required>
+              <div class="wizard-fields-grid-2">
+                <div class="auth-field">
+                  <label for="create-site-name">Website / Conference Title *</label>
+                  <input type="text" id="create-site-name" class="form-input" placeholder="e.g. Annual Precision Oncology Summit 2026">
+                </div>
+
+                <div class="auth-field">
+                  <label for="create-site-slug">URL Slug *</label>
+                  <div class="wizard-slug-wrap">
+                    <span class="slug-prefix">/sites/</span>
+                    <input type="text" id="create-site-slug" class="slug-input" placeholder="precision-oncology-2026">
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div class="wizard-fields-grid-2" style="margin-top: 0.85rem;">
-              <div class="auth-field">
-                <label for="create-site-theme-mode">Visual Appearance Mode</label>
-                <select id="create-site-theme-mode" class="studio-select" style="padding: 0.65rem;">
-                  <option value="dark">🌙 Dark Mode (Midnight Navy & Cyan)</option>
-                  <option value="light">☀️ Clean Light Mode (Medical White & Blue)</option>
-                  <option value="obsidian">🌑 Pitch Obsidian (Deep Black & Purple)</option>
-                  <option value="emerald">🍃 Biotech Emerald (Deep Slate & Green)</option>
+              <div class="wizard-fields-grid-2" style="margin-top: 0.85rem;">
+                <div class="auth-field">
+                  <label for="create-site-theme-mode">Visual Appearance Mode</label>
+                  <select id="create-site-theme-mode" class="studio-select" style="padding: 0.65rem;">
+                    <option value="dark">🌙 Dark Mode (Midnight Navy & Cyan)</option>
+                    <option value="light">☀️ Clean Light Mode (Medical White & Blue)</option>
+                    <option value="obsidian">🌑 Pitch Obsidian (Deep Black & Purple)</option>
+                    <option value="emerald">🍃 Biotech Emerald (Deep Slate & Green)</option>
+                  </select>
+                </div>
+
+                <div class="auth-field">
+                  <label>Brand Accent Color</label>
+                  <div class="color-picker-row" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 8px;">
+                    <input type="color" id="create-primary-color" value="#38bdf8">
+                    <span class="color-hex-label" id="label-create-primary">#38bdf8</span>
+                    <span style="font-size: 0.75rem; color: #64748b; margin-left: auto;">Buttons & Highlights</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="auth-field" style="margin-top: 0.85rem;">
+                <label for="create-site-conference">Associated Conference Workspace</label>
+                <select id="create-site-conference" class="studio-select" style="padding: 0.65rem;">
+                  <option value="">(None / General Website)</option>
                 </select>
               </div>
+            </div>
 
-              <div class="auth-field">
-                <label>Brand Accent Color</label>
-                <div class="color-picker-row" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 5px 10px; border-radius: 8px;">
-                  <input type="color" id="create-primary-color" value="#38bdf8">
-                  <span class="color-hex-label" id="label-create-primary">#38bdf8</span>
-                  <span style="font-size: 0.75rem; color: #64748b; margin-left: auto;">Buttons & Highlights</span>
+            <!-- Section 3: Navigation Bar & Branding -->
+            <div class="wizard-section" style="margin-top: 1.5rem;">
+              <div class="wizard-sec-label">
+                <span class="wizard-step-num">3</span>
+                <span>TOP NAVIGATION BAR & BRANDING</span>
+              </div>
+              <div class="wizard-fields-grid-2">
+                <div class="auth-field">
+                  <label for="create-nav-brand">Navbar Brand Text / Logo Name</label>
+                  <input type="text" id="create-nav-brand" class="form-input" placeholder="e.g. Precision Medicine 2026">
+                </div>
+                <div class="auth-field">
+                  <label for="create-nav-cta">Navbar Action Button</label>
+                  <input type="text" id="create-nav-cta" class="form-input" value="Register Now" placeholder="e.g. Register Now, Submit Abstract">
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Section 3: Navigation Bar & Branding -->
-          <div class="wizard-section" style="margin-top: 1.5rem;">
-            <div class="wizard-sec-label">
-              <span class="wizard-step-num">3</span>
-              <span>TOP NAVIGATION BAR & BRANDING</span>
-            </div>
-            <div class="wizard-fields-grid-2">
-              <div class="auth-field">
-                <label for="create-nav-brand">Navbar Brand Text / Logo Name</label>
-                <input type="text" id="create-nav-brand" class="form-input" placeholder="e.g. Precision Medicine 2026">
+            <!-- Section 4: Hero Header & Content -->
+            <div class="wizard-section" style="margin-top: 1.5rem;">
+              <div class="wizard-sec-label">
+                <span class="wizard-step-num">4</span>
+                <span>HERO BANNER & CALL-TO-ACTION</span>
               </div>
               <div class="auth-field">
-                <label for="create-nav-cta">Navbar Action Button</label>
-                <input type="text" id="create-nav-cta" class="form-input" value="Register Now" placeholder="e.g. Register Now, Submit Abstract">
+                <label for="create-hero-eyebrow">Eyebrow Badge</label>
+                <input type="text" id="create-hero-eyebrow" class="form-input" value="🌟 ANNUAL SCIENTIFIC & RESEARCH INNOVATION 2026">
+              </div>
+              <div class="auth-field" style="margin-top: 0.75rem;">
+                <label for="create-hero-headline">Hero Main Headline</label>
+                <input type="text" id="create-hero-headline" class="form-input" placeholder="e.g. Advancing Next-Gen Discoveries & Breakthroughs">
+              </div>
+              <div class="auth-field" style="margin-top: 0.75rem;">
+                <label for="create-hero-subheadline">Hero Subtitle</label>
+                <textarea id="create-hero-subheadline" class="form-input" style="min-height: 65px;" placeholder="1-2 sentences summarizing the event, research focus, or laboratory mission."></textarea>
+              </div>
+              <div class="wizard-fields-grid-2" style="margin-top: 0.75rem;">
+                <div class="auth-field">
+                  <label for="create-hero-btn1">Primary Button Text</label>
+                  <input type="text" id="create-hero-btn1" class="form-input" value="Register Today">
+                </div>
+                <div class="auth-field">
+                  <label for="create-hero-btn2">Secondary Button Text</label>
+                  <input type="text" id="create-hero-btn2" class="form-input" value="Explore Faculty">
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Section 4: Hero Header & Content -->
-          <div class="wizard-section" style="margin-top: 1.5rem;">
-            <div class="wizard-sec-label">
-              <span class="wizard-step-num">4</span>
-              <span>HERO BANNER & CALL-TO-ACTION</span>
-            </div>
-            <div class="auth-field">
-              <label for="create-hero-eyebrow">Eyebrow Badge</label>
-              <input type="text" id="create-hero-eyebrow" class="form-input" value="🌟 ANNUAL SCIENTIFIC & RESEARCH INNOVATION 2026">
-            </div>
-            <div class="auth-field" style="margin-top: 0.75rem;">
-              <label for="create-hero-headline">Hero Main Headline</label>
-              <input type="text" id="create-hero-headline" class="form-input" placeholder="e.g. Advancing Next-Gen Discoveries & Breakthroughs">
-            </div>
-            <div class="auth-field" style="margin-top: 0.75rem;">
-              <label for="create-hero-subheadline">Hero Subtitle</label>
-              <textarea id="create-hero-subheadline" class="form-input" style="min-height: 65px;" placeholder="1-2 sentences summarizing the event, research focus, or laboratory mission."></textarea>
-            </div>
-            <div class="wizard-fields-grid-2" style="margin-top: 0.75rem;">
-              <div class="auth-field">
-                <label for="create-hero-btn1">Primary Button Text</label>
-                <input type="text" id="create-hero-btn1" class="form-input" value="Register Today">
+            <!-- Section 5: Sections to Include -->
+            <div class="wizard-section" style="margin-top: 1.5rem;">
+              <div class="wizard-sec-label">
+                <span class="wizard-step-num">5</span>
+                <span>PAGES & SECTIONS TO INCLUDE</span>
               </div>
-              <div class="auth-field">
-                <label for="create-hero-btn2">Secondary Button Text</label>
-                <input type="text" id="create-hero-btn2" class="form-input" value="Explore Faculty">
+              <p style="font-size: 0.78rem;  margin-bottom: 0.75rem;">Check the modular components you want pre-assembled:</p>
+              <div class="wizard-sections-checkbox-grid">
+                <label class="wizard-checkbox-pill">
+                  <input type="checkbox" id="sec-chk-speakers" checked>
+                  <span>🎤 Keynote Speakers / Faculty</span>
+                </label>
+                <label class="wizard-checkbox-pill">
+                  <input type="checkbox" id="sec-chk-features" checked>
+                  <span>📋 Research Highlights / About</span>
+                </label>
+                <label class="wizard-checkbox-pill">
+                  <input type="checkbox" id="sec-chk-pricing" checked>
+                  <span>💳 Pricing & Registration Passes</span>
+                </label>
+                <label class="wizard-checkbox-pill">
+                  <input type="checkbox" id="sec-chk-gallery" checked>
+                  <span>🖼️ Photo Gallery / Venue</span>
+                </label>
+                <label class="wizard-checkbox-pill">
+                  <input type="checkbox" id="sec-chk-faq" checked>
+                  <span>❓ FAQ Accordion</span>
+                </label>
+                <label class="wizard-checkbox-pill">
+                  <input type="checkbox" id="sec-chk-contact" checked>
+                  <span>✉️ Contact & Registration Form</span>
+                </label>
               </div>
             </div>
-          </div>
 
-          <!-- Section 5: Sections to Include -->
-          <div class="wizard-section" style="margin-top: 1.5rem;">
-            <div class="wizard-sec-label">
-              <span class="wizard-step-num">5</span>
-              <span>PAGES & SECTIONS TO INCLUDE</span>
-            </div>
-            <p style="font-size: 0.78rem; color: #94a3b8; margin-bottom: 0.75rem;">Check the modular components you want pre-assembled:</p>
-            <div class="wizard-sections-checkbox-grid">
-              <label class="wizard-checkbox-pill">
-                <input type="checkbox" id="sec-chk-speakers" checked>
-                <span>🎤 Keynote Speakers / Faculty</span>
-              </label>
-              <label class="wizard-checkbox-pill">
-                <input type="checkbox" id="sec-chk-features" checked>
-                <span>📋 Research Highlights / About</span>
-              </label>
-              <label class="wizard-checkbox-pill">
-                <input type="checkbox" id="sec-chk-pricing" checked>
-                <span>💳 Pricing & Registration Passes</span>
-              </label>
-              <label class="wizard-checkbox-pill">
-                <input type="checkbox" id="sec-chk-gallery" checked>
-                <span>🖼️ Photo Gallery / Venue</span>
-              </label>
-              <label class="wizard-checkbox-pill">
-                <input type="checkbox" id="sec-chk-faq" checked>
-                <span>❓ FAQ Accordion</span>
-              </label>
-              <label class="wizard-checkbox-pill">
-                <input type="checkbox" id="sec-chk-contact" checked>
-                <span>✉️ Contact & Registration Form</span>
-              </label>
+            <!-- Wizard Footer Actions -->
+            <div class="wizard-footer-bar">
+              <button type="button" class="btn-secondary" id="btn-templates-back" style="padding: 0.7rem 1.4rem;">
+                <span>← Back to Review</span>
+              </button>
+              <button type="submit" class="btn-primary-action" id="btn-submit-create-site" style="padding: 0.75rem 1.85rem;">
+                <span>🚀 Generate Website & Open Studio</span>
+              </button>
             </div>
           </div>
+        </form>
+      </div>
+    </div>
 
-          <!-- Wizard Footer Actions -->
-          <div class="wizard-footer-bar">
-            <button type="button" class="btn-secondary" id="btn-cancel-create-site" style="padding: 0.7rem 1.4rem;">Cancel</button>
-            <button type="submit" class="btn-primary-action" style="padding: 0.75rem 1.85rem;">
-              <span>🚀 Generate Website & Open Studio</span>
+    <!-- Create New Conference Modal -->
+    <div class="modal-backdrop" id="modal-create-conference" style="display: none;">
+      <div class="modal-card" style="max-width: 520px; background: #111827; border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.6);">
+        <div class="modal-header wizard-header" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding: 1.25rem 1.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.65rem;">
+            <div style="width: 34px; height: 34px; border-radius: 8px; background: rgba(56, 189, 248, 0.15); display: grid; place-items: center; color: #38bdf8;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v4M12 14v4M16 14v4"/></svg>
+            </div>
+            <div>
+              <h3 style="margin: 0; font-size: 1.15rem; font-weight: 700; color: #f8fafc;">Create Conference Workspace</h3>
+              <p style="margin: 0.2rem 0 0 0; font-size: 0.8rem; color: #94a3b8;">Start with the conference name. Associate websites with this workspace.</p>
+            </div>
+          </div>
+          <button class="modal-close" id="btn-close-create-conf" type="button">&times;</button>
+        </div>
+        <form class="modal-body" id="form-create-conference" style="padding: 1.5rem;" onsubmit="handleCreateConferenceSubmit(event)">
+          <div class="auth-field">
+            <label for="conf-input-name" style="font-weight: 600; color: #cbd5e1; font-size: 0.85rem;">Conference Name <span style="color:#f87171;">*</span></label>
+            <input type="text" id="conf-input-name" class="form-input" placeholder="e.g. 14th International Bioinformatics Summit 2026" required autocomplete="off" style="margin-top: 0.4rem; padding: 0.7rem 0.85rem; background: #0b0f19; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.92rem; width: 100%;">
+          </div>
+          <div class="auth-field" style="margin-top: 1rem;">
+            <label for="conf-input-desc" style="font-weight: 600; color: #cbd5e1; font-size: 0.85rem;">Description / Theme (Optional)</label>
+            <textarea id="conf-input-desc" class="form-input" placeholder="Brief note about this conference, topic, or venue..." rows="2" style="margin-top: 0.4rem; padding: 0.65rem 0.85rem; background: #0b0f19; border: 1px solid #334155; border-radius: 8px; color: #f8fafc; font-size: 0.88rem; width: 100%; resize: vertical;"></textarea>
+          </div>
+          <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.75rem;">
+            <button type="button" class="btn-secondary" id="btn-cancel-create-conf" style="padding: 0.65rem 1.25rem;">Cancel</button>
+            <button type="submit" class="btn-primary-action" id="btn-submit-create-conf" style="padding: 0.65rem 1.5rem;">
+              <span>Create Conference</span>
             </button>
           </div>
         </form>
@@ -1133,7 +1336,8 @@
     </div>
   </div>
 
-  <script src="app.js?v=9.0"></script>
+  <script src="studio-formatting.js?v=1.0"></script>
+  <script src="app.js?v=12.0"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->

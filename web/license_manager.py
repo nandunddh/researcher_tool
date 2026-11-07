@@ -79,10 +79,61 @@ def _generate_key(prefix: str = "SCIP", tier: str = "TR") -> str:
 
 
 class LicenseManager:
-    def __init__(self, db_path: Path = LICENSES_FILE):
+    def __init__(self, db_path: Path = LICENSES_FILE, sessions_path: Optional[Path] = None):
         self.db_path = Path(db_path)
-        self._sessions = {}
+        if sessions_path:
+            self.sessions_path = Path(sessions_path)
+        elif self.db_path.name == "licenses.json":
+            self.sessions_path = self.db_path.parent / "sessions.json"
+        else:
+            self.sessions_path = self.db_path.parent / f"{self.db_path.stem}_sessions.json"
+        self._last_sessions_mtime = 0.0
+        self._sessions = self._load_sessions()
         self._ensure_db()
+
+    def _load_sessions(self) -> dict:
+        """Loads sessions from the persisted sessions file."""
+        if not self.sessions_path.exists():
+            return {}
+        try:
+            self._last_sessions_mtime = self.sessions_path.stat().st_mtime
+            with open(self.sessions_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                raw_sessions = data.get("sessions", {}) if isinstance(data, dict) and "sessions" in data else (data if isinstance(data, dict) else {})
+                return {k: v for k, v in raw_sessions.items() if isinstance(v, dict)}
+        except Exception as e:
+            print(f"[LICENSE] Warning: Failed to load sessions from {self.sessions_path}: {e}")
+            return {}
+
+    def _save_sessions(self):
+        """Persists sessions to disk atomically so sessions survive server reloads/updates."""
+        try:
+            self.sessions_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "_metadata": {
+                    "version": "1.0",
+                    "updated_at": datetime.utcnow().isoformat()
+                },
+                "sessions": self._sessions
+            }
+            temp_file = self.sessions_path.with_suffix(".tmp")
+            with open(temp_file, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+            try:
+                temp_file.replace(self.sessions_path)
+            except Exception:
+                with open(self.sessions_path, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2)
+                try:
+                    temp_file.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            try:
+                self._last_sessions_mtime = self.sessions_path.stat().st_mtime
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[LICENSE] Warning: Failed to persist sessions to {self.sessions_path}: {e}")
 
     def _ensure_db(self):
         """Initializes licenses.json with default root config and sample active keys if missing."""
@@ -344,15 +395,17 @@ class LicenseManager:
         account["stopped_at"] = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         self._save_db(db)
 
-        # Immediately revoke all active sessions for this key
-        tokens_to_remove = [
-            t for t, s in self._sessions.items()
-            if s.get("user", {}).get("license_key", "").strip().upper() == key_clean
-        ]
-        for t in tokens_to_remove:
-            self._sessions.pop(t, None)
+        # Mark active sessions for this key (and subaccount members) as stopped so real-time checks report suspension
+        for s in self._sessions.values():
+            u = s.get("user")
+            if u:
+                u_key = (u.get("license_key") or "").strip().upper()
+                p_key = (u.get("parent_license_key") or "").strip().upper()
+                if u_key == key_clean or p_key == key_clean:
+                    u["status"] = "stopped"
+        self._save_sessions()
 
-        print(f"[LICENSE] ⛔ Stopped account {key_clean} ({account.get('client_name')}) and revoked {len(tokens_to_remove)} sessions.")
+        print(f"[LICENSE] ⛔ Stopped account {key_clean} ({account.get('client_name')}).")
         return True, f"Account {key_clean} has been suspended."
 
     def resume_account(self, license_key: str) -> Tuple[bool, str]:
@@ -432,6 +485,7 @@ class LicenseManager:
             u = s.get("user")
             if u and u.get("license_key", "").strip().upper() == key_clean:
                 u["scistudio_access"] = new_state
+        self._save_sessions()
 
         status_text = "enabled" if new_state else "disabled"
         print(f"[LICENSE] SciStudio access {status_text} for {acc.get('client_name')} ({key_clean})")
@@ -475,6 +529,8 @@ class LicenseManager:
             ]
             for t in tokens_to_remove:
                 self._sessions.pop(t, None)
+            if tokens_to_remove:
+                self._save_sessions()
             return True, f"Account {key_clean} deleted successfully."
 
         return False, "License key not found."
@@ -851,16 +907,62 @@ class LicenseManager:
         found_key = None
         key_upper = ident.upper()
 
+        # Check primary / owner accounts first
         for lk, acc in db.get("licenses", {}).items():
             if acc.get("client_email", "").strip().lower() == ident.lower() or lk == key_upper:
                 found_acc = acc
                 found_key = lk
                 break
 
+        # If not a primary account, check organization subaccount members
+        found_member = None
+        parent_acc = None
+        parent_key = None
+
         if not found_acc:
+            for lk, acc in db.get("licenses", {}).items():
+                for mem in acc.get("members", []):
+                    if mem.get("email", "").strip().lower() == ident.lower():
+                        found_member = mem
+                        parent_acc = acc
+                        parent_key = lk
+                        break
+                if found_member:
+                    break
+
+        if not found_acc and not found_member:
             return False, {}, "No account found matching this email."
 
-        # Verify password
+        # Case A: Organization Subaccount Member Login
+        if found_member:
+            stored_hash = found_member.get("password_hash", "")
+            if not stored_hash:
+                return False, {}, "Password not set for this account. Contact Organization Admin."
+            elif not verify_password(pwd, stored_hash):
+                return False, {}, "Incorrect password. Please try again."
+
+            val = self.validate_license(parent_key)
+            if not val.get("valid") or val.get("status") == "stopped":
+                return False, {}, val.get("message", "🚨 ACCESS SUSPENDED: Your organization account is Temporarily stopped. Contact Admin.")
+
+            user_info = {
+                "is_member": True,
+                "member_id": found_member.get("member_id", ""),
+                "role": found_member.get("role", "editor"),
+                "client_name": found_member.get("name", "Team Member"),
+                "client_email": found_member.get("email", ident.lower()),
+                "parent_license_key": parent_key,
+                "license_key": parent_key,
+                "org_name": parent_acc.get("org_name", ""),
+                "tier": val.get("tier", "pro"),
+                "is_admin": False,
+                "scistudio_access": bool(found_member.get("scistudio_access", True) and val.get("scistudio_access", True)),
+                "daily_limit": val.get("daily_limit", "Unlimited"),
+                "status": "active"
+            }
+            return True, user_info, f"Welcome back, {user_info['client_name']}"
+
+        # Case B: Primary Account / Organization Owner Login
         stored_hash = found_acc.get("password_hash", "")
         if not stored_hash:
             if self.verify_root_auth(pwd):
@@ -871,10 +973,11 @@ class LicenseManager:
             return False, {}, "Incorrect password. Please try again."
 
         val = self.validate_license(found_key)
-        if not val.get("valid"):
+        if not val.get("valid") or val.get("status") == "stopped":
             return False, {}, val.get("message", "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
 
         user_info = {
+            "is_member": False,
             "license_key": found_key,  # Hidden account ID used for tracking and limits
             "client_name": val.get("client_name", "Valued Client"),
             "client_email": val.get("client_email", ""),
@@ -889,22 +992,35 @@ class LicenseManager:
     def issue_session(self, user_info: dict) -> str:
         """Issues a secure session token valid for 7 days."""
         token = secrets.token_urlsafe(32)
+        now = time.time()
         self._sessions[token] = {
             "user": user_info,
-            "created_at": time.time(),
-            "expires_at": time.time() + (86400 * 7)
+            "created_at": now,
+            "expires_at": now + (86400 * 7)
         }
+        self._save_sessions()
         return token
 
     def get_session_info(self, token: Optional[str]) -> Tuple[Optional[dict], Optional[str]]:
         """Validates a session token and returns (user_info, error_reason)."""
         if not token:
             return None, "Not authenticated"
+
+        # Check if disk has newer sessions (e.g. issued by another worker or reloaded after restart)
+        if token not in self._sessions and self.sessions_path.exists():
+            try:
+                mtime = self.sessions_path.stat().st_mtime
+                if mtime > getattr(self, "_last_sessions_mtime", 0.0):
+                    self._sessions = self._load_sessions()
+            except Exception:
+                pass
+
         session = self._sessions.get(token)
         if not session:
             return None, "Not authenticated"
         if time.time() > session.get("expires_at", 0):
             self._sessions.pop(token, None)
+            self._save_sessions()
             return None, "Session expired"
         user = session.get("user")
         if not user:
@@ -915,19 +1031,37 @@ class LicenseManager:
             return user, None
 
         # Real-time license status validation
-        key = user.get("license_key")
+        key = user.get("parent_license_key") or user.get("license_key")
         if key:
             val = self.validate_license(key)
-            if not val.get("valid") or val.get("status") == "stopped":
+            if not val.get("valid") or val.get("status") == "stopped" or user.get("status") == "stopped":
                 self._sessions.pop(token, None)
+                self._save_sessions()
                 msg = val.get("message") or "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin."
                 return None, msg
+
+            # If user is a subaccount member, verify membership is still active in parent
+            if user.get("is_member") and user.get("member_id"):
+                acct = self.get_account(key)
+                if not acct:
+                    self._sessions.pop(token, None)
+                    self._save_sessions()
+                    return None, "Organization account not found."
+                member = next((m for m in acct.get("members", []) if m.get("member_id") == user["member_id"]), None)
+                if not member:
+                    self._sessions.pop(token, None)
+                    self._save_sessions()
+                    return None, "Team member access has been revoked."
+                user["role"] = member.get("role", user.get("role", "editor"))
+                user["scistudio_access"] = bool(member.get("scistudio_access", True) and val.get("scistudio_access", True))
+
             # Keep user details synchronized
             user["status"] = val.get("status", "active")
             user["tier"] = val.get("tier", user.get("tier", "pro"))
             user["daily_limit"] = val.get("daily_limit", "Unlimited")
             user["days_left"] = val.get("days_left", "Unlimited")
-            user["scistudio_access"] = val.get("scistudio_access", True)
+            if not user.get("is_member"):
+                user["scistudio_access"] = val.get("scistudio_access", True)
 
         return user, None
 
@@ -937,8 +1071,18 @@ class LicenseManager:
 
     def revoke_session(self, token: Optional[str]) -> bool:
         """Revokes a session token."""
-        if token and token in self._sessions:
+        if not token:
+            return False
+        if token not in self._sessions and self.sessions_path.exists():
+            try:
+                mtime = self.sessions_path.stat().st_mtime
+                if mtime > getattr(self, "_last_sessions_mtime", 0.0):
+                    self._sessions = self._load_sessions()
+            except Exception:
+                pass
+        if token in self._sessions:
             del self._sessions[token]
+            self._save_sessions()
             return True
         return False
 

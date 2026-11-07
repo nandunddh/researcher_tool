@@ -26,6 +26,12 @@ APPDATA_CONFIG = LOCALAPPDATA_DIR / "config.json"
 
 def get_data_dir() -> Path:
     """Returns the user-selected data directory, or defaults to Documents\\SciProspect Data."""
+    env_dir = os.environ.get("SCIPROSPECT_DATA_DIR")
+    if env_dir:
+        p = Path(env_dir).resolve()
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
     candidates = [
         CONFIG_FILE,
         APP_ROOT / "_internal" / "config.json",

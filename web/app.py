@@ -19,7 +19,7 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTMLResponse, Response, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 import requests
@@ -457,7 +457,9 @@ async def api_auth_me(request: Request):
         res.delete_cookie(key="scip_token")
         return res
 
-    raise HTTPException(status_code=401, detail="Not authenticated")
+    res = JSONResponse(status_code=401, content={"detail": err or "Not authenticated"})
+    res.delete_cookie(key="scip_token")
+    return res
 
 
 @app.post("/api/auth/logout")
@@ -1316,27 +1318,72 @@ async def launch_installer():
 # -----------------------------------------------------------------------------
 # SciStudio Website Builder Module Endpoints (/api/builder)
 # -----------------------------------------------------------------------------
-from builder_manager import builder_engine
+from builder_manager import builder_engine, compile_website_html
+from conference_manager import conference_engine
 
 def _require_scistudio_access(user: dict):
     """Enforces that the user account has SciStudio website builder access enabled."""
     if user.get("is_admin"):
         return
+    if user.get("is_member"):
+        raise HTTPException(
+            status_code=403,
+            detail="Subaccounts are restricted from conference and website operations until assignments are configured."
+        )
     if not user.get("scistudio_access", True):
         raise HTTPException(
             status_code=403,
             detail="SciStudio access is disabled for your account. Please contact an administrator to request access."
         )
 
+def _require_owned_conference(conference_id: str, user: dict) -> dict:
+    if not re.fullmatch(r"conf_[a-f0-9]{8}", conference_id):
+        raise HTTPException(status_code=404, detail="Conference not found.")
+    conf = conference_engine.get_conference(conference_id)
+    if not conf:
+        raise HTTPException(status_code=404, detail="Conference not found.")
+    if user.get("is_admin"):
+        return conf
+    if user.get("is_member"):
+        raise HTTPException(
+            status_code=403,
+            detail="Subaccounts are restricted from conference and website operations until assignments are configured."
+        )
+    user_email = (user.get("client_email") or "").strip().lower()
+    owner_email = (conf.get("owner_email") or "").strip().lower()
+    user_key = (user.get("license_key") or "").strip().upper()
+    owner_key = (conf.get("owner_license_key") or "").strip().upper()
+
+    if (user_email and owner_email == user_email) or (user_key and owner_key == user_key):
+        return conf
+
+    raise HTTPException(status_code=404, detail="Conference not found.")
+
 def _require_owned_site(site_id: str, user: dict) -> dict:
     if not re.fullmatch(r"site_[a-f0-9]{8}", site_id):
         raise HTTPException(status_code=404, detail="Website not found.")
     site = builder_engine.get_site(site_id)
+    if not site:
+        raise HTTPException(status_code=404, detail="Website not found.")
+    if user.get("is_admin"):
+        return site
+    if user.get("is_member"):
+        raise HTTPException(
+            status_code=403,
+            detail="Subaccounts are restricted from conference and website operations until assignments are configured."
+        )
     owner = (site or {}).get("user_email", "").strip().lower()
     email = user.get("client_email", "").strip().lower()
-    if not site or not (user.get("is_admin") or (email and owner == email)):
-        raise HTTPException(status_code=404, detail="Website not found.")
-    return site
+    if email and owner == email:
+        return site
+    conf_id = site.get("conference_id")
+    if conf_id:
+        try:
+            _require_owned_conference(conf_id, user)
+            return site
+        except HTTPException:
+            pass
+    raise HTTPException(status_code=404, detail="Website not found.")
 
 
 @app.get("/api/builder/templates")
@@ -1344,12 +1391,79 @@ async def builder_list_templates():
     return {"templates": builder_engine.list_templates()}
 
 
-@app.get("/api/builder/sites")
-async def builder_list_sites(request: Request):
+@app.get("/api/builder/conferences")
+async def builder_list_conferences(request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    conferences = conference_engine.list_conferences(
+        owner_email=user.get("client_email", ""),
+        is_admin=bool(user.get("is_admin")),
+        owner_license_key=user.get("license_key", "")
+    )
+    return {"conferences": conferences}
+
+
+@app.post("/api/builder/conferences")
+async def builder_create_conference(request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Conference name is required.")
+    description = (body.get("description") or "").strip()
+    conf = conference_engine.create_conference(
+        name=name,
+        owner_email=user.get("client_email", ""),
+        owner_license_key=user.get("license_key", ""),
+        description=description
+    )
+    return {"status": "ok", "conference": conf}
+
+
+@app.get("/api/builder/conferences/{conference_id}")
+async def builder_get_conference(conference_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    conf = _require_owned_conference(conference_id, user)
+    return {"conference": conf}
+
+
+@app.put("/api/builder/conferences/{conference_id}")
+async def builder_update_conference(conference_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_conference(conference_id, user)
+    body = await request.json()
+    ok, msg, conf = conference_engine.update_conference(conference_id, body)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "conference": conf, "message": msg}
+
+
+@app.delete("/api/builder/conferences/{conference_id}")
+async def builder_delete_conference(conference_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_conference(conference_id, user)
     email = user.get("client_email", "")
-    sites = builder_engine.list_sites(email)
+    sites = builder_engine.list_sites(email, conference_id=conference_id)
+    for s in sites:
+        builder_engine.update_site(s["site_id"], {"conference_id": None})
+    ok, msg = conference_engine.delete_conference(conference_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.get("/api/builder/sites")
+async def builder_list_sites(request: Request, conference_id: Optional[str] = None):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    if conference_id and conference_id != "all":
+        _require_owned_conference(conference_id, user)
+    email = user.get("client_email", "")
+    sites = builder_engine.list_sites(email, conference_id=conference_id)
     return {"sites": sites}
 
 
@@ -1363,13 +1477,20 @@ async def builder_create_site(request: Request):
     template_id = body.get("template_id") or "genomics"
     theme_config = body.get("theme_config") or {}
     custom_options = body.get("custom_options") or {}
+    client_brief = body.get("client_brief") or custom_options.get("client_brief") or {}
+    if client_brief:
+        custom_options["client_brief"] = client_brief
+    conf_id = (body.get("conference_id") or "").strip() or None
+    if conf_id:
+        _require_owned_conference(conf_id, user)
     site = builder_engine.create_site(
         user_email=user.get("client_email", ""),
         name=name,
         slug=slug,
         template_id=template_id,
         theme_config=theme_config,
-        custom_options=custom_options
+        custom_options=custom_options,
+        conference_id=conf_id
     )
     return {"status": "ok", "site": site}
 
@@ -1385,16 +1506,47 @@ async def builder_get_site(site_id: str, request: Request):
     return site
 
 
+@app.get("/api/builder/sites/{site_id}/preview")
+async def builder_preview_site(site_id: str, request: Request):
+    """Private preview of saved draft content, without publishing it."""
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    site = _require_owned_site(site_id, user)
+    html, _ = compile_website_html(site)
+    return HTMLResponse(content=html, headers={
+        "Cache-Control": "no-store",
+        "X-Robots-Tag": "noindex, nofollow",
+        "Content-Security-Policy": "sandbox allow-popups",
+    })
+
+
 @app.put("/api/builder/sites/{site_id}")
 async def builder_update_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
     _require_owned_site(site_id, user)
     body = await request.json()
+    if "conference_id" in body and body["conference_id"]:
+        _require_owned_conference(body["conference_id"], user)
     ok, msg, site = builder_engine.update_site(site_id, body)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok", "message": msg, "site": site}
+
+
+@app.patch("/api/builder/sites/{site_id}/conference")
+async def builder_assign_site_conference(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    body = await request.json()
+    new_conf_id = (body.get("conference_id") or "").strip() or None
+    if new_conf_id:
+        _require_owned_conference(new_conf_id, user)
+    ok, msg, site = builder_engine.update_site(site_id, {"conference_id": new_conf_id})
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "site": site, "message": "Website conference updated."}
 
 
 @app.delete("/api/builder/sites/{site_id}")
@@ -1448,11 +1600,10 @@ async def serve_public_website(slug: str):
 
 
 # -----------------------------------------------------------------------------
-# Clean SPA Client Routes (/dashboard, /websitebuilder, /nih, /explorer, etc.)
+# Clean SPA Client Routes (/dashboard, /scistudio, /nih, /explorer, etc.)
 # -----------------------------------------------------------------------------
 @app.get("/dashboard")
-@app.get("/websitebuilder")
-@app.get("/builder")
+@app.get("/scistudio")
 @app.get("/nih")
 @app.get("/explorer")
 @app.get("/datasets")
@@ -1461,6 +1612,13 @@ async def serve_spa_page(request: Request):
     if index_path.exists():
         return FileResponse(index_path)
     raise HTTPException(status_code=404, detail="Page not found.")
+
+
+@app.get("/websitebuilder")
+@app.get("/builder")
+async def redirect_legacy_builder_routes():
+    """Redirect legacy website builder URLs to primary /scistudio route."""
+    return RedirectResponse(url="/scistudio", status_code=307)
 
 
 # Mount static assets

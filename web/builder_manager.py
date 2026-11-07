@@ -13,6 +13,8 @@ import uuid
 import re
 import io
 import zipfile
+from html import escape as escape_html
+from studio_formatting import apply_component_formatting, contrast_color
 import time
 from datetime import datetime
 from pathlib import Path
@@ -216,6 +218,26 @@ def build_template_components(
     hero_btn2 = custom_opts.get("hero_btn2") or "Explore Keynotes"
     hero_img = custom_opts.get("hero_image") or "https://images.unsplash.com/photo-1532094349884-543bc11b234d?auto=format&fit=crop&w=1200&q=80"
 
+    # Client briefing integration
+    brief = custom_opts.get("client_brief") or {}
+    brief_start_date = (brief.get("start_date") or "").strip()
+    brief_end_date = (brief.get("end_date") or "").strip()
+    brief_venue = (brief.get("venue_format") or "").strip()
+    brief_email = (brief.get("contact_email") or "").strip()
+
+    if brief_start_date and brief_end_date:
+        event_date_val = f"{brief_start_date} – {brief_end_date}"
+    elif brief_start_date:
+        event_date_val = brief_start_date
+    elif brief_end_date:
+        event_date_val = brief_end_date
+    else:
+        event_date_val = custom_opts.get("event_date") or "October 14–18, 2026"
+
+    event_location_val = brief_venue or custom_opts.get("event_location") or "Boston Convention Center, MA"
+    event_format_val = brief_venue or custom_opts.get("event_format") or "Hybrid (In-Person & Live Stream)"
+    hero_layout = custom_opts.get("hero_layout_variant") or ("conference_program" if (brief_start_date or brief_venue) else "split")
+
     nav_brand = custom_opts.get("nav_brand") or site_name
     nav_cta = custom_opts.get("nav_cta") or "Register Now"
 
@@ -250,6 +272,7 @@ def build_template_components(
             "type": "hero",
             "title": "Hero Header",
             "data": {
+                "layout_variant": hero_layout,
                 "eyebrow": hero_eyebrow,
                 "headline": hero_headline,
                 "subheadline": hero_sub,
@@ -257,7 +280,10 @@ def build_template_components(
                 "primary_btn_url": "#pricing",
                 "secondary_btn_text": hero_btn2,
                 "secondary_btn_url": "#features",
-                "hero_image": hero_img
+                "hero_image": hero_img,
+                "event_date": event_date_val,
+                "event_location": event_location_val,
+                "event_format": event_format_val
             }
         })
 
@@ -453,9 +479,9 @@ def build_template_components(
                 "section_tag": "INQUIRIES",
                 "section_title": "Get in Touch with Organizers",
                 "section_subtitle": "Have questions about participation or sponsorship? Send a message below.",
-                "email": "inquiries@sciprospect.internal",
+                "email": brief_email or "inquiries@sciprospect.internal",
                 "phone": "+1 (800) 555-0199",
-                "address": "Convention Center & Innovation Complex",
+                "address": brief_venue or "Convention Center & Innovation Complex",
                 "form_button_label": "Submit Registration Inquiry"
             }
         })
@@ -712,6 +738,113 @@ a {{
   width: 100%;
   height: auto;
   display: block;
+}}
+
+/* Conference Program Hero Layout */
+.hero-program-wrap {{
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 3.5rem;
+  align-items: center;
+}}
+.hero-program-content {{
+  display: flex;
+  flex-direction: column;
+}}
+.hero-program-card {{
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: 18px;
+  padding: 2.25rem;
+  box-shadow: 0 20px 45px rgba(0, 0, 0, {'0.08' if is_light else '0.45'});
+  position: relative;
+  overflow: hidden;
+}}
+.hero-program-card::before {{
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+}}
+.program-card-header {{
+  margin-bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}}
+.program-card-title {{
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}}
+.program-card-badge {{
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  background: {'rgba(37, 99, 235, 0.08)' if is_light else 'rgba(56, 189, 248, 0.12)'};
+  color: var(--primary);
+  border: 1px solid {'rgba(37, 99, 235, 0.2)' if is_light else 'rgba(56, 189, 248, 0.25)'};
+}}
+.program-meta-list {{
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}}
+.program-meta-item {{
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+}}
+.program-meta-icon {{
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: {'rgba(37, 99, 235, 0.08)' if is_light else 'rgba(56, 189, 248, 0.12)'};
+  border: 1px solid var(--border-glass);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}}
+.program-meta-details {{
+  display: flex;
+  flex-direction: column;
+}}
+.program-meta-label {{
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-bottom: 0.2rem;
+}}
+.program-meta-val {{
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.4;
+}}
+.btn-program-reg {{
+  display: block;
+  text-align: center;
+  width: 100%;
+  padding: 0.95rem 1.5rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  border-radius: 10px;
+  box-sizing: border-box;
 }}
 
 /* Features Grid */
@@ -1008,9 +1141,18 @@ textarea.form-input {{
 
 /* Responsive Breakpoints */
 @media (max-width: 900px) {{
-  .hero-content {{
+  .hero-content, .hero-program-wrap {{
     grid-template-columns: 1fr;
     text-align: center;
+    gap: 2.5rem;
+  }}
+  .hero-program-content {{
+    align-items: center;
+  }}
+  .hero-program-card {{
+    text-align: left;
+    width: 100%;
+    padding: 1.75rem 1.25rem;
   }}
   .hero-actions {{
     justify-content: center;
@@ -1029,13 +1171,70 @@ textarea.form-input {{
 }}
 """
 
+    css += """
+.hero-design-centered .hero-content,.hero-design-image_top .hero-content,.hero-design-text_only .hero-content { display:flex;flex-direction:column;text-align:center; }
+.hero-design-centered .hero-actions,.hero-design-image_top .hero-actions,.hero-design-text_only .hero-actions { justify-content:center; }
+.hero-design-image_left .hero-img-box { order:-1; }
+.hero-design-image_top .hero-img-box { order:-1;width:100%; }
+.hero-design-text_only .hero-img-box { display:none; }
+.hero-design-text_only .hero-content { max-width:920px; }
+"""
+    css += """
+.studio-content-section { padding:48px 28px; color:var(--section-ink); }
+.studio-content-section > h2 { font-size:30px; line-height:1.2; margin:0 0 12px; color:var(--section-ink); }
+.studio-content-section p { color:var(--section-muted); line-height:1.7; white-space:pre-line; overflow-wrap:anywhere; }
+.studio-content-items { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,220px),1fr)); gap:20px; margin-top:28px; }
+.studio-content-items article { background:var(--section-card); padding:24px; border-radius:14px; min-width:0; }
+.studio-content-items h3 { color:var(--section-ink); font-size:19px; margin:0 0 10px; overflow-wrap:anywhere; }
+.studio-content-items img { display:block; max-width:100%; height:140px; object-fit:contain; margin:0 auto 18px; border-radius:8px; }
+.studio-content-section.design-list .studio-content-items { grid-template-columns:1fr; }
+.studio-content-section.design-list article { background:transparent; border-bottom:1px solid #94a3b844; border-radius:0; padding:20px 0; }
+.studio-content-section.design-spotlight { text-align:center; }
+.studio-content-section.design-spotlight .studio-content-items { grid-template-columns:1fr; max-width:780px; margin:28px auto 0; }
+.studio-content-section.design-spotlight article { padding:36px; }
+@media(max-width:600px) { .studio-content-section { padding:32px 18px; } .studio-content-section > h2 { font-size:25px; } }
+"""
+    css += """
+.studio-auto-contrast > header,.studio-auto-contrast > section,.studio-auto-contrast > footer { background:transparent!important; }
+.studio-auto-contrast h1,.studio-auto-contrast h2,.studio-auto-contrast h3,.studio-auto-contrast h4 { color:var(--text-main)!important; -webkit-text-fill-color:var(--text-main); }
+.studio-auto-contrast p { color:var(--text-muted)!important; }
+"""
     body_html_parts = []
 
     for comp in components:
+        if comp.get("hidden") is True:
+            continue
+        background_override = (comp.get('studio_style') or {}).get('background')
+        is_light = (contrast_color(background_override) != '#ffffff') if re.fullmatch(r'#[0-9a-fA-F]{6}', str(background_override or '')) else (mode == 'light')
+        part_start = len(body_html_parts)
         c_type = comp.get("type", "")
         data = comp.get("data", {})
 
-        if c_type == "navbar":
+        if c_type == 'image':
+            image_url=str(data.get('image_url',''))
+            if re.match(r'^(https?://|/(?!/)|data:image/(?:png|jpeg|webp|gif);base64,)',image_url):
+                caption=escape_html(str(data.get('caption','')))
+                body_html_parts.append(f'<figure style="margin:0;padding:24px"><img src="{escape_html(image_url,quote=True)}" alt="{caption}" style="display:block;width:100%;height:auto;border-radius:12px"><figcaption>{caption}</figcaption></figure>')
+        elif c_type in ("about", "stats", "agenda", "sponsors", "testimonials", "announcement"):
+            design = data.get("design", "grid")
+            if design not in ("grid", "list", "spotlight"):
+                design = "grid"
+            item_html = []
+            for item in data.get("items", []):
+                image_url = str(item.get("image", ""))
+                image = ""
+                if re.match(r"^(https?://|/(?!/)|data:image/(?:png|jpeg|webp|gif);base64,)", image_url):
+                    image = f'<img src="{escape_html(image_url, quote=True)}" alt="{escape_html(str(item.get("title", "")), quote=True)}" loading="lazy">'
+                item_html.append(f'<article>{image}<h3>{escape_html(str(item.get("title", "")))}</h3><p>{escape_html(str(item.get("description", "")))}</p></article>')
+            ink, muted, card = ("#18233b", "#64748b", "#f4f6fb") if is_light else ("#f8fafc", "#a5b4cc", "#172033")
+            body_html_parts.append(f'<section class="studio-content-section design-{design}" style="--section-ink:{ink};--section-muted:{muted};--section-card:{card}"><h2>{escape_html(str(data.get("section_title", "")))}</h2><p>{escape_html(str(data.get("section_subtitle", "")))}</p><div class="studio-content-items">{"".join(item_html)}</div></section>')
+        elif c_type == "custom":
+            try:
+                embed_height = min(2000, max(100, int(data.get("height", 300))))
+            except (ValueError, TypeError):
+                embed_height = 300
+            body_html_parts.append(f'<iframe title="Custom section" sandbox="" srcdoc="{escape_html(str(data.get("html", "")), quote=True)}" style="display:block;width:100%;height:{embed_height}px;border:0"></iframe>')
+        elif c_type == "navbar":
             links_html = "".join([f'<a class="nav-link" href="{l.get("url", "#")}">{l.get("label", "")}</a>' for l in data.get("links", [])])
             body_html_parts.append(f"""
 <nav class="site-navbar">
@@ -1050,8 +1249,69 @@ textarea.form-input {{
 """)
 
         elif c_type == "hero":
-            body_html_parts.append(f"""
+            variant = data.get("layout_variant") or "split"
+            if variant == "conference_program":
+                event_date = data.get("event_date") or "October 14–18, 2026"
+                event_location = data.get("event_location") or "Boston Convention Center, MA"
+                event_format = data.get("event_format") or "Hybrid (In-Person & Live Stream)"
+                reg_btn_text = data.get("primary_btn_text") or "Register for Conference"
+                reg_btn_url = data.get("primary_btn_url") or "#pricing"
+                sec_btn_text = data.get("secondary_btn_text") or ""
+                sec_btn_url = data.get("secondary_btn_url") or "#features"
+
+                sec_btn_html = f'<div style="margin-top: 1.5rem;"><a href="{sec_btn_url}" class="btn-secondary">{sec_btn_text}</a></div>' if sec_btn_text else ''
+
+                body_html_parts.append(f"""
 <header class="site-section hero-wrap">
+  <div class="site-container hero-program-wrap">
+    <div class="hero-program-content">
+      <span class="section-tag">{data.get("eyebrow", "")}</span>
+      <h1 class="hero-headline">{data.get("headline", title)}</h1>
+      <p class="hero-subhead">{data.get("subheadline", "")}</p>
+      {sec_btn_html}
+    </div>
+    <div class="hero-program-card">
+      <div class="program-card-header">
+        <div class="program-card-title">
+          <i class="fa-solid fa-calendar-check" style="color: var(--primary);"></i>
+          <span>Conference Program</span>
+        </div>
+        <span class="program-card-badge">Official Event</span>
+      </div>
+      <div class="program-meta-list">
+        <div class="program-meta-item">
+          <div class="program-meta-icon"><i class="fa-regular fa-calendar-days"></i></div>
+          <div class="program-meta-details">
+            <span class="program-meta-label">Dates & Schedule</span>
+            <span class="program-meta-val">{event_date}</span>
+          </div>
+        </div>
+        <div class="program-meta-item">
+          <div class="program-meta-icon"><i class="fa-solid fa-location-dot"></i></div>
+          <div class="program-meta-details">
+            <span class="program-meta-label">Location & Venue</span>
+            <span class="program-meta-val">{event_location}</span>
+          </div>
+        </div>
+        <div class="program-meta-item">
+          <div class="program-meta-icon"><i class="fa-solid fa-video"></i></div>
+          <div class="program-meta-details">
+            <span class="program-meta-label">Event Format</span>
+            <span class="program-meta-val">{event_format}</span>
+          </div>
+        </div>
+      </div>
+      <a href="{reg_btn_url}" class="btn-primary btn-program-reg">{reg_btn_text}</a>
+    </div>
+  </div>
+</header>
+""")
+            else:
+                hero_variant = data.get("layout_variant", "split")
+                if hero_variant not in ("split", "centered", "image_left", "image_top", "text_only"):
+                    hero_variant = "split"
+                body_html_parts.append(f"""
+<header class="site-section hero-wrap hero-design-{hero_variant}">
   <div class="site-container hero-content">
     <div>
       <span class="section-tag">{data.get("eyebrow", "")}</span>
@@ -1213,7 +1473,7 @@ textarea.form-input {{
         <input type="email" class="form-input" placeholder="Your Work / Institutional Email" required>
         <input type="text" class="form-input" placeholder="Organization / University Lab">
         <textarea class="form-input" placeholder="Your message or registration questions..." required></textarea>
-        <button type="submit" class="btn-primary" style="cursor: pointer; border: none;">{data.get("form_button_label", "Submit Inquiry")}</button>
+        <button type="submit" class="btn-primary" style="cursor: pointer; border: none;">{data.get("btn_text", data.get("form_button_label", "Submit Inquiry"))}</button>
       </form>
     </div>
   </div>
@@ -1236,6 +1496,31 @@ textarea.form-input {{
   </div>
 </footer>
 """)
+
+        if (comp.get('field_formats') or comp.get('image_formats')) and len(body_html_parts) > part_start:
+            body_html_parts[part_start:] = [apply_component_formatting(''.join(body_html_parts[part_start:]), comp, bg_color)]
+
+        # Restrict shared section appearance to safe, bounded CSS values.
+        appearance = comp.get("studio_style") or {}
+        rules = []
+        for key, css_property, maximum in (("padding", "padding", 160), ("radius", "border-radius", 80)):
+            if appearance.get(key) not in (None, ""):
+                try:
+                    value = min(maximum, max(0, float(appearance[key])))
+                    if value != value:
+                        value = 0
+                    rules.append(f"{css_property}:{value:g}px")
+                except (ValueError, TypeError):
+                    pass
+        background = str(appearance.get("background", ""))
+        if re.fullmatch(r"#[0-9a-fA-F]{6}", background):
+            rules.append(f"background:{background}")
+            foreground = contrast_color(background)
+            light_section = foreground != '#ffffff'
+            rules.extend([f'--text-main:{foreground}', f'--text-muted:{foreground}', f'--section-ink:{foreground}', f'--section-muted:{foreground}', f'--bg-card:{"#f1f5f9" if light_section else "#182235"}', f'color:{foreground}'])
+        if rules and len(body_html_parts) > part_start:
+            section_html = "".join(body_html_parts[part_start:])
+            body_html_parts[part_start:] = [f'<div class="{'studio-auto-contrast' if re.fullmatch(r'#[0-9a-fA-F]{6}', background) else 'studio-section-style'}" style="{";".join(rules)}">{section_html}</div>']
 
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1279,6 +1564,7 @@ class WebsiteBuilderEngine:
                     cur.execute("""
                         CREATE TABLE IF NOT EXISTS user_websites (
                             site_id VARCHAR(64) PRIMARY KEY,
+                            conference_id VARCHAR(64),
                             user_email VARCHAR(255) NOT NULL,
                             name VARCHAR(255) NOT NULL,
                             slug VARCHAR(255) UNIQUE NOT NULL,
@@ -1291,6 +1577,7 @@ class WebsiteBuilderEngine:
                             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                         );
                     """)
+                    cur.execute("ALTER TABLE user_websites ADD COLUMN IF NOT EXISTS conference_id VARCHAR(64);")
                     conn.commit()
         except Exception as e:
             print(f"[BUILDER] PostgreSQL connection warning: {e}")
@@ -1299,10 +1586,11 @@ class WebsiteBuilderEngine:
         """Returns the full 15 curated starter templates."""
         return TEMPLATES_CATALOG
 
-    def list_sites(self, user_email: str) -> List[dict]:
-        """Lists all websites belonging to the user."""
+    def list_sites(self, user_email: str, conference_id: Optional[str] = None) -> List[dict]:
+        """Lists all websites belonging to the user, optionally filtered by conference_id."""
         sites = []
         user_email_clean = (user_email or "").strip().lower()
+        conf_filter = (conference_id or "").strip()
 
         # 1. Try PostgreSQL
         try:
@@ -1311,12 +1599,12 @@ class WebsiteBuilderEngine:
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     if user_email_clean in ("root@sciprospect.internal", "admin"):
-                        cur.execute("SELECT site_id, user_email, name, slug, custom_domain, status, created_at, updated_at FROM user_websites ORDER BY updated_at DESC;")
+                        cur.execute("SELECT site_id, user_email, name, slug, custom_domain, status, created_at, updated_at, conference_id FROM user_websites ORDER BY updated_at DESC;")
                     else:
-                        cur.execute("SELECT site_id, user_email, name, slug, custom_domain, status, created_at, updated_at FROM user_websites WHERE LOWER(user_email) = %s ORDER BY updated_at DESC;", (user_email_clean,))
+                        cur.execute("SELECT site_id, user_email, name, slug, custom_domain, status, created_at, updated_at, conference_id FROM user_websites WHERE LOWER(user_email) = %s ORDER BY updated_at DESC;", (user_email_clean,))
                     rows = cur.fetchall()
                     for r in rows:
-                        sites.append({
+                        site_item = {
                             "site_id": r[0],
                             "user_email": r[1],
                             "name": r[2],
@@ -1325,11 +1613,14 @@ class WebsiteBuilderEngine:
                             "status": r[5] or "draft",
                             "created_at": str(r[6]),
                             "updated_at": str(r[7]),
+                            "conference_id": r[8] or None,
                             "url": f"/sites/{r[3]}"
-                        })
+                        }
+                        if not conf_filter or conf_filter == "all" or site_item["conference_id"] == conf_filter:
+                            sites.append(site_item)
                     return sites
         except Exception as e:
-            print(f"[BUILDER] PostgreSQL list error: {e}")
+            pass
 
         # 2. Local Fallback
         base_dir = get_websites_dir()
@@ -1340,19 +1631,23 @@ class WebsiteBuilderEngine:
                     try:
                         cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
                         if user_email_clean in ("root@sciprospect.internal", "admin") or cfg.get("user_email", "").lower() == user_email_clean:
-                            sites.append({
-                                "site_id": cfg.get("site_id"),
-                                "user_email": cfg.get("user_email"),
-                                "name": cfg.get("name"),
-                                "slug": cfg.get("slug"),
-                                "custom_domain": cfg.get("custom_domain", ""),
-                                "status": cfg.get("status", "draft"),
-                                "created_at": cfg.get("created_at", ""),
-                                "updated_at": cfg.get("updated_at", ""),
-                                "url": f"/sites/{cfg.get('slug')}"
-                            })
+                            site_conf = cfg.get("conference_id")
+                            if not conf_filter or conf_filter == "all" or site_conf == conf_filter:
+                                sites.append({
+                                    "site_id": cfg.get("site_id"),
+                                    "user_email": cfg.get("user_email"),
+                                    "name": cfg.get("name"),
+                                    "slug": cfg.get("slug"),
+                                    "custom_domain": cfg.get("custom_domain", ""),
+                                    "status": cfg.get("status", "draft"),
+                                    "conference_id": site_conf or None,
+                                    "created_at": cfg.get("created_at", ""),
+                                    "updated_at": cfg.get("updated_at", ""),
+                                    "url": f"/sites/{cfg.get('slug')}"
+                                })
                     except Exception:
                         pass
+        sites.sort(key=lambda s: s.get("updated_at", ""), reverse=True)
         return sites
 
     def create_site(
@@ -1362,7 +1657,8 @@ class WebsiteBuilderEngine:
         slug: Optional[str] = None,
         template_id: Optional[str] = "genomics",
         theme_config: Optional[dict] = None,
-        custom_options: Optional[dict] = None
+        custom_options: Optional[dict] = None,
+        conference_id: Optional[str] = None
     ) -> dict:
         """Creates a brand new website configured with the chosen template and wizard options."""
         clean_name = (name or "My Website").strip()
@@ -1389,6 +1685,7 @@ class WebsiteBuilderEngine:
 
         site_data = {
             "site_id": site_id,
+            "conference_id": (conference_id.strip() if isinstance(conference_id, str) and conference_id.strip() else None),
             "user_email": user_email.strip().lower(),
             "name": clean_name,
             "slug": slug,
@@ -1398,7 +1695,8 @@ class WebsiteBuilderEngine:
             "theme_config": t_theme,
             "schema_json": components,
             "created_at": now_str,
-            "updated_at": now_str
+            "updated_at": now_str,
+            "client_brief": (custom_options.get("client_brief") or {}) if custom_options else {}
         }
 
         compiled_html, compiled_css = compile_website_html(site_data)
@@ -1418,19 +1716,20 @@ class WebsiteBuilderEngine:
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        INSERT INTO user_websites (site_id, user_email, name, slug, custom_domain, status, theme_config, schema_json, compiled_html, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                        INSERT INTO user_websites (site_id, conference_id, user_email, name, slug, custom_domain, status, theme_config, schema_json, compiled_html, created_at, updated_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
                         ON CONFLICT (site_id) DO UPDATE SET
+                            conference_id = EXCLUDED.conference_id,
                             name = EXCLUDED.name,
                             slug = EXCLUDED.slug,
                             theme_config = EXCLUDED.theme_config,
                             schema_json = EXCLUDED.schema_json,
                             compiled_html = EXCLUDED.compiled_html,
                             updated_at = NOW();
-                    """, (site_id, user_email.lower(), clean_name, slug, "", "draft", json.dumps(t_theme), json.dumps(components), compiled_html))
+                    """, (site_id, site_data["conference_id"], user_email.lower(), clean_name, slug, "", "draft", json.dumps(t_theme), json.dumps(components), compiled_html))
                     conn.commit()
         except Exception as e:
-            print(f"[BUILDER] PostgreSQL insert error: {e}")
+            pass
 
         site_data["url"] = f"/sites/{slug}"
         return site_data
@@ -1446,7 +1745,7 @@ class WebsiteBuilderEngine:
             with psycopg2.connect(**PG_CONFIG) as conn:
                 with conn.cursor() as cur:
                     cur.execute("""
-                        SELECT site_id, user_email, name, slug, custom_domain, status, theme_config, schema_json, compiled_html, created_at, updated_at
+                        SELECT site_id, user_email, name, slug, custom_domain, status, theme_config, schema_json, compiled_html, created_at, updated_at, conference_id
                         FROM user_websites WHERE site_id = %s;
                     """, (clean_id,))
                     row = cur.fetchone()
@@ -1463,16 +1762,20 @@ class WebsiteBuilderEngine:
                             "compiled_html": row[8] or "",
                             "created_at": str(row[9]),
                             "updated_at": str(row[10]),
+                            "conference_id": row[11] or None,
                             "url": f"/sites/{row[3]}"
                         }
         except Exception as e:
-            print(f"[BUILDER] PostgreSQL get error: {e}")
+            pass
 
         # 2. Local Fallback
         cfg_file = get_websites_dir() / clean_id / "site_config.json"
         if cfg_file.exists():
             try:
-                return json.loads(cfg_file.read_text(encoding="utf-8"))
+                data = json.loads(cfg_file.read_text(encoding="utf-8"))
+                data.setdefault("conference_id", None)
+                data.setdefault("client_brief", {})
+                return data
             except Exception:
                 pass
         return None
@@ -1495,6 +1798,9 @@ class WebsiteBuilderEngine:
             site["theme_config"] = payload["theme_config"]
         if "schema_json" in payload:
             site["schema_json"] = payload["schema_json"]
+        if "conference_id" in payload:
+            raw_conf = payload["conference_id"]
+            site["conference_id"] = (raw_conf.strip() if isinstance(raw_conf, str) and raw_conf.strip() else None)
 
         site["updated_at"] = datetime.now().isoformat()
         compiled_html, compiled_css = compile_website_html(site)
@@ -1515,7 +1821,8 @@ class WebsiteBuilderEngine:
                 with conn.cursor() as cur:
                     cur.execute("""
                         UPDATE user_websites
-                        SET name = %s,
+                        SET conference_id = %s,
+                            name = %s,
                             slug = %s,
                             custom_domain = %s,
                             status = %s,
@@ -1525,6 +1832,7 @@ class WebsiteBuilderEngine:
                             updated_at = NOW()
                         WHERE site_id = %s;
                     """, (
+                        site.get("conference_id"),
                         site["name"],
                         site["slug"],
                         site.get("custom_domain", ""),
@@ -1536,7 +1844,7 @@ class WebsiteBuilderEngine:
                     ))
                     conn.commit()
         except Exception as e:
-            print(f"[BUILDER] PostgreSQL update error: {e}")
+            pass
 
         site["url"] = f"/sites/{site['slug']}"
         return True, "Site saved successfully.", site

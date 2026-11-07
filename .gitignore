@@ -30,6 +30,8 @@ test_app/dist_installer/
 *.bak
 web/licenses.json
 .active_license
+web/sessions.json
+sessions.json
 
 # Collector runtime archives
 *.sqlite3
