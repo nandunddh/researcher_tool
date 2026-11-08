@@ -8,9 +8,9 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="icon" type="image/svg+xml" href="sciprospect_icon.svg">
+  <link rel="icon" type="image/svg+xml" href="/sciprospect_icon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="index.css?v=12.0">
+  <link rel="stylesheet" href="/index.css?v=12.11">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -43,7 +43,7 @@
       overflow: hidden;
     }
   </style>
-</head>
+<link rel="stylesheet" href="/studio-ambient.css?v=1"></head>
 <body>
   <!-- Toast notification -->
   <div id="toast-container" class="toast-container"></div>
@@ -341,7 +341,7 @@
             <div class="collector-settings-body">
               <label class="collector-auto"><input type="checkbox" id="collect-auto" checked> Automatically try additional sources</label>
               <div class="form-grid">
-                <div class="form-group"><label for="unified-min-score">Minimum match score</label><select id="unified-min-score"><option value="50" selected>50 / 100 ? Broad</option><option value="65">65 / 100 ? Selective</option><option value="80">80 / 100 ? Most selective</option></select></div>
+                <div class="form-group"><label for="unified-min-score">Minimum match score</label><select id="unified-min-score"><option value="50" selected>50 / 100 · Broad</option><option value="65">65 / 100 · Selective</option><option value="80">80 / 100 · Most selective</option></select></div>
                 <div class="form-group"><label for="unified-date-from">Published from</label><input type="date" id="unified-date-from" value="2025-01-01"></div>
                 <div class="form-group"><label for="unified-date-to">Published through</label><input type="date" id="unified-date-to" value="2026-11-05"></div>
               </div>
@@ -377,7 +377,7 @@
 
             </div>
           </details>
-          <button class="btn btn-primary collector-submit" id="btn-run-unified" type="button"><span id="unified-btn-text">Collect 100 contacts</span><span aria-hidden="true">?</span></button>
+          <button class="btn btn-primary collector-submit" id="btn-run-unified" type="button"><span id="unified-btn-text">Collect 100 contacts</span></button>
           <p class="collector-note collector-submit-note">One click. One clean CSV. Any shortfall is clearly reported.</p>
           <div id="collection-result" hidden role="status" class="collector-result"></div>
           <span id="unified-card-badge" hidden></span><span id="unified-card-pill" hidden></span>
@@ -789,7 +789,7 @@
           <span id="studio-save-state" role="status" aria-live="polite">Saved</span>
           <div class="studio-canvas-tools">
             <select id="studio-zoom" aria-label="Canvas zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option></select><span id="studio-canvas-scale" aria-live="polite">1440px · Fit</span>
-            <button type="button" class="btn-studio-action" id="studio-toggle-panels" aria-pressed="false" title="Hide editing panels to expand the canvas">Expand canvas</button>
+            <button type="button" class="btn-studio-action" id="studio-toggle-panels" aria-pressed="false" title="Hide editing panels to expand the canvas">Focus mode</button>
           </div>
           <!-- Studio Action Buttons -->
           <div class="studio-topbar-right">
@@ -1018,7 +1018,7 @@
           <div class="wizard-step-pane" id="wizard-pane-1">
             <div class="brief-intro-box">
               <div style="font-weight: 700;  font-size: 1rem; margin-bottom: 0.35rem; display: flex; align-items: center; gap: 0.5rem;">
-                <span>📋</span>
+                <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5v17h14V4h-4M9 2h6v4H9zM8 11h8M8 15h6"/></svg></span>
                 <span>Conference Project Brief</span>
               </div>
               <p style="font-size: 0.84rem;  margin: 0; line-height: 1.45;">
@@ -1114,7 +1114,7 @@
             <div class="wizard-section">
               <div class="wizard-sec-label">
                 <span class="wizard-step-num">1</span>
-                <span>CHOOSE A PRE-BUILT STARTER TEMPLATE (15 AVAILABLE)</span>
+                <span>CHOOSE A PRE-BUILT STARTER TEMPLATE (6 DESIGNS + BLANK CANVAS)</span>
               </div>
               <div class="wizard-templates-grid" id="wizard-templates-grid">
                 <!-- Dynamically populated 15 template cards -->
@@ -1230,27 +1230,27 @@
               <div class="wizard-sections-checkbox-grid">
                 <label class="wizard-checkbox-pill">
                   <input type="checkbox" id="sec-chk-speakers" checked>
-                  <span>🎤 Keynote Speakers / Faculty</span>
+                  <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0zM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg> Keynote Speakers / Faculty</span>
                 </label>
                 <label class="wizard-checkbox-pill">
                   <input type="checkbox" id="sec-chk-features" checked>
-                  <span>📋 Research Highlights / About</span>
+                  <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4H5v17h14V4h-4M9 2h6v4H9zM8 11h8M8 15h6"/></svg> Research Highlights / About</span>
                 </label>
                 <label class="wizard-checkbox-pill">
                   <input type="checkbox" id="sec-chk-pricing" checked>
-                  <span>💳 Pricing & Registration Passes</span>
+                  <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18v14H3zM3 10h18M7 15h4"/></svg> Pricing & Registration Passes</span>
                 </label>
                 <label class="wizard-checkbox-pill">
                   <input type="checkbox" id="sec-chk-gallery" checked>
-                  <span>🖼️ Photo Gallery / Venue</span>
+                  <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3h18v18H3zM3 17l6-6 4 4 3-3 5 5M7 7h1"/></svg> Photo Gallery / Venue</span>
                 </label>
                 <label class="wizard-checkbox-pill">
                   <input type="checkbox" id="sec-chk-faq" checked>
-                  <span>❓ FAQ Accordion</span>
+                  <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M9 9a3 3 0 1 1 4 3v2M12 17h.01"/></svg> FAQ Accordion</span>
                 </label>
                 <label class="wizard-checkbox-pill">
                   <input type="checkbox" id="sec-chk-contact" checked>
-                  <span>✉️ Contact & Registration Form</span>
+                  <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18v14H3zM3 5l9 7 9-7"/></svg> Contact & Registration Form</span>
                 </label>
               </div>
             </div>
@@ -1261,7 +1261,7 @@
                 <span>← Back to Review</span>
               </button>
               <button type="submit" class="btn-primary-action" id="btn-submit-create-site" style="padding: 0.75rem 1.85rem;">
-                <span>🚀 Generate Website & Open Studio</span>
+                <span><svg class="wizard-outline-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg> Generate Website & Open Studio</span>
               </button>
             </div>
           </div>
@@ -1336,8 +1336,8 @@
     </div>
   </div>
 
-  <script src="studio-formatting.js?v=1.0"></script>
-  <script src="app.js?v=12.0"></script>
+  <script src="/studio-formatting.js?v=1.0"></script>
+  <script src="/app.js?v=12.9"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->

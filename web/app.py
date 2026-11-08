@@ -278,10 +278,17 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
 # -----------------------------------------------------------------------------
 
 @app.get("/admin")
-async def get_admin_portal():
+async def get_admin_portal(request: Request):
     """Serves the Root Admin Licensing Command Center."""
     admin_path = STATIC_DIR / "admin.html"
     if admin_path.exists():
+        section = request.query_params.get("section")
+        if section in ("add", "manage"):
+            _verify_admin_auth(request)
+            html = admin_path.read_text(encoding="utf-8")
+            html = html.replace("</head>", '<link rel="stylesheet" href="/admin-workspace.css?v=5"><style>.admin-header,.console-banner,.kpi-grid{display:none!important}.content-grid{display:block!important}body[data-root-section="add"] .content-grid>.card-panel:nth-child(2),body[data-root-section="manage"] .content-grid>.card-panel:first-child{display:none!important}</style></head>')
+            html = html.replace("<body>", '<body data-root-section="' + section + '">')
+            return HTMLResponse(html)
         return FileResponse(admin_path)
     raise HTTPException(status_code=404, detail="Admin portal template not found.")
 
@@ -480,6 +487,27 @@ async def admin_login(request: Request):
     if license_engine.verify_root_auth(pwd):
         return {"status": "ok", "message": "Root console unlocked."}
     raise HTTPException(status_code=401, detail="Incorrect Root Password.")
+
+
+@app.get("/root-dashboard")
+async def root_dashboard(request: Request):
+    user = _require_authenticated_user(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Root administrator access required")
+    return RedirectResponse(url="/root/dashboard", status_code=307)
+
+
+@app.get("/api/admin/overview")
+async def root_overview(request: Request):
+    _verify_admin_auth(request)
+    fields = ("client_name", "client_email", "org_name", "account_type", "tier", "status", "expires_at", "daily_limit", "seat_limit", "scistudio_access", "created_at")
+    accounts = []
+    for account in license_engine.list_accounts():
+        item = {key: account.get(key) for key in fields}
+        item["is_root"] = account.get("license_key") == "SCIP-PRO-ROOT-MASTER"
+        item["members"] = [{key: member.get(key) for key in ("name", "email", "role", "scistudio_access", "created_at")} for member in account.get("members", [])]
+        accounts.append(item)
+    return {"accounts": accounts}
 
 
 @app.get("/api/admin/stats")
@@ -1391,6 +1419,21 @@ async def builder_list_templates():
     return {"templates": builder_engine.list_templates()}
 
 
+@app.get("/api/builder/template-preview/{template_id}")
+async def builder_template_preview(template_id: str):
+    from builder_manager import build_template_components
+    templates = builder_engine.list_templates()
+    template = next((item for item in templates if item["id"] == template_id), None)
+    if not template and template_id != "blank":
+        raise HTTPException(status_code=404, detail="Template not found")
+    name = template["name"] if template else "Your conference"
+    components, theme = build_template_components(template_id, name)
+    if template_id == "blank":
+        components = []
+    html, _ = compile_website_html({"name": name, "theme_config": theme, "schema_json": components})
+    return HTMLResponse(content=html)
+
+
 @app.get("/api/builder/conferences")
 async def builder_list_conferences(request: Request):
     user = _require_authenticated_user(request)
@@ -1619,6 +1662,42 @@ async def serve_spa_page(request: Request):
 async def redirect_legacy_builder_routes():
     """Redirect legacy website builder URLs to primary /scistudio route."""
     return RedirectResponse(url="/scistudio", status_code=307)
+
+
+# Role-owned page namespaces. Data APIs continue to enforce resource ownership.
+def _page_namespace(user):
+    if user.get("is_admin"):
+        return "root"
+    if user.get("is_member"):
+        return "conference"
+    account = license_engine.get_account(user.get("license_key", "")) or {}
+    return "organization" if account.get("account_type") == "org" else "client"
+
+
+@app.get("/workspace")
+async def workspace_home(request: Request):
+    user = _require_authenticated_user(request)
+    return RedirectResponse("/" + _page_namespace(user) + "/dashboard", status_code=307)
+
+
+@app.get("/{namespace}/{page}")
+async def role_workspace_page(namespace: str, page: str, request: Request):
+    if namespace not in ("root", "organization", "client", "conference"):
+        raise HTTPException(status_code=404, detail="Page not found")
+    user = _require_authenticated_user(request)
+    if _page_namespace(user) != namespace:
+        raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
+    if namespace == "root" and page == "licenses":
+        return RedirectResponse("/root/accounts", status_code=307)
+    if namespace == "root" and page in ("dashboard", "accounts", "add-account"):
+        return FileResponse(STATIC_DIR / "root-dashboard.html")
+    if namespace == "conference":
+        raise HTTPException(status_code=403, detail="Conference assignments must be configured before this workspace is available")
+    if page not in ("dashboard", "collector", "scistudio", "nih", "explorer", "datasets"):
+        raise HTTPException(status_code=404, detail="Page not found")
+    if page == "scistudio":
+        _require_scistudio_access(user)
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 # Mount static assets

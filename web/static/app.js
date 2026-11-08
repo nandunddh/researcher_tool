@@ -125,8 +125,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function switchTab(tabName, updateHistory = true) {
     currentTab = tabName;
+    document.body.classList.toggle("scistudio-workspace", tabName === "builder");
     const studioCreateAction = document.getElementById('btn-open-create-site-modal');
     if (studioCreateAction) studioCreateAction.hidden = tabName !== 'builder';
+    const templateAction = document.getElementById('btn-browse-studio-templates');
+    if (templateAction) templateAction.hidden = tabName !== 'builder';
     try { sessionStorage.setItem("scip_active_tab", tabName); } catch (e) {}
     navTabs.forEach((t) => t.classList.toggle("active", t.getAttribute("data-tab") === tabName));
     tabViews.forEach((v) => {
@@ -166,7 +169,9 @@ document.addEventListener("DOMContentLoaded", () => {
         explorer: "/explorer",
         datasets: "/datasets"
       };
-      const newPath = routeMap[tabName] || "/dashboard";
+      const namespace=window.location.pathname.split('/')[1];
+      const prefix=['root','organization','client'].includes(namespace)?'/'+namespace:'';
+      const newPath = prefix + (tabName==='pipeline'&&namespace==='root'?'/collector':routeMap[tabName] || '/dashboard');
       if (window.location.pathname !== newPath) {
         window.history.pushState({ tab: tabName }, "", newPath);
       }
@@ -483,7 +488,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const collectButton = document.getElementById("btn-run-unified");
     if (collectButton) collectButton.disabled = isRunning;
     const label = document.getElementById("unified-btn-text");
-    if (label && isRunning) label.textContent = "Collecting contacts?";
+    if (label && isRunning) label.textContent = "Collecting contacts…";
     else if (label) label.textContent = `Collect ${document.getElementById("unified-target")?.value || 100} contacts`;
 
     if (systemStatusIndicator) {
@@ -709,7 +714,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const count = inputUnifiedTarget?.value || "100";
     if (unifiedBtnText) unifiedBtnText.textContent = `Collect ${count} contacts`;
     const summary = document.querySelector(".collector-settings summary span");
-    if (summary) summary.textContent = `Score ${selectUnifiedMinScore?.value || 50}+ ? ${autoToggle?.checked ? "Automatic sources" : activeDataSource}`;
+    if (summary) summary.textContent = `Score ${selectUnifiedMinScore?.value || 50}+ · ${autoToggle?.checked ? "Automatic sources" : activeDataSource}`;
     document.querySelectorAll("[data-contact-count]").forEach(button => {
       const selected = button.dataset.contactCount === count;
       button.classList.toggle("selected", selected);
@@ -2197,6 +2202,12 @@ document.addEventListener("DOMContentLoaded", () => {
     if (menuRootAdmin) menuRootAdmin.style.display = isAdmin ? "flex" : "none";
 
     window.currentUser = user;
+    const pageNamespace=window.location.pathname.split('/')[1];
+    if(['root','organization','client'].includes(pageNamespace))document.querySelectorAll('a[href="/scistudio"]').forEach(link=>link.href='/'+pageNamespace+'/scistudio');
+    if (['/', '/dashboard'].includes(window.location.pathname)) {
+      window.location.replace(isAdmin ? '/root/dashboard' : '/workspace');
+      return;
+    }
     const hasSciStudioAccess = !!(user && (user.is_admin || user.scistudio_access !== false));
     const scistudioLockBadge = document.getElementById("scistudio-lock-badge");
     if (scistudioLockBadge) {
@@ -2546,7 +2557,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch("/api/builder/templates");
       if (!res.ok) return;
       const data = await res.json();
-      starterTemplates = data.templates || [];
+      starterTemplates = [{id:"blank",name:"Start from scratch",description:"An empty canvas. Add your own sections in SciStudio.",category:"Blank canvas",theme:{mode:"light",primary_color:"#635bdb"}}, ...(data.templates || [])];
       renderWizardTemplates(starterTemplates);
     } catch (err) {
       console.warn("Failed to load starter templates:", err);
@@ -2565,8 +2576,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if (isSel && !selectedTemplateId) selectedTemplateId = tmpl.id;
       return `
         <div class="wizard-template-card ${isSel ? 'active' : ''}" data-tmpl-id="${tmpl.id}">
-          <div class="wizard-tmpl-top">
-            <span class="wizard-tmpl-icon">${tmpl.icon || '🌐'}</span>
+          <div class="wizard-template-thumbnail"><iframe title="${escapeHtml(tmpl.name)} preview" loading="lazy" sandbox="" tabindex="-1" src="/api/builder/template-preview/${encodeURIComponent(tmpl.id)}"></iframe></div><button type="button" class="wizard-preview-button">Preview design</button><div class="wizard-tmpl-top">
+            <span class="wizard-tmpl-icon" aria-hidden="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg></span>
             <span class="wizard-tmpl-category">${escapeHtml(tmpl.category || 'General')}</span>
           </div>
           <div class="wizard-tmpl-title">${escapeHtml(tmpl.name)}</div>
@@ -2576,12 +2587,13 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("");
 
     wizardTemplatesGrid.querySelectorAll(".wizard-template-card").forEach(card => {
-      card.addEventListener("click", () => {
+      card.addEventListener("click", (event) => {
+        if(event.target.closest(".wizard-preview-button")){openTemplatePreview(card.dataset.tmplId);return;}
         wizardTemplatesGrid.querySelectorAll(".wizard-template-card").forEach(c => c.classList.remove("active"));
         card.classList.add("active");
         const tmplId = card.getAttribute("data-tmpl-id");
         selectedTemplateId = tmplId;
-        applyTemplateDefaultsToWizard(tmplId);
+        if (!briefConfNameInput.value.trim()) applyTemplateDefaultsToWizard(tmplId);
       });
     });
   }
@@ -2650,6 +2662,33 @@ document.addEventListener("DOMContentLoaded", () => {
   const reviewSummaryContainer = document.getElementById("review-summary-container");
   const reviewMissingAlert = document.getElementById("review-missing-alert");
 
+  const previewDialog=document.createElement('dialog');previewDialog.className='wizard-preview-dialog';
+  previewDialog.innerHTML='<div class="wizard-preview-actions"><button type="button" data-size="100%">Desktop</button><button type="button" data-size="390px">Mobile</button><button type="button" data-close class="template-preview-close" aria-label="Close template preview" title="Close preview">&times;</button></div><iframe title="Template preview" sandbox=""></iframe>';
+  document.body.append(previewDialog);
+  previewDialog.querySelector('[data-close]').onclick=()=>previewDialog.close();
+  previewDialog.querySelectorAll('[data-size]').forEach(button=>button.onclick=()=>previewDialog.querySelector('iframe').style.width=button.dataset.size);
+  function openTemplatePreview(id){previewDialog.querySelector('iframe').src='/api/builder/template-preview/'+encodeURIComponent(id);previewDialog.showModal();}
+  const templateGallery=document.createElement('dialog');templateGallery.className='wizard-gallery-dialog';
+  templateGallery.innerHTML='<div class="wizard-preview-actions"><h2 id="studio-gallery-title">Explore templates</h2><button type="button" data-close>Close</button></div><p>Preview a design, then use it when you are ready to create a website.</p><div class="wizard-templates-grid"></div>';
+  templateGallery.setAttribute('aria-labelledby','studio-gallery-title');
+  document.body.append(templateGallery);
+  templateGallery.querySelector('[data-close]').onclick=()=>templateGallery.close();
+  const browseTemplates=document.createElement('button');browseTemplates.type='button';browseTemplates.id='btn-browse-studio-templates';browseTemplates.className='btn-studio-templates';browseTemplates.hidden=currentTab!=='builder';browseTemplates.innerHTML='<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9h18M9 9v12"/></svg><span>Templates</span>';browseTemplates.title='Browse website templates';
+  btnOpenCreateSiteModal.before(browseTemplates);
+  const studioDashboardLink=document.createElement('button');studioDashboardLink.type='button';studioDashboardLink.className='studio-dashboard-return';studioDashboardLink.textContent='← Go to Dashboard';studioDashboardLink.onclick=()=>{if(window.currentUser?.is_admin)window.location.href='/root/dashboard';else switchTab('pipeline');};document.querySelector('.app-topbar .topbar-left').append(studioDashboardLink);
+
+  browseTemplates.onclick=async()=>{
+    templateGallery.showModal();
+    const grid=templateGallery.querySelector('.wizard-templates-grid');grid.textContent='Loading templates…';
+    await fetchTemplatesAndRenderWizard();
+    grid.innerHTML=starterTemplates.map(t=>`<article class="wizard-template-card"><div class="wizard-template-thumbnail">${t.id==='blank'?'<div class="studio-blank-thumbnail"><span>＋</span><strong>Your blank canvas</strong><small>Space for your next idea</small></div>':`<iframe title="${escapeHtml(t.name)} preview" loading="lazy" sandbox="" tabindex="-1" src="/api/builder/template-preview/${encodeURIComponent(t.id)}"></iframe>`}</div><div class="studio-template-copy"><span class="studio-template-category">${escapeHtml(t.category||'Website')}</span><h3>${escapeHtml(t.name)}</h3><p>${escapeHtml(t.description||'')}</p></div><div class="studio-template-actions"><button type="button" class="wizard-preview-button" data-preview="${escapeHtml(t.id)}">Preview</button><button type="button" class="wizard-preview-button" data-use="${escapeHtml(t.id)}">${t.id==='blank'?'Start creating':'Use template'} <span aria-hidden="true">→</span></button></div></article>`).join('')||'Templates are unavailable. Please close and try again.';
+    grid.querySelectorAll('[data-preview]').forEach(button=>button.onclick=()=>openTemplatePreview(button.dataset.preview));
+    grid.querySelectorAll('[data-use]').forEach(button=>button.onclick=()=>{
+      selectedTemplateId=button.dataset.use;
+      templateGallery.close();btnOpenCreateSiteModal.click();
+      renderWizardTemplates(starterTemplates);
+    });
+  };
   let currentWizardStep = 1;
 
   function switchWizardStep(step) {
@@ -2838,7 +2877,7 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!selectedTemplateId && starterTemplates.length > 0) {
         selectedTemplateId = starterTemplates[0].id;
       }
-      if (selectedTemplateId) {
+      if (selectedTemplateId && !briefConfNameInput.value.trim()) {
         applyTemplateDefaultsToWizard(selectedTemplateId);
       }
     });
@@ -3148,12 +3187,18 @@ document.addEventListener("DOMContentLoaded", () => {
           <div class="empty-builder-state">
             <div class="studio-empty-preview" aria-hidden="true"><div class="studio-preview-top"><i></i><i></i><i></i></div><div class="studio-preview-layout"><div><b></b><b></b><span></span><em></em></div><div class="studio-preview-art"></div></div><div class="studio-preview-tiles"><i></i><i></i><i></i></div></div>
             <span class="studio-empty-kicker">${escapeHtml(confTitle)}</span>
-            <h3>Your next conference starts here.</h3>
-            <p>Tell us about your event, choose a design, and make it yours in SciStudio.</p>
+            <h3>A new space for<br>your next big idea.</h3>
+            <p>Bring your conference to life. Start with a beautiful design, make it yours, and build something worth sharing.</p>
             <button class="btn-primary-action btn-scistudio-create" onclick="document.getElementById('btn-open-create-site-modal').click()">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 5v14M5 12h14"/></svg>
-              <span>Create Website</span>
+              <span>Create your first website</span>
             </button>
+            <button type="button" class="studio-empty-template-link" onclick="document.getElementById('btn-browse-studio-templates').click()">Explore the template collection ↗</button>
+          </div>
+          <div class="studio-start-paths">
+            <button type="button" onclick="document.getElementById('btn-browse-studio-templates').click()"><span class="studio-path-number">01 / DISCOVER</span><strong>Find your starting point <span>↗</span></strong><span>Explore layouts made for research and events.</span></button>
+            <button type="button" onclick="document.getElementById('btn-open-create-site-modal').click()"><span class="studio-path-number">02 / CREATE</span><strong>Make it your own <span>↗</span></strong><span>Turn your conference brief into a website.</span></button>
+            <button type="button" onclick="document.getElementById('btn-open-create-conf-modal').click()"><span class="studio-path-number">03 / ORGANIZE</span><strong>A home for every event <span>↗</span></strong><span>Group websites into conference workspaces.</span></button>
           </div>
         `;
       }
@@ -3590,10 +3635,11 @@ document.addEventListener("DOMContentLoaded", () => {
   for (const [id,cls] of [['studio-left-toggle','studio-left-hidden'],['studio-right-toggle','studio-right-hidden']]) {
     document.getElementById(id).onclick=event=>{
       builderStudioView.classList.remove('studio-panels-hidden');
-      document.getElementById('studio-toggle-panels').textContent='Expand canvas';
+      document.getElementById('studio-toggle-panels').textContent='Focus mode';
       document.getElementById('studio-toggle-panels').setAttribute('aria-pressed','false');
       const hidden=builderStudioView.classList.toggle(cls);
       event.currentTarget.setAttribute('aria-pressed',String(!hidden));
+      saveStudioPanels();
       requestAnimationFrame(fitStudioCanvas);
     };
   }
@@ -3618,7 +3664,10 @@ document.addEventListener("DOMContentLoaded", () => {
   function positionStudioQuick(node) {
     const r=node.getBoundingClientRect(),width=Math.min(620,window.innerWidth-24);
     studioQuick.style.width=width+'px';studioQuick.style.left=Math.max(12,Math.min(window.innerWidth-width-12,r.left))+'px';
-    studioQuick.style.top=Math.max(12,Math.min(window.innerHeight-studioQuick.offsetHeight-12,r.top-studioQuick.offsetHeight-10))+'px';
+    const above=r.top-studioQuick.offsetHeight-10;
+    const below=r.bottom+10;
+    const top=above>=12?above:(below+studioQuick.offsetHeight<window.innerHeight-12?below:12);
+    studioQuick.style.top=Math.max(12,Math.min(window.innerHeight-studioQuick.offsetHeight-12,top))+'px';
   }
   function reopenStudioQuick() {
     if(!studioQuickTarget)return;
@@ -3626,7 +3675,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const node=[...canvasSectionsList.querySelectorAll('[data-studio-format-key]')].find(el=>el.dataset.studioFormatKey===key&&el.closest('[data-comp-id]').dataset.compId===comp.id);
     if(node){studioQuickTarget.node=node;positionStudioQuick(node);}else closeStudioQuick();
   }
-  function refreshStudioQuick() {renderCanvas();renderInspector(studioQuickTarget.comp);reopenStudioQuick();}
+  function refreshStudioQuick() {renderCanvas();renderInspector(studioQuickTarget.comp);reopenStudioQuick();syncStudioQuick();}
   function applyQuickStyle(patch) {
     if(!studioQuickTarget)return;
     if(patch.href&&!/^(https?:\/\/|\/(?!\/)|#|mailto:|tel:)/i.test(patch.href)){showToast('Use an https:// URL, #section, mailto: or tel: link.','error');return;}
@@ -3659,20 +3708,60 @@ document.addEventListener("DOMContentLoaded", () => {
       studioSetValue(target.comp,target.path,url);renderCanvas();renderInspector(target.comp);reopenStudioQuick();showToast('Image added and optimized. Save to keep your changes.','success');
     }catch(error){showToast(error.message||'Unable to read this image.','error');}
   }
+  function studioRenderedStyle(node) {
+    const leaf=node.querySelector('span')||node;
+    const css=getComputedStyle(leaf);
+    const gradientStop=css.backgroundImage.includes('gradient')?css.backgroundImage.match(/rgba?\([^)]+\)/)?.[0]:null;
+    const channels=(gradientStop||css.color).match(/[\d.]+/g);
+    const color=channels&&channels.length>=3?'#'+channels.slice(0,3).map(v=>Math.round(Number(v)).toString(16).padStart(2,'0')).join(''):'#334155';
+    return {color,size:parseFloat(css.fontSize),font:css.fontFamily,weight:css.fontWeight,italic:css.fontStyle,decoration:css.textDecorationLine,align:css.textAlign};
+  }
+  function syncStudioQuick() {
+    if(!studioQuickTarget||studioQuickTarget.kind!=='text')return;
+    const {node,start,end}=studioQuickTarget;
+    let renderedNode=node;
+    const selection=window.getSelection();
+    if(end>start&&selection.anchorNode&&node.contains(selection.anchorNode))renderedNode=selection.anchorNode.nodeType===1?selection.anchorNode:selection.anchorNode.parentElement;
+    const style=studioRenderedStyle(renderedNode);
+    for(const key of ['color','size','align']) {
+      const input=studioQuick.querySelector('[data-quick="'+key+'"]');
+      if(input)input.value=key==='size'?Math.round(style[key]):style[key];
+    }
+    const font=studioQuick.querySelector('[data-quick="font"]');
+    const family=style.font.split(',')[0].replace(/["']/g,'').trim().toLowerCase();
+    const match=StudioFormatting.fonts.find(item=>item.split(',')[0].toLowerCase()===family);
+    if(font&&match)font.value=match;
+    for(const [action,active] of [['bold',Number(style.weight)>=600],['italic',style.italic==='italic'],['underline',style.decoration.includes('underline')]])studioQuick.querySelector('[data-action="'+action+'"]').setAttribute('aria-pressed',String(active));
+    const gradient=getComputedStyle(renderedNode).backgroundImage;
+    const scope=studioQuick.querySelector('.studio-quick-scope');
+    if(gradient.includes('gradient'))scope.textContent='Gradient text · choosing a color applies a solid color';
+    else if(!(end>start))scope.textContent='Whole text · select words to format part';
+  }
+  function saveStudioPanels() {
+    try { localStorage.setItem('scistudio.panels',JSON.stringify({left:builderStudioView.classList.contains('studio-left-hidden'),right:builderStudioView.classList.contains('studio-right-hidden')})); } catch (_) {}
+  }
+  try {
+    const panels=JSON.parse(localStorage.getItem('scistudio.panels')||'{}');
+    for(const [side,id] of [['left','studio-left-toggle'],['right','studio-right-toggle']]) {
+      builderStudioView.classList.toggle('studio-'+side+'-hidden',!!panels[side]);
+      document.getElementById(id).setAttribute('aria-pressed',String(!panels[side]));
+    }
+  } catch (_) {}
   function openStudioQuick(comp,path,node,kind='text') {
     const linkKeys={primary_btn_text:'primary_btn_url',secondary_btn_text:'secondary_btn_url',cta_label:'cta_url',btn_label:'btn_url'};
     const linkKey=kind==='text'?linkKeys[path.at(-1)]:null;
     const linkPath=linkKey?[...path.slice(0,-1),linkKey]:null;
     studioQuickTarget={comp,path,node,kind,start:null,end:null};
     const key=JSON.stringify(path),style=kind==='image'?(comp.image_formats?.[key]||{}):(comp.field_formats?.[key]?.style||{});
+    const rendered=studioRenderedStyle(node);
     studioQuick.hidden=false;
     const select=(name,label,values,value)=>`<label>${label}<select data-quick="${name}">${values.map(([v,t])=>`<option value="${v}" ${String(value)===v?'selected':''}>${t}</option>`).join('')}</select></label>`;
     studioQuick.innerHTML=`<div class="studio-quick-heading"><strong>${kind==='image'?'Image':linkKey?'Button':'Text'}</strong><span class="studio-quick-scope">${kind==='image'?'Drop an image here to replace':'Whole text · select words to format part'}</span><button type="button" data-action="close" aria-label="Close formatting">×</button></div><div class="studio-quick-controls">${kind==='text'?`
       ${select('font','Font',StudioFormatting.fonts.map(font=>[font,font.split(',')[0]]),style.font||'Inter, sans-serif')}
       <label>Size<input data-quick="size" type="number" min="10" max="120" value="${style.size||Math.round(parseFloat(getComputedStyle(node).fontSize))}"></label>
-      <label>Color<input data-quick="color" type="color" value="${style.color||StudioFormatting.contrast(comp.studio_style?.background||currentSite.theme_config?.bg_color||'#ffffff')}"></label>
+      <label>Color<input data-quick="color" type="color" value="${rendered.color}"></label>
       <button type="button" data-action="bold" aria-label="Toggle bold"><b>B</b></button><button type="button" data-action="italic" aria-label="Toggle italic"><i>I</i></button><button type="button" data-action="underline" aria-label="Toggle underline"><u>U</u></button>
-      ${select('align','Align',[['left','Left'],['center','Center'],['right','Right']],style.align||'left')}
+      ${select('align','Align',[['left','Left'],['center','Center'],['right','Right']],style.align||rendered.align||'left')}
       ${select('lineHeight','Line height',[['1.2','Tight'],['1.5','Normal'],['1.8','Relaxed'],['2','Wide']],String(style.lineHeight||1.5))}
       <button type="button" data-action="edit">Edit text</button><button type="button" data-action="whole">Whole text</button>${linkPath?`<label>Button destination<input data-button-url value="${escapeHtml(studioValue(comp,linkPath)||'#')}" placeholder="https://… or #section"></label>`:`<label>Link<input data-quick="href" value="${escapeHtml(style.href||'')}" placeholder="https://… or #section"></label>`}`:`
       <button type="button" data-action="upload">Upload image</button><input type="file" class="studio-image-file" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
@@ -3689,7 +3778,7 @@ document.addEventListener("DOMContentLoaded", () => {
       button.onclick=()=>{
         const action=button.dataset.action,target=studioQuickTarget;if(!target)return;
         const format=target.comp.field_formats?.[key];
-        const effective={...(format?.style||{})};
+        const effective={...studioRenderedStyle(target.node),...(format?.style||{})};
         if(target.end>target.start)for(const run of format?.runs||[])if(run.start<=target.start&&run.end>=target.end)Object.assign(effective,run.style);
         if(action==='close')closeStudioQuick();
         else if(action==='bold')applyQuickStyle({weight:effective.weight==='700'?'400':'700'});
@@ -3709,6 +3798,7 @@ document.addEventListener("DOMContentLoaded", () => {
       studioQuick.querySelector('[data-image-url]').onchange=event=>{const url=event.target.value.trim();if(!/^(https?:\/\/|\/(?!\/))/.test(url)){showToast('Use an https:// image URL or upload an image.','error');return;}studioSetValue(comp,path,url);refreshStudioQuick();};
     }
     positionStudioQuick(node);
+    syncStudioQuick();
     captureStudioSelection();
   }
   function captureStudioSelection(){
@@ -3719,6 +3809,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const before=range.cloneRange();before.selectNodeContents(node);before.setEnd(range.startContainer,range.startOffset);
     studioQuickTarget.start=Array.from(before.toString()).length;studioQuickTarget.end=studioQuickTarget.start+Array.from(range.toString()).length;
     studioQuick.querySelector('.studio-quick-scope').textContent='Selected words';
+    syncStudioQuick();
   }
   document.addEventListener('selectionchange',captureStudioSelection);
   document.addEventListener('pointerdown',event=>{if(!studioQuick.hidden&&!studioQuick.contains(event.target)&&!event.target.closest('.studio-inline-text,.studio-edit-image'))closeStudioQuick();});
@@ -3792,7 +3883,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById('studio-toggle-panels').addEventListener('click', event => {
     const expanded = builderStudioView.classList.toggle('studio-panels-hidden');
     event.currentTarget.setAttribute('aria-pressed', String(expanded));
-    event.currentTarget.textContent = expanded ? 'Show panels' : 'Expand canvas';
+    event.currentTarget.textContent = expanded ? 'Exit focus' : 'Focus mode';
+    closeStudioQuick();
     requestAnimationFrame(fitStudioCanvas);
   });
 
@@ -4081,6 +4173,9 @@ document.addEventListener("DOMContentLoaded", () => {
     const primary = theme.primary_color || (isLight ? "#2563eb" : "#38bdf8");
     const bg = theme.bg_color || (isLight ? "#f8fafc" : "#0b0f19");
 
+    canvasSectionsList.dataset.motion = theme.animated_background ? 'ambient' : 'none';
+    canvasSectionsList.style.setProperty('--primary', primary);
+    canvasSectionsList.style.setProperty('--accent', theme.accent_color || '#8b5cf6');
     canvasSectionsList.style.backgroundColor = bg;
     canvasSectionsList.style.fontFamily = theme.font_family || "Inter, sans-serif";
     canvasSectionsList.className = isLight ? "theme-light-canvas" : "theme-dark-canvas";
@@ -4097,7 +4192,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
             <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move Down">⬇</button>
             <button class="btn-sec-tool" onclick="selectComponentForEditing('${comp.id}')" title="Configure">⚙ Settings</button>
-            <label class="studio-section-color" title="Section background · text contrast adjusts automatically"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?comp.studio_style.background:'#ffffff'}" onchange="updateStudioStyle('${comp.id}','background',this.value)">Background</label>
+            <label class="studio-section-color" title="Section background · text contrast adjusts automatically"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?comp.studio_style.background:bg}" onchange="updateStudioStyle('${comp.id}','background',this.value)">Background</label>
             <button class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete">🗑</button>
           </div>
 
@@ -5230,7 +5325,8 @@ document.addEventListener("DOMContentLoaded", () => {
   function initBrowserRouting() {
     const p = window.location.pathname.toLowerCase();
     let targetTab = "pipeline";
-    if (p.includes("scistudio") || p.includes("websitebuilder") || p.includes("builder")) {
+    if (p.endsWith("/collector") || p.endsWith("/dashboard")) { targetTab = "pipeline"; }
+    else if (p.includes("scistudio") || p.includes("websitebuilder") || p.includes("builder")) {
       targetTab = "builder";
       if (p.includes("websitebuilder") || p.includes("builder")) {
         try { window.history.replaceState({ tab: "builder" }, "", "/scistudio"); } catch(e) {}

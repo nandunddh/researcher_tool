@@ -2,7 +2,7 @@
 builder_manager.py
 ==================
 Website Builder Core Engine for SciProspect.
-Supports multiple dynamic websites with 15 rich pre-built templates,
+Supports multiple dynamic websites with six distinct starter templates,
 customized details (Navbar, Hero, Theme modes: Dark / Light / Obsidian, Active Sections),
 PostgreSQL cloud storage + local storage, standalone ZIP export, and public live URLs.
 """
@@ -40,131 +40,10 @@ def get_websites_dir() -> Path:
 
 
 # -----------------------------------------------------------------------------
-# 15 Built-in Curated Templates Catalog
+# Six design-led starter templates
 # -----------------------------------------------------------------------------
 
-TEMPLATES_CATALOG = [
-    {
-        "id": "genomics",
-        "name": "Genomics & Life Sciences Summit",
-        "category": "Conferences & Summits",
-        "icon": "🧬",
-        "theme": {"mode": "dark", "primary_color": "#38bdf8", "accent_color": "#6366f1", "bg_color": "#0b0f19"},
-        "description": "High-impact academic conference layout with keynotes, multi-omics sessions, poster hall, and registration tiers."
-    },
-    {
-        "id": "ai_medicine",
-        "name": "AI in Medicine & Health Forum",
-        "category": "Artificial Intelligence",
-        "icon": "🤖",
-        "theme": {"mode": "dark", "primary_color": "#06b6d4", "accent_color": "#8b5cf6", "bg_color": "#090d16"},
-        "description": "Next-gen tech gradient theme for clinical machine learning, predictive biomarkers, and algorithmic medicine."
-    },
-    {
-        "id": "lab_portal",
-        "name": "Academic Research Laboratory Portal",
-        "category": "Lab & PI Showcase",
-        "icon": "🔬",
-        "theme": {"mode": "dark", "primary_color": "#0ea5e9", "accent_color": "#10b981", "bg_color": "#0f172a"},
-        "description": "Showcase ongoing NIH/Horizon grants, peer-reviewed publications, PI bio, lab team members, and open postdoc positions."
-    },
-    {
-        "id": "oncology",
-        "name": "Clinical Oncology & Immunotherapy",
-        "category": "Medical Symposia",
-        "icon": "🩺",
-        "theme": {"mode": "light", "primary_color": "#2563eb", "accent_color": "#0284c7", "bg_color": "#f8fafc"},
-        "description": "Crisp medical light theme for cancer research, clinical trial phases, cellular immunology, and medical faculty."
-    },
-    {
-        "id": "neuroscience",
-        "name": "Neuroscience & Brain Connectomics",
-        "category": "Brain Sciences",
-        "icon": "🧠",
-        "theme": {"mode": "dark", "primary_color": "#a855f7", "accent_color": "#3b82f6", "bg_color": "#0b0d17"},
-        "description": "Striking dark violet styling tailored for neural mapping, neurodegenerative disease breakthroughs, and cognitive pioneers."
-    },
-    {
-        "id": "crispr",
-        "name": "CRISPR & Precision Gene Editing",
-        "category": "Biotechnology",
-        "icon": "⚡",
-        "theme": {"mode": "dark", "primary_color": "#10b981", "accent_color": "#06b6d4", "bg_color": "#09121d"},
-        "description": "Cutting-edge biotech design highlighting genetic engineering, molecular diagnostics, and patent portfolios."
-    },
-    {
-        "id": "climate",
-        "name": "Global Climate Science & Ecology",
-        "category": "Earth & Ecology",
-        "icon": "🌍",
-        "theme": {"mode": "light", "primary_color": "#059669", "accent_color": "#0d9488", "bg_color": "#f0fdf4"},
-        "description": "Fresh, sustainable design for environmental research, planetary modeling, renewable energy, and ecology panels."
-    },
-    {
-        "id": "pharma",
-        "name": "Pharmaceutical Discovery & Trials",
-        "category": "Pharma & Drug Discovery",
-        "icon": "🧪",
-        "theme": {"mode": "dark", "primary_color": "#38bdf8", "accent_color": "#ec4899", "bg_color": "#0f172a"},
-        "description": "Designed for clinical trials pipelines, small molecule screening, pharmacology keynotes, and biotech investors."
-    },
-    {
-        "id": "quantum",
-        "name": "Quantum Computing & DeepTech",
-        "category": "Physics & Computing",
-        "icon": "⚛️",
-        "theme": {"mode": "dark", "primary_color": "#f59e0b", "accent_color": "#ef4444", "bg_color": "#0c0a09"},
-        "description": "High-contrast dark obsidian aesthetic for quantum algorithms, theoretical physics, and hardware workshops."
-    },
-    {
-        "id": "univ_dept",
-        "name": "University Faculty & Graduate Program",
-        "category": "Academic Departments",
-        "icon": "🎓",
-        "theme": {"mode": "light", "primary_color": "#1d4ed8", "accent_color": "#4338ca", "bg_color": "#ffffff"},
-        "description": "Clean institutional layout for university departments, curriculum overviews, professors, admissions, and student research."
-    },
-    {
-        "id": "microbiome",
-        "name": "Microbiome & Precision Nutrition",
-        "category": "Health & Nutrition",
-        "icon": "🌱",
-        "theme": {"mode": "dark", "primary_color": "#84cc16", "accent_color": "#06b6d4", "bg_color": "#0d1512"},
-        "description": "Vibrant emerald accents for gut microbiome research, metabolic pathways, metagenomics, and clinical nutrition."
-    },
-    {
-        "id": "saas_platform",
-        "name": "Scientific Cloud & Bio-Data Software",
-        "category": "Scientific Software",
-        "icon": "💻",
-        "theme": {"mode": "dark", "primary_color": "#6366f1", "accent_color": "#38bdf8", "bg_color": "#0b0f19"},
-        "description": "Modern SaaS landing page with product mockups, feature breakdowns, API highlights, and subscription plans."
-    },
-    {
-        "id": "grant_consortium",
-        "name": "NIH R01 Grant Consortium & Trials",
-        "category": "Grant & Research Consortia",
-        "icon": "🏛️",
-        "theme": {"mode": "light", "primary_color": "#0f766e", "accent_color": "#0369a1", "bg_color": "#f8fafc"},
-        "description": "Official collaborative portal for multi-institution grant deliverables, participating university labs, and annual progress."
-    },
-    {
-        "id": "young_investigators",
-        "name": "Young Investigators & Postdoc Expo",
-        "category": "Career & Networking",
-        "icon": "🚀",
-        "theme": {"mode": "dark", "primary_color": "#f43f5e", "accent_color": "#8b5cf6", "bg_color": "#0f172a"},
-        "description": "Engaging layout for early-career researcher networking, flash poster competitions, mentor pairings, and job booths."
-    },
-    {
-        "id": "chemistry_symposium",
-        "name": "Physical & Synthetic Chemistry Annual",
-        "category": "Chemistry & Materials",
-        "icon": "⚗️",
-        "theme": {"mode": "dark", "primary_color": "#eab308", "accent_color": "#38bdf8", "bg_color": "#0a0f1d"},
-        "description": "Tailored for material science, chemical synthesis, catalysis breakthroughs, and international academic poster halls."
-    }
-]
+TEMPLATES_CATALOG = [{'id': 'summit', 'name': 'Summit', 'category': 'Bold events', 'layout': 'split', 'theme': {'mode': 'light', 'primary_color': '#6148c7', 'accent_color': '#db7251', 'bg_color': '#ffffff'}, 'description': 'A bold image-led conference website with clear registration and event highlights.'}, {'id': 'academic', 'name': 'Academic', 'category': 'Research & programs', 'layout': 'conference_program', 'theme': {'mode': 'light', 'primary_color': '#244c83', 'accent_color': '#467b95', 'bg_color': '#f8fafc'}, 'description': 'A clear research-first layout with event details, scientific content and speakers.'}, {'id': 'spotlight', 'name': 'Spotlight', 'category': 'Speakers & community', 'layout': 'centered', 'theme': {'mode': 'light', 'primary_color': '#a04467', 'accent_color': '#d87a91', 'bg_color': '#ffffff'}, 'description': 'A centered introduction followed by speakers, designed around the people at your event.'}, {'id': 'future', 'name': 'Future', 'category': 'Technology & innovation', 'layout': 'image_top', 'theme': {'mode': 'dark', 'primary_color': '#8b82ff', 'accent_color': '#38bdf8', 'bg_color': '#0b0f19'}, 'description': 'An immersive dark design with a large visual, bright accents and innovation highlights.'}, {'id': 'editorial', 'name': 'Editorial', 'category': 'Stories & discovery', 'layout': 'image_left', 'theme': {'mode': 'light', 'primary_color': '#9b573b', 'accent_color': '#ad8a65', 'bg_color': '#ffffff'}, 'description': 'An image-first editorial layout with warm accents and room for your conference story.'}, {'id': 'compact', 'name': 'Compact', 'category': 'Focused one-page events', 'layout': 'text_only', 'theme': {'mode': 'light', 'primary_color': '#365d9e', 'accent_color': '#6555b7', 'bg_color': '#ffffff'}, 'description': 'A concise typography-led page focused on registration, questions and contact details.'}]
 
 
 # -----------------------------------------------------------------------------
@@ -182,6 +61,7 @@ def build_template_components(
     """
     tmpl = next((t for t in TEMPLATES_CATALOG if t["id"] == template_id), TEMPLATES_CATALOG[0])
     theme = dict(tmpl["theme"])
+    theme["animated_background"] = True
     custom_opts = custom_opts or {}
 
     # Override theme if chosen in wizard
@@ -211,8 +91,8 @@ def build_template_components(
     })
 
     # Custom hero options
-    hero_eyebrow = custom_opts.get("hero_eyebrow") or f"🌟 {tmpl['name'].upper()} 2026"
-    hero_headline = custom_opts.get("hero_headline") or f"{site_name}: Breakthroughs & Collaborative Discovery"
+    hero_eyebrow = custom_opts.get("hero_eyebrow") or "Research. Exchange. Discover."
+    hero_headline = custom_opts.get("hero_headline") or site_name
     hero_sub = custom_opts.get("hero_subheadline") or tmpl["description"]
     hero_btn1 = custom_opts.get("hero_btn1") or "Register Now"
     hero_btn2 = custom_opts.get("hero_btn2") or "Explore Keynotes"
@@ -235,8 +115,8 @@ def build_template_components(
         event_date_val = custom_opts.get("event_date") or "October 14–18, 2026"
 
     event_location_val = brief_venue or custom_opts.get("event_location") or "Boston Convention Center, MA"
-    event_format_val = brief_venue or custom_opts.get("event_format") or "Hybrid (In-Person & Live Stream)"
-    hero_layout = custom_opts.get("hero_layout_variant") or ("conference_program" if (brief_start_date or brief_venue) else "split")
+    event_format_val = custom_opts.get("event_format") or brief.get("event_format") or "Format to be announced"
+    hero_layout = custom_opts.get("hero_layout_variant") or tmpl.get("layout", "split")
 
     nav_brand = custom_opts.get("nav_brand") or site_name
     nav_cta = custom_opts.get("nav_cta") or "Register Now"
@@ -503,6 +383,19 @@ def build_template_components(
         }
     })
 
+    # Each starter has its own section hierarchy, not only a different palette.
+    orders = {
+        "summit": ["navbar", "hero", "features", "speakers", "pricing", "gallery", "faq", "contact", "footer"],
+        "academic": ["navbar", "hero", "features", "speakers", "faq", "pricing", "contact", "footer"],
+        "spotlight": ["navbar", "hero", "speakers", "gallery", "features", "pricing", "contact", "footer"],
+        "future": ["navbar", "hero", "features", "gallery", "speakers", "pricing", "faq", "contact", "footer"],
+        "editorial": ["navbar", "hero", "features", "gallery", "speakers", "contact", "footer"],
+        "compact": ["navbar", "hero", "pricing", "faq", "contact", "footer"],
+    }
+    order = orders.get(tmpl["id"], orders["summit"])
+    if "sections" not in custom_opts:
+        components = [component for component in components if component["type"] in order]
+    components.sort(key=lambda component: order.index(component["type"]) if component["type"] in order else len(order)-1)
     return components, theme
 
 
@@ -1522,6 +1415,9 @@ textarea.form-input {{
             section_html = "".join(body_html_parts[part_start:])
             body_html_parts[part_start:] = [f'<div class="{'studio-auto-contrast' if re.fullmatch(r'#[0-9a-fA-F]{6}', background) else 'studio-section-style'}" style="{";".join(rules)}">{section_html}</div>']
 
+    ambient = bool(theme.get("animated_background"))
+    if ambient:
+        css += (Path(__file__).parent / "static" / "studio-ambient.css").read_text(encoding="utf-8")
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1536,7 +1432,7 @@ textarea.form-input {{
 {css}
   </style>
 </head>
-<body>
+<body class="{'studio-ambient' if ambient else ''}">
 {"".join(body_html_parts)}
 </body>
 </html>
@@ -1679,6 +1575,9 @@ class WebsiteBuilderEngine:
         now_str = datetime.now().isoformat()
         components, t_theme = build_template_components(template_id or "genomics", clean_name, custom_options)
         
+        if template_id == "blank":
+            components = []
+
         # Merge theme
         if theme_config:
             t_theme.update(theme_config)

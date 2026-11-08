@@ -1137,9 +1137,10 @@
         let latestIssuedAccount = null;
 
         // Check authentication on startup
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             const rootToken = sessionStorage.getItem('scip_root_token') || localStorage.getItem('scip_root_token');
             if (!rootToken) {
+                try { const response=await fetch('/api/admin/stats'); if(response.ok){refreshDashboard();return;} } catch (_) {}
                 openLoginModal();
             } else {
                 refreshDashboard();
@@ -1912,5 +1913,5 @@ Launch your desktop application and enter this License Key to activate!`;
             }
         }
 </script>
-</body>
+<script src="/admin-icons.js?v=1"></script></body>
 </html>
