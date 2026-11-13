@@ -10,7 +10,7 @@ import urllib.error
 import http.cookiejar
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT_DIR / "web"))
+sys.path.insert(0, str(ROOT_DIR / "backend"))
 
 from license_manager import LicenseManager, hash_password
 import app

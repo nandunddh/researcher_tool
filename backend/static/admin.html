@@ -1034,7 +1034,7 @@
             <div class="card-panel">
                 <div class="panel-header">
                     <div class="panel-title">
-                        <span>👥 Client Accounts & Live Remote Control</span>
+                        <span>Manage accounts</span>
                     </div>
                 </div>
 
@@ -1060,19 +1060,18 @@
                         <thead>
                             <tr>
                                 <th>Client / Organization</th>
-                                <th>License Key</th>
                                 <th>Type & Seats</th>
                                 <th>Tier</th>
                                 <th>Status</th>
                                 <th>SciStudio</th>
                                 <th>Expires / Remaining</th>
                                 <th>Limit</th>
-                                <th>Remote Control</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
                         <tbody id="accountsTableBody">
                             <tr>
-                                <td colspan="9" style="text-align: center; padding: 2rem; color: var(--text-muted);">
+                                <td colspan="8" style="text-align: center; padding: 2rem; color: var(--text-muted);">
                                     Loading accounts database...
                                 </td>
                             </tr>
@@ -1366,13 +1365,13 @@
                 if (isStopped) {
                     stopResumeBtn = `
                         <button class="btn-action btn-resume" onclick="resumeAccount('${acc.license_key}')" title="Resume user access">
-                            ▶️ Resume
+                            Resume access
                         </button>
                     `;
                 } else {
                     stopResumeBtn = `
                         <button class="btn-action btn-stop" onclick="stopAccount('${acc.license_key}')" title="Stop and revoke user access instantly">
-                            ⛔ STOP
+                            Suspend
                         </button>
                     `;
                 }
@@ -1381,21 +1380,20 @@
                 const orgDisplay = isOrg 
                     ? `<div class="client-info">
                          <span class="badge-org"><i class="fa-solid fa-building"></i> Org</span>
-                         <span style="font-weight:700;color:#f8fafc;font-size:0.92rem;">${escapeHtml(acc.org_name || acc.client_name)}</span>
-                         <span class="client-email">${escapeHtml(acc.client_email)} <small style="color:#94a3b8;">(Admin: ${escapeHtml(acc.client_name)})</small></span>
-                         ${acc.notes ? `<small style="color:var(--text-subtle);font-size:0.75rem;">📝 ${escapeHtml(acc.notes)}</small>` : ''}
+                         <span class="client-name">${escapeHtml(acc.org_name || acc.client_name)}</span>
+                         <span class="client-email">${escapeHtml(acc.client_email)}</span>
+                         <small class="account-owner">Admin: ${escapeHtml(acc.client_name)}</small>
                        </div>`
                     : `<div class="client-info">
                          <span class="badge-single"><i class="fa-solid fa-user"></i> Single</span>
                          <span class="client-name">${escapeHtml(acc.client_name)}</span>
                          <span class="client-email">${escapeHtml(acc.client_email)}</span>
-                         ${acc.notes ? `<small style="color:var(--text-subtle);font-size:0.75rem;">📝 ${escapeHtml(acc.notes)}</small>` : ''}
                        </div>`;
 
                 const memberCount = acc.members ? acc.members.length : 0;
                 const seatLimitDisplay = (acc.seat_limit === -1 || acc.seat_limit === 'Unlimited') ? '∞' : (acc.seat_limit || 1);
                 const seatsCell = (isOrg || acc.can_invite_users) 
-                    ? `<div style="display:flex;align-items:center;gap:0.4rem;">
+                    ? `<div class="account-team">
                          <span style="font-weight:600;color:#cbd5e1;font-size:0.8rem;">${memberCount}/${seatLimitDisplay}</span>
                          <button class="btn-manage-team" onclick="openTeamModal('${acc.license_key}')" title="Manage team members & permissions">
                            <i class="fa-solid fa-users"></i> Team
@@ -1406,12 +1404,6 @@
                 return `
                     <tr>
                         <td>${orgDisplay}</td>
-                        <td>
-                            <span class="key-badge" onclick="copyText('${acc.license_key}')" title="Click to copy key">
-                                ${acc.license_key}
-                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                            </span>
-                        </td>
                         <td>${seatsCell}</td>
                         <td>${tierBadge}</td>
                         <td>${statusBadge}</td>
@@ -1436,12 +1428,12 @@
                                 </button>
                                 ${!isPro ? `
                                     <button class="btn-action btn-extend" onclick="upgradeToPro('${acc.license_key}')" title="Upgrade this user to Pro">
-                                        💎 Pro
+                                    Upgrade
                                     </button>
                                 ` : ''}
                                 ${acc.license_key !== 'SCIP-PRO-ROOT-MASTER' ? `
                                     <button class="btn-action btn-delete" onclick="deleteAccount('${acc.license_key}')" title="Delete account">
-                                        🗑️
+                                    Delete
                                     </button>
                                 ` : ''}
                             </div>

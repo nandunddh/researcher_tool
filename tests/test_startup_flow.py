@@ -41,7 +41,7 @@ class StartupFlowTests(unittest.TestCase):
 
     def test_02_css_suppression_of_splash(self):
         """Verify CSS contains no splash keyframes or active splash rules, and auth overlay defaults to hidden."""
-        css_path = Path(__file__).resolve().parents[1] / "web" / "static" / "index.css"
+        css_path = Path(__file__).resolve().parents[1] / "backend" / "static" / "index.css"
         css_content = css_path.read_text(encoding="utf-8")
 
         self.assertNotIn(".app-splash-screen", css_content, "CSS must not contain .app-splash-screen rules")
@@ -55,7 +55,7 @@ class StartupFlowTests(unittest.TestCase):
 
     def test_03_js_startup_flow_logic(self):
         """Verify JS has removed splash logic, contains clean anti-tamper, and session checking."""
-        js_path = Path(__file__).resolve().parents[1] / "web" / "static" / "app.js"
+        js_path = Path(__file__).resolve().parents[1] / "backend" / "static" / "app.js"
         js_content = js_path.read_text(encoding="utf-8")
 
         # No initSplashScreen

@@ -325,6 +325,14 @@ class LicenseManager:
         """
         db = self._load_db()
         tier_clean = tier.strip().lower()
+        clean_email = email.strip().lower()
+        if not clean_email or "@" not in clean_email:
+            raise ValueError("A valid client email address is required.")
+        for existing in db.get("licenses", {}).values():
+            if existing.get("client_email", "").strip().lower() == clean_email:
+                raise ValueError(f"An account already exists for {clean_email}.")
+            if any(member.get("email", "").strip().lower() == clean_email for member in existing.get("members", [])):
+                raise ValueError(f"{clean_email} is already used by a team member.")
         if tier_clean not in ("trial", "pro"):
             tier_clean = "trial"
 
@@ -355,7 +363,7 @@ class LicenseManager:
             "account_type": acct_type,
             "org_name": org_name.strip() if acct_type == "org" else "",
             "client_name": name.strip() or ("Organization Admin" if acct_type == "org" else "Unnamed Client"),
-            "client_email": email.strip().lower() or "client@example.com",
+            "client_email": clean_email,
             "tier": tier_clean,
             "status": "active",
             "can_invite_users": bool(can_invite_users or acct_type == "org"),
@@ -871,6 +879,76 @@ class LicenseManager:
     # -------------------------------------------------------------------------
     # Authentication & Session Token Engine
     # -------------------------------------------------------------------------
+    def _find_user_record(self, db: dict, identifier: str) -> Tuple[Optional[str], Optional[dict], Optional[dict], Optional[str], Optional[dict]]:
+        """Finds a primary license account or organization subaccount member by email or license key."""
+        ident_lower = (identifier or "").strip().lower()
+        key_upper = (identifier or "").strip().upper()
+        for lk, acc in db.get("licenses", {}).items():
+            if acc.get("client_email", "").strip().lower() == ident_lower or lk == key_upper:
+                return lk, acc, None, None, None
+        for lk, acc in db.get("licenses", {}).items():
+            for mem in acc.get("members", []):
+                if mem.get("email", "").strip().lower() == ident_lower:
+                    return None, None, mem, lk, acc
+        return None, None, None, None, None
+
+    def _validate_reset_target(self, db: dict, email: str) -> Tuple[bool, str, int, Optional[dict], Optional[dict]]:
+        """Validates whether an email belongs to a non-root, non-stopped account eligible for password reset."""
+        clean_email = (email or "").strip().lower()
+        if not clean_email:
+            return False, "Please enter your account email.", 400, None, None
+        if clean_email in ("admin", "root", "sciprospect", "root@sciprospect.internal"):
+            return False, "Root administrator password cannot be reset from this screen.", 403, None, None
+        if "@" not in clean_email:
+            return False, "Please enter a valid account email.", 400, None, None
+
+        found_key, found_acc, found_member, parent_key, parent_acc = self._find_user_record(db, clean_email)
+        if not found_acc and not found_member:
+            return False, "No account found matching this email.", 404, None, None
+
+        if found_key == "SCIP-PRO-ROOT-MASTER":
+            return False, "Root administrator password cannot be reset from this screen.", 403, None, None
+
+        target_lic = parent_key if found_member else found_key
+        val = self.validate_license(target_lic)
+        if val.get("status") == "stopped":
+            return False, "This account is suspended. Please contact your administrator.", 403, None, None
+
+        return True, "Account verified. Enter your new password.", 200, found_acc, found_member
+
+    def check_password_reset_email(self, email: str) -> Tuple[bool, str, int]:
+        """Checks whether an account email exists for forgot-password flow."""
+        db = self._load_db()
+        ok, msg, code, _, _ = self._validate_reset_target(db, email)
+        return ok, msg, code
+
+    def reset_password_by_email(self, email: str, new_password: str) -> Tuple[bool, str, int]:
+        """Updates a client or organization member password by email and revokes old sessions."""
+        db = self._load_db()
+        ok, msg, code, found_acc, found_member = self._validate_reset_target(db, email)
+        if not ok:
+            return False, msg, code
+
+        pwd = (new_password or "").strip()
+        if len(pwd) < 6:
+            return False, "New password must be at least 6 characters long.", 400
+
+        target = found_member if found_member is not None else found_acc
+        target["password_hash"] = hash_password(pwd)
+        self._save_db(db)
+
+        clean_email = email.strip().lower()
+        revoked = [
+            tok for tok, sess in self._sessions.items()
+            if (sess.get("user") or {}).get("client_email", "").strip().lower() == clean_email
+        ]
+        if revoked:
+            for tok in revoked:
+                self._sessions.pop(tok, None)
+            self._save_sessions()
+
+        return True, "Password updated successfully. You can now sign in.", 200
+
     def authenticate(self, identifier: str, password: Optional[str] = None) -> Tuple[bool, dict, str]:
         """
         Authenticates a user via Email and Password:
@@ -903,32 +981,7 @@ class LicenseManager:
 
         # 2. Email + Password Lookup
         db = self._load_db()
-        found_acc = None
-        found_key = None
-        key_upper = ident.upper()
-
-        # Check primary / owner accounts first
-        for lk, acc in db.get("licenses", {}).items():
-            if acc.get("client_email", "").strip().lower() == ident.lower() or lk == key_upper:
-                found_acc = acc
-                found_key = lk
-                break
-
-        # If not a primary account, check organization subaccount members
-        found_member = None
-        parent_acc = None
-        parent_key = None
-
-        if not found_acc:
-            for lk, acc in db.get("licenses", {}).items():
-                for mem in acc.get("members", []):
-                    if mem.get("email", "").strip().lower() == ident.lower():
-                        found_member = mem
-                        parent_acc = acc
-                        parent_key = lk
-                        break
-                if found_member:
-                    break
+        found_key, found_acc, found_member, parent_key, parent_acc = self._find_user_record(db, ident)
 
         if not found_acc and not found_member:
             return False, {}, "No account found matching this email."

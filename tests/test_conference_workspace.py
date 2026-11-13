@@ -21,7 +21,7 @@ from pathlib import Path
 # Setup temporary test directory for storage isolation
 TEST_TMP = tempfile.TemporaryDirectory()
 os.environ["SCIPROSPECT_DATA_DIR"] = TEST_TMP.name
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "web"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 from conference_manager import ConferenceManager
 from builder_manager import WebsiteBuilderEngine

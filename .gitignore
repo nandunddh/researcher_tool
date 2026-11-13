@@ -31,6 +31,8 @@ test_app/dist_installer/
 web/licenses.json
 .active_license
 web/sessions.json
+backend/sessions.json
+backend/.active_license
 sessions.json
 
 # Collector runtime archives
@@ -38,3 +40,12 @@ sessions.json
 *.sqlite3-journal
 *.csv.tmp
 *.backup-*
+
+# Next.js frontend and local runtime logs
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/*.tsbuildinfo
+frontend/.env.local
+frontend/.env.*.local
+web/server-restart.*.log

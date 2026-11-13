@@ -412,14 +412,15 @@ def compile_website_html(site_data: dict) -> Tuple[str, str]:
     title = site_data.get("name", "Website")
     theme = site_data.get("theme_config", {})
     mode = theme.get("mode", "dark")
-    is_light = (mode == "light")
+    bg_color = theme.get("bg_color", "#f8fafc" if mode == "light" else "#0b0f19")
+    is_light = (mode == "light") or (contrast_color(bg_color) != '#ffffff')
 
     primary_color = theme.get("primary_color", "#2563eb" if is_light else "#38bdf8")
     accent_color = theme.get("accent_color", "#0284c7" if is_light else "#6366f1")
-    bg_color = theme.get("bg_color", "#f8fafc" if is_light else "#0b0f19")
     card_bg = "#ffffff" if is_light else "#131b2e"
     card_hover = "#f1f5f9" if is_light else "#1e293b"
-    text_color = theme.get("text_color", "#0f172a" if is_light else "#f8fafc")
+    preferred_text = theme.get("text_color")
+    text_color = contrast_color(bg_color, preferred_text if preferred_text else ("#0f172a" if is_light else "#f8fafc"))
     text_muted = "#64748b" if is_light else "#94a3b8"
     border_glass = "rgba(0, 0, 0, 0.08)" if is_light else "rgba(255, 255, 255, 0.08)"
     border_focus = "rgba(37, 99, 235, 0.4)" if is_light else "rgba(56, 189, 248, 0.4)"
@@ -531,7 +532,11 @@ a {{
   display: flex;
   justify-content: space-between;
   align-items: center;
-  height: 72px;
+  min-height: 72px;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }}
 .nav-brand {{
   font-size: 1.35rem;
@@ -540,6 +545,7 @@ a {{
 }}
 .nav-links {{
   display: flex;
+  flex-wrap: wrap;
   gap: 1.75rem;
   align-items: center;
 }}
@@ -549,6 +555,7 @@ a {{
   color: {'#334155' if is_light else '#cbd5e1'};
   transition: color 0.2s;
 }}
+.studio-auto-contrast .nav-link,.studio-auto-contrast .nav-brand {{ color:var(--text-main); }}
 .nav-link:hover {{
   color: var(--primary);
 }}
@@ -583,6 +590,7 @@ a {{
   line-height: 1.15;
   letter-spacing: -1px;
   margin: 1rem 0 1.25rem 0;
+  color: var(--text-main);
 }}
 .hero-subhead {{
   font-size: 1.15rem;
@@ -595,14 +603,17 @@ a {{
   gap: 1rem;
 }}
 .btn-primary {{
-  background: linear-gradient(135deg, var(--accent), var(--primary));
+  background: var(--primary);
   color: #fff;
   padding: 0.85rem 1.85rem;
   border-radius: 10px;
   font-weight: 700;
   font-size: 1rem;
   transition: all 0.25s;
-  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.28);
+}}
+.btn-primary.btn-gradient {{
+  background: linear-gradient(135deg, var(--accent), var(--primary));
 }}
 .btn-primary:hover {{
   transform: translateY(-2px);
@@ -1088,7 +1099,7 @@ textarea.form-input {{
 @media(max-width:600px) { .studio-content-section { padding:32px 18px; } .studio-content-section > h2 { font-size:25px; } }
 """
     css += """
-.studio-auto-contrast > header,.studio-auto-contrast > section,.studio-auto-contrast > footer { background:transparent!important; }
+.studio-auto-contrast > nav,.studio-auto-contrast > header,.studio-auto-contrast > section,.studio-auto-contrast > footer { background:transparent!important; }
 .studio-auto-contrast h1,.studio-auto-contrast h2,.studio-auto-contrast h3,.studio-auto-contrast h4 { color:var(--text-main)!important; -webkit-text-fill-color:var(--text-main); }
 .studio-auto-contrast p { color:var(--text-muted)!important; }
 """
@@ -1128,14 +1139,25 @@ textarea.form-input {{
                 embed_height = 300
             body_html_parts.append(f'<iframe title="Custom section" sandbox="" srcdoc="{escape_html(str(data.get("html", "")), quote=True)}" style="display:block;width:100%;height:{embed_height}px;border:0"></iframe>')
         elif c_type == "navbar":
-            links_html = "".join([f'<a class="nav-link" href="{l.get("url", "#")}">{l.get("label", "")}</a>' for l in data.get("links", [])])
+            logo_html = ""
+            logo_url = str(data.get("logo_url", ""))
+            if re.match(r'^(https?://|/(?!/)|data:image/(?:png|jpeg|webp|gif);base64,)', logo_url):
+                try:
+                    logo_height = min(120, max(20, int(data.get("logo_height") or 40)))
+                except (ValueError, TypeError):
+                    logo_height = 40
+                logo_alt = escape_html(str(data.get("logo_alt") or data.get("brand_name") or "Logo"), quote=True)
+                logo_html = f'<img src="{escape_html(logo_url, quote=True)}" alt="{logo_alt}" style="height:{logo_height}px;width:auto;max-width:240px;object-fit:contain;">'
+            brand_mode = data.get("brand_mode") or ("image" if logo_html else "text")
+            brand_html = logo_html if brand_mode == "image" else escape_html(str(data.get("brand_name", title)))
+            links_html = "".join([f'<a class="{"btn-nav" if l.get("style") == "button" else "nav-link"}" href="{l.get("url", "#")}">{l.get("label", "")}</a>' for l in data.get("links", [])])
             body_html_parts.append(f"""
 <nav class="site-navbar">
   <div class="site-container nav-inner">
-    <a href="#" class="nav-brand">{data.get("brand_name", title)}</a>
+    <a href="#" class="nav-brand" style="display:flex;align-items:center;gap:10px;">{brand_html}</a>
     <div class="nav-links">
       {links_html}
-      <a href="{data.get("cta_link", "#pricing")}" class="btn-nav">{data.get("cta_label", "Register")}</a>
+      <a href="{data.get("cta_link", data.get("cta_url", "#pricing"))}" class="btn-nav">{data.get("cta_label", "Register")}</a>
     </div>
   </div>
 </nav>
@@ -1143,6 +1165,31 @@ textarea.form-input {{
 
         elif c_type == "hero":
             variant = data.get("layout_variant") or "split"
+            headline_text = data.get("headline", title)
+            headline_style = ""
+            if data.get("headline_gradient") is not False:
+                preset = data.get("gradient_preset") or ("navy_blue" if is_light else "cyan_blue")
+                if preset == "cyan_blue":
+                    grad_str = "linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%)"
+                elif preset == "emerald_teal":
+                    grad_str = "linear-gradient(135deg, #34d399 0%, #06b6d4 100%)"
+                elif preset == "purple_violet":
+                    grad_str = "linear-gradient(135deg, #c084fc 0%, #ec4899 100%)"
+                elif preset == "sunset_amber":
+                    grad_str = "linear-gradient(135deg, #fbbf24 0%, #f43f5e 100%)"
+                elif preset == "navy_blue":
+                    grad_str = "linear-gradient(135deg, #0f172a 0%, #2563eb 100%)"
+                elif preset == "custom" and data.get("custom_grad_color1") and data.get("custom_grad_color2"):
+                    grad_str = f"linear-gradient(135deg, {data.get('custom_grad_color1')} 0%, {data.get('custom_grad_color2')} 100%)"
+                else:
+                    grad_str = "linear-gradient(135deg, #0f172a 0%, #2563eb 100%)" if is_light else f"linear-gradient(135deg, {primary_color} 0%, #818cf8 100%)"
+                headline_style = f' style="background:{grad_str};-webkit-background-clip:text;-webkit-text-fill-color:transparent;"'
+
+            primary_btn_style = data.get("primary_btn_style")
+            primary_btn_bg = data.get("primary_btn_bg")
+            btn_class = "btn-primary btn-gradient" if primary_btn_style == "gradient" else "btn-primary"
+            btn_custom_style = f' style="background:{primary_btn_bg};"' if (primary_btn_bg and primary_btn_style != "gradient") else ''
+
             if variant == "conference_program":
                 event_date = data.get("event_date") or "October 14–18, 2026"
                 event_location = data.get("event_location") or "Boston Convention Center, MA"
@@ -1159,7 +1206,7 @@ textarea.form-input {{
   <div class="site-container hero-program-wrap">
     <div class="hero-program-content">
       <span class="section-tag">{data.get("eyebrow", "")}</span>
-      <h1 class="hero-headline">{data.get("headline", title)}</h1>
+      <h1 class="hero-headline"{headline_style}>{headline_text}</h1>
       <p class="hero-subhead">{data.get("subheadline", "")}</p>
       {sec_btn_html}
     </div>
@@ -1194,7 +1241,7 @@ textarea.form-input {{
           </div>
         </div>
       </div>
-      <a href="{reg_btn_url}" class="btn-primary btn-program-reg">{reg_btn_text}</a>
+      <a href="{reg_btn_url}" class="{btn_class} btn-program-reg"{btn_custom_style}>{reg_btn_text}</a>
     </div>
   </div>
 </header>
@@ -1208,10 +1255,10 @@ textarea.form-input {{
   <div class="site-container hero-content">
     <div>
       <span class="section-tag">{data.get("eyebrow", "")}</span>
-      <h1 class="hero-headline">{data.get("headline", title)}</h1>
+      <h1 class="hero-headline"{headline_style}>{headline_text}</h1>
       <p class="hero-subhead">{data.get("subheadline", "")}</p>
       <div class="hero-actions">
-        <a href="{data.get("primary_btn_url", "#pricing")}" class="btn-primary">{data.get("primary_btn_text", "Get Started")}</a>
+        <a href="{data.get("primary_btn_url", "#pricing")}" class="{btn_class}"{btn_custom_style}>{data.get("primary_btn_text", "Get Started")}</a>
         <a href="{data.get("secondary_btn_url", "#features")}" class="btn-secondary">{data.get("secondary_btn_text", "Learn More")}</a>
       </div>
     </div>
@@ -1411,10 +1458,49 @@ textarea.form-input {{
             foreground = contrast_color(background)
             light_section = foreground != '#ffffff'
             rules.extend([f'--text-main:{foreground}', f'--text-muted:{foreground}', f'--section-ink:{foreground}', f'--section-muted:{foreground}', f'--bg-card:{"#f1f5f9" if light_section else "#182235"}', f'color:{foreground}'])
+        gradient_colors = {"ocean": ("#dbeafe", "#cffafe"), "lavender": ("#ede9fe", "#fce7f3"), "sunset": ("#ffedd5", "#ffe4e6"), "midnight": ("#0f172a", "#312e81")}.get(appearance.get("gradient"))
+        if appearance.get("gradient") == "custom" and re.fullmatch(r"#[0-9a-fA-F]{6}", background):
+            end_color = str(appearance.get("gradient_end", "#dbeafe"))
+            if re.fullmatch(r"#[0-9a-fA-F]{6}", end_color):
+                gradient_colors = (background, end_color)
+        if gradient_colors:
+            try:
+                angle = min(360, max(0, float(appearance.get("gradient_angle") or 135)))
+            except (ValueError, TypeError):
+                angle = 135
+            rules.append(f"background:linear-gradient({angle:g}deg,{gradient_colors[0]},{gradient_colors[1]})")
         if rules and len(body_html_parts) > part_start:
             section_html = "".join(body_html_parts[part_start:])
             body_html_parts[part_start:] = [f'<div class="{'studio-auto-contrast' if re.fullmatch(r'#[0-9a-fA-F]{6}', background) else 'studio-section-style'}" style="{";".join(rules)}">{section_html}</div>']
 
+        if comp.get("elements") and len(body_html_parts) > part_start:
+            elements = []
+            for item in comp["elements"]:
+                if not isinstance(item, dict):
+                    continue
+                def coordinate(value):
+                    try:
+                        return min(95, max(0, float(value)))
+                    except (ValueError, TypeError):
+                        return 0
+                position = f'left:{coordinate(item.get("x", 10)):g}%;top:{coordinate(item.get("y", 10)):g}%'
+                text = escape_html(str(item.get("text", "")))
+                if item.get("kind") == "button":
+                    url = str(item.get("url", "#")).strip()
+                    if not re.match(r'^(https?://|mailto:|tel:|#|/(?!/))', url, re.I):
+                        url = "#"
+                    elements.append(f'<a class="studio-placed-element studio-placed-button" style="{position}" href="{escape_html(url, quote=True)}">{text}</a>')
+                else:
+                    elements.append(f'<div class="studio-placed-element" style="{position}">{text}</div>')
+            section_html = "".join(body_html_parts[part_start:])
+            body_html_parts[part_start:] = [f'<div class="studio-positioned-section">{"".join(elements)}{section_html}</div>']
+
+    css += """
+.studio-positioned-section {position:relative;min-height:160px;}
+.studio-placed-element {position:absolute;z-index:2;max-width:90%;overflow-wrap:anywhere;font-size:20px;white-space:pre-wrap;}
+.studio-placed-button {display:inline-block;padding:12px 22px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-size:16px;}
+@media(max-width:600px){.studio-placed-element{position:relative;left:auto!important;top:auto!important;margin:12px;max-width:calc(100% - 24px);}}
+"""
     ambient = bool(theme.get("animated_background"))
     if ambient:
         css += (Path(__file__).parent / "static" / "studio-ambient.css").read_text(encoding="utf-8")

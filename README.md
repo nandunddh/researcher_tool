@@ -9,19 +9,14 @@ This repository contains both the **Web Application & SciStudio** and the **Desk
 ```text
 researcher_tool/
 │
-├── web/                           # 🌐 Web Application & SciStudio (Cloud & Local)
+├── frontend/                      # ⚛️ Next.js 16 + React 19 Frontend (Single UI on Port 3000)
+├── backend/                       # 🌐 FastAPI Backend API & Services (Port 8000)
 │   ├── app.py                     # FastAPI web backend & API routes
 │   ├── builder_manager.py         # SciStudio website engine & 15 templates
 │   ├── license_manager.py         # Authentication, sessions & permissions
 │   ├── licenses.json              # Client accounts & licenses database
 │   ├── app_config.py              # Dynamic data folder configuration
-│   └── static/                    # Frontend UI (HTML5, Modern CSS, JS)
-│       ├── index.html             # SciStudio & Prospecting Web UI
-│       ├── admin.html             # Admin Command Center
-│       ├── index.css              # Custom themes, inspector & responsive CSS
-│       ├── app.js                 # Frontend SPA & Block Inspector logic
-│       └── ... (logos, SVG icons)
-│
+│   └── static/                    # Static assets & standalone HTML renderer
 ├── app/                           # 💻 Desktop Application Suite
 │   ├── main/                      # Production Lead Extraction Pipeline
 │   │   ├── 01_extract_researchers.py
@@ -60,14 +55,22 @@ researcher_tool/
 
 ## 🚀 Quick Start
 
-### 1. Launch Web App & SciStudio Locally
+### 1. Launch Services Locally
+
+**Backend API (Port 8000):**
 Double click `run_web.bat` or run:
 ```bash
-cd web
+cd backend
 python -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload
 ```
-- **Web App / SciStudio:** [http://localhost:8000](http://localhost:8000)
-- **Admin Portal:** [http://localhost:8000/admin](http://localhost:8000/admin)
+
+**Frontend (Port 3000):**
+```bash
+cd frontend
+npm run dev
+```
+- **Single Frontend Entrypoint:** [http://127.0.0.1:3000](http://127.0.0.1:3000)
+- **Backend API:** [http://127.0.0.1:8000/api](http://127.0.0.1:8000/api)
 - **Administrator:** username `admin`; set `SCIPROSPECT_ROOT_PASS` before launch. There is no default password.
 
 ### 2. Launch Desktop Application

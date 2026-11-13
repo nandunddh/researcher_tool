@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const source = fs.readFileSync('web/static/app.js','utf8');
+const source = fs.readFileSync('backend/static/app.js','utf8');
 const inlineCode = source.slice(source.indexOf('  function wireStudioInlineEditing()'),source.indexOf('  // Preserve the selected viewport width;'));
 function textNode(text) {
  return {dataset:{},textContent:text,children:[],classList:{add(){}},contentEditable:'false',focus(){},blur(){this.onblur?.();},get isContentEditable(){return this.contentEditable==='plaintext-only';}};
@@ -10,7 +10,7 @@ const headline=textNode('My conference'), nested=textNode('Alice'), ambiguous=te
 let renders=0;
 const site={schema_json:[{id:'a',data:{headline:'My conference',speakers:[{name:'Alice'}],first:'Duplicate',second:'Duplicate'}}]};
 const wrapper={dataset:{compId:'a'},querySelectorAll(selector){return selector.endsWith('img')?[]:[headline,nested,ambiguous];}};
-const context={currentSite:site,canvasSectionsList:{querySelectorAll(){return [wrapper];}},StudioFormatting:require('../web/static/studio-formatting.js'),reopenStudioQuick(){},selectComponentForEditing(){},renderCanvas(){renders++;},renderInspector(){},document:{createRange(){return {selectNodeContents(){}};}},window:{getSelection(){return {removeAllRanges(){},addRange(){}};}}};
+const context={currentSite:site,canvasSectionsList:{querySelectorAll(){return [wrapper];}},StudioFormatting:require('../backend/static/studio-formatting.js'),reopenStudioQuick(){},selectComponentForEditing(){},renderCanvas(){renders++;},renderInspector(){},document:{createRange(){return {selectNodeContents(){}};}},window:{getSelection(){return {removeAllRanges(){},addRange(){}};}}};
 vm.createContext(context);vm.runInContext(inlineCode,context);vm.runInContext('wireStudioInlineEditing()',context);
 const event={preventDefault(){},stopPropagation(){}};
 assert.equal(ambiguous.ondblclick,undefined);

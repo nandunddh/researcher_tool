@@ -1,7 +1,7 @@
 import unittest
 import tempfile
 from pathlib import Path
-from web.license_manager import LicenseManager
+from backend.license_manager import LicenseManager
 
 class OrgHierarchyTests(unittest.TestCase):
     def setUp(self):

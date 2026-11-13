@@ -1,8 +1,8 @@
 @echo off
 setlocal
-title SciProspect Web and SciStudio
+title SciProspect Backend API and SciStudio
 echo ===================================================
-echo   Starting SciProspect Web Server and SciStudio...
+echo   Starting SciProspect Backend Server (Port 8000)...
 echo ===================================================
 echo.
 cd /d "%~dp0"
@@ -18,10 +18,7 @@ if errorlevel 1 (
     if errorlevel 1 goto setup_failed
 )
 
-cd /d "%~dp0web"
-
-:: Launch browser in background after 2 seconds
-start "" /min powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process 'http://localhost:8000'"
+cd /d "%~dp0backend"
 
 :: Start Uvicorn Server
 "%~dp0.venv\Scripts\python.exe" -m uvicorn app:app --host 127.0.0.1 --port 8000 --reload

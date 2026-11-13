@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class RegressionTests(unittest.TestCase):
     def test_authentication(self):
-        source = ROOT / "web/license_manager.py"
+        source = ROOT / "backend/license_manager.py"
         tree = ast.parse(source.read_text(encoding="utf-8"))
         tree.body = [node for node in tree.body if not (isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "license_engine" for t in node.targets))]
         scope = {"__file__": str(source)}
@@ -41,7 +41,7 @@ class RegressionTests(unittest.TestCase):
         self.assertFalse(scope["verify_password"]("wrong", hashed))
 
     def test_pipeline_targets_exist(self):
-        tree = ast.parse((ROOT / "web/app.py").read_text(encoding="utf-8"))
+        tree = ast.parse((ROOT / "backend/app.py").read_text(encoding="utf-8"))
         targets = []
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "script_name" for t in node.targets):

@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse
 class BuilderAccessTests(unittest.TestCase):
     def setUp(self):
         import re
-        tree = ast.parse((Path(__file__).resolve().parents[1]/'web/app.py').read_text(encoding='utf-8'))
+        tree = ast.parse((Path(__file__).resolve().parents[1]/'backend/app.py').read_text(encoding='utf-8'))
         names = {'_require_owned_site', 'serve_public_website', 'builder_preview_site'}
         functions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names]
         for n in functions:

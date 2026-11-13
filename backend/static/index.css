@@ -2435,6 +2435,51 @@ input[type="password"]::-ms-clear {
   animation: shake 0.3s ease;
 }
 
+.auth-success-box {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #6ee7b7;
+  padding: 0.7rem 0.95rem;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  margin-bottom: 1.15rem;
+}
+
+.auth-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.auth-text-link {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: #38bdf8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+
+.auth-text-link:hover {
+  color: #7dd3fc;
+  text-decoration: underline;
+}
+
+.forgot-verified-banner {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: #bae6fd;
+  padding: 0.55rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  word-break: break-word;
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }
@@ -4821,6 +4866,26 @@ body:not(.desktop-app-mode) .app-topbar .user-profile-chip { min-height:42px; pa
 #modal-create-site .wizard-body .auth-field label, #modal-create-site .wizard-body label:not(.wizard-checkbox-pill) { display:block; color:#273a59 !important; font-weight:600; margin-bottom:7px; }
 #modal-create-site .wizard-body .form-input:not([type=checkbox]):not([type=color]), #modal-create-site .wizard-body select, #modal-create-site .wizard-body textarea { display:block; width:100%; min-height:44px; padding:10px 13px; box-sizing:border-box; color:#192c4b !important; background:#fff !important; border:1px solid #b9c9df !important; border-radius:8px; font:inherit; box-shadow:none; }
 #modal-create-site .wizard-body .form-input::placeholder, #modal-create-site .wizard-body textarea::placeholder { color:#73849b; opacity:1; }
+input[type="date"],
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field {
+  text-transform: uppercase !important;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.7;
+  padding: 4px;
+  border-radius: 4px;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  background-color: rgba(56, 189, 248, 0.1);
+}
 #modal-create-site .wizard-footer-bar { border-top:1px solid #e5ecf5; background:#fff !important; padding-top:18px; margin-top:22px; gap:10px; }
 #modal-create-site .wizard-footer-bar .btn-secondary { background:#fff; color:#334f76; border:1px solid #c8d5e6; border-radius:8px; font:600 13px inherit; cursor:pointer; }
 #modal-create-site .wizard-footer-bar .btn-secondary:hover { background:#f1f5fb; }
@@ -5222,7 +5287,10 @@ body.studio-fullscreen-mode .builder-canvas-wrapper { justify-content:flex-start
 
 /* Independent SciStudio workspace. */
 .studio-dashboard-return {display:none;}
-body.scistudio-workspace .app-sidebar,body.scistudio-workspace .app-status-bar {display:none !important;}
+body.scistudio-workspace .app-sidebar {display:none !important;}
+body.scistudio-workspace:not(.studio-fullscreen-mode) .app-status-bar {height:auto;min-height:44px;background:#fff;border-top:1px solid #eae7f0;padding:10px clamp(20px,3vw,54px);color:#6e6580;font-size:12px;flex-wrap:wrap;gap:8px 16px;}
+body.scistudio-workspace:not(.studio-fullscreen-mode) .app-status-bar .status-bar-copyright {color:#554c6b;font-weight:500;}
+body.scistudio-workspace:not(.studio-fullscreen-mode) .app-status-bar .status-sep {color:#d4cde2;}
 body.scistudio-workspace .app-workspace {width:100%;margin-left:0;}
 body.scistudio-workspace:not(.studio-fullscreen-mode) .workspace-viewport {background:#f8f7fb;padding:32px clamp(20px,5vw,90px) 48px;}
 body.scistudio-workspace .app-topbar {background:#fff;border-bottom:1px solid #eae7f0;padding:0 clamp(20px,3vw,54px);min-height:80px;}
@@ -5297,3 +5365,22 @@ body.scistudio-workspace .builder-site-card {border-color:#e6e0ed;border-radius:
 #modal-create-site .wizard-body .wizard-checkbox-pill input[type=checkbox] {display:block;flex:0 0 16px;width:16px!important;height:16px!important;min-height:16px;margin:0;padding:0;}
 #modal-create-site .wizard-body .wizard-checkbox-pill > span {display:flex;flex-direction:row;align-items:center;gap:8px;flex:1;min-width:0;margin:0;line-height:1.4;}
 #modal-create-site .wizard-checkbox-pill .wizard-outline-icon {flex:0 0 18px;width:18px;height:18px;}
+
+/* Keep navigation controls above, rather than on top of, editable links. */
+
+
+#builder-studio-view .studio-navbar-section .section-preview-render a {pointer-events:auto;cursor:text;text-decoration:none;display:inline-block;}
+
+
+#builder-studio-view .studio-navbar-section .section-preview-render > div {flex-wrap:wrap;gap:16px;}
+#builder-studio-view .studio-navbar-section .section-preview-render > div > div:last-child {display:flex;flex-wrap:wrap;align-items:center;gap:12px;}
+#builder-studio-view .studio-navbar-section .studio-contrast-section a:not([style*="padding"]),#builder-studio-view .studio-navbar-section .studio-contrast-section > div > div:first-child {color:var(--studio-section-ink)!important;}
+
+#builder-studio-view .canvas-section-wrapper:has(.studio-free-element){min-height:160px;}
+.studio-free-element {position:absolute;z-index:5;max-width:90%;overflow-wrap:anywhere;font-size:20px;white-space:pre-wrap;pointer-events:auto;}
+.studio-free-element>span {display:inline-block;min-width:24px;}
+.studio-free-button {padding:12px 22px;background:#2563eb;color:#fff;border-radius:8px;font-size:16px;}
+.studio-element-grip {position:absolute;bottom:100%;left:0;background:#fff;color:#5145cd;border:1px solid #c9c4ec;border-radius:5px;cursor:grab;touch-action:none;opacity:0;}
+.studio-free-element:hover .studio-element-grip,.studio-free-element:focus-within .studio-element-grip {opacity:1;}
+.mobile-view .studio-free-element {position:relative;left:auto!important;top:auto!important;margin:12px;max-width:calc(100% - 24px);}
+.mobile-view .studio-element-grip {display:none;}

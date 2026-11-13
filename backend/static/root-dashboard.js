@@ -32,7 +32,7 @@ function applyAdminSection(){
  const panels=doc.querySelectorAll('.content-grid > .card-panel');
  panels.forEach((panel,index)=>panel.hidden=adminSection==='add'?index!==0:index===0);
  const addHeading=panels[0]?.querySelector('.panel-title');if(addHeading)addHeading.textContent='Add account';
- const heading=panels[1]?.querySelector('.panel-title');if(heading)heading.textContent=adminSection==='licenses'?'Licenses & access':'Client accounts';
+ const heading=panels[1]?.querySelector('.panel-title');if(heading)heading.textContent='Manage accounts';
  doc.documentElement.scrollTop=0;doc.body.scrollTop=0;
 }
 $('admin-console-frame').addEventListener('load',()=>{

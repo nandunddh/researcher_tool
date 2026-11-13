@@ -13,7 +13,7 @@ Verifies:
 import sys
 import os
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "web"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 import unittest
 import json
@@ -271,7 +271,7 @@ class TestConferenceHeroLayout(unittest.TestCase):
 
     def test_06_frontend_static_assets_contain_controls(self):
         """Static index.css and app.js must contain conference program layout controls and styles."""
-        with open("web/static/app.js", "r", encoding="utf-8") as f:
+        with open("backend/static/app.js", "r", encoding="utf-8") as f:
             app_js = f.read()
         self.assertIn("conference_program", app_js)
         self.assertIn("setHeroLayoutVariant", app_js)
@@ -280,7 +280,7 @@ class TestConferenceHeroLayout(unittest.TestCase):
         self.assertIn("event_format", app_js)
         self.assertIn("canvas-hero-program-wrap", app_js)
 
-        with open("web/static/index.css", "r", encoding="utf-8") as f:
+        with open("backend/static/index.css", "r", encoding="utf-8") as f:
             index_css = f.read()
         self.assertIn(".canvas-hero-program-wrap", index_css)
         self.assertIn(".mobile-view .canvas-hero-program-wrap", index_css)

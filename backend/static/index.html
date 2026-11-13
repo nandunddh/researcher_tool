@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="/sciprospect_icon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="/index.css?v=12.11">
+  <link rel="stylesheet" href="/index.css?v=12.18">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -1038,15 +1038,15 @@
               <div class="wizard-fields-grid-2" style="margin-top: 1rem;">
                 <div class="auth-field">
                   <label for="brief-start-date" style=" font-size: 0.85rem;">
-                    Start Date <span style="color: #64748b; font-weight: normal;">(Optional)</span>
+                    Start Date <span style="color: #64748b; font-weight: normal;">(Optional - DD/MM/YYYY)</span>
                   </label>
-                  <input type="text" id="brief-start-date" class="form-input" placeholder="e.g. Oct 14, 2026 or 2026-10-14">
+                  <input type="date" id="brief-start-date" class="form-input">
                 </div>
                 <div class="auth-field">
                   <label for="brief-end-date" style=" font-size: 0.85rem;">
-                    End Date <span style="color: #64748b; font-weight: normal;">(Optional)</span>
+                    End Date <span style="color: #64748b; font-weight: normal;">(Optional - DD/MM/YYYY)</span>
                   </label>
-                  <input type="text" id="brief-end-date" class="form-input" placeholder="e.g. Oct 18, 2026 or 2026-10-18">
+                  <input type="date" id="brief-end-date" class="form-input">
                 </div>
               </div>
 
@@ -1337,7 +1337,7 @@
   </div>
 
   <script src="/studio-formatting.js?v=1.0"></script>
-  <script src="/app.js?v=12.9"></script>
+  <script src="/app.js?v=13.12"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->
@@ -1355,8 +1355,9 @@
         <p class="auth-subtitle">Academic & Research Outreach Discovery System</p>
       </div>
 
-      <!-- Error Alert Box -->
+      <!-- Error & Success Alert Boxes -->
       <div class="auth-error-box" id="auth-error-box" style="display: none; margin-top: 1rem;"></div>
+      <div class="auth-success-box" id="auth-success-box" style="display: none; margin-top: 1rem;"></div>
 
       <!-- Account Email & Password Sign-In Form -->
       <form class="auth-form-view active" id="auth-view-password" style="display: block; margin-top: 1.25rem;" onsubmit="submitPasswordAuth(event)">
@@ -1368,7 +1369,10 @@
           </div>
         </div>
         <div class="auth-field" style="margin-top: 1rem;">
-          <label for="auth-input-pwd">Password</label>
+          <div class="auth-label-row">
+            <label for="auth-input-pwd">Password</label>
+            <button type="button" class="auth-text-link" id="btn-open-forgot-pwd" onclick="openForgotPasswordView()">Forgot password?</button>
+          </div>
           <div class="auth-input-wrap">
             <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             <input type="password" id="auth-input-pwd" placeholder="Enter your password" autocomplete="current-password" required style="padding-right: 2.75rem;">
@@ -1388,6 +1392,47 @@
           <span>Sign In</span>
         </button>
       </form>
+
+      <!-- Forgot Password View -->
+      <div class="auth-form-view" id="auth-view-forgot" style="display: none; margin-top: 1.25rem;">
+        <form id="forgot-step-email" onsubmit="submitForgotCheck(event)">
+          <div class="auth-field">
+            <label for="forgot-input-email">Registered Email</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              <input type="email" id="forgot-input-email" placeholder="e.g. user@institution.edu" autocomplete="email" required>
+            </div>
+          </div>
+          <button type="submit" class="btn-auth-primary" id="btn-forgot-check" style="margin-top: 1.25rem; width: 100%;">
+            <span>Continue</span>
+          </button>
+        </form>
+
+        <form id="forgot-step-password" style="display: none;" onsubmit="submitForgotReset(event)">
+          <div class="forgot-verified-banner" id="forgot-verified-email-label"></div>
+          <div class="auth-field" style="margin-top: 0.9rem;">
+            <label for="forgot-input-new-pwd">New Password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input type="password" id="forgot-input-new-pwd" placeholder="At least 6 characters" minlength="6" autocomplete="new-password" required>
+            </div>
+          </div>
+          <div class="auth-field" style="margin-top: 0.9rem;">
+            <label for="forgot-input-confirm-pwd">Confirm New Password</label>
+            <div class="auth-input-wrap">
+              <svg class="auth-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <input type="password" id="forgot-input-confirm-pwd" placeholder="Re-enter new password" minlength="6" autocomplete="new-password" required>
+            </div>
+          </div>
+          <button type="submit" class="btn-auth-primary" id="btn-forgot-reset" style="margin-top: 1.25rem; width: 100%;">
+            <span>Update Password</span>
+          </button>
+        </form>
+
+        <div style="margin-top: 1rem; text-align: center;">
+          <button type="button" class="auth-text-link" id="btn-back-to-login" onclick="closeForgotPasswordView()">← Back to Sign In</button>
+        </div>
+      </div>
 
 
     </div>

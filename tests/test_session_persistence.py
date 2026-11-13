@@ -8,7 +8,7 @@ import sys
 
 # Ensure web directory is in path
 ROOT_DIR = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT_DIR / "web"))
+sys.path.insert(0, str(ROOT_DIR / "backend"))
 
 from license_manager import LicenseManager, hash_password
 
@@ -209,7 +209,7 @@ class LiveServerSessionPersistenceTests(unittest.TestCase):
         self.assertIsNotNone(scip_cookie, "scip_token cookie must be set by server")
 
         # Verify disk persistence in web/sessions.json
-        sessions_file = ROOT_DIR / "web" / "sessions.json"
+        sessions_file = ROOT_DIR / "backend" / "sessions.json"
         self.assertTrue(sessions_file.exists())
         with open(sessions_file, "r", encoding="utf-8") as f:
             disk_data = json.load(f)

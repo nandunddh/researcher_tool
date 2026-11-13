@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -23,6 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTM
 from fastapi.staticfiles import StaticFiles
 
 import requests
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app_config import get_data_dir, set_data_dir
 sys.path.append(str(Path(__file__).resolve().parent.parent / "app" / "main"))
 from license_manager import license_engine
@@ -286,7 +288,7 @@ async def get_admin_portal(request: Request):
         if section in ("add", "manage"):
             _verify_admin_auth(request)
             html = admin_path.read_text(encoding="utf-8")
-            html = html.replace("</head>", '<link rel="stylesheet" href="/admin-workspace.css?v=5"><style>.admin-header,.console-banner,.kpi-grid{display:none!important}.content-grid{display:block!important}body[data-root-section="add"] .content-grid>.card-panel:nth-child(2),body[data-root-section="manage"] .content-grid>.card-panel:first-child{display:none!important}</style></head>')
+            html = html.replace("</head>", '<link rel="stylesheet" href="/admin-workspace.css?v=10"><style>.admin-header,.console-banner,.kpi-grid{display:none!important}.content-grid{display:block!important}body[data-root-section="add"] .content-grid>.card-panel:nth-child(2),body[data-root-section="manage"] .content-grid>.card-panel:first-child{display:none!important}</style></head>')
             html = html.replace("<body>", '<body data-root-section="' + section + '">')
             return HTMLResponse(html)
         return FileResponse(admin_path)
@@ -407,6 +409,17 @@ def _require_authenticated_user(request: Request) -> dict:
     return user
 
 
+def _require_page_user(request: Request):
+    """Returns authenticated user for HTML workspace routes, or redirects browser navigations to '/'."""
+    try:
+        return _require_authenticated_user(request), None
+    except HTTPException:
+        accept = (request.headers.get("accept") or "").lower()
+        if "text/html" in accept:
+            return None, RedirectResponse(url="/", status_code=307)
+        raise
+
+
 @app.post("/api/auth/login")
 async def api_auth_login(request: Request):
     """
@@ -448,6 +461,29 @@ async def api_auth_login(request: Request):
     return res
 
 
+@app.post("/api/auth/forgot-password/check")
+async def api_auth_forgot_check(request: Request):
+    """Checks whether an email belongs to an active account for password update."""
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    ok, msg, code = license_engine.check_password_reset_email(email)
+    if not ok:
+        raise HTTPException(status_code=code, detail=msg)
+    return {"status": "ok", "exists": True, "message": msg}
+
+
+@app.post("/api/auth/forgot-password/reset")
+async def api_auth_forgot_reset(request: Request):
+    """Updates an account password after verifying the email exists."""
+    body = await request.json()
+    email = (body.get("email") or "").strip()
+    new_password = (body.get("new_password") or "").strip()
+    ok, msg, code = license_engine.reset_password_by_email(email, new_password)
+    if not ok:
+        raise HTTPException(status_code=code, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
 @app.get("/api/auth/me")
 async def api_auth_me(request: Request):
     """Returns the currently authenticated user or 401 with appropriate reason."""
@@ -457,7 +493,8 @@ async def api_auth_me(request: Request):
 
     user, err = license_engine.get_session_info(token)
     if user:
-        return {"authenticated": True, "user": user}
+        # Both frontends use the server's role decision; never infer tenancy from a URL.
+        return {"authenticated": True, "user": {**user, "workspace_namespace": _page_namespace(user)}}
 
     if err and "SUSPENDED" in err:
         res = JSONResponse(status_code=401, content={"detail": err})
@@ -491,7 +528,9 @@ async def admin_login(request: Request):
 
 @app.get("/root-dashboard")
 async def root_dashboard(request: Request):
-    user = _require_authenticated_user(request)
+    user, redirect_resp = _require_page_user(request)
+    if redirect_resp:
+        return redirect_resp
     if not user.get("is_admin"):
         raise HTTPException(status_code=403, detail="Root administrator access required")
     return RedirectResponse(url="/root/dashboard", status_code=307)
@@ -552,20 +591,23 @@ async def admin_create_license(request: Request):
         raise HTTPException(status_code=400, detail="Client name and email are required.")
 
     password = (body.get("password") or "").strip() or None
-    created = license_engine.create_account(
-        name=name,
-        email=email,
-        tier=tier,
-        duration_days=duration,
-        daily_limit=limit,
-        notes=notes,
-        password=password,
-        scistudio_access=scistudio_access,
-        account_type=account_type,
-        org_name=org_name,
-        can_invite_users=can_invite_users,
-        seat_limit=seat_limit,
-    )
+    try:
+        created = license_engine.create_account(
+            name=name,
+            email=email,
+            tier=tier,
+            duration_days=duration,
+            daily_limit=limit,
+            notes=notes,
+            password=password,
+            scistudio_access=scistudio_access,
+            account_type=account_type,
+            org_name=org_name,
+            can_invite_users=can_invite_users,
+            seat_limit=seat_limit,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     return created
 
 
@@ -1131,14 +1173,20 @@ async def stream_logs(request: Request):
     async def event_generator():
         for entry in process_state["lines"][-30:]:
             yield f"data: {json.dumps(entry)}\n\n"
+        last_keepalive = time.monotonic()
         while True:
             if await request.is_disconnected():
                 break
             try:
-                entry = await asyncio.wait_for(log_queue.get(), timeout=2.0)
+                entry = await asyncio.wait_for(log_queue.get(), timeout=5.0)
+                last_keepalive = time.monotonic()
                 yield f"data: {json.dumps(entry)}\n\n"
             except (asyncio.TimeoutError, TimeoutError):
-                yield "data: {\"type\": \"heartbeat\"}\n\n"
+                now = time.monotonic()
+                if now - last_keepalive >= 25.0:
+                    last_keepalive = now
+                    # Use an SSE comment for keepalive so browsers do not emit data events when idle
+                    yield ": keepalive\n\n"
             except (asyncio.CancelledError, GeneratorExit):
                 break
 
@@ -1664,6 +1712,38 @@ async def redirect_legacy_builder_routes():
     return RedirectResponse(url="/scistudio", status_code=307)
 
 
+@app.get("/scistudio/{site_id}/edit")
+@app.get("/{namespace}/scistudio/{site_id}/edit")
+async def scistudio_site_edit_page(site_id: str, request: Request, namespace: Optional[str] = None):
+    """Direct URL navigation/bookmark into SciStudio editor canvas for a specific website."""
+    if namespace and namespace not in ("root", "organization", "client", "conference"):
+        raise HTTPException(status_code=404, detail="Page not found")
+    user, redirect_resp = _require_page_user(request)
+    if redirect_resp:
+        return redirect_resp
+    if namespace and _page_namespace(user) != namespace:
+        raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
+    _require_scistudio_access(user)
+    return FileResponse(STATIC_DIR / "index.html")
+
+
+@app.get("/scistudio/{site_id}/preview")
+@app.get("/{namespace}/scistudio/{site_id}/preview")
+async def scistudio_site_preview_page(site_id: str, request: Request, namespace: Optional[str] = None):
+    """Clean user-facing preview route for drafted or published websites."""
+    if namespace and namespace not in ("root", "organization", "client", "conference"):
+        raise HTTPException(status_code=404, detail="Page not found")
+    user, redirect_resp = _require_page_user(request)
+    if redirect_resp:
+        return redirect_resp
+    if namespace and _page_namespace(user) != namespace:
+        raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
+    _require_scistudio_access(user)
+    site = _require_owned_site(site_id, user)
+    html, _ = compile_website_html(site)
+    return HTMLResponse(html)
+
+
 # Role-owned page namespaces. Data APIs continue to enforce resource ownership.
 def _page_namespace(user):
     if user.get("is_admin"):
@@ -1676,7 +1756,9 @@ def _page_namespace(user):
 
 @app.get("/workspace")
 async def workspace_home(request: Request):
-    user = _require_authenticated_user(request)
+    user, redirect_resp = _require_page_user(request)
+    if redirect_resp:
+        return redirect_resp
     return RedirectResponse("/" + _page_namespace(user) + "/dashboard", status_code=307)
 
 
@@ -1684,7 +1766,9 @@ async def workspace_home(request: Request):
 async def role_workspace_page(namespace: str, page: str, request: Request):
     if namespace not in ("root", "organization", "client", "conference"):
         raise HTTPException(status_code=404, detail="Page not found")
-    user = _require_authenticated_user(request)
+    user, redirect_resp = _require_page_user(request)
+    if redirect_resp:
+        return redirect_resp
     if _page_namespace(user) != namespace:
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     if namespace == "root" and page == "licenses":

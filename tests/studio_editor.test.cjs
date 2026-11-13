@@ -1,7 +1,7 @@
 const fs = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
-const source = fs.readFileSync('web/static/app.js','utf8');
+const source = fs.readFileSync('backend/static/app.js','utf8');
 const moduleCode = source.slice(source.indexOf('  // Editor history stores'), source.indexOf('  window.openBuilderStudio ='));
 const nodes = new Map();
 function element() { return {textContent:'',value:'',disabled:false,dataset:{},children:[],handlers:{},classList:{add(){},remove(){},contains(){return false;}},addEventListener(name,fn){this.handlers[name]=fn;},replaceChildren(){this.children=[];},append(child){this.children.push(child);}}; }

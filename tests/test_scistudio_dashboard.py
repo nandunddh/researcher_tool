@@ -4,9 +4,21 @@ import sys
 import unittest
 from pathlib import Path
 
-# Add web directory to path for direct imports
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "web"))
-from app import app, redirect_legacy_builder_routes, serve_spa_page
+from fastapi import HTTPException
+from types import SimpleNamespace
+
+# Add backend directory to path for direct imports
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
+from app import (
+    app,
+    redirect_legacy_builder_routes,
+    role_workspace_page,
+    root_dashboard,
+    scistudio_site_edit_page,
+    scistudio_site_preview_page,
+    serve_spa_page,
+    workspace_home,
+)
 
 
 class TestSciStudioDashboardRedesign(unittest.TestCase):
@@ -31,9 +43,48 @@ class TestSciStudioDashboardRedesign(unittest.TestCase):
         self.assertEqual(resp.status_code, 307)
         self.assertEqual(resp.headers.get("location"), "/scistudio")
 
+    def test_unauthenticated_workspace_routes_redirect_to_login(self):
+        """Browser requests to /organization/dashboard etc. redirect to / when logged out instead of raw 401 JSON."""
+        html_req = SimpleNamespace(cookies={}, headers={"accept": "text/html,application/xhtml+xml"})
+        for coro in (
+            role_workspace_page("organization", "dashboard", html_req),
+            role_workspace_page("client", "dashboard", html_req),
+            role_workspace_page("root", "dashboard", html_req),
+            workspace_home(html_req),
+            root_dashboard(html_req),
+        ):
+            resp = asyncio.run(coro)
+            self.assertEqual(resp.status_code, 307)
+            self.assertEqual(resp.headers.get("location"), "/")
+
+        api_req = SimpleNamespace(cookies={}, headers={"accept": "application/json"})
+        with self.assertRaises(HTTPException) as err:
+            asyncio.run(role_workspace_page("organization", "dashboard", api_req))
+        self.assertEqual(err.exception.status_code, 401)
+
+    def test_scistudio_clean_edit_and_preview_routes(self):
+        """Verify /{namespace}/scistudio/{site_id}/edit and preview routes exist and guard unauthenticated access."""
+        route_paths = [r.path for r in app.routes]
+        self.assertIn("/scistudio/{site_id}/edit", route_paths)
+        self.assertIn("/{namespace}/scistudio/{site_id}/edit", route_paths)
+        self.assertIn("/scistudio/{site_id}/preview", route_paths)
+        self.assertIn("/{namespace}/scistudio/{site_id}/preview", route_paths)
+
+        # Unauthenticated browser navigations redirect to /
+        html_req = SimpleNamespace(cookies={}, headers={"accept": "text/html,application/xhtml+xml"})
+        for coro in (
+            scistudio_site_edit_page("site_demo", html_req, "organization"),
+            scistudio_site_preview_page("site_demo", html_req, "organization"),
+            scistudio_site_edit_page("site_demo", html_req, None),
+            scistudio_site_preview_page("site_demo", html_req, None),
+        ):
+            resp = asyncio.run(coro)
+            self.assertEqual(resp.status_code, 307)
+            self.assertEqual(resp.headers.get("location"), "/")
+
     def test_dashboard_markup_elements(self):
         """Verify index.html contains the polished SciStudio header, conference workspace bar, toolbar, search, and single-plus button."""
-        html_path = Path(__file__).resolve().parents[1] / "web" / "static" / "index.html"
+        html_path = Path(__file__).resolve().parents[1] / "backend" / "static" / "index.html"
         html = html_path.read_text(encoding="utf-8")
 
         # Workspace dashboard view
@@ -63,14 +114,19 @@ class TestSciStudioDashboardRedesign(unittest.TestCase):
         self.assertIn('id="view-nih"', html)
         self.assertIn('id="view-explorer"', html)
         self.assertIn('id="view-datasets"', html)
+        self.assertIn('class="app-status-bar"', html)
+        self.assertIn('class="status-bar-copyright"', html)
+        self.assertIn('SciProspect & SciStudio', html)
 
     def test_stylesheet_contrast_and_card_actions(self):
         """Verify index.css contains high-contrast styling and required card classes."""
-        css_path = Path(__file__).resolve().parents[1] / "web" / "static" / "index.css"
+        css_path = Path(__file__).resolve().parents[1] / "backend" / "static" / "index.css"
         css = css_path.read_text(encoding="utf-8")
 
         # Essential SciStudio classes
         self.assertIn('.scistudio-dashboard-view', css)
+        self.assertNotIn('body.scistudio-workspace .app-sidebar,body.scistudio-workspace .app-status-bar {display:none !important;}', css)
+        self.assertIn('body.scistudio-workspace:not(.studio-fullscreen-mode) .app-status-bar', css)
         self.assertIn('.builder-site-card', css)
         self.assertIn('.site-slug-pill-wrap', css)
         self.assertIn('.site-status-badge', css)
@@ -89,7 +145,7 @@ class TestSciStudioDashboardRedesign(unittest.TestCase):
 
     def test_js_card_and_routing_integrity(self):
         """Verify app.js handles /scistudio route mapping and renders card actions."""
-        js_path = Path(__file__).resolve().parents[1] / "web" / "static" / "app.js"
+        js_path = Path(__file__).resolve().parents[1] / "backend" / "static" / "app.js"
         js = js_path.read_text(encoding="utf-8")
 
         # Route mapping

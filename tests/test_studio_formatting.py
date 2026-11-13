@@ -1,7 +1,7 @@
 import sys
 import unittest
 from pathlib import Path
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'web'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'backend'))
 from studio_formatting import contrast_color, formatting_css, text_markup, apply_component_formatting
 
 class FormattingTests(unittest.TestCase):

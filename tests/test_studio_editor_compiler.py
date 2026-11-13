@@ -6,7 +6,7 @@ from html import escape
 from pathlib import Path
 from typing import Tuple
 
-source = Path(__file__).resolve().parents[1] / 'web' / 'builder_manager.py'
+source = Path(__file__).resolve().parents[1] / 'backend' / 'builder_manager.py'
 node = next(n for n in ast.parse(source.read_text(encoding='utf-8')).body if isinstance(n, ast.FunctionDef) and n.name == 'compile_website_html')
 import sys
 sys.path.insert(0,str(source.parent))
@@ -16,6 +16,16 @@ exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), nam
 compile_site = namespace['compile_website_html']
 
 class StudioCompilerTests(unittest.TestCase):
+    def test_placed_elements_and_custom_gradient_export(self):
+        html = self.render([{'type':'navbar','data':{},
+            'studio_style':{'background':'#123456','gradient':'custom','gradient_end':'#abcdef','gradient_angle':45},
+            'elements':[{'kind':'button','text':'Join <now>','url':'javascript:alert(1)','x':150,'y':-5}]}])
+        self.assertIn('linear-gradient(45deg,#123456,#abcdef)', html)
+        self.assertIn('left:95%;top:0%', html)
+        self.assertIn('Join &lt;now&gt;', html)
+        self.assertNotIn('javascript:alert', html)
+        self.assertIn('.studio-placed-element{position:relative', html)
+
     def render(self, components):
         return compile_site({'name':'Test conference','theme_config':{'mode':'light'},'schema_json':components})[0]
 

@@ -13,7 +13,7 @@ Verifies:
 import sys
 import os
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "web"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
 import unittest
 import json
@@ -159,7 +159,7 @@ class TestClientBriefingFlow(unittest.TestCase):
 
     def test_04_review_step_and_stepper_in_html_and_js(self):
         """Static HTML, CSS, and JS include briefing inputs, review step, missing detail tags, and back nav."""
-        with open("web/static/index.html", "r", encoding="utf-8") as f:
+        with open("backend/static/index.html", "r", encoding="utf-8") as f:
             html = f.read()
 
         # Step 1 inputs
@@ -180,14 +180,14 @@ class TestClientBriefingFlow(unittest.TestCase):
         self.assertIn('id="wizard-pane-3"', html)
         self.assertIn('id="btn-templates-back"', html)
 
-        with open("web/static/index.css", "r", encoding="utf-8") as f:
+        with open("backend/static/index.css", "r", encoding="utf-8") as f:
             css = f.read()
         self.assertIn(".wizard-stepper", css)
         self.assertIn(".badge-provided", css)
         self.assertIn(".badge-missing", css)
         self.assertIn(".review-notice-banner", css)
 
-        with open("web/static/app.js", "r", encoding="utf-8") as f:
+        with open("backend/static/app.js", "r", encoding="utf-8") as f:
             js = f.read()
         self.assertIn("switchWizardStep", js)
         self.assertIn("renderReviewSummary", js)

@@ -171,7 +171,9 @@ document.addEventListener("DOMContentLoaded", () => {
       };
       const namespace=window.location.pathname.split('/')[1];
       const prefix=['root','organization','client'].includes(namespace)?'/'+namespace:'';
-      const newPath = prefix + (tabName==='pipeline'&&namespace==='root'?'/collector':routeMap[tabName] || '/dashboard');
+      const isEditingSite = !!(currentSite && currentSite.site_id);
+      const builderPath = isEditingSite ? `/scistudio/${encodeURIComponent(currentSite.site_id)}/edit` : '/scistudio';
+      const newPath = prefix + (tabName==='pipeline'&&namespace==='root'?'/collector':(tabName==='builder' ? builderPath : routeMap[tabName] || '/dashboard'));
       if (window.location.pathname !== newPath) {
         window.history.pushState({ tab: tabName }, "", newPath);
       }
@@ -397,7 +399,10 @@ document.addEventListener("DOMContentLoaded", () => {
     };
 
     eventSource.onerror = () => {
-      // Reconnect automatically
+      if (!isSessionAuthenticated && eventSource) {
+        try { eventSource.close(); } catch (e) {}
+        eventSource = null;
+      }
     };
   }
 
@@ -2097,6 +2102,15 @@ document.addEventListener("DOMContentLoaded", () => {
       isInitialAuthCheckComplete = true;
       if (res.ok) {
         const data = await res.json();
+        if (isSessionAuthenticated) {
+          window.currentUser = data.user;
+          const lockBadge = document.getElementById("scistudio-lock-badge");
+          if (lockBadge) {
+            const hasAccess = !!(data.user && (data.user.is_admin || data.user.scistudio_access !== false));
+            lockBadge.style.display = hasAccess ? "none" : "inline";
+          }
+          return;
+        }
         renderAuthenticatedState(data.user);
       } else {
         const errData = await res.json().catch(() => ({}));
@@ -2105,12 +2119,12 @@ document.addEventListener("DOMContentLoaded", () => {
         if (detail && detail.includes("ACCESS SUSPENDED")) {
           renderUnauthenticatedState(detail);
         } else {
-          renderUnauthenticatedState("");
+          renderUnauthenticatedState("", !isSessionAuthenticated);
         }
       }
     } catch (e) {
       isInitialAuthCheckComplete = true;
-      renderUnauthenticatedState("");
+      renderUnauthenticatedState("", !isSessionAuthenticated);
     }
   }
 
@@ -2230,7 +2244,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function renderUnauthenticatedState(errorMsg) {
+  function renderUnauthenticatedState(errorMsg, preserveExistingError = false) {
     isSessionAuthenticated = false;
     document.body.classList.remove("studio-fullscreen-mode");
     if (eventSource) {
@@ -2265,14 +2279,23 @@ document.addEventListener("DOMContentLoaded", () => {
     if (menuRootAdmin) menuRootAdmin.style.display = "none";
 
     const errBox = document.getElementById("auth-error-box");
+    const okBox = document.getElementById("auth-success-box");
     if (errBox) {
       if (errorMsg && errorMsg !== "Not authenticated") {
         errBox.style.display = "block";
         errBox.textContent = errorMsg;
-      } else if (!errorMsg) {
+        if (okBox) { okBox.style.display = "none"; okBox.textContent = ""; }
+      } else if (!errorMsg && !preserveExistingError) {
         errBox.style.display = "none";
         errBox.textContent = "";
+        if (okBox) { okBox.style.display = "none"; okBox.textContent = ""; }
       }
+    }
+    if (!preserveExistingError) {
+      const loginView = document.getElementById("auth-view-password");
+      const forgotView = document.getElementById("auth-view-forgot");
+      if (forgotView) forgotView.style.display = "none";
+      if (loginView) loginView.style.display = "block";
     }
   }
 
@@ -2295,9 +2318,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (errBox) { errBox.style.display = "none"; errBox.textContent = ""; }
   };
 
-  async function executeAuthLogin(payload, btnId) {
+  function setAuthAlert(errorText, successText) {
     const errBox = document.getElementById("auth-error-box");
-    if (errBox) errBox.style.display = "none";
+    const okBox = document.getElementById("auth-success-box");
+    if (errBox) {
+      errBox.textContent = errorText || "";
+      errBox.style.display = errorText ? "block" : "none";
+    }
+    if (okBox) {
+      okBox.textContent = successText || "";
+      okBox.style.display = successText ? "block" : "none";
+    }
+  }
+
+  async function executeAuthLogin(payload, btnId) {
+    setAuthAlert("", "");
+    const errBox = document.getElementById("auth-error-box");
     const btn = document.getElementById(btnId);
     const origText = btn ? btn.innerHTML : "";
     if (btn) { btn.disabled = true; btn.innerHTML = "<span>Authenticating...</span>"; }
@@ -2319,8 +2355,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
       showToast(`Welcome, ${data.user.client_name}!`, "success");
       renderAuthenticatedState(data.user);
-      fetchStats();
-      loadDatasetsDropdown();
     } catch (e) {
       if (errBox) {
         errBox.textContent = `Connection error: ${e.message}`;
@@ -2374,14 +2408,150 @@ document.addEventListener("DOMContentLoaded", () => {
     executeAuthLogin({ identifier: "admin", password: pwd }, "btn-auth-submit-admin");
   };
 
+  let verifiedForgotEmail = "";
+
+  window.openForgotPasswordView = function() {
+    setAuthAlert("", "");
+    const loginView = document.getElementById("auth-view-password");
+    const forgotView = document.getElementById("auth-view-forgot");
+    const stepEmail = document.getElementById("forgot-step-email");
+    const stepPwd = document.getElementById("forgot-step-password");
+    const loginEmailEl = document.getElementById("auth-input-email");
+    const forgotEmailEl = document.getElementById("forgot-input-email");
+    const newPwdEl = document.getElementById("forgot-input-new-pwd");
+    const confirmPwdEl = document.getElementById("forgot-input-confirm-pwd");
+
+    verifiedForgotEmail = "";
+    if (loginView) loginView.style.display = "none";
+    if (forgotView) forgotView.style.display = "block";
+    if (stepEmail) stepEmail.style.display = "block";
+    if (stepPwd) stepPwd.style.display = "none";
+    if (newPwdEl) newPwdEl.value = "";
+    if (confirmPwdEl) confirmPwdEl.value = "";
+    if (forgotEmailEl) {
+      if (loginEmailEl && loginEmailEl.value.trim()) {
+        forgotEmailEl.value = loginEmailEl.value.trim();
+      }
+      forgotEmailEl.focus();
+    }
+  };
+
+  window.closeForgotPasswordView = function(successMsg = "", prefillEmail = "") {
+    setAuthAlert("", successMsg || "");
+    const loginView = document.getElementById("auth-view-password");
+    const forgotView = document.getElementById("auth-view-forgot");
+    const loginEmailEl = document.getElementById("auth-input-email");
+    const loginPwdEl = document.getElementById("auth-input-pwd");
+
+    verifiedForgotEmail = "";
+    if (forgotView) forgotView.style.display = "none";
+    if (loginView) loginView.style.display = "block";
+    if (prefillEmail && loginEmailEl) {
+      loginEmailEl.value = prefillEmail;
+    }
+    if (loginPwdEl) {
+      loginPwdEl.value = "";
+      if (prefillEmail) loginPwdEl.focus();
+    }
+  };
+
+  window.submitForgotCheck = async function(e) {
+    e.preventDefault();
+    setAuthAlert("", "");
+    const emailEl = document.getElementById("forgot-input-email");
+    const email = emailEl ? emailEl.value.trim() : "";
+    if (!email) {
+      setAuthAlert("Please enter your registered account email.", "");
+      return;
+    }
+    const btn = document.getElementById("btn-forgot-check");
+    const origText = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = "<span>Checking...</span>"; }
+
+    try {
+      const res = await fetch("/api/auth/forgot-password/check", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAuthAlert(data.detail || "No account found matching this email.", "");
+        return;
+      }
+
+      verifiedForgotEmail = email;
+      const stepEmail = document.getElementById("forgot-step-email");
+      const stepPwd = document.getElementById("forgot-step-password");
+      const labelEl = document.getElementById("forgot-verified-email-label");
+      const newPwdEl = document.getElementById("forgot-input-new-pwd");
+
+      if (stepEmail) stepEmail.style.display = "none";
+      if (stepPwd) stepPwd.style.display = "block";
+      if (labelEl) labelEl.textContent = `Account found: ${email}`;
+      if (newPwdEl) newPwdEl.focus();
+    } catch (err) {
+      setAuthAlert(`Connection error: ${err.message}`, "");
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+  };
+
+  window.submitForgotReset = async function(e) {
+    e.preventDefault();
+    setAuthAlert("", "");
+    const newPwd = (document.getElementById("forgot-input-new-pwd")?.value || "").trim();
+    const confirmPwd = (document.getElementById("forgot-input-confirm-pwd")?.value || "").trim();
+
+    if (!verifiedForgotEmail) {
+      setAuthAlert("Please verify your email first.", "");
+      return;
+    }
+    if (newPwd.length < 6) {
+      setAuthAlert("New password must be at least 6 characters long.", "");
+      return;
+    }
+    if (newPwd !== confirmPwd) {
+      setAuthAlert("Passwords do not match. Please re-enter them.", "");
+      return;
+    }
+
+    const btn = document.getElementById("btn-forgot-reset");
+    const origText = btn ? btn.innerHTML : "";
+    if (btn) { btn.disabled = true; btn.innerHTML = "<span>Updating...</span>"; }
+
+    try {
+      const res = await fetch("/api/auth/forgot-password/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: verifiedForgotEmail, new_password: newPwd })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAuthAlert(data.detail || "Could not update password.", "");
+        return;
+      }
+      const updatedEmail = verifiedForgotEmail;
+      closeForgotPasswordView(data.message || "Password updated successfully. You can now sign in.", updatedEmail);
+    } catch (err) {
+      setAuthAlert(`Connection error: ${err.message}`, "");
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = origText; }
+    }
+  };
+
   const btnSignOut = document.getElementById("btn-sign-out");
   if (btnSignOut) {
     btnSignOut.addEventListener("click", async () => {
       try {
         await fetch("/api/auth/logout", { method: "POST" });
         showToast("Signed out successfully.");
-        renderUnauthenticatedState();
       } catch (e) {
+      } finally {
+        const ns = (window.location.pathname.split("/")[1] || "").toLowerCase();
+        if (["root", "organization", "client", "conference", "workspace"].includes(ns)) {
+          try { window.history.replaceState({}, "", "/"); } catch (e) {}
+        }
         renderUnauthenticatedState();
       }
     });
@@ -2653,6 +2823,26 @@ document.addEventListener("DOMContentLoaded", () => {
   const briefEndDateInput = document.getElementById("brief-end-date");
   const briefVenueFormatInput = document.getElementById("brief-venue-format");
   const briefContactEmailInput = document.getElementById("brief-contact-email");
+
+  if (briefStartDateInput && briefEndDateInput) {
+    [briefStartDateInput, briefEndDateInput].forEach(inp => {
+      inp.addEventListener("click", () => {
+        try {
+          if (typeof inp.showPicker === "function") inp.showPicker();
+        } catch (e) {}
+      });
+    });
+    briefStartDateInput.addEventListener("change", () => {
+      if (briefStartDateInput.value) {
+        briefEndDateInput.min = briefStartDateInput.value;
+        if (briefEndDateInput.value && briefEndDateInput.value < briefStartDateInput.value) {
+          briefEndDateInput.value = briefStartDateInput.value;
+        }
+      } else {
+        briefEndDateInput.removeAttribute("min");
+      }
+    });
+  }
 
   const btnBriefNext = document.getElementById("btn-brief-next");
   const btnReviewBack = document.getElementById("btn-review-back");
@@ -3208,7 +3398,10 @@ document.addEventListener("DOMContentLoaded", () => {
     builderSitesGrid.innerHTML = sites.map(site => {
       const isPub = (site.status === "published");
       const url = `/sites/${site.slug}`;
-      const viewUrl = isPub ? url : `/api/builder/sites/${encodeURIComponent(site.site_id)}/preview`;
+      const namespace = window.location.pathname.split('/')[1];
+      const prefix = ['root','organization','client'].includes(namespace) ? '/' + namespace : '';
+      const previewUrl = `${prefix}/scistudio/${encodeURIComponent(site.site_id)}/preview`;
+      const viewUrl = isPub ? url : previewUrl;
       const updatedDate = site.updated_at ? site.updated_at.split('T')[0] : 'Recently';
       const conf = userConferences.find(c => c.conference_id === site.conference_id);
 
@@ -3388,16 +3581,67 @@ document.addEventListener("DOMContentLoaded", () => {
   window.updateStudioStyle = (id, key, value) => {
     const comp = currentSite.schema_json.find(c => c.id === id);
     if (!comp) return;
+    if (key === 'background') { comp.studio_style ||= {}; if(!value)delete comp.studio_style.gradient; }
     if (key === 'title') comp.title = value;
     else { comp.studio_style ||= {}; comp.studio_style[key] = value; }
     renderCanvas();
   };
+  const studioBackgroundThemes = {ocean:['#dbeafe','#cffafe'],lavender:['#ede9fe','#fce7f3'],sunset:['#ffedd5','#ffe4e6'],midnight:['#0f172a','#312e81']};
+  window.setStudioBackgroundTheme = (id, theme) => {
+    const comp=currentSite.schema_json.find(c=>c.id===id); if(!comp)return;
+    comp.studio_style ||= {}; comp.studio_style.gradient=theme;
+    comp.studio_style.background=studioBackgroundThemes[theme]?.[0] || comp.studio_style.background || '#ffffff';
+    renderCanvas(); renderInspector(comp);
+  };
+  window.changeStudioNavLinks = (id, action, index) => {
+    const comp=currentSite.schema_json.find(c=>c.id===id); if(!comp)return;
+    comp.data.links ||= [];
+    if(action==='remove')comp.data.links.splice(index,1);
+    else comp.data.links.push({label:action==='button'?'New button':'New link',url:'#',style:action==='button'?'button':'link'});
+    renderCanvas();renderInspector(comp);
+  };
+  window.addStudioElement = (id,kind) => {
+    const comp=currentSite.schema_json.find(c=>c.id===id);if(!comp)return;
+    comp.elements ||= [];comp.elements.push({id:crypto.randomUUID(),kind,text:kind==='button'?'Learn more':'Your text',url:'#',x:10,y:10});
+    renderCanvas();renderInspector(comp);
+  };
+  window.updateStudioElement = (id,index,key,value) => {
+    const comp=currentSite.schema_json.find(c=>c.id===id);if(!comp?.elements?.[index])return;
+    if(key==='remove')comp.elements.splice(index,1);else comp.elements[index][key]=value;
+    renderCanvas();if(key==='remove')renderInspector(comp);
+  };
+  function studioElementsMarkup(comp) {
+    return (comp.elements||[]).map((item,index)=>`<div class="studio-free-element" data-element-index="${index}" style="left:${Math.max(0,Math.min(95,Number(item.x)||0))}%;top:${Math.max(0,Math.min(95,Number(item.y)||0))}%"><button type="button" class="studio-element-grip" aria-label="Move element" title="Drag to move; arrow keys to nudge">↔</button><span class="${item.kind==='button'?'studio-free-button':'studio-free-text'}" tabindex="0">${escapeHtml(item.text||'')}</span></div>`).join('');
+  }
+  function wireStudioElementDragging() {
+    canvasSectionsList.querySelectorAll('.studio-free-element').forEach(node=>{
+      const wrapper=node.closest('[data-comp-id]'),comp=currentSite.schema_json.find(c=>c.id===wrapper.dataset.compId),item=comp.elements[Number(node.dataset.elementIndex)],grip=node.querySelector('button');
+      node.onclick=e=>{e.stopPropagation();selectComponentForEditing(comp.id);};
+      const text=node.querySelector('span');
+      text.ondblclick=e=>{e.preventDefault();e.stopPropagation();text.contentEditable='plaintext-only';text.focus();};
+      text.onblur=()=>{if(text.isContentEditable){item.text=text.textContent;text.contentEditable='false';renderCanvas();renderInspector(comp);}};
+      text.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();if(text.isContentEditable)text.blur();else text.ondblclick(e);}};
+      const clamp=(v,max)=>Math.max(0,Math.min(Math.max(0,max),v));
+      grip.onpointerdown=e=>{
+        if(e.button!==0)return;e.preventDefault();e.stopPropagation();closeStudioQuick();
+        const box=wrapper.getBoundingClientRect(),rect=node.getBoundingClientRect(),startX=e.clientX,startY=e.clientY,x=Number(item.x)||0,y=Number(item.y)||0;
+        const maxX=100*(1-rect.width/box.width),maxY=100*(1-rect.height/box.height);
+        grip.setPointerCapture(e.pointerId);
+        grip.onpointermove=move=>{item.x=clamp(x+(move.clientX-startX)*100/box.width,maxX);item.y=clamp(y+(move.clientY-startY)*100/box.height,maxY);node.style.left=item.x+'%';node.style.top=item.y+'%';};
+        const finish=cancel=>{if(cancel){item.x=x;item.y=y;}grip.onpointermove=null;grip.onpointerup=null;grip.onpointercancel=null;renderCanvas();};
+        grip.onpointerup=()=>finish(false);grip.onpointercancel=()=>finish(true);
+      };
+      grip.onkeydown=e=>{const delta={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(!delta)return;e.preventDefault();e.stopPropagation();item.x=clamp((Number(item.x)||0)+delta[0],95);item.y=clamp((Number(item.y)||0)+delta[1],95);node.style.left=item.x+'%';node.style.top=item.y+'%';studioRecord();};
+    });
+  }
   function studioSectionStyle(comp) {
     const style = comp.studio_style || {}, rules = [];
     for (const [key, css, max] of [['padding','padding',160],['radius','border-radius',80]]) {
       if (style[key] !== undefined && style[key] !== '') rules.push(`${css}:${Math.min(max, Math.max(0, Number(style[key]) || 0))}px`);
     }
     if (/^#[0-9a-f]{6}$/i.test(style.background || '')) rules.push(`background:${style.background}`,`--studio-section-ink:${StudioFormatting.contrast(style.background)}`);
+    const colors=style.gradient==='custom'?[style.background||'#ffffff',/^#[0-9a-f]{6}$/i.test(style.gradient_end||'')?style.gradient_end:'#dbeafe']:studioBackgroundThemes[style.gradient];
+    if(colors) rules.push(`background:linear-gradient(${Math.max(0,Math.min(360,Number(style.gradient_angle)||135))}deg,${colors[0]},${colors[1]})`);
     return rules.join(';');
   }
   function studioAppearanceControls(comp) {
@@ -3406,6 +3650,8 @@ document.addEventListener("DOMContentLoaded", () => {
       <label>Section name<input class="inspector-input" value="${escapeHtml(comp.title || comp.type)}" oninput="updateStudioStyle('${comp.id}','title',this.value)"></label>
       <label>Outer spacing (px)<input class="inspector-input" type="range" min="0" max="160" value="${Number(style.padding) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','padding',this.value)"><output>${style.padding === undefined || style.padding === '' ? 'Default' : Number(style.padding)+' px'}</output></label>
       <label>Corner radius (px)<input class="inspector-input" type="range" min="0" max="80" value="${Number(style.radius) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','radius',this.value)"><output>${style.radius === undefined || style.radius === '' ? 'Default' : Number(style.radius)+' px'}</output></label>
+      <label>Background theme<select class="inspector-input" onchange="setStudioBackgroundTheme('${comp.id}',this.value)"><option value="">Solid color</option><option value="custom" ${style.gradient==='custom'?'selected':''}>Custom gradient</option>${Object.keys(studioBackgroundThemes).map(name=>`<option value="${name}" ${style.gradient===name?'selected':''}>${name[0].toUpperCase()+name.slice(1)} gradient</option>`).join('')}</select></label>
+      ${style.gradient==='custom'?`<label>Second color<input class="inspector-input" type="color" value="${/^#[0-9a-f]{6}$/i.test(style.gradient_end||'')?style.gradient_end:'#dbeafe'}" oninput="updateStudioStyle('${comp.id}','gradient_end',this.value)"></label><label>Gradient angle<input type="range" min="0" max="360" value="${Number(style.gradient_angle)||135}" onchange="updateStudioStyle('${comp.id}','gradient_angle',this.value)"></label>`:''}
       <label>Background<input class="inspector-input" type="color" value="${/^#[0-9a-f]{6}$/i.test(style.background || '') ? style.background : '#ffffff'}" oninput="updateStudioStyle('${comp.id}','background',this.value)"></label>
       <button type="button" class="btn-sec-tool" onclick="updateStudioStyle('${comp.id}','background','')">Reset background</button>
       <button type="button" class="btn-sec-tool" onclick="duplicateStudioSection('${comp.id}')">Duplicate section</button></div>`;
@@ -3451,7 +3697,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   builderStudioView.addEventListener('dragend', () => { studioDrag = null; clearDropMark(); });
 
-  window.openBuilderStudio = async function(siteId) {
+  window.openBuilderStudio = async function(siteId, updateHistory = true) {
     try {
       showToast("Loading SciStudio...", "info");
       const res = await fetch(`/api/builder/sites/${siteId}`);
@@ -3460,6 +3706,13 @@ document.addEventListener("DOMContentLoaded", () => {
       activeComponentId = null;
       studioHistory = []; studioHistoryIndex = -1; studioSaved = studioSnapshot();
       inspectorContent.innerHTML = '<p class="empty-inspector-notice">Select a section to customize its content and appearance.</p>';
+
+      const namespace = window.location.pathname.split('/')[1];
+      const prefix = ['root','organization','client'].includes(namespace) ? '/' + namespace : '';
+      const editPath = `${prefix}/scistudio/${encodeURIComponent(siteId)}/edit`;
+      if (updateHistory && window.location.pathname !== editPath) {
+        window.history.pushState({ tab: "builder", siteId: siteId, view: "edit" }, "", editPath);
+      }
 
       // Enter Fullscreen Studio Mode: hide app sidebar, topbar, status bar
       document.body.classList.add("studio-fullscreen-mode");
@@ -3531,6 +3784,12 @@ document.addEventListener("DOMContentLoaded", () => {
       activeComponentId = null;
       if (builderStudioView) builderStudioView.style.display = "none";
       if (builderDashboardView) builderDashboardView.style.display = "block";
+      const namespace = window.location.pathname.split('/')[1];
+      const prefix = ['root','organization','client'].includes(namespace) ? '/' + namespace : '';
+      const studioPath = `${prefix}/scistudio`;
+      if (window.location.pathname !== studioPath) {
+        window.history.pushState({ tab: "builder" }, "", studioPath);
+      }
       fetchBuilderSites();
     });
   }
@@ -3688,10 +3947,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     refreshStudioQuick();
   }
-  window.chooseStudioImage = id => {
+  window.chooseStudioImage = (id, field = 'image_url') => {
     const comp=currentSite.schema_json.find(item=>item.id===id);if(!comp)return;
     const node=[...canvasSectionsList.querySelectorAll('[data-comp-id]')].find(item=>item.dataset.compId===id);
-    studioQuickTarget={comp,path:['image_url'],node,kind:'image'};
+    studioQuickTarget={comp,path:[field],node,kind:'image'};
     const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp,image/gif';input.onchange=()=>uploadStudioImage(input.files[0]);input.click();
   };
   async function uploadStudioImage(file) {
@@ -3705,7 +3964,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const url=canvas.toDataURL('image/webp',.85);
       if(url.length>3*1024*1024)throw new Error('Image is too large after compression. Please choose a smaller image.');
       if(!currentSite?.schema_json.includes(target.comp))return;
-      studioSetValue(target.comp,target.path,url);renderCanvas();renderInspector(target.comp);reopenStudioQuick();showToast('Image added and optimized. Save to keep your changes.','success');
+      studioSetValue(target.comp,target.path,url);if(target.path[0]==='logo_url')target.comp.data.brand_mode='image';renderCanvas();renderInspector(target.comp);reopenStudioQuick();showToast('Image added and optimized. Save to keep your changes.','success');
     }catch(error){showToast(error.message||'Unable to read this image.','error');}
   }
   function studioRenderedStyle(node) {
@@ -3828,11 +4087,11 @@ document.addEventListener("DOMContentLoaded", () => {
         });
       }
       visit(comp.data);
-      wrapper.querySelectorAll('.section-preview-render h1,.section-preview-render h2,.section-preview-render h3,.section-preview-render h4,.section-preview-render p,.section-preview-render span').forEach(node=>{
+      wrapper.querySelectorAll('.section-preview-render h1,.section-preview-render h2,.section-preview-render h3,.section-preview-render h4,.section-preview-render p,.section-preview-render span,.section-preview-render a').forEach(node=>{
         if(node.children.length) return;
         const matches=fields.filter(field=>field.value.trim()===node.textContent.trim()); if(matches.length!==1) return;
         node.dataset.studioFormatKey=JSON.stringify(matches[0].path);
-        node.onclick=event=>{event.stopPropagation();if(studioQuickTarget?.node!==node)openStudioQuick(comp,matches[0].path,node);captureStudioSelection();};
+        node.onclick=event=>{event.preventDefault();event.stopPropagation();if(studioQuickTarget?.node!==node)openStudioQuick(comp,matches[0].path,node);captureStudioSelection();};
         node.classList.add('studio-inline-text'); node.tabIndex=0; node.title='Double-click to edit text';
         const startEdit=event=>{
           event.preventDefault(); event.stopPropagation(); if(node.isContentEditable) return;
@@ -3992,7 +4251,10 @@ document.addEventListener("DOMContentLoaded", () => {
       const previewWindow = window.open('about:blank', '_blank');
       if (!previewWindow) { showToast('Allow popups to open the website preview.', 'info'); return; }
       previewWindow.opener = null;
-      if (await saveSiteDraft(false)) previewWindow.location.href = `/api/builder/sites/${encodeURIComponent(previewSite.site_id)}/preview`;
+      const namespace = window.location.pathname.split('/')[1];
+      const prefix = ['root','organization','client'].includes(namespace) ? '/' + namespace : '';
+      const previewUrl = `${prefix}/scistudio/${encodeURIComponent(previewSite.site_id)}/preview`;
+      if (await saveSiteDraft(false)) previewWindow.location.href = previewUrl;
       else previewWindow.close();
     });
   }
@@ -4184,18 +4446,8 @@ document.addEventListener("DOMContentLoaded", () => {
       const isSelected = (comp.id === activeComponentId);
       return `
         <div class="studio-insert-line"><button type="button" onclick="openStudioLibrary('${comp.id}')" aria-label="Insert section before ${escapeHtml(comp.title || comp.type)}">+ Add section</button></div>
-        <div class="canvas-section-wrapper ${comp.hidden ? 'studio-section-hidden' : ''} ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
-          <!-- Floating Toolbar -->
-          <div class="section-hover-bar" onclick="event.stopPropagation()">
-            <button class="btn-sec-tool" draggable="true" data-drag-section="${comp.id}" title="Drag section">⠿</button>
-            <button class="btn-sec-tool" onclick="duplicateStudioSection('${comp.id}')" title="Duplicate">Duplicate</button>
-            <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
-            <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move Down">⬇</button>
-            <button class="btn-sec-tool" onclick="selectComponentForEditing('${comp.id}')" title="Configure">⚙ Settings</button>
-            <label class="studio-section-color" title="Section background · text contrast adjusts automatically"><input type="color" value="${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?comp.studio_style.background:bg}" onchange="updateStudioStyle('${comp.id}','background',this.value)">Background</label>
-            <button class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete">🗑</button>
-          </div>
-
+        <div class="canvas-section-wrapper ${comp.type === 'navbar' ? 'studio-navbar-section' : ''} ${comp.hidden ? 'studio-section-hidden' : ''} ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
+          ${comp.hidden ? '' : studioElementsMarkup(comp)}
           <!-- Section Render -->
           <div class="section-preview-render ${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?'studio-contrast-section':''}" style="pointer-events:none;${studioSectionStyle(comp)}">
             ${comp.hidden ? '<div class="studio-hidden-notice">Hidden section · Select Advanced to restore</div>' : renderComponentHTML(comp, primary)}
@@ -4204,6 +4456,7 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     }).join("") + '<div class="studio-insert-line last"><button type="button" onclick="openStudioLibrary()">+ Add section</button></div>';
     wireStudioInlineEditing();
+    wireStudioElementDragging();
   }
 
   // RENDER INDIVIDUAL COMPONENT WITH PROPER CONTRAST & VECTOR ICONS
@@ -4234,12 +4487,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const navBg = isLight ? "rgba(255, 255, 255, 0.95)" : "rgba(11, 15, 25, 0.9)";
 
     if (t === "navbar") {
-      const links = (d.links || []).map(l => `<a href="#" style="color:${isLight ? '#334155' : '#cbd5e1'};font-size:0.88rem;margin-right:1.25rem;font-weight:500;">${escapeHtml(l.label)}</a>`).join("");
+      const links = (d.links || []).map(l => `<a href="#" style="color:${isLight ? '#334155' : '#cbd5e1'};font-size:0.88rem;margin-right:1.25rem;font-weight:500;${l.style==='button'?`background:${primary};padding:0.5rem 0.9rem;border-radius:6px;color:${StudioFormatting.contrast(primary)};`:''}">${escapeHtml(l.label)}</a>`).join("");
       return `
         <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${navBorder};background:${navBg};">
           <div style="font-weight:800;color:${textTitle};font-size:1.2rem;display:flex;align-items:center;gap:0.5rem;">
-            <i class="fa-solid fa-atom" style="color:${primary};font-size:1.15rem;"></i>
-            <span>${escapeHtml(d.brand_name || 'Brand')}</span>
+            ${d.brand_mode !== 'text' && d.logo_url && /^(https?:\/\/|\/(?!\/)|data:image\/(?:png|jpeg|webp|gif);base64,)/.test(d.logo_url) ? `<img src="${escapeHtml(d.logo_url)}" alt="${escapeHtml(d.logo_alt || d.brand_name || 'Logo')}" style="height:${Math.min(120,Math.max(20,Number(d.logo_height)||40))}px;width:auto;max-width:240px;object-fit:contain;">` : d.brand_mode === 'image' ? `<button type="button" style="pointer-events:auto" class="btn-sec-tool" onclick="event.stopPropagation();chooseStudioImage('${comp.id}','logo_url')">+ Logo</button>` : ''}
+            ${(d.brand_mode || (d.logo_url ? 'image' : 'text')) === 'text' ? `<span>${escapeHtml(d.brand_name || 'Brand')}</span>` : ''}
           </div>
           <div>${links} <span style="background:${primary};color:#fff;padding:0.45rem 1rem;border-radius:6px;font-size:0.85rem;font-weight:700;">${escapeHtml(d.cta_label || 'Register')}</span></div>
         </div>
@@ -5142,17 +5395,24 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(t)) {
       html += `<div class="inspector-field"><label>Section design</label><select class="inspector-select" onchange="updateField('${comp.id}','design',this.value)">${[['grid','Card grid'],['list','Editorial list'],['spotlight','Centered spotlight']].map(([value,label]) => `<option value="${value}" ${(d.design || 'grid') === value ? 'selected' : ''}>${label}</option>`).join('')}</select></div>`;
-      for (const [key,label] of [['section_title','Heading'],['section_subtitle','Introduction']]) html += `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateField('${comp.id}','${key}',this.value)">${escapeHtml(d[key] || '')}</textarea></div>`;
+      for (const [key,label] of [['section_title','Heading'],['section_subtitle','Introduction']]) html += `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateField('${comp.id}','${key}',this.value)">${escapeHtml(d[key] || (key === 'cta_link' ? d.cta_url : '') || '')}</textarea></div>`;
       html += (d.items || []).map((item,index) => `<div class="inspector-card-group"><div class="inspector-group-title">Item ${index+1}</div>${[['title','Title / name / number'],['description','Description / quote / session details'],['image','Image or logo URL (optional)']].map(([key,label]) => `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateSubField('${comp.id}','items',${index},'${key}',this.value)">${escapeHtml(item[key] || '')}</textarea></div>`).join('')}<button type="button" class="btn-sec-tool" onclick="deleteSubItem('${comp.id}','items',${index})">Remove item</button></div>`).join('');
       html += `<button type="button" class="btn-sec-tool" onclick="addStudioContentItem('${comp.id}')">+ Add item</button>`;
     }
     if(t==='image')html+=`<button class="studio-add-open" type="button" onclick="chooseStudioImage('${comp.id}')">Upload / replace image</button><div class="inspector-field"><label>Caption</label><input class="inspector-input" value="${escapeHtml(d.caption||'')}" oninput="updateField('${comp.id}','caption',this.value)"></div>`;
     if (t === 'navbar' || t === 'footer') {
-      const fields = t === 'navbar' ? [['brand_name','Brand name'],['cta_label','Button label'],['cta_url','Button link']] : [['brand_name','Brand name'],['tagline','Short introduction'],['copyright','Copyright text']];
-      html += fields.map(([key,label]) => `<div class="inspector-field"><label>${label}</label><input class="inspector-input" value="${escapeHtml(d[key] || '')}" oninput="updateField('${comp.id}','${key}',this.value)"></div>`).join('');
+      const fields = t === 'navbar' ? [['brand_name','Brand name'],['cta_label','Button label'],['cta_link','Button link']] : [['brand_name','Brand name'],['tagline','Short introduction'],['copyright','Copyright text']];
+      html += fields.map(([key,label]) => `<div class="inspector-field"><label>${label}</label><input class="inspector-input" value="${escapeHtml(d[key] || (key === 'cta_link' ? d.cta_url : '') || '')}" oninput="updateField('${comp.id}','${key}',this.value)"></div>`).join('');
+      if (t === 'navbar') {
+        html += `<div class="inspector-card-group"><h4>Brand display</h4><label>Show<select class="inspector-input" onchange="updateField('${comp.id}','brand_mode',this.value)"><option value="text" ${(d.brand_mode || (d.logo_url?'image':'text'))==='text'?'selected':''}>Text name</option><option value="image" ${(d.brand_mode || (d.logo_url?'image':'text'))==='image'?'selected':''}>Logo image</option></select></label><h4>Logo image</h4><button type="button" class="btn-sec-tool" onclick="chooseStudioImage('${comp.id}','logo_url')">${d.logo_url?'Replace logo':'Upload logo'}</button>${d.logo_url?`<button type="button" class="btn-sec-tool" onclick="updateField('${comp.id}','logo_url','')">Remove logo</button>`:''}<div class="inspector-field"><label>Logo description</label><input class="inspector-input" value="${escapeHtml(d.logo_alt||'')}" oninput="updateField('${comp.id}','logo_alt',this.value)"><label>Logo height (20–120 px)</label><input type="number" class="inspector-input" min="20" max="120" value="${Number(d.logo_height)||40}" oninput="updateField('${comp.id}','logo_height',this.value)"></div></div>`;
+        html += '<h4>Navigation links</h4>'  + (d.links || []).map((link, index) => `<div class="inspector-field"><label>Link ${index + 1} text</label><input class="inspector-input" value="${escapeHtml(link.label || '')}" oninput="updateSubField('${comp.id}','links',${index},'label',this.value)"><label>Destination</label><input class="inspector-input" value="${escapeHtml(link.url || '')}" placeholder="#about or https://…" oninput="updateSubField('${comp.id}','links',${index},'url',this.value)"><label>Display as</label><select class="inspector-input" onchange="updateSubField('${comp.id}','links',${index},'style',this.value)"><option value="link" ${link.style!=='button'?'selected':''}>Text link</option><option value="button" ${link.style==='button'?'selected':''}>Button</option></select><button type="button" class="btn-sec-tool" onclick="changeStudioNavLinks('${comp.id}','remove',${index})">Remove</button></div>`).join('');
+        html += `<button type="button" class="btn-sec-tool" onclick="changeStudioNavLinks('${comp.id}','link')">+ Add link</button> <button type="button" class="btn-sec-tool" onclick="changeStudioNavLinks('${comp.id}','button')">+ Add button</button>`;
+      }
+
     }
     if (t === 'custom') html += `<div class="inspector-field"><label>HTML and CSS (scripts disabled)</label><textarea class="inspector-input studio-code-input" spellcheck="false" oninput="updateField('${comp.id}','html',this.value)">${escapeHtml(d.html || '')}</textarea><label>Embed height (px)</label><input type="number" class="inspector-input" min="100" max="2000" value="${Number(d.height) || 300}" onchange="updateField('${comp.id}','height',this.value)"></div>`;
     if (t === 'hero') html = `<div class="inspector-card-group"><label class="control-label">Hero design</label><select class="inspector-select" onchange="setHeroLayoutVariant('${comp.id}',this.value)">${[['split','Split showcase'],['conference_program','Conference program'],['centered','Centered spotlight'],['image_left','Image on left'],['image_top','Image first'],['text_only','Minimal typography']].map(([value,label]) => `<option value="${value}" ${(d.layout_variant || 'split') === value ? 'selected' : ''}>${label}</option>`).join('')}</select><p class="panel-section-subtitle">Switch designs without losing your content.</p></div>` + html;
+    html += `<div class="inspector-card-group"><h4>Place elements</h4><p>Add, then drag the move handle on the canvas. Double-click to edit text. Mobile stacks these elements.</p><button type="button" class="btn-sec-tool" onclick="addStudioElement('${comp.id}','text')">+ Add text</button> <button type="button" class="btn-sec-tool" onclick="addStudioElement('${comp.id}','button')">+ Add button</button>${(comp.elements||[]).map((item,index)=>`<div class="inspector-field"><label>${item.kind==='button'?'Button':'Text'}</label><input class="inspector-input" value="${escapeHtml(item.text||'')}" oninput="updateStudioElement('${comp.id}',${index},'text',this.value)">${item.kind==='button'?`<label>Destination</label><input class="inspector-input" value="${escapeHtml(item.url||'')}" oninput="updateStudioElement('${comp.id}',${index},'url',this.value)">`:''}<button type="button" class="btn-sec-tool" onclick="updateStudioElement('${comp.id}',${index},'remove','')">Remove</button></div>`).join('')}</div>`;
     inspectorContent.innerHTML = studioAppearanceControls(comp) + html;
     organizeStudioInspector(comp);
   }
@@ -5325,11 +5585,15 @@ document.addEventListener("DOMContentLoaded", () => {
   function initBrowserRouting() {
     const p = window.location.pathname.toLowerCase();
     let targetTab = "pipeline";
+    const editMatch = window.location.pathname.match(/\/scistudio\/([^\/]+)\/edit\/?$/i);
+
     if (p.endsWith("/collector") || p.endsWith("/dashboard")) { targetTab = "pipeline"; }
     else if (p.includes("scistudio") || p.includes("websitebuilder") || p.includes("builder")) {
       targetTab = "builder";
-      if (p.includes("websitebuilder") || p.includes("builder")) {
-        try { window.history.replaceState({ tab: "builder" }, "", "/scistudio"); } catch(e) {}
+      if (!editMatch && (p.includes("websitebuilder") || (p.includes("builder") && !p.includes("scistudio")))) {
+        const namespace = window.location.pathname.split('/')[1];
+        const prefix = ['root','organization','client'].includes(namespace) ? '/' + namespace : '';
+        try { window.history.replaceState({ tab: "builder" }, "", prefix + "/scistudio"); } catch(e) {}
       }
     } else if (p.includes("nih")) {
       targetTab = "nih";
@@ -5346,9 +5610,27 @@ document.addEventListener("DOMContentLoaded", () => {
       } catch (e) {}
     }
     switchTab(targetTab, false);
+    if (editMatch && editMatch[1]) {
+      openBuilderStudio(editMatch[1], false);
+    }
   }
 
   window.addEventListener("popstate", (e) => {
+    const editMatch = window.location.pathname.match(/\/scistudio\/([^\/]+)\/edit\/?$/i);
+    if (editMatch) {
+      if (currentTab !== "builder") switchTab("builder", false);
+      if (!currentSite || currentSite.site_id !== editMatch[1]) {
+        openBuilderStudio(editMatch[1], false);
+      }
+      return;
+    }
+    if (currentSite) {
+      document.body.classList.remove("studio-fullscreen-mode");
+      currentSite = null;
+      activeComponentId = null;
+      if (builderStudioView) builderStudioView.style.display = "none";
+      if (builderDashboardView) builderDashboardView.style.display = "block";
+    }
     if (e.state && e.state.tab) {
       switchTab(e.state.tab, false);
     } else {
@@ -5357,6 +5639,10 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   checkAuthSession();
-  setInterval(checkAuthSession, 4000);
+  setInterval(() => {
+    if (isSessionAuthenticated) {
+      checkAuthSession();
+    }
+  }, 30000);
 });
 

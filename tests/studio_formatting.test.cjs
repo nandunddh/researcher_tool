@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const f=require('../web/static/studio-formatting.js');
+const f=require('../backend/static/studio-formatting.js');
 assert.equal(f.contrast('#ffffff','#ffffff'),'#172033');
 assert.equal(f.contrast('#000000','#000000'),'#ffffff');
 assert.equal(f.contrast('#ffffff','#3344aa'),'#3344aa');
