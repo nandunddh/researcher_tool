@@ -78,6 +78,31 @@ def _generate_key(prefix: str = "SCIP", tier: str = "TR") -> str:
     return f"{prefix}-{tier_tag}-{part1}-{part2}"
 
 
+def sanitize_member(member: dict) -> dict:
+    if not member:
+        return {}
+    return {
+        "member_id": member.get("member_id", ""),
+        "name": member.get("name", ""),
+        "email": member.get("email", ""),
+        "role": member.get("role", "viewer"),
+        "scistudio_access": bool(member.get("scistudio_access", True)),
+        "created_at": member.get("created_at", ""),
+    }
+
+
+def sanitize_account(account: dict) -> dict:
+    if not account:
+        return {}
+    safe = dict(account)
+    safe.pop("password_hash", None)
+    safe.pop("password", None)
+    safe.pop("session_token", None)
+    if "members" in safe and isinstance(safe["members"], list):
+        safe["members"] = [sanitize_member(m) for m in safe["members"]]
+    return safe
+
+
 class LicenseManager:
     def __init__(self, db_path: Path = LICENSES_FILE, sessions_path: Optional[Path] = None):
         self.db_path = Path(db_path)
@@ -337,9 +362,13 @@ class LicenseManager:
             tier_clean = "trial"
 
         now = datetime.utcnow()
-        if duration_days <= 0 or duration_days > 3650:
-            expires_at = "never"
+        if tier_clean == "pro":
+            duration_days = 30
+            expires_dt = now + timedelta(days=30)
+            expires_at = expires_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
         else:
+            if duration_days <= 0 or duration_days > 365:
+                duration_days = 7
             expires_dt = now + timedelta(days=duration_days)
             expires_at = expires_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
 
@@ -384,7 +413,7 @@ class LicenseManager:
         db["licenses"][key] = account
         self._save_db(db)
         print(f"[LICENSE] Created {acct_type.upper()} ({tier_clean.upper()}) account for {name} ({key})")
-        return account
+        return sanitize_account(account)
 
     def get_account(self, license_key: str) -> Optional[dict]:
         """Returns the raw account record by key."""
@@ -395,6 +424,8 @@ class LicenseManager:
     def stop_account(self, license_key: str) -> Tuple[bool, str]:
         """Instantly stops/suspends an account. Client app will be locked out and active sessions revoked."""
         key_clean = (license_key or "").strip().upper()
+        if key_clean == "SCIP-PRO-ROOT-MASTER":
+            return False, "Cannot suspend the root account."
         db = self._load_db()
         if key_clean not in db.get("licenses", {}):
             return False, "License key not found."
@@ -431,14 +462,15 @@ class LicenseManager:
     def extend_account(self, license_key: str, additional_days: int = 7) -> Tuple[bool, str, dict]:
         """Adds more days to an account's expiration."""
         db = self._load_db()
-        if license_key not in db["licenses"]:
+        key_clean = (license_key or "").strip().upper()
+        if key_clean not in db["licenses"]:
             return False, "License key not found.", {}
-        account = db["licenses"][license_key]
+        account = db["licenses"][key_clean]
 
         curr_exp = account.get("expires_at", "never")
         now = datetime.utcnow()
         if curr_exp == "never":
-            return True, "Account already has lifetime validity.", account
+            return True, "Account already has lifetime validity.", sanitize_account(account)
 
         try:
             curr_dt = datetime.strptime(curr_exp.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S")
@@ -454,26 +486,37 @@ class LicenseManager:
             account["status"] = "active"
 
         self._save_db(db)
-        return True, f"Extended account validity by {additional_days} days.", account
+        return True, f"Extended account validity by {additional_days} days.", sanitize_account(account)
 
     def upgrade_account(self, license_key: str, new_tier: str = "pro", new_limit: int = -1) -> Tuple[bool, str, dict]:
         """Upgrades or modifies an account's tier and limit."""
+        key_clean = (license_key or "").strip().upper()
+        if key_clean == "SCIP-PRO-ROOT-MASTER":
+            return False, "Cannot modify tier for root master account.", {}
         db = self._load_db()
-        if license_key not in db["licenses"]:
+        if key_clean not in db["licenses"]:
             return False, "License key not found.", {}
-        account = db["licenses"][license_key]
-        account["tier"] = new_tier.lower()
-        if new_tier.lower() == "pro":
+        account = db["licenses"][key_clean]
+        previous_tier = account.get("tier")
+        new_tier_clean = new_tier.strip().lower()
+        if new_tier_clean not in ("trial", "pro"):
+            return False, "Invalid tier. Must be 'trial' or 'pro'.", {}
+        account["tier"] = new_tier_clean
+        if new_tier_clean == "pro":
             account["daily_limit"] = -1 if new_limit <= 0 else new_limit
-            # Default pro accounts to lifetime if previously short trial
-            if account.get("duration_days", 7) <= 30:
-                account["expires_at"] = "never"
-                account["duration_days"] = -1
+            # A new Pro activation lasts 30 days; quota edits do not renew it.
+            if previous_tier != "pro":
+                account["expires_at"] = (datetime.utcnow() + timedelta(days=30)).strftime("%Y-%m-%d %H:%M:%S UTC")
+                account["duration_days"] = 30
         else:
             account["daily_limit"] = 1000 if new_limit <= 0 else new_limit
+            # Trial downgrade: old Pro expiry must not accidentally remain lifetime
+            if account.get("expires_at") == "never":
+                account["expires_at"] = (datetime.utcnow() + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S UTC")
+                account["duration_days"] = 7
 
         self._save_db(db)
-        return True, f"Account upgraded to {new_tier.upper()}.", account
+        return True, f"Account updated to {new_tier_clean.upper()}.", sanitize_account(account)
 
     def toggle_scistudio_access(self, license_key: str, enable: Optional[bool] = None) -> Tuple[bool, str, dict]:
         """Enables or disables SciStudio (Website Builder) access for an account."""
@@ -485,6 +528,8 @@ class LicenseManager:
         acc = db["licenses"][key_clean]
         current = acc.get("scistudio_access", True)
         new_state = (not current) if enable is None else bool(enable)
+        if key_clean == "SCIP-PRO-ROOT-MASTER" and not new_state:
+            return False, "Cannot disable SciStudio for the root account.", sanitize_account(acc)
         acc["scistudio_access"] = new_state
         self._save_db(db)
 
@@ -497,7 +542,7 @@ class LicenseManager:
 
         status_text = "enabled" if new_state else "disabled"
         print(f"[LICENSE] SciStudio access {status_text} for {acc.get('client_name')} ({key_clean})")
-        return True, f"SciStudio access successfully {status_text} for {acc.get('client_name')}.", acc
+        return True, f"SciStudio access successfully {status_text} for {acc.get('client_name')}.", sanitize_account(acc)
 
     def delete_account(self, license_key: str) -> Tuple[bool, str]:
         """Permanently deletes an account record locally and from PostgreSQL cloud database."""
@@ -604,7 +649,7 @@ class LicenseManager:
 
         # Sort: Most recently created first
         accounts.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        return accounts
+        return [sanitize_account(a) for a in accounts]
 
     def add_org_member(
         self,
@@ -648,7 +693,7 @@ class LicenseManager:
         }
         members.append(new_member)
         self._save_db(db)
-        return True, f"Member '{new_member['name']}' successfully added.", new_member
+        return True, f"Member '{new_member['name']}' successfully added.", sanitize_member(new_member)
 
     def remove_org_member(self, parent_key: str, member_id: str) -> Tuple[bool, str]:
         """Removes a team member from an Organization or Client account."""
@@ -682,7 +727,7 @@ class LicenseManager:
                     m["scistudio_access"] = bool(enable)
                 self._save_db(db)
                 status_str = "enabled" if m["scistudio_access"] else "disabled"
-                return True, f"SciStudio access {status_str} for member '{m.get('name')}'.", m
+                return True, f"SciStudio access {status_str} for member '{m.get('name')}'.", sanitize_member(m)
         return False, "Member not found.", None
 
     def get_stats(self) -> dict:

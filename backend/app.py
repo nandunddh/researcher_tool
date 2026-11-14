@@ -450,13 +450,14 @@ async def api_auth_login(request: Request):
         "user": user,
         "message": msg
     })
+    secure_cookie = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     res.set_cookie(
         key="scip_token",
         value=token,
         max_age=86400 * 7,
         httponly=True,
         samesite="lax",
-        secure=False
+        secure=secure_cookie
     )
     return res
 
@@ -572,23 +573,49 @@ async def admin_create_license(request: Request):
     body = await request.json()
     name = (body.get("name") or "").strip()
     email = (body.get("email") or "").strip()
-    tier = (body.get("tier") or "trial").strip()
-    duration = int(body.get("duration_days") or 7)
-    limit = int(body.get("daily_limit") if body.get("daily_limit") is not None else (-1 if tier == "pro" else 1000))
+    tier = (body.get("tier") or "trial").strip().lower()
+
+    if not name:
+        raise HTTPException(status_code=400, detail="Client name is required.")
+    if not email or "@" not in email or "." not in email.split("@")[-1]:
+        raise HTTPException(status_code=400, detail="A valid client email address is required.")
+    if tier not in ("trial", "pro"):
+        raise HTTPException(status_code=400, detail="Tier must be either 'trial' or 'pro'.")
+
+    account_type = (body.get("account_type") or "single").strip().lower()
+    if account_type not in ("single", "org"):
+        raise HTTPException(status_code=400, detail="Account type must be 'single' or 'org'.")
+
+    try:
+        duration = int(body.get("duration_days") or (30 if tier == "pro" else 7))
+        if tier == "trial" and (duration <= 0 or duration > 365):
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Trial duration must be a positive number of days up to 365.")
+
+    raw_limit = body.get("daily_limit")
+    try:
+        limit = int(raw_limit if raw_limit is not None else (-1 if tier == "pro" else 1000))
+        if limit < -1:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Daily limit must be -1 (unlimited) or a non-negative integer.")
+
+    raw_seats = body.get("seat_limit")
+    if account_type == "org":
+        try:
+            seat_limit = int(raw_seats if raw_seats is not None else 5)
+            if seat_limit < 1:
+                raise ValueError()
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Seat limit must be at least 1.")
+    else:
+        seat_limit = 1
+
     notes = (body.get("notes") or "").strip()
     scistudio_access = bool(body.get("scistudio_access", True))
-    account_type = (body.get("account_type") or "single").strip().lower()
     org_name = (body.get("org_name") or "").strip()
     can_invite_users = bool(body.get("can_invite_users", account_type == "org"))
-    seat_limit = body.get("seat_limit")
-    if seat_limit is not None:
-        try:
-            seat_limit = int(seat_limit)
-        except ValueError:
-            seat_limit = 5 if account_type == "org" else 1
-
-    if not name or not email:
-        raise HTTPException(status_code=400, detail="Client name and email are required.")
 
     password = (body.get("password") or "").strip() or None
     try:
@@ -617,12 +644,23 @@ async def admin_get_org_members(license_key: str, request: Request):
     account = license_engine.get_account(license_key)
     if not account:
         raise HTTPException(status_code=404, detail="Account not found.")
+    safe_members = [
+        {
+            "member_id": m.get("member_id", ""),
+            "name": m.get("name", ""),
+            "email": m.get("email", ""),
+            "role": m.get("role", "viewer"),
+            "scistudio_access": bool(m.get("scistudio_access", True)),
+            "created_at": m.get("created_at", ""),
+        }
+        for m in account.get("members", [])
+    ]
     return {
         "license_key": license_key,
         "account_type": account.get("account_type", "single"),
         "org_name": account.get("org_name", ""),
         "seat_limit": account.get("seat_limit", 5),
-        "members": account.get("members", []),
+        "members": safe_members,
     }
 
 
@@ -727,7 +765,13 @@ async def admin_extend_license(request: Request):
     key = (body.get("license_key") or "").strip()
     if not key:
         raise HTTPException(status_code=400, detail="License key is required.")
-    days = int(body.get("additional_days") or 7)
+    raw_days = body.get("additional_days")
+    try:
+        days = int(raw_days if raw_days is not None else 7)
+        if days <= 0 or days > 365:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Additional days must be a positive integer up to 365.")
     ok, msg, acc = license_engine.extend_account(key, days)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -741,8 +785,18 @@ async def admin_upgrade_license(request: Request):
     key = (body.get("license_key") or "").strip()
     if not key:
         raise HTTPException(status_code=400, detail="License key is required.")
-    tier = (body.get("new_tier") or "pro").strip()
-    limit = int(body.get("new_limit") if body.get("new_limit") is not None else -1)
+    if key.upper() == "SCIP-PRO-ROOT-MASTER":
+        raise HTTPException(status_code=400, detail="Cannot modify tier for root master account.")
+    tier = (body.get("new_tier") or "pro").strip().lower()
+    if tier not in ("trial", "pro"):
+        raise HTTPException(status_code=400, detail="Tier must be either 'trial' or 'pro'.")
+    raw_limit = body.get("new_limit")
+    try:
+        limit = int(raw_limit if raw_limit is not None else -1)
+        if limit < -1:
+            raise ValueError()
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Daily limit must be -1 (unlimited) or a non-negative integer.")
     ok, msg, acc = license_engine.upgrade_account(key, tier, limit)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -758,6 +812,182 @@ async def admin_delete_license(license_key: str, request: Request):
     if get_current_license_key().strip().upper() == license_key.strip().upper():
         set_current_license_key("SCIP-PRO-ROOT-MASTER")
     return {"status": "ok", "message": msg}
+
+
+# --- ORGANIZATION OWNER APIS ---
+
+def _require_org_owner(request: Request):
+    user = _get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")
+    if user.get("is_admin"):
+        return user
+    if user.get("is_member"):
+        raise HTTPException(status_code=403, detail="Organization owner access required.")
+    account = license_engine.get_account(user.get("license_key", ""))
+    if not account or account.get("account_type") != "org":
+        raise HTTPException(status_code=403, detail="Organization account required.")
+    return user
+
+
+@app.get("/api/organization/overview")
+async def organization_overview(request: Request):
+    user = _require_org_owner(request)
+    key = user.get("license_key", "")
+    account = license_engine.get_account(key)
+    if not account:
+        raise HTTPException(status_code=404, detail="Organization account not found.")
+
+    expires_at = account.get("expires_at", "never")
+    days_left = "Lifetime"
+    if expires_at != "never":
+        try:
+            exp_dt = datetime.strptime(expires_at.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S")
+            diff = exp_dt - datetime.utcnow()
+            days_left = "Expired" if diff.total_seconds() <= 0 else f"{max(0, diff.days)} days"
+        except Exception:
+            days_left = "Unknown"
+
+    conferences = conference_engine.list_conferences(
+        owner_email=user.get("client_email", ""),
+        is_admin=False,
+        owner_license_key=key
+    )
+
+    safe_members = [
+        sanitize_member(m) for m in account.get("members", [])
+    ]
+
+    return {
+        "license_key": key,
+        "org_name": account.get("org_name") or account.get("client_name", "Organization"),
+        "client_name": account.get("client_name", ""),
+        "client_email": account.get("client_email", ""),
+        "tier": account.get("tier", "pro"),
+        "status": account.get("status", "active"),
+        "days_left": days_left,
+        "expires_at": expires_at,
+        "seat_limit": account.get("seat_limit", 5),
+        "daily_limit": account.get("daily_limit", -1),
+        "used_today": account.get("used_today", 0),
+        "scistudio_access": bool(account.get("scistudio_access", True)),
+        "members": safe_members,
+        "conferences": conferences,
+    }
+
+
+@app.post("/api/organization/team/add")
+async def organization_team_add(request: Request):
+    user = _require_org_owner(request)
+    key = user.get("license_key", "")
+    body = await request.json()
+    name = (body.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Member name is required.")
+    email = (body.get("email") or "").strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="A valid member email address is required.")
+    role = (body.get("role") or "editor").strip().lower()
+    if role not in ("admin", "editor", "viewer"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin', 'editor', or 'viewer'.")
+    scistudio_access = bool(body.get("scistudio_access", True))
+    password = (body.get("password") or "").strip() or None
+
+    ok, msg, member = license_engine.add_org_member(
+        parent_key=key,
+        name=name,
+        email=email,
+        role=role,
+        scistudio_access=scistudio_access,
+        password=password,
+    )
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "member": member}
+
+
+@app.post("/api/organization/team/remove")
+async def organization_team_remove(request: Request):
+    user = _require_org_owner(request)
+    key = user.get("license_key", "")
+    body = await request.json()
+    member_id = (body.get("member_id") or "").strip()
+    if not member_id:
+        raise HTTPException(status_code=400, detail="Member ID is required.")
+    ok, msg = license_engine.remove_org_member(key, member_id)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.post("/api/organization/team/toggle-scistudio")
+async def organization_team_toggle_studio(request: Request):
+    user = _require_org_owner(request)
+    key = user.get("license_key", "")
+    body = await request.json()
+    member_id = (body.get("member_id") or "").strip()
+    if not member_id:
+        raise HTTPException(status_code=400, detail="Member ID is required.")
+    enabled = body.get("enabled")
+    ok, msg, member = license_engine.toggle_member_scistudio(key, member_id, enable=enabled)
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg, "member": member}
+
+
+# --- CLIENT (SOLO RESEARCHER) APIS ---
+
+def _require_client_owner(request: Request):
+    user = _get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")
+    if user.get("is_admin"):
+        return user
+    if user.get("is_member"):
+        raise HTTPException(status_code=403, detail="Client owner access required.")
+    account = license_engine.get_account(user.get("license_key", ""))
+    if not account or account.get("account_type") != "single":
+        raise HTTPException(status_code=403, detail="Individual client account required.")
+    return user
+
+
+@app.get("/api/client/overview")
+async def client_overview(request: Request):
+    user = _require_client_owner(request)
+    key = user.get("license_key", "")
+    account = license_engine.get_account(key)
+    if not account:
+        raise HTTPException(status_code=404, detail="Client account not found.")
+
+    expires_at = account.get("expires_at", "never")
+    days_left = "Lifetime"
+    if expires_at != "never":
+        try:
+            exp_dt = datetime.strptime(expires_at.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S")
+            diff = exp_dt - datetime.utcnow()
+            days_left = "Expired" if diff.total_seconds() <= 0 else f"{max(0, diff.days)} days"
+        except Exception:
+            days_left = "Unknown"
+
+    conferences = conference_engine.list_conferences(
+        owner_email=user.get("client_email", ""),
+        is_admin=False,
+        owner_license_key=key
+    )
+
+    return {
+        "license_key": key,
+        "client_name": account.get("client_name", ""),
+        "client_email": account.get("client_email", ""),
+        "tier": account.get("tier", "trial"),
+        "status": account.get("status", "active"),
+        "days_left": days_left,
+        "expires_at": expires_at,
+        "daily_limit": account.get("daily_limit", 1000),
+        "used_today": account.get("used_today", 0),
+        "scistudio_access": bool(account.get("scistudio_access", True)),
+        "conferences": conferences,
+    }
 
 
 
@@ -1603,7 +1833,11 @@ async def builder_preview_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
     site = _require_owned_site(site_id, user)
-    html, _ = compile_website_html(site)
+    page_param = request.query_params.get("page") if hasattr(request, "query_params") else (request.get("page") if isinstance(request, dict) else None)
+    if page_param:
+        html, _ = compile_website_html(site, page_param)
+    else:
+        html, _ = compile_website_html(site)
     return HTMLResponse(content=html, headers={
         "Cache-Control": "no-store",
         "X-Robots-Tag": "noindex, nofollow",
@@ -1678,14 +1912,18 @@ async def builder_export_site(site_id: str, request: Request):
 
 
 @app.get("/sites/{slug}")
-async def serve_public_website(slug: str):
-    """Public delivery endpoint for published websites."""
+@app.get("/sites/{slug}/{page_slug}")
+async def serve_public_website(slug: str, page_slug=None):
+    """Public delivery endpoint for published websites with multi-page support."""
     site = builder_engine.get_site_by_slug(slug)
     if not site or site.get("status") != "published":
         return HTMLResponse(
             "<!DOCTYPE html><html><head><title>Site Not Found</title></head><body style='font-family:sans-serif;text-align:center;padding:5rem;background:#0f172a;color:#fff;'><h1>404 - Website Not Found</h1><p>The requested website does not exist or has not been published yet.</p></body></html>",
             status_code=404
         )
+    if page_slug:
+        html, _ = compile_website_html(site, page_id=page_slug)
+        return HTMLResponse(content=html, status_code=200)
     return HTMLResponse(content=site["compiled_html"], status_code=200)
 
 
@@ -1724,7 +1962,10 @@ async def scistudio_site_edit_page(site_id: str, request: Request, namespace: Op
     if namespace and _page_namespace(user) != namespace:
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     _require_scistudio_access(user)
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
 
 
 @app.get("/scistudio/{site_id}/preview")
@@ -1740,7 +1981,11 @@ async def scistudio_site_preview_page(site_id: str, request: Request, namespace:
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     _require_scistudio_access(user)
     site = _require_owned_site(site_id, user)
-    html, _ = compile_website_html(site)
+    page_param = request.query_params.get("page") if hasattr(request, "query_params") else (request.get("page") if isinstance(request, dict) else None)
+    if page_param:
+        html, _ = compile_website_html(site, page_param)
+    else:
+        html, _ = compile_website_html(site)
     return HTMLResponse(html)
 
 
@@ -1781,7 +2026,10 @@ async def role_workspace_page(namespace: str, page: str, request: Request):
         raise HTTPException(status_code=404, detail="Page not found")
     if page == "scistudio":
         _require_scistudio_access(user)
-    return FileResponse(STATIC_DIR / "index.html")
+    return FileResponse(
+        STATIC_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+    )
 
 
 # Mount static assets

@@ -770,9 +770,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const btnWipeDatasets = document.getElementById("btn-wipe-datasets");
   if (btnWipeDatasets) {
     btnWipeDatasets.addEventListener("click", async () => {
-      if (!confirm("Are you sure you want to wipe all old lead dataset files and start with a fresh slate?")) {
-        return;
-      }
+      const ok = await window.showStudioConfirm({
+        type: "danger",
+        title: "Wipe Lead Datasets?",
+        message: "Are you sure you want to permanently wipe all old lead dataset files and start with a fresh slate?",
+        confirmText: "Wipe Datasets",
+        cancelText: "Cancel"
+      });
+      if (!ok) return;
       try {
         const res = await fetch("/api/leads/clear-all", { method: "POST" });
         const data = await res.json();
@@ -3480,7 +3485,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Delete Site Handler
   window.handleDeleteSite = async function(siteId, siteName) {
-    if (!confirm(`Are you sure you want to permanently delete "${siteName}"?`)) return;
+    const ok = await window.showStudioConfirm({
+      type: "danger",
+      title: "Delete Website?",
+      message: `Are you sure you want to permanently delete "${siteName}"? All published pages, drafts, and assets will be removed.`,
+      confirmText: "Delete Website",
+      cancelText: "Cancel"
+    });
+    if (!ok) return;
     try {
       const res = await fetch(`/api/builder/sites/${siteId}`, { method: "DELETE" });
       const data = await res.json();
@@ -3526,7 +3538,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const theme = currentSite.theme_config || {};
     themePrimaryColor.value = theme.primary_color || '#38bdf8';
     themeAccentColor.value = theme.accent_color || '#6366f1';
-    themeBgPreset.value = theme.bg_color || '#0b0f19';
+    themeBgPreset.value = theme.bg_color || (theme.mode === 'light' ? '#ffffff' : '#0b0f19');
     studioFont.value = theme.font_family || "Inter, sans-serif";
     labelPrimaryColor.textContent = themePrimaryColor.value;
     labelAccentColor.textContent = themeAccentColor.value;
@@ -3549,9 +3561,31 @@ document.addEventListener("DOMContentLoaded", () => {
     if (event.key.toLowerCase() === 'z') { event.preventDefault(); studioTravel(event.shiftKey ? 1 : -1); }
   });
   document.getElementById('studio-library-search').addEventListener('input', event => {
-    const term = event.target.value.toLowerCase();
-    document.querySelectorAll('.btn-add-comp').forEach(button => button.hidden = !button.textContent.toLowerCase().includes(term));
+    const term = event.target.value.toLowerCase().trim();
+    const activeTab = document.querySelector('.studio-cat-tab.active');
+    const cat = activeTab ? activeTab.getAttribute('data-category') : 'all';
+    document.querySelectorAll('.btn-add-comp').forEach(button => {
+      const matchesCat = (cat === 'all' || button.getAttribute('data-category') === cat);
+      const matchesSearch = !term || button.textContent.toLowerCase().includes(term);
+      button.hidden = !(matchesCat && matchesSearch);
+    });
   });
+
+  // Wire Category Tabs in Palette
+  document.querySelectorAll('.studio-cat-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.studio-cat-tab').forEach(t => t.classList.toggle('active', t === tab));
+      const cat = tab.getAttribute('data-category');
+      const searchInput = document.getElementById('studio-library-search');
+      const term = (searchInput?.value || '').toLowerCase().trim();
+      document.querySelectorAll('.btn-add-comp').forEach(btn => {
+        const matchesCat = (cat === 'all' || btn.getAttribute('data-category') === cat);
+        const matchesSearch = !term || btn.textContent.toLowerCase().includes(term);
+        btn.hidden = !(matchesCat && matchesSearch);
+      });
+    });
+  });
+
   function renderStudioLayers() {
     const list = document.getElementById('studio-layer-list');
     list.replaceChildren();
@@ -3562,6 +3596,92 @@ document.addEventListener("DOMContentLoaded", () => {
       row.textContent = `⠿  ${String(index + 1).padStart(2, '0')}  ${comp.title || comp.type}${comp.hidden ? ' · Hidden' : ''}`;
       row.onclick = () => { selectComponentForEditing(comp.id); document.querySelectorAll('[data-comp-id]').forEach(el => { if (el.dataset.compId === comp.id) el.scrollIntoView({block:'nearest'}); }); };
       list.append(row);
+    });
+    updateComponentPaletteStatus();
+  }
+  function updateComponentPaletteStatus() {
+    if (!currentSite) return;
+    const comps = currentSite.schema_json || [];
+    const counts = {};
+    comps.forEach(c => {
+      if (c && c.type) {
+        counts[c.type] = (counts[c.type] || 0) + 1;
+      }
+    });
+    const activeComp = activeComponentId ? comps.find(c => c.id === activeComponentId) : null;
+    const activeType = activeComp ? activeComp.type : null;
+    const activeVariant = activeComp ? (activeComp.data?.layout_variant || activeComp.data?.design || null) : null;
+
+    document.querySelectorAll('.btn-add-comp').forEach(btn => {
+      const type = btn.getAttribute('data-type');
+      const variant = btn.getAttribute('data-variant');
+      let count = 0;
+      if (variant) {
+        count = comps.filter(c => c && c.type === type && (c.data?.layout_variant === variant || c.data?.design === variant)).length;
+      } else {
+        count = counts[type] || 0;
+      }
+      let badge = btn.querySelector('.comp-count-badge');
+      let quickRemove = btn.querySelector('.comp-palette-remove-quick');
+
+      if (count > 0) {
+        btn.classList.add('is-added');
+        btn.setAttribute('aria-selected', 'true');
+        if (!badge) {
+          badge = document.createElement('span');
+          btn.appendChild(badge);
+        }
+        if (count === 1) {
+          badge.className = 'comp-count-badge is-single';
+          badge.textContent = '✓';
+          badge.title = 'Added to page (1)';
+        } else {
+          badge.className = 'comp-count-badge is-multiple';
+          badge.textContent = String(count);
+          badge.title = `Added to page (${count} sections)`;
+        }
+
+        if (!quickRemove) {
+          quickRemove = document.createElement('button');
+          quickRemove.type = 'button';
+          quickRemove.className = 'comp-palette-remove-quick';
+          quickRemove.title = 'Remove an instance of this section from page';
+          quickRemove.innerHTML = '×';
+          if (quickRemove.addEventListener) {
+            quickRemove.addEventListener('pointerdown', (e) => { e.stopPropagation(); });
+            quickRemove.addEventListener('click', (e) => {
+              e.stopPropagation();
+              if (window.removeSectionByType) {
+                window.removeSectionByType(type, variant, e);
+              }
+            });
+          } else {
+            quickRemove.onclick = (e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
+              if (window.removeSectionByType) {
+                window.removeSectionByType(type, variant, e);
+              }
+            };
+          }
+          btn.appendChild(quickRemove);
+        }
+      } else {
+        btn.classList.remove('is-added');
+        btn.removeAttribute('aria-selected');
+        if (badge) {
+          badge.remove();
+        }
+        if (quickRemove) {
+          quickRemove.remove();
+        }
+      }
+
+      const matchesActive = (activeType && type === activeType) && (!variant || variant === activeVariant);
+      if (matchesActive) {
+        btn.classList.add('is-active-type');
+      } else {
+        btn.classList.remove('is-active-type');
+      }
     });
   }
   window.duplicateStudioSection = id => {
@@ -3662,7 +3782,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll('.btn-add-comp').forEach(button => button.draggable = true);
   builderStudioView.addEventListener('dragstart', event => {
     const palette = event.target.closest('.btn-add-comp'), layer = event.target.closest('[data-layer-id]'), handle = event.target.closest('[data-drag-section]');
-    studioDrag = palette ? {type:palette.dataset.type} : layer ? {id:layer.dataset.layerId} : handle ? {id:handle.dataset.dragSection} : null;
+    studioDrag = palette ? {type:palette.dataset.type, variant:palette.dataset.variant} : layer ? {id:layer.dataset.layerId} : handle ? {id:handle.dataset.dragSection} : null;
     if (!studioDrag) return;
     event.dataTransfer.setData('text/plain', JSON.stringify(studioDrag));
     event.dataTransfer.effectAllowed = studioDrag.type ? 'copy' : 'move';
@@ -3682,7 +3802,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const after = target?.classList.contains('studio-drop-after');
     clearDropMark();
     let id = studioDrag.id;
-    if (studioDrag.type) { addNewComponent(studioDrag.type); id = activeComponentId; }
+    if (studioDrag.type) { addNewComponent(studioDrag.type, studioDrag.variant); id = activeComponentId; }
     if (id !== targetId) {
       const sections = currentSite.schema_json;
       const from = sections.findIndex(c => c.id === id);
@@ -3741,8 +3861,17 @@ document.addEventListener("DOMContentLoaded", () => {
       // Studio Sign Out Button Hookup
       const btnStudioSignout = document.getElementById("btn-studio-signout");
       if (btnStudioSignout) {
-        btnStudioSignout.onclick = () => {
-          if (studioStatus() && !confirm("Sign out and discard unsaved changes?")) return;
+        btnStudioSignout.onclick = async () => {
+          if (studioStatus()) {
+            const ok = await window.showStudioConfirm({
+              type: "warning",
+              title: "Discard Changes & Sign Out?",
+              message: "You have unsaved changes in this website. Signing out now will discard your recent edits.",
+              confirmText: "Discard & Sign Out",
+              cancelText: "Stay in Editor"
+            });
+            if (!ok) return;
+          }
           document.body.classList.remove("studio-fullscreen-mode");
           const mainSignOut = document.getElementById("btn-sign-out");
           if (mainSignOut) {
@@ -3765,10 +3894,33 @@ document.addEventListener("DOMContentLoaded", () => {
         if (labelAccentColor) labelAccentColor.textContent = themeAccentColor.value;
       }
       if (themeBgPreset) {
-        themeBgPreset.value = theme.bg_color || "#0b0f19";
+        themeBgPreset.value = theme.bg_color || "#ffffff";
+      }
+
+      if (window.initializeStudioPages) {
+        window.initializeStudioPages();
+      }
+      if (window.renderStudioPagesList) {
+        window.renderStudioPagesList();
+      }
+      if (window.populateSeoPane) {
+        window.populateSeoPane();
       }
 
       renderCanvas();
+      if (window.setStudioViewMode) {
+        window.setStudioViewMode('preview');
+      } else if (window.switchRightPanelMode) {
+        window.switchRightPanelMode('preview');
+      }
+      if (window.showStudioComponentPreview) {
+        window.showStudioComponentPreview('navbar', 'business');
+      }
+      const initialPaletteCard = document.querySelector('.btn-add-comp[data-type="navbar"][data-variant="business"]');
+      if (initialPaletteCard) {
+        document.querySelectorAll('.btn-add-comp').forEach(b => b.classList.remove('palette-preview-active'));
+        initialPaletteCard.classList.add('palette-preview-active');
+      }
       showToast(`Editing: ${currentSite.name}`, "success");
     } catch (e) {
       showToast(`Studio error: ${e.message}`, "error");
@@ -3777,8 +3929,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Back to Dashboard (Exit Fullscreen Studio)
   if (btnStudioBack) {
-    btnStudioBack.addEventListener("click", () => {
-      if (studioStatus() && !confirm("Leave the editor and discard unsaved changes?")) return;
+    btnStudioBack.addEventListener("click", async () => {
+      if (studioStatus()) {
+        const ok = await window.showStudioConfirm({
+          type: "warning",
+          title: "Leave Editor & Discard Changes?",
+          message: "You have unsaved changes in this website. Leaving now will discard your recent edits.",
+          confirmText: "Discard & Leave",
+          cancelText: "Stay in Editor"
+        });
+        if (!ok) return;
+      }
       document.body.classList.remove("studio-fullscreen-mode");
       currentSite = null;
       activeComponentId = null;
@@ -3846,13 +4007,27 @@ document.addEventListener("DOMContentLoaded", () => {
       design.prepend(picker);
     }
     const heading = document.createElement('div'); heading.className = 'studio-selection-heading';
-    heading.textContent = comp.title || comp.type;
+    heading.innerHTML = `
+      <span style="font-weight: 700; color: #1e293b; font-size: 1.05rem;">${escapeHtml(comp.title || comp.type)}</span>
+      <div style="display:inline-flex; gap:4px; align-items:center;">
+        <button type="button" class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move section up">↑</button>
+        <button type="button" class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move section down">↓</button>
+        <button type="button" class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete section">🗑</button>
+      </div>
+    `;
     advanced.innerHTML = `<p class="studio-settings-help">Section visibility</p><label class="studio-setting-check"><input type="checkbox" ${comp.hidden ? 'checked' : ''}> Hide on the website</label><p class="studio-settings-help">Hidden sections remain in the outline and can be restored.</p><button type="button" class="studio-reset-style">Reset section appearance</button>`;
     advanced.querySelector('input').onchange = event => {
       comp.hidden = event.target.checked; renderCanvas(); renderInspector(comp);
     };
-    advanced.querySelector('button').onclick = () => {
-      if (!confirm('Reset this section’s spacing, background and corners? Content will be kept.')) return;
+    advanced.querySelector('button').onclick = async () => {
+      const ok = await window.showStudioConfirm({
+        type: 'warning',
+        title: 'Reset Section Styling?',
+        message: 'Reset this section’s custom spacing, background and corners back to defaults? Content and text will be kept.',
+        confirmText: 'Reset Styling',
+        cancelText: 'Cancel'
+      });
+      if (!ok) return;
       comp.studio_style = {}; renderCanvas(); renderInspector(comp);
     };
     if (comp.type === 'custom') { while (content.firstChild) advanced.append(content.firstChild); content.innerHTML = '<p class="studio-settings-help">Edit this HTML/CSS embed in Advanced.</p>'; }
@@ -3869,7 +4044,38 @@ document.addEventListener("DOMContentLoaded", () => {
     const q = event.target.value.toLowerCase();
     studioLibrary.querySelectorAll('[data-library-type]').forEach(card => card.hidden = !card.textContent.toLowerCase().includes(q));
   };
+  const componentLibraryHost = document.createElement('dialog');
+  componentLibraryHost.style.cssText='border:0;padding:0;width:96vw;max-width:1400px;height:94vh;max-height:94vh;background:white;border-radius:16px';
+  const componentLibraryFrame = document.createElement('iframe');
+  componentLibraryFrame.title='Component library';
+  componentLibraryFrame.style.cssText='width:100%;height:100%;border:0';
+  componentLibraryHost.append(componentLibraryFrame);document.body.append(componentLibraryHost);
+  let componentLibraryBefore = null;
+  window.addEventListener('message', event => {
+    if(event.origin!==window.location.origin || event.source!==componentLibraryFrame.contentWindow || !componentLibraryHost.open) return;
+    if(event.data?.type==='scistudio-library-close'){componentLibraryHost.close();return;}
+    if(event.data?.type!=='scistudio-library-add'||!currentSite) return;
+    const incoming=event.data.component;
+    const allowed=['navbar','hero','about','features','speakers','gallery','pricing','faq','contact','footer','image','custom'];
+    if(!incoming||!allowed.includes(incoming.type)||!incoming.data||typeof incoming.data!=='object')return;
+    const component=JSON.parse(JSON.stringify(incoming));component.id='comp_'+crypto.randomUUID();
+    if(['navbar','footer'].includes(component.type))component.data.brand_name=currentSite.name||'Your brand';
+    studioRecord();
+    const sections=currentSite.schema_json||(currentSite.schema_json=[]);
+    const before=sections.findIndex(c=>c.id===componentLibraryBefore);
+    sections.splice(before<0?sections.length:before,0,component);
+    componentLibraryHost.close();renderCanvas();selectComponentForEditing(component.id);
+    showToast('Component added. Save to keep your changes.','success');
+  });
   window.openStudioLibrary = (beforeId = null) => {
+    const ns=window.location.pathname.split('/')[1];
+    if(['root','organization','client','conference'].includes(ns) && window.location.port !== '8000') {
+      if(!currentSite)return;
+      componentLibraryBefore=beforeId;
+      componentLibraryFrame.src='/'+ns+'/scistudio/library';
+      componentLibraryHost.showModal();return;
+    }
+
     if (!currentSite) return;
     studioInsertBefore = beforeId;
     const cards = studioLibrary.querySelector('.studio-library-cards'); cards.replaceChildren();
@@ -3915,7 +4121,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function studioSetValue(comp,path,value) {let obj=comp.data;for(const key of path.slice(0,-1))obj=obj[key];obj[path.at(-1)]=value;}
   function studioAllFields(object,path=[],result=[]) {Object.entries(object||{}).forEach(([key,value])=>{if(typeof value==='string')result.push({path:[...path,key],value});else if(value&&typeof value==='object')studioAllFields(value,[...path,key],result);});return result;}
   function sectionStudioTheme(comp) {
-    const theme={...(currentSite.theme_config||{})},bg=comp.studio_style?.background;
+    const theme={...(currentSite?.theme_config||{})},bg=comp?.studio_style?.background;
     if(/^#[0-9a-f]{6}$/i.test(bg||'')){theme.bg_color=bg;theme.mode=StudioFormatting.contrast(bg)==='#ffffff'?'dark':'light';theme.primary_color=StudioFormatting.contrast(bg,theme.primary_color||'#6658d9');}
     return theme;
   }
@@ -4202,6 +4408,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const savingSite = currentSite;
     try {
       if (studioSiteName) currentSite.name = studioSiteName.value.trim() || currentSite.name;
+      // Sync active page schema_json if multi-page website
+      if (currentSite.pages && currentSite.active_page_id) {
+        const activeP = currentSite.pages.find(p => p.id === currentSite.active_page_id);
+        if (activeP) {
+          activeP.schema_json = JSON.parse(JSON.stringify(currentSite.schema_json || []));
+        }
+      }
       const savedSnapshot = studioSnapshot();
       const res = await fetch(`/api/builder/sites/${currentSite.site_id}`, {
         method: "PUT",
@@ -4253,7 +4466,8 @@ document.addEventListener("DOMContentLoaded", () => {
       previewWindow.opener = null;
       const namespace = window.location.pathname.split('/')[1];
       const prefix = ['root','organization','client'].includes(namespace) ? '/' + namespace : '';
-      const previewUrl = `${prefix}/scistudio/${encodeURIComponent(previewSite.site_id)}/preview`;
+      const pageParam = previewSite.active_page_id ? `?page=${encodeURIComponent(previewSite.active_page_id)}` : '';
+      const previewUrl = `${prefix}/scistudio/${encodeURIComponent(previewSite.site_id)}/preview${pageParam}`;
       if (await saveSiteDraft(false)) previewWindow.location.href = previewUrl;
       else previewWindow.close();
     });
@@ -4267,29 +4481,1088 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Add Component from Left Palette
+  // 40% Left / 60% Canvas Component Preview Workspace System
+  window.studioCurrentViewMode = 'preview'; // 'preview' (40% left, 60% canvas) or 'edit' (inspector)
+  window.studioActivePreviewType = 'navbar';
+  window.studioActivePreviewVariant = 'business';
+
+  window.setStudioViewMode = function(mode) {
+    window.studioCurrentViewMode = mode;
+    const isPreview = (mode === 'preview');
+    const isSeo = (mode === 'seo');
+    document.body.classList.toggle('studio-preview-mode', isPreview);
+    const btnPreviewMode = document.getElementById('btn-mode-add-preview');
+    const btnEditMode = document.getElementById('btn-mode-edit-blocks');
+    const btnSeoMode = document.getElementById('btn-mode-seo-top');
+    if (btnPreviewMode) btnPreviewMode.classList.toggle('active', isPreview);
+    if (btnEditMode) btnEditMode.classList.toggle('active', mode === 'edit');
+    if (btnSeoMode) btnSeoMode.classList.toggle('active', isSeo);
+
+    const canvasDeck = document.getElementById('studio-canvas-preview-deck');
+    if (canvasDeck) canvasDeck.style.display = isPreview ? 'block' : 'none';
+
+    if (isPreview && window.showStudioComponentPreview) {
+      window.showStudioComponentPreview(window.studioActivePreviewType, window.studioActivePreviewVariant);
+    }
+  };
+
+  window.addCurrentlyPreviewedSection = function() {
+    addNewComponent(window.studioActivePreviewType, window.studioActivePreviewVariant);
+  };
+
+  window.removeCurrentlyPreviewedSection = async function() {
+    if (!currentSite || !currentSite.schema_json) return;
+    const type = window.studioActivePreviewType;
+    const variant = window.studioActivePreviewVariant;
+    await window.removeSectionByType(type, variant);
+  };
+
+  window.removeSectionByType = async function(type, variant = null, event = null) {
+    if (event) {
+      try { event.stopPropagation(); event.preventDefault(); } catch(e) {}
+    }
+    if (!currentSite || !currentSite.schema_json) return;
+    const comps = currentSite.schema_json;
+
+    // Find the latest instance matching type and variant (or just type)
+    let idx = -1;
+    for (let i = comps.length - 1; i >= 0; i--) {
+      const c = comps[i];
+      if (c && c.type === type) {
+        if (!variant || c.data?.layout_variant === variant || c.data?.design === variant) {
+          idx = i;
+          break;
+        }
+      }
+    }
+    if (idx === -1) {
+      for (let i = comps.length - 1; i >= 0; i--) {
+        if (comps[i] && comps[i].type === type) { idx = i; break; }
+      }
+    }
+
+    if (idx === -1) {
+      showToast(`No ${type} section currently on the page to remove.`, "info");
+      return;
+    }
+
+    const compToRemove = comps[idx];
+    const compTitle = compToRemove.title || compToRemove.type;
+    const confirmed = await window.showStudioConfirm({
+      type: "danger",
+      title: "Remove Section?",
+      message: `Are you sure you want to remove "${compTitle}" from the page?`,
+      confirmText: "Remove Section",
+      cancelText: "Keep Section"
+    });
+    if (!confirmed) return;
+
+    comps.splice(idx, 1);
+    if (activeComponentId === compToRemove.id) {
+      activeComponentId = null;
+    }
+    renderCanvas();
+    renderStudioLayers();
+    updateComponentPaletteStatus();
+    if (window.showStudioComponentPreview) {
+      window.showStudioComponentPreview(window.studioActivePreviewType, window.studioActivePreviewVariant);
+    }
+    showToast(`Removed "${compTitle}" from page`, "info");
+  };
+
+  // Right Panel Mode Switcher: Component Preview vs Block Settings vs SEO & Analytics
+  let studioPreviewGuard = false;
+  window.switchRightPanelMode = function(mode) {
+    const previewPane = document.getElementById('studio-preview-pane');
+    const settingsPane = document.getElementById('studio-settings-pane');
+    const seoPane = document.getElementById('studio-seo-pane');
+    const tabPreview = document.getElementById('tab-mode-preview');
+    const tabSettings = document.getElementById('tab-mode-settings');
+    const tabSeo = document.getElementById('tab-mode-seo');
+
+    const btnPreviewMode = document.getElementById('btn-mode-add-preview');
+    const btnEditMode = document.getElementById('btn-mode-edit-blocks');
+    const btnSeoMode = document.getElementById('btn-mode-seo-top');
+
+    if (mode === 'preview') {
+      if (previewPane) { previewPane.hidden = false; previewPane.style.display = 'block'; }
+      if (settingsPane) { settingsPane.hidden = true; settingsPane.style.display = 'none'; }
+      if (seoPane) { seoPane.hidden = true; seoPane.style.display = 'none'; }
+
+      if (tabPreview) tabPreview.classList.add('active');
+      if (tabSettings) tabSettings.classList.remove('active');
+      if (tabSeo) tabSeo.classList.remove('active');
+
+      if (btnPreviewMode) btnPreviewMode.classList.add('active');
+      if (btnEditMode) btnEditMode.classList.remove('active');
+      if (btnSeoMode) btnSeoMode.classList.remove('active');
+
+      const canvasDeck = document.getElementById('studio-canvas-preview-deck');
+      if (canvasDeck) canvasDeck.style.display = 'block';
+
+      if (!studioPreviewGuard && previewPane && !previewPane.firstElementChild && window.showStudioComponentPreview) {
+        studioPreviewGuard = true;
+        window.showStudioComponentPreview('navbar', 'business');
+        studioPreviewGuard = false;
+      }
+    } else if (mode === 'settings') {
+      if (previewPane) { previewPane.hidden = true; previewPane.style.display = 'none'; }
+      if (settingsPane) { settingsPane.hidden = false; settingsPane.style.display = 'block'; }
+      if (seoPane) { seoPane.hidden = true; seoPane.style.display = 'none'; }
+
+      if (tabPreview) tabPreview.classList.remove('active');
+      if (tabSettings) tabSettings.classList.add('active');
+      if (tabSeo) tabSeo.classList.remove('active');
+
+      if (btnPreviewMode) btnPreviewMode.classList.remove('active');
+      if (btnEditMode) btnEditMode.classList.add('active');
+      if (btnSeoMode) btnSeoMode.classList.remove('active');
+
+      const canvasDeck = document.getElementById('studio-canvas-preview-deck');
+      if (canvasDeck) canvasDeck.style.display = 'none';
+    } else if (mode === 'seo') {
+      if (previewPane) { previewPane.hidden = true; previewPane.style.display = 'none'; }
+      if (settingsPane) { settingsPane.hidden = true; settingsPane.style.display = 'none'; }
+      if (seoPane) { seoPane.hidden = false; seoPane.style.display = 'flex'; }
+
+      if (tabPreview) tabPreview.classList.remove('active');
+      if (tabSettings) tabSettings.classList.remove('active');
+      if (tabSeo) tabSeo.classList.add('active');
+
+      if (btnPreviewMode) btnPreviewMode.classList.remove('active');
+      if (btnEditMode) btnEditMode.classList.remove('active');
+      if (btnSeoMode) btnSeoMode.classList.add('active');
+
+      const canvasDeck = document.getElementById('studio-canvas-preview-deck');
+      if (canvasDeck) canvasDeck.style.display = 'none';
+
+      if (window.populateSeoPane) {
+        window.populateSeoPane();
+      }
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Multi-Page Website Architecture & Page Switcher
+  // ---------------------------------------------------------------------------
+  window.initializeStudioPages = function() {
+    if (!currentSite) return;
+    if (!currentSite.pages || !Array.isArray(currentSite.pages) || currentSite.pages.length === 0) {
+      currentSite.pages = [
+        {
+          id: 'page_home',
+          name: 'Home',
+          slug: '/',
+          is_home: true,
+          schema_json: JSON.parse(JSON.stringify(currentSite.schema_json || []))
+        }
+      ];
+      currentSite.active_page_id = 'page_home';
+    }
+    if (!currentSite.active_page_id) {
+      const homeP = currentSite.pages.find(p => p.is_home) || currentSite.pages[0];
+      currentSite.active_page_id = homeP ? homeP.id : 'page_home';
+    }
+  };
+
+  window.switchStudioPage = function(pageId) {
+    if (!currentSite || !currentSite.pages) return;
+    // 1. Sync current canvas into previously active page
+    if (currentSite.active_page_id) {
+      const curP = currentSite.pages.find(p => p.id === currentSite.active_page_id);
+      if (curP) {
+        curP.schema_json = JSON.parse(JSON.stringify(currentSite.schema_json || []));
+      }
+    }
+
+    // 2. Find target page
+    const targetP = currentSite.pages.find(p => p.id === pageId);
+    if (!targetP) return;
+
+    currentSite.active_page_id = pageId;
+    currentSite.schema_json = JSON.parse(JSON.stringify(targetP.schema_json || []));
+
+    // 3. Update topbar label
+    const labelEl = document.getElementById('current-page-label');
+    if (labelEl) {
+      labelEl.textContent = `Page: ${targetP.name} (${targetP.slug || '/'})`;
+    }
+
+    // 4. Close pages menu
+    const menu = document.getElementById('studio-pages-menu');
+    if (menu) menu.style.display = 'none';
+
+    // 5. Re-render
+    activeComponentId = null;
+    renderCanvas();
+    renderStudioLayers();
+    updateComponentPaletteStatus();
+    window.renderStudioPagesList();
+    showToast(`Switched to page: ${targetP.name}`, "info");
+  };
+
+  window.togglePagesMenu = function() {
+    const menu = document.getElementById('studio-pages-menu');
+    if (!menu) return;
+    menu.style.display = (menu.style.display === 'none' || !menu.style.display) ? 'block' : 'none';
+  };
+
+  window.openCreatePageModal = function() {
+    const modal = document.getElementById('modal-create-page');
+    const nameInput = document.getElementById('new-page-name');
+    const slugInput = document.getElementById('new-page-slug');
+    const templateSelect = document.getElementById('new-page-template');
+    if (nameInput) nameInput.value = '';
+    if (slugInput) slugInput.value = '';
+    if (templateSelect) templateSelect.value = 'blank';
+    if (modal) modal.style.display = 'flex';
+    const menu = document.getElementById('studio-pages-menu');
+    if (menu) menu.style.display = 'none';
+    if (nameInput) setTimeout(() => nameInput.focus(), 50);
+  };
+
+  window.closeCreatePageModal = function() {
+    const modal = document.getElementById('modal-create-page');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.handleNewPageNameInput = function(val) {
+    const slugInput = document.getElementById('new-page-slug');
+    if (slugInput) {
+      const slug = (val || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+      slugInput.value = slug;
+    }
+  };
+
+  window.handleCreatePageSubmit = function(e) {
+    if (e) e.preventDefault();
+    if (!currentSite) return;
+    const nameInput = document.getElementById('new-page-name');
+    const slugInput = document.getElementById('new-page-slug');
+    const templateSelect = document.getElementById('new-page-template');
+
+    const pageName = (nameInput?.value || '').trim() || 'New Page';
+    let pageSlug = (slugInput?.value || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    if (!pageSlug) pageSlug = pageName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    if (!pageSlug.startsWith('/')) pageSlug = '/' + pageSlug;
+
+    const template = templateSelect?.value || 'blank';
+    const newPageId = `page_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+    // Find navbar and footer from current site to keep brand consistency
+    const currentComps = currentSite.schema_json || [];
+    const existingNav = currentComps.find(c => c.type === 'navbar');
+    const existingFooter = currentComps.find(c => c.type === 'footer');
+
+    let initialComps = [];
+    if (existingNav) {
+      initialComps.push(JSON.parse(JSON.stringify(existingNav)));
+    }
+
+    // Template initial blocks
+    if (template === 'speakers') {
+      initialComps.push(createSampleComponent('speakers'));
+    } else if (template === 'agenda') {
+      initialComps.push(createSampleComponent('agenda'));
+    } else if (template === 'pricing') {
+      initialComps.push(createSampleComponent('pricing'));
+    } else if (template === 'about') {
+      initialComps.push(createSampleComponent('about'));
+    } else if (template === 'contact') {
+      initialComps.push(createSampleComponent('contact'));
+    }
+
+    if (existingFooter) {
+      initialComps.push(JSON.parse(JSON.stringify(existingFooter)));
+    }
+
+    window.initializeStudioPages();
+    const newPage = {
+      id: newPageId,
+      name: pageName,
+      slug: pageSlug,
+      is_home: false,
+      meta_title: `${pageName} · ${currentSite.name || 'Conference'}`,
+      meta_description: `Learn more about ${pageName} at ${currentSite.name || 'our conference'}.`,
+      schema_json: initialComps
+    };
+
+    currentSite.pages.push(newPage);
+    window.closeCreatePageModal();
+    window.switchStudioPage(newPageId);
+    showToast(`Created page "${pageName}"`, "success");
+  };
+
+  window.deleteStudioPage = async function(pageId) {
+    if (!currentSite || !currentSite.pages) return;
+    const p = currentSite.pages.find(x => x.id === pageId);
+    if (!p) return;
+    if (p.is_home) {
+      window.showStudioAlert({
+        type: "warning",
+        title: "Cannot Delete Home Page",
+        message: "The Home page (/) is required and cannot be deleted. You can edit its sections anytime.",
+        buttonText: "Understood"
+      });
+      return;
+    }
+
+    const confirmed = await window.showStudioConfirm({
+      type: "danger",
+      title: "Delete Page?",
+      message: `Are you sure you want to permanently delete the page "${p.name}" (${p.slug})? All sections on this page will be removed.`,
+      confirmText: "Delete Page",
+      cancelText: "Keep Page"
+    });
+    if (!confirmed) return;
+
+    currentSite.pages = currentSite.pages.filter(x => x.id !== pageId);
+    if (currentSite.active_page_id === pageId) {
+      const homeP = currentSite.pages.find(x => x.is_home) || currentSite.pages[0];
+      if (homeP) {
+        window.switchStudioPage(homeP.id);
+      }
+    } else {
+      window.renderStudioPagesList();
+    }
+    showToast(`Deleted page "${p.name}"`, "info");
+  };
+
+  window.renderStudioPagesList = function() {
+    if (!currentSite) return;
+    window.initializeStudioPages();
+    const pages = currentSite.pages || [];
+    const activeId = currentSite.active_page_id;
+
+    // 1. Topbar Dropdown List
+    const topList = document.getElementById('studio-pages-list');
+    if (topList) {
+      topList.innerHTML = pages.map(p => {
+        const isActive = (p.id === activeId);
+        return `
+          <div class="pages-menu-item ${isActive ? 'active' : ''}" onclick="switchStudioPage('${p.id}')">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span>${p.is_home ? '🏠' : '📄'}</span>
+              <strong>${escapeHtml(p.name)}</strong>
+              <span style="font-size:10px; color:#64748b; font-family:monospace;">${escapeHtml(p.slug || '/')}</span>
+            </div>
+            <div class="page-item-actions">
+              ${p.is_home ? '<span class="page-badge-home">Home</span>' : `
+                <button type="button" class="btn-page-del-mini" onclick="event.stopPropagation(); deleteStudioPage('${p.id}')" title="Delete this sub-page">✕</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 2. Inspector SEO Pages List
+    const mgrList = document.getElementById('seo-pages-manager-list');
+    if (mgrList) {
+      mgrList.innerHTML = pages.map(p => {
+        const isActive = (p.id === activeId);
+        return `
+          <div class="seo-page-card ${isActive ? 'active' : ''}">
+            <div class="seo-page-title-wrap">
+              <span>${p.is_home ? '🏠' : '📄'}</span>
+              <div>
+                <strong>${escapeHtml(p.name)}</strong>
+                <div class="seo-page-slug">${escapeHtml(p.slug || '/')} · ${(p.schema_json || []).length} sections</div>
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:6px;">
+              ${isActive ? '<span style="font-size:10px; font-weight:700; color:#5b50d6; background:#ede9fe; padding:2px 6px; border-radius:4px;">Active</span>' : `
+                <button type="button" class="btn-secondary" style="padding:3px 8px; font-size:10px;" onclick="switchStudioPage('${p.id}')">Switch</button>
+              `}
+              ${p.is_home ? '' : `
+                <button type="button" class="btn-page-del-mini" onclick="deleteStudioPage('${p.id}')" title="Delete this subpage">✕</button>
+              `}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // 3. Update topbar label
+    const curPage = pages.find(p => p.id === activeId) || pages[0];
+    const labelEl = document.getElementById('current-page-label');
+    if (labelEl && curPage) {
+      labelEl.textContent = `Page: ${curPage.name} (${curPage.slug || '/'})`;
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // SEO, Google Analytics (gacode), Social Card & Code Injection
+  // ---------------------------------------------------------------------------
+  window.updateSeoField = function(field, val) {
+    if (!currentSite) return;
+    if (!currentSite.meta_config) currentSite.meta_config = {};
+    currentSite[field] = val;
+    currentSite.meta_config[field] = val;
+
+    // Real-time update live SERP & Social Share preview
+    const liveTitle = document.getElementById('social-preview-title');
+    const liveDesc = document.getElementById('social-preview-desc');
+    const liveImg = document.getElementById('social-preview-img');
+    const titleCount = document.getElementById('seo-title-count');
+    const descCount = document.getElementById('seo-desc-count');
+
+    if (field === 'meta_title') {
+      if (liveTitle) liveTitle.textContent = val || currentSite.name || 'Conference Website';
+      if (titleCount) {
+        titleCount.textContent = `${(val || '').length} / 60`;
+        titleCount.style.color = (val || '').length > 60 ? '#ef4444' : '#64748b';
+      }
+    } else if (field === 'meta_description') {
+      if (liveDesc) liveDesc.textContent = val || 'Join leading researchers, faculty, and industry pioneers for groundbreaking discoveries.';
+      if (descCount) {
+        descCount.textContent = `${(val || '').length} / 160`;
+        descCount.style.color = (val || '').length > 160 ? '#ef4444' : '#64748b';
+      }
+    } else if (field === 'og_image') {
+      if (liveImg && val) liveImg.src = val;
+    }
+  };
+
+  window.setSeoStockImage = function(url) {
+    const input = document.getElementById('seo-input-ogimage');
+    if (input) input.value = url;
+    window.updateSeoField('og_image', url);
+  };
+
+  window.populateSeoPane = function() {
+    if (!currentSite) return;
+    const cfg = currentSite.meta_config || {};
+    const gaInput = document.getElementById('seo-input-gacode');
+    const titleInput = document.getElementById('seo-input-title');
+    const descInput = document.getElementById('seo-input-desc');
+    const kwInput = document.getElementById('seo-input-keywords');
+    const authorInput = document.getElementById('seo-input-author');
+    const canonInput = document.getElementById('seo-input-canonical');
+    const ogInput = document.getElementById('seo-input-ogimage');
+    const headCodeInput = document.getElementById('seo-input-headcode');
+    const bodyCodeInput = document.getElementById('seo-input-bodycode');
+
+    const titleVal = cfg.meta_title || currentSite.meta_title || currentSite.name || '';
+    const descVal = cfg.meta_description || currentSite.meta_description || '';
+    const gaVal = currentSite.ga_tracking_id || cfg.ga_tracking_id || '';
+    const kwVal = cfg.meta_keywords || currentSite.meta_keywords || '';
+    const authorVal = cfg.meta_author || currentSite.meta_author || '';
+    const canonVal = cfg.canonical_url || currentSite.canonical_url || '';
+    const ogVal = cfg.og_image || currentSite.og_image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80';
+    const headCodeVal = currentSite.custom_head_code || cfg.custom_head_code || '';
+    const bodyCodeVal = currentSite.custom_body_code || cfg.custom_body_code || '';
+
+    if (gaInput) gaInput.value = gaVal;
+    if (titleInput) titleInput.value = titleVal;
+    if (descInput) descInput.value = descVal;
+    if (kwInput) kwInput.value = kwVal;
+    if (authorInput) authorInput.value = authorVal;
+    if (canonInput) canonInput.value = canonVal;
+    if (ogInput) ogInput.value = ogVal;
+    if (headCodeInput) headCodeInput.value = headCodeVal;
+    if (bodyCodeInput) bodyCodeInput.value = bodyCodeVal;
+
+    const domainEl = document.getElementById('social-preview-domain');
+    if (domainEl) {
+      domainEl.textContent = `sciprospect.com/sites/${currentSite.slug || 'conference'}`;
+    }
+
+    window.updateSeoField('meta_title', titleVal);
+    window.updateSeoField('meta_description', descVal);
+    window.updateSeoField('og_image', ogVal);
+    window.renderStudioPagesList();
+  };
+
+  // Modern In-App Confirmation & Alert Modal System (Replaces Native Browser Alerts)
+  window.showStudioConfirm = function({
+    title = "Are you sure?",
+    message = "Do you want to proceed with this action?",
+    confirmText = "Confirm",
+    cancelText = "Cancel",
+    type = "danger" // 'danger' | 'warning' | 'info' | 'success'
+  } = {}) {
+    return new Promise((resolve) => {
+      let modal = document.getElementById("studio-confirm-dialog");
+      if (!modal) {
+        modal = document.createElement("dialog");
+        modal.id = "studio-confirm-dialog";
+        modal.className = "studio-confirm-dialog";
+        document.body.appendChild(modal);
+      }
+
+      const icons = {
+        danger: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2m-6 5v6m4-6v6"/></svg>`,
+        warning: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+        info: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`,
+        success: `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`
+      };
+
+      const iconSvg = icons[type] || icons.danger;
+
+      modal.innerHTML = `
+        <div class="studio-confirm-card type-${type}">
+          <div class="studio-confirm-icon-wrap">${iconSvg}</div>
+          <h3 class="studio-confirm-title">${escapeHtml(title)}</h3>
+          <p class="studio-confirm-desc">${escapeHtml(message)}</p>
+          <div class="studio-confirm-actions">
+            ${cancelText ? `<button type="button" class="btn-confirm-cancel">${escapeHtml(cancelText)}</button>` : ''}
+            <button type="button" class="btn-confirm-proceed btn-${type}">${escapeHtml(confirmText)}</button>
+          </div>
+        </div>
+      `;
+
+      const btnCancel = modal.querySelector(".btn-confirm-cancel");
+      const btnProceed = modal.querySelector(".btn-confirm-proceed");
+
+      const cleanup = (result) => {
+        try { modal.close(); } catch (e) {}
+        resolve(result);
+      };
+
+      if (btnCancel) {
+        btnCancel.onclick = () => cleanup(false);
+      }
+      if (btnProceed) {
+        btnProceed.onclick = () => cleanup(true);
+      }
+
+      modal.oncancel = (e) => {
+        e.preventDefault();
+        cleanup(false);
+      };
+
+      modal.onclick = (e) => {
+        if (e.target === modal) cleanup(false);
+      };
+
+      try {
+        modal.showModal();
+        if (btnProceed) btnProceed.focus();
+      } catch (err) {
+        // Fallback if dialog showModal fails
+        resolve(true);
+      }
+    });
+  };
+
+  window.showStudioAlert = function({ title = "Notice", message = "", type = "info", buttonText = "Got it" } = {}) {
+    return window.showStudioConfirm({ title, message, confirmText: buttonText, cancelText: null, type });
+  };
+
+  // Sample Component Generator for Live Visual Preview
+  function createSampleComponent(type, variant = null) {
+    const siteName = currentSite?.name || 'BioSummit 2026';
+    let compData = {};
+
+    if (type === 'navbar') {
+      const v = ['business', 'portfolio', 'services', 'product', 'editorial'].includes(variant) ? variant : 'business';
+      compData = {
+        brand_name: siteName,
+        brand_mode: 'text',
+        logo_url: '',
+        layout_variant: v,
+        links: [
+          { label: 'About', url: '#features' },
+          { label: 'Speakers', url: '#speakers' },
+          { label: 'Agenda', url: '#agenda' },
+          { label: 'Pricing', url: '#pricing' },
+          { label: 'Contact', url: '#contact' }
+        ],
+        cta_label: v === 'product' ? 'Start Free' : (v === 'services' ? 'Book Consultation' : (v === 'editorial' ? 'Subscribe' : 'Register Now')),
+        cta_link: '#pricing'
+      };
+    } else if (type === 'image') {
+      compData = {
+        image_url: 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=1200&auto=format&fit=crop&q=80',
+        caption: 'Grand Scientific Auditorium & Presentation Hall'
+      };
+    } else if (type === 'announcement') {
+      compData = {
+        section_title: '📢 Late-Breaking Abstracts Deadline: Dec 15, 2026',
+        section_subtitle: 'Submissions are currently open for oral, poster, and young investigator awards.',
+        link_text: 'Submit Abstract →',
+        link_url: '#pricing'
+      };
+    } else if (['about','stats','agenda','sponsors','testimonials'].includes(type)) {
+      const titles = {
+        about: 'About the Symposium',
+        stats: 'Symposium by the Numbers',
+        agenda: 'Scientific Track Agenda',
+        sponsors: 'Supporting Partners & Sponsors',
+        testimonials: 'What Delegates & Faculty Say'
+      };
+      const itemsMap = {
+        about: [
+          { title: 'Global Mission', description: 'Accelerating clinical translations through open science and peer collaboration.', image: '' },
+          { title: 'Interdisciplinary Exchange', description: 'Connecting computational biology, genomics, and clinical trial directors.', image: '' },
+          { title: 'Grant & Poster Sessions', description: 'Over $250k in junior investigator fellowships awarded.', image: '' }
+        ],
+        stats: [
+          { title: '1,400+', description: 'Delegates & Investigators', image: '' },
+          { title: '48', description: 'Participating Countries', image: '' },
+          { title: '120', description: 'Peer-Reviewed Posters', image: '' }
+        ],
+        agenda: [
+          { title: '09:00 AM · Keynote Address', description: 'Frontiers in Single-Cell Transcriptomics & Precision Medicine', image: '' },
+          { title: '11:30 AM · Panel Session', description: 'Translational Bioinformatics and High-Throughput Screening', image: '' },
+          { title: '02:00 PM · Poster Presentations', description: 'Interactive breakout discussions across laboratory methodologies', image: '' }
+        ],
+        sponsors: [
+          { title: 'Genomic Core Labs', description: 'Principal Foundation Partner', image: '' },
+          { title: 'BioTech Ventures', description: 'Technology Showcase Sponsor', image: '' },
+          { title: 'Clinical Discovery Group', description: 'Fellowship & Travel Grant Patron', image: '' }
+        ],
+        testimonials: [
+          { title: 'Dr. Sarah Jenkins · Harvard Medical', description: '“The highest caliber translational discussions I have attended.”', image: '' },
+          { title: 'Prof. Andrew Wu · Stanford University', description: '“Incredible depth of data and unparalleled faculty networking.”', image: '' }
+        ]
+      };
+      compData = {
+        section_title: titles[type] || 'Section Title',
+        section_subtitle: 'Designed by researchers for researchers to accelerate scientific outreach.',
+        design: ['grid', 'list', 'spotlight'].includes(variant) ? variant : 'grid',
+        items: itemsMap[type] || [{ title: 'Overview', description: 'Content details.', image: '' }]
+      };
+    } else if (type === "custom") {
+      compData = {
+        html: '<section style="padding:40px;font-family:system-ui;text-align:center;background:#f8faff;border-radius:12px;border:1px dashed #6356dc;"><h2>Interactive Embed</h2><p>Custom HTML, embedded widgets, and custom styling preview.</p></section>',
+        height: 220
+      };
+    } else if (type === "hero") {
+      const heroVar = ['split', 'conference_program', 'centered', 'image_left', 'image_top', 'text_only'].includes(variant) ? variant : 'split';
+      compData = {
+        layout_variant: heroVar,
+        eyebrow: "🌟 ANNUAL SYMPOSIUM 2026",
+        headline: "Frontiers in Molecular Medicine",
+        headline_gradient: true,
+        gradient_preset: "cyan_blue",
+        subheadline: "Join leading researchers, principal investigators, and clinicians for 3 days of breakthrough discoveries.",
+        primary_btn_text: "Register Now",
+        primary_btn_url: "#pricing",
+        primary_btn_style: "gradient",
+        primary_btn_radius: "pill",
+        secondary_btn_text: "Explore Program",
+        secondary_btn_url: "#features",
+        hero_image: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=900&auto=format&fit=crop&q=80",
+        hero_image_radius: "14px",
+        hero_image_shadow: "deep",
+        hero_image_aspect: "16/9",
+        event_date: "October 14–18, 2026",
+        event_location: "Cambridge Innovation Center, MA",
+        event_format: "In-Person & Hybrid"
+      };
+    } else if (type === "features") {
+      compData = {
+        section_tag: "KEY PILLARS",
+        section_title: "Conference Scientific Tracks",
+        section_subtitle: "Accelerating discovery across multidisciplinary boundaries.",
+        items: [
+          { icon: "fa-solid fa-microscope", title: "Laboratory Discoveries", description: "Novel diagnostic tools and biochemical methods." },
+          { icon: "fa-solid fa-dna", title: "Precision Genetics", description: "Targeted cellular therapies and molecular markers." },
+          { icon: "fa-solid fa-brain", title: "Computational Models", description: "High-throughput modeling and predictive biomarkers." }
+        ]
+      };
+    } else if (type === "speakers") {
+      compData = {
+        section_tag: "FACULTY",
+        section_title: "Distinguished Keynote Speakers",
+        section_subtitle: "Pioneering faculty and principal investigators presenting revolutionary work.",
+        speakers: [
+          {
+            name: "Prof. Elena Rostova",
+            role: "Chief Scientist & Chair",
+            affiliation: "Oxford Genomic Technologies",
+            photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
+            bio: "Leader in next-generation single-cell analysis and clinical genomics."
+          },
+          {
+            name: "Dr. Marcus Vance",
+            role: "Director of Research",
+            affiliation: "Stanford Research Institute",
+            photo: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&auto=format&fit=crop&q=80",
+            bio: "Principal Investigator on ongoing NIH-funded translational programs."
+          }
+        ]
+      };
+    } else if (type === "pricing") {
+      compData = {
+        section_tag: "PASSES & TICKETS",
+        section_title: "Registration Options",
+        section_subtitle: "Choose the admission tier that best fits your attendance mode.",
+        tiers: [
+          {
+            name: "Academic Pass",
+            price: "$199",
+            period: "/ delegate",
+            featured: false,
+            description: "Full access for faculty, students, and postdocs.",
+            features: ["All Scientific Sessions", "Poster Hall Admission", "Digital Proceedings"],
+            btn_label: "Select Academic",
+            btn_url: "#contact"
+          },
+          {
+            name: "Industry Full Pass",
+            price: "$499",
+            period: "/ delegate",
+            featured: true,
+            description: "Complete access for commercial, pharma, and biotech teams.",
+            features: ["Full Priority Admission", "VIP Networking Lounge", "Access to Raw Datasets", "Gala Reception"],
+            btn_label: "Select Industry VIP",
+            btn_url: "#contact"
+          }
+        ]
+      };
+    } else if (type === "gallery") {
+      compData = {
+        section_tag: "CAMPUS & VENUE",
+        section_title: "Symposium Venue & Posters",
+        images: [
+          { url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=900&auto=format&fit=crop&q=80", caption: "Grand Science Auditorium" },
+          { url: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=900&auto=format&fit=crop&q=80", caption: "Biochemical Lab Demo" }
+        ]
+      };
+    } else if (type === "faq") {
+      compData = {
+        section_tag: "FAQ",
+        section_title: "Frequently Asked Questions",
+        faqs: [
+          { q: "How can I submit an abstract?", a: "Abstract submissions open through the official portal until 60 days before the conference date." },
+          { q: "Are CME / CPD credits provided?", a: "Yes, certified educational credits are awarded for all registered attendees upon session completion." }
+        ]
+      };
+    } else if (type === "contact") {
+      compData = {
+        section_tag: "REGISTRATION",
+        section_title: "Connect & Reserve Your Pass",
+        section_subtitle: "Contact the symposium secretariat with any questions.",
+        email: "symposium2026@conference.org",
+        phone: "+1 (555) 329-8472",
+        location: "BioTech Innovation Hub, Cambridge, MA",
+        btn_text: "Submit Inquiry"
+      };
+    } else if (type === "footer") {
+      compData = {
+        brand_name: siteName,
+        tagline: 'Accelerating global scientific research and collaborative discovery.',
+        copyright: `© ${new Date().getFullYear()} ${siteName}. All rights reserved.`,
+        links: [
+          { label: 'Privacy Policy', url: '#' },
+          { label: 'Terms of Service', url: '#' },
+          { label: 'Code of Conduct', url: '#' }
+        ]
+      };
+    }
+
+    return {
+      id: 'sample_preview',
+      type: type,
+      title: type === 'navbar' ? 'Navigation Bar' : (type === 'footer' ? 'Footer' : type.toUpperCase()),
+      data: compData
+    };
+  }
+
+  // Live Component Preview in 40% Left Deck & 60% Canvas Deck
+  window.showStudioComponentPreview = function(type, variant = null) {
+    window.studioActivePreviewType = type;
+
+    try {
+      const variantsMap = {
+        navbar: [
+          ['business', 'Business'],
+          ['portfolio', 'Portfolio'],
+          ['services', 'Services'],
+          ['product', 'Product'],
+          ['editorial', 'Editorial']
+        ],
+        hero: [
+          ['split', 'Split'],
+          ['conference_program', 'Program'],
+          ['centered', 'Centered'],
+          ['image_left', 'Image Left'],
+          ['image_top', 'Image Top'],
+          ['text_only', 'Typography']
+        ],
+        about: [
+          ['grid', 'Grid'],
+          ['spotlight', 'Spotlight'],
+          ['list', 'List']
+        ],
+        agenda: [
+          ['grid', 'Cards'],
+          ['list', 'Timeline']
+        ]
+      };
+
+      const curVariant = variant || (type === 'navbar' ? 'business' : (type === 'hero' ? 'split' : 'grid'));
+      window.studioActivePreviewVariant = curVariant;
+      const availVariants = variantsMap[type] || [];
+
+      const sample = createSampleComponent(type, curVariant);
+      const theme = currentSite?.theme_config || {};
+      const primary = theme.primary_color || '#5b50d6';
+      const previewHtml = renderComponentHTML(sample, primary);
+
+      const typeMeta = {
+        navbar: { name: 'Navigation Bar', icon: '🧭', category: 'Navigation', desc: 'Main navigation header with logo, links and call-to-action button.' },
+        hero: { name: 'Hero Banner', icon: '🌟', category: 'Hero Header', desc: 'Above-the-fold visual banner with title, value proposition, and CTA buttons.' },
+        announcement: { name: 'Announcement Ribbon', icon: '📢', category: 'Notice', desc: 'Eye-catching top notice ribbon for deadlines, registration alerts, and dates.' },
+        about: { name: 'About the Event', icon: '📖', category: 'Overview', desc: 'Introduction to conference scope, objectives, and committee mission.' },
+        features: { name: 'Info & Highlights', icon: '📋', category: 'Key Focus', desc: '3-column feature cards highlighting core tracks and benefits.' },
+        speakers: { name: 'Keynote Speakers', icon: '🎤', category: 'Faculty', desc: 'Distinguished faculty profile cards with portraits, affiliations, and bios.' },
+        agenda: { name: 'Scientific Program', icon: '🗓️', category: 'Schedule', desc: 'Structured timeline of keynote sessions, tracks, and poster sessions.' },
+        stats: { name: 'Conference Numbers', icon: '📊', category: 'Metrics', desc: 'Key figures: delegate count, editions, international participation metrics.' },
+        pricing: { name: 'Pricing & Passes', icon: '💳', category: 'Registration', desc: 'Admission tier cards with pass features, badges, and checkout CTAs.' },
+        gallery: { name: 'Photo Gallery', icon: '🖼️', category: 'Venue & Lab', desc: 'Responsive image grid showcasing auditoriums, breakouts, and poster hall.' },
+        sponsors: { name: 'Partners & Exhibitors', icon: '🤝', category: 'Sponsors', desc: 'Tiered partner logo showcase for corporate sponsors and patrons.' },
+        testimonials: { name: 'Testimonials', icon: '💬', category: 'Social Proof', desc: 'Delegate reviews, attendee quotes, and participant recommendations.' },
+        faq: { name: 'FAQ Accordion', icon: '❓', category: 'Logistics', desc: 'Expandable answers to registration, accreditation, and venue questions.' },
+        contact: { name: 'Contact & RSVP', icon: '✉️', category: 'Inquiries', desc: 'Lead capture form with organizer email, telephone, and venue location.' },
+        image: { name: 'Image Block', icon: '📷', category: 'Media', desc: 'Upload a prominent banner photograph, poster figure, or campus photo.' },
+        custom: { name: 'Custom HTML/CSS', icon: '</>', category: 'Embed', desc: 'Embed custom scripts, widgets, badges, or custom-styled HTML.' },
+        footer: { name: 'Footer', icon: '📄', category: 'Footer', desc: 'Bottom navigation bar with copyright, branding, and legal links.' }
+      }[type] || { name: type, icon: '◇', category: 'Section', desc: 'Modular page block.' };
+
+      // 1. Update Left 40% Active Preview Card
+      const activeCard = document.getElementById('studio-active-preview-card');
+      const matchingComps = (currentSite?.schema_json || []).filter(c =>
+        c && c.type === type && (!availVariants.length || !curVariant || c.data?.layout_variant === curVariant || c.data?.design === curVariant)
+      );
+      const countOnPage = matchingComps.length;
+
+      if (activeCard) {
+        activeCard.style.display = 'block';
+        const iconEl = document.getElementById('active-preview-icon');
+        if (iconEl) iconEl.textContent = typeMeta.icon;
+        const titleEl = document.getElementById('active-preview-title');
+        if (titleEl) {
+          titleEl.textContent = availVariants.length > 0 ? `${typeMeta.name} · ${curVariant.charAt(0).toUpperCase() + curVariant.slice(1)}` : typeMeta.name;
+        }
+        const catEl = document.getElementById('active-preview-cat');
+        if (catEl) catEl.textContent = typeMeta.category;
+        const descEl = document.getElementById('active-preview-desc');
+        if (descEl) descEl.textContent = typeMeta.desc;
+
+        const variantsWrap = document.getElementById('active-preview-variants-wrap');
+        const variantsList = document.getElementById('active-preview-variants');
+        if (variantsWrap && variantsList) {
+          if (availVariants.length > 0) {
+            variantsWrap.style.display = 'block';
+            variantsList.innerHTML = availVariants.map(([vKey, vLabel]) => `
+              <button type="button" class="active-preview-var-pill ${curVariant === vKey ? 'active' : ''}" onclick="showStudioComponentPreview('${type}','${vKey}')">${vLabel}</button>
+            `).join('');
+          } else {
+            variantsWrap.style.display = 'none';
+          }
+        }
+
+        // Action Buttons in 40% Left Deck: Add & Remove
+        const addBtnText = document.getElementById('active-preview-add-text');
+        const btnPaletteRemove = document.getElementById('btn-palette-remove-active');
+        if (addBtnText) {
+          addBtnText.textContent = countOnPage > 0 ? `+ Add another section (${countOnPage} on page)` : `+ Add this section to page`;
+        }
+        if (btnPaletteRemove) {
+          btnPaletteRemove.style.display = countOnPage > 0 ? 'inline-flex' : 'none';
+          btnPaletteRemove.title = `Remove this section from page (${countOnPage} on page)`;
+        }
+      }
+
+      // 2. Render Full 60% Canvas Live Preview
+      const canvasDeck = document.getElementById('studio-canvas-preview-deck');
+      const canvasContent = document.getElementById('studio-canvas-preview-content');
+      const deckTitle = document.getElementById('canvas-deck-title');
+      const deckVariant = document.getElementById('canvas-deck-variant');
+      const canvasAddText = document.getElementById('canvas-preview-add-text');
+      const btnCanvasRemove = document.getElementById('btn-canvas-preview-remove');
+
+      if (canvasDeck && canvasContent) {
+        canvasDeck.style.display = 'block';
+        if (deckTitle) deckTitle.textContent = `Live Preview: ${typeMeta.name}`;
+        if (deckVariant) {
+          deckVariant.textContent = availVariants.length > 0 ? `${curVariant.charAt(0).toUpperCase() + curVariant.slice(1)} Style` : 'Standard';
+        }
+        canvasContent.innerHTML = previewHtml;
+
+        if (canvasAddText) {
+          canvasAddText.textContent = countOnPage > 0 ? `+ Add another section (${countOnPage} on page)` : `+ Add this section to page`;
+        }
+        if (btnCanvasRemove) {
+          btnCanvasRemove.style.display = countOnPage > 0 ? 'inline-flex' : 'none';
+          btnCanvasRemove.title = `Remove this section from page (${countOnPage} on page)`;
+        }
+      }
+
+      // 3. Highlight selected palette card
+      document.querySelectorAll('.btn-add-comp').forEach(b => {
+        const matches = (b.getAttribute('data-type') === type && (!variant || b.getAttribute('data-variant') === curVariant));
+        b.classList.toggle('palette-preview-active', matches);
+      });
+
+      // 4. Also keep Right Inspector Preview Pane populated if visible
+      const previewPane = document.getElementById('studio-preview-pane');
+      if (previewPane) {
+        previewPane.innerHTML = `
+          <div class="studio-preview-header">
+            <div class="studio-preview-title-row">
+              <span class="studio-preview-icon">${typeMeta.icon}</span>
+              <div>
+                <h4 class="studio-preview-heading">${escapeHtml(typeMeta.name)}</h4>
+                <span class="studio-preview-cat-badge">${escapeHtml(typeMeta.category)}</span>
+              </div>
+            </div>
+            <p class="studio-preview-desc">${escapeHtml(typeMeta.desc)}</p>
+
+            ${availVariants.length > 0 ? `
+              <div class="studio-preview-variants-bar" aria-label="Design variants">
+                <span class="studio-preview-var-label">Style:</span>
+                ${availVariants.map(([vKey, vLabel]) => `
+                  <button type="button" class="studio-preview-var-btn ${curVariant === vKey ? 'active' : ''}" onclick="showStudioComponentPreview('${type}','${vKey}')">${vLabel}</button>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <button type="button" class="btn-studio-add-now" onclick="addNewComponent('${type}','${curVariant}')">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>+ Add this section to page</span>
+            </button>
+          </div>
+
+          <div class="studio-preview-stage-wrap">
+            <div class="studio-preview-stage-bar">
+              <span class="preview-dot red"></span>
+              <span class="preview-dot yellow"></span>
+              <span class="preview-dot green"></span>
+              <span class="preview-url-text">Live Preview · ${curVariant}</span>
+            </div>
+            <div class="studio-preview-viewport">
+              <div class="studio-preview-stage">
+                ${previewHtml}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+    } catch (err) {
+      console.error("[SciStudio] Preview rendering error:", err);
+      const canvasContent = document.getElementById('studio-canvas-preview-content');
+      if (canvasContent) {
+        canvasContent.innerHTML = `
+          <div style="padding: 2rem; text-align: center; color: #64748b; background: #fff;">
+            <p style="font-weight: 700; color: #0f172a; margin: 0 0 0.5rem;">Preview unavailable for ${escapeHtml(type)}</p>
+            <p style="font-size: 0.9rem; margin: 0 0 1rem;">${escapeHtml(err.message || 'Error compiling sample preview')}</p>
+            <button type="button" class="btn-palette-add-active" style="display:inline-flex; width:auto;" onclick="addNewComponent('${type}','${variant || ''}')">+ Add this section to page</button>
+          </div>
+        `;
+      }
+    }
+  };
+
+  // Select & Preview Component from Left Palette (Shows preview before adding)
+  function handlePaletteSelect(btn) {
+    if (!btn) return;
+    const type = btn.getAttribute("data-type");
+    const variant = btn.getAttribute("data-variant");
+    if (!type) return;
+
+    // Highlight selected preview card in palette
+    document.querySelectorAll(".btn-add-comp").forEach(b => b.classList.remove("palette-preview-active"));
+    btn.classList.add("palette-preview-active");
+
+    // Switch to 40% / 60% Component Preview Mode
+    if (window.setStudioViewMode) {
+      window.setStudioViewMode('preview');
+    } else if (window.switchRightPanelMode) {
+      window.switchRightPanelMode('preview');
+    }
+    if (window.showStudioComponentPreview) {
+      window.showStudioComponentPreview(type, variant);
+    }
+  }
+
   document.querySelectorAll(".btn-add-comp").forEach(btn => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("mouseenter", () => {
+      const type = btn.getAttribute("data-type");
+      const variant = btn.getAttribute("data-variant");
+      if (type && window.showStudioComponentPreview) {
+        window.showStudioComponentPreview(type, variant);
+      }
+    });
+
+    // 1-Click Instant Selection: Listen to pointerdown on button 0 (left-click)
+    btn.addEventListener("pointerdown", (e) => {
+      if (e.target && e.target.closest && e.target.closest('.comp-palette-remove-quick')) return;
+      if (e.button === 0) {
+        handlePaletteSelect(btn);
+      }
+    });
+
+    btn.addEventListener("click", (e) => {
+      if (e.target && e.target.closest && e.target.closest('.comp-palette-remove-quick')) return;
+      handlePaletteSelect(btn);
+    });
+
+    btn.addEventListener("dblclick", (e) => {
+      if (e.target && e.target.closest && e.target.closest('.comp-palette-remove-quick')) return;
       if (!currentSite) return;
       const type = btn.getAttribute("data-type");
-      addNewComponent(type);
+      const variant = btn.getAttribute("data-variant");
+      addNewComponent(type, variant);
     });
   });
 
-  function addNewComponent(type) {
+  function addNewComponent(type, variant = null) {
     if (!currentSite) return;
     if (!currentSite.schema_json) currentSite.schema_json = [];
 
     const newId = `comp_${type}_${crypto.randomUUID()}`;
     let compData = {};
 
-    if(type==='image'){compData={image_url:'',caption:''};}
-    else if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(type)) {
-      compData = {section_title: {about:'About the conference',stats:'Our conference in numbers',agenda:'Scientific program',sponsors:'Partners and exhibitors',testimonials:'What participants say',announcement:'Important update'}[type], section_subtitle:'Add your conference details here.', design:'grid', items:[{title:'Add a title',description:'Add your content.',image:''}]};
-    } else if (type === "custom") {
-      compData = {html: '<section style="padding:40px;font-family:system-ui"><h2>Your custom section</h2><p>Edit this HTML and add your own CSS.</p></section>', height: 300};
-    } else if (type === "hero") {
+    if (type === 'navbar') {
+      const v = ['business', 'portfolio', 'services', 'product', 'editorial'].includes(variant) ? variant : 'business';
       compData = {
+        brand_name: currentSite.name || 'SciProspect',
+        brand_mode: 'text',
+        logo_url: '',
+        layout_variant: v,
+        links: [
+          { label: 'About', url: '#features' },
+          { label: 'Speakers', url: '#speakers' },
+          { label: 'Agenda', url: '#agenda' },
+          { label: 'Pricing', url: '#pricing' },
+          { label: 'Contact', url: '#contact' }
+        ],
+        cta_label: v === 'product' ? 'Start Free' : (v === 'services' ? 'Book Consultation' : (v === 'editorial' ? 'Subscribe' : 'Register Now')),
+        cta_link: '#pricing'
+      };
+    } else if (type === 'image') {
+      compData = { image_url: '', caption: '' };
+    } else if (type === 'announcement') {
+      compData = {
+        section_title: '📢 Important Update: Call for Submissions Open',
+        section_subtitle: 'Deadlines, session tracks, and speaker registration are now live.',
+        link_text: 'Learn More →',
+        link_url: '#pricing'
+      };
+    } else if (['about','stats','agenda','sponsors','testimonials'].includes(type)) {
+      compData = {
+        section_title: {
+          about: 'About the conference',
+          stats: 'Our conference in numbers',
+          agenda: 'Scientific program',
+          sponsors: 'Partners and exhibitors',
+          testimonials: 'What participants say'
+        }[type],
+        section_subtitle: 'Add your conference details here.',
+        design: ['grid', 'list', 'spotlight'].includes(variant) ? variant : 'grid',
+        items: [{ title: 'Add a title', description: 'Add your content.', image: '' }]
+      };
+    } else if (type === "custom") {
+      compData = { html: '<section style="padding:40px;font-family:system-ui"><h2>Your custom section</h2><p>Edit this HTML and add your own CSS.</p></section>', height: 300 };
+    } else if (type === "hero") {
+      const heroVar = ['split', 'conference_program', 'centered', 'image_left', 'image_top', 'text_only'].includes(variant) ? variant : 'split';
+      compData = {
+        layout_variant: heroVar,
         eyebrow: "🌟 NEW HIGHLIGHT 2026",
         headline: "Innovative Research & Outreach",
         headline_gradient: true,
@@ -4395,19 +5668,37 @@ document.addEventListener("DOMContentLoaded", () => {
         location: "BioTech Innovation Hub, Cambridge, MA",
         btn_text: "Submit Inquiry"
       };
+    } else if (type === "footer") {
+      compData = {
+        brand_name: currentSite.name || 'SciProspect',
+        tagline: 'Accelerating global scientific research and collaborative discovery.',
+        copyright: `© ${new Date().getFullYear()} ${currentSite.name || 'SciProspect'}. All rights reserved.`,
+        links: [
+          { label: 'Privacy Policy', url: '#' },
+          { label: 'Terms of Service', url: '#' },
+          { label: 'Code of Conduct', url: '#' }
+        ]
+      };
     }
 
     const newComp = {
       id: newId,
       type: type,
-      title: type.toUpperCase(),
+      title: type === 'navbar' ? 'Navigation Bar' : (type === 'footer' ? 'Footer' : type.toUpperCase()),
       data: compData
     };
 
-    currentSite.schema_json.push(newComp);
+    if (type === 'navbar') {
+      currentSite.schema_json.unshift(newComp);
+    } else {
+      currentSite.schema_json.push(newComp);
+    }
     renderCanvas();
-    selectComponentForEditing(newId);
-    showToast(`Added ${type} section`, "success");
+    selectComponentForEditing(newId, false);
+    if (window.showStudioComponentPreview) {
+      window.showStudioComponentPreview(type, variant);
+    }
+    showToast(`Added ${type === 'navbar' ? 'Navigation Bar' : type} section`, "success");
   }
 
   // RENDER CANVAS WITH DYNAMIC HIGH-CONTRAST LIGHT & DARK MODES
@@ -4418,29 +5709,34 @@ document.addEventListener("DOMContentLoaded", () => {
     requestAnimationFrame(fitStudioCanvas);
     const comps = currentSite.schema_json || [];
 
-    if (comps.length === 0) {
-      canvasSectionsList.innerHTML = `
-        <div style="text-align: center; padding: 5rem 1rem; color: #64748b;">
-          <span style="font-size: 2.5rem; display:block; margin-bottom: 0.5rem;">🎨</span>
-          <h3 style="color: #cbd5e1; margin-bottom: 0.5rem;">Canvas is Empty</h3>
-          <p>Choose a section to start building your page.</p><button type="button" class="studio-add-open" onclick="openStudioLibrary()">+ Add your first section</button>
-        </div>
-      `;
-      return;
-    }
-
     const theme = currentSite.theme_config || {};
-    const mode = theme.mode || "dark";
-    const isLight = (mode === "light" || theme.bg_color === "#f8fafc" || theme.bg_color === "#ffffff" || theme.bg_color === "#f0fdf4");
-    const primary = theme.primary_color || (isLight ? "#2563eb" : "#38bdf8");
-    const bg = theme.bg_color || (isLight ? "#f8fafc" : "#0b0f19");
+    const mode = theme.mode || "light";
+    const isLight = (mode === "light" || theme.bg_color === "#f8fafc" || theme.bg_color === "#ffffff" || theme.bg_color === "#f0fdf4" || !theme.bg_color);
+    const primary = theme.primary_color || (isLight ? "#5b50d6" : "#38bdf8");
+    const bg = theme.bg_color || "#ffffff";
 
+    if (builderCanvasFrame) {
+      builderCanvasFrame.style.setProperty('background-color', bg, 'important');
+    }
     canvasSectionsList.dataset.motion = theme.animated_background ? 'ambient' : 'none';
     canvasSectionsList.style.setProperty('--primary', primary);
     canvasSectionsList.style.setProperty('--accent', theme.accent_color || '#8b5cf6');
-    canvasSectionsList.style.backgroundColor = bg;
+    canvasSectionsList.style.setProperty('background-color', bg, 'important');
     canvasSectionsList.style.fontFamily = theme.font_family || "Inter, sans-serif";
     canvasSectionsList.className = isLight ? "theme-light-canvas" : "theme-dark-canvas";
+
+    if (comps.length === 0) {
+      canvasSectionsList.innerHTML = `
+        <div class="studio-empty-canvas" style="text-align: center; padding: 4.5rem 1.5rem; background: #ffffff !important; border-radius: 14px; border: 2px dashed #cbd5e1; margin: 2rem auto; max-width: 620px; box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
+          <span style="font-size: 2.75rem; display:block; margin-bottom: 0.6rem;">🎨</span>
+          <h3 style="color: #0f172a !important; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.25rem;">Canvas is Empty</h3>
+          <p style="color: #64748b !important; margin-bottom: 1.25rem; font-size: 0.95rem;">Choose a section from the left library or hover any component to preview it on the right.</p>
+          <button type="button" class="studio-add-open" onclick="openStudioLibrary()" style="display:inline-flex; align-items:center; gap:0.5rem; background:#5b50d6; color:#fff; border:none; padding:0.65rem 1.3rem; border-radius:8px; font-weight:600; cursor:pointer;">+ Add your first section</button>
+        </div>
+      `;
+      updateComponentPaletteStatus();
+      return;
+    }
 
     canvasSectionsList.innerHTML = comps.map((comp) => {
       const isSelected = (comp.id === activeComponentId);
@@ -4457,6 +5753,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("") + '<div class="studio-insert-line last"><button type="button" onclick="openStudioLibrary()">+ Add section</button></div>';
     wireStudioInlineEditing();
     wireStudioElementDragging();
+    updateComponentPaletteStatus();
   }
 
   // RENDER INDIVIDUAL COMPONENT WITH PROPER CONTRAST & VECTOR ICONS
@@ -4464,7 +5761,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const d = comp.data || {};
     const t = comp.type;
     if(t==='image') return d.image_url ? `<figure style="margin:0;padding:24px"><img src="${escapeHtml(d.image_url)}" alt="${escapeHtml(d.caption||'')}" style="display:block;width:100%;height:auto;border-radius:12px"><figcaption>${escapeHtml(d.caption||'')}</figcaption></figure>` : `<div class="studio-image-placeholder"><button type="button" onclick="event.stopPropagation();chooseStudioImage('${comp.id}')">+ Upload an image</button><p>PNG, JPG, WebP or GIF · automatically optimized</p></div>`;
-    if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(t)) {
+    if (['about','stats','agenda','sponsors','testimonials'].includes(t)) {
       const theme = sectionStudioTheme(comp);
       const light = theme.mode === 'light';
       const design = ['grid','list','spotlight'].includes(d.design) ? d.design : 'grid';
@@ -4486,10 +5783,33 @@ document.addEventListener("DOMContentLoaded", () => {
     const navBorder = isLight ? "#e2e8f0" : "rgba(255, 255, 255, 0.08)";
     const navBg = isLight ? "rgba(255, 255, 255, 0.95)" : "rgba(11, 15, 25, 0.9)";
 
+    if (t === "announcement") {
+      const bannerBg = d.bg_color || (isLight ? "linear-gradient(90deg, #eff6ff 0%, #f5f3ff 100%)" : "linear-gradient(90deg, #1e1b4b 0%, #0f172a 100%)");
+      const bannerBorder = isLight ? "#c7d2fe" : "#3730a3";
+      const bannerText = isLight ? "#1e1b4b" : "#e0e7ff";
+      const badgeBg = primary;
+      const title = d.section_title || "Important Announcement";
+      const subtitle = d.section_subtitle || "Late-breaking abstract submission portal is now accepting submissions.";
+      const linkText = d.link_text || "Submit Details →";
+      const linkUrl = d.link_url || "#";
+
+      return `
+        <div class="announcement-ribbon-block" style="background:${bannerBg};border-top:1px solid ${bannerBorder};border-bottom:1px solid ${bannerBorder};padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;color:${bannerText};">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="background:${badgeBg};color:#ffffff;font-size:11px;font-weight:700;padding:3px 9px;border-radius:9999px;letter-spacing:0.5px;text-transform:uppercase;">Notice</span>
+            <strong style="font-size:13px;color:${bannerText};">${escapeHtml(title)}</strong>
+            <span style="font-size:13px;opacity:0.85;">${escapeHtml(subtitle)}</span>
+          </div>
+          <a href="${escapeHtml(linkUrl)}" style="background:${primary};color:#ffffff;text-decoration:none;font-size:12px;font-weight:700;padding:6px 14px;border-radius:6px;transition:opacity .15s ease;">${escapeHtml(linkText)}</a>
+        </div>
+      `;
+    }
+
     if (t === "navbar") {
+      const libraryVariant=['business','portfolio','services','product','editorial'].includes(d.layout_variant)?d.layout_variant:'business';
       const links = (d.links || []).map(l => `<a href="#" style="color:${isLight ? '#334155' : '#cbd5e1'};font-size:0.88rem;margin-right:1.25rem;font-weight:500;${l.style==='button'?`background:${primary};padding:0.5rem 0.9rem;border-radius:6px;color:${StudioFormatting.contrast(primary)};`:''}">${escapeHtml(l.label)}</a>`).join("");
       return `
-        <div style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${navBorder};background:${navBg};">
+        <div class="editor-library-nav library-nav-${libraryVariant}" style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${navBorder};background:${navBg};">
           <div style="font-weight:800;color:${textTitle};font-size:1.2rem;display:flex;align-items:center;gap:0.5rem;">
             ${d.brand_mode !== 'text' && d.logo_url && /^(https?:\/\/|\/(?!\/)|data:image\/(?:png|jpeg|webp|gif);base64,)/.test(d.logo_url) ? `<img src="${escapeHtml(d.logo_url)}" alt="${escapeHtml(d.logo_alt || d.brand_name || 'Logo')}" style="height:${Math.min(120,Math.max(20,Number(d.logo_height)||40))}px;width:auto;max-width:240px;object-fit:contain;">` : d.brand_mode === 'image' ? `<button type="button" style="pointer-events:auto" class="btn-sec-tool" onclick="event.stopPropagation();chooseStudioImage('${comp.id}','logo_url')">+ Logo</button>` : ''}
             ${(d.brand_mode || (d.logo_url ? 'image' : 'text')) === 'text' ? `<span>${escapeHtml(d.brand_name || 'Brand')}</span>` : ''}
@@ -4786,27 +6106,29 @@ document.addEventListener("DOMContentLoaded", () => {
     showToast("Section reordered", "info");
   };
 
-  window.deleteComponent = function(compId) {
+  window.deleteComponent = async function(compId) {
     if (!currentSite || !currentSite.schema_json) return;
-    if (!confirm("Remove this section from the page?")) return;
+    const comp = currentSite.schema_json.find(c => c.id === compId);
+    const compTitle = comp ? (comp.title || comp.type) : "this section";
+    const confirmed = await window.showStudioConfirm({
+      type: "danger",
+      title: "Remove Section?",
+      message: `Are you sure you want to remove "${compTitle}" from the page? This action cannot be undone.`,
+      confirmText: "Remove Section",
+      cancelText: "Keep Section"
+    });
+    if (!confirmed) return;
     currentSite.schema_json = currentSite.schema_json.filter(c => c.id !== compId);
     if (activeComponentId === compId) {
       activeComponentId = null;
-      if (inspectorContent) {
-        inspectorContent.innerHTML = `
-          <div class="empty-inspector-notice">
-            <span style="font-size: 2.2rem; display:block; margin-bottom: 0.5rem;">👈</span>
-            <p>Click any block on the canvas to configure its typography, text gradient, buttons, images, and FontAwesome icons.</p>
-          </div>
-        `;
-      }
+      if (window.switchRightPanelMode) window.switchRightPanelMode('preview');
     }
     renderCanvas();
     showToast("Section removed", "info");
   };
 
   // Select Component for Property Inspector
-  window.selectComponentForEditing = function(compId) {
+  window.selectComponentForEditing = function(compId, switchMode = true) {
     activeComponentId = compId;
     if (!currentSite || !currentSite.schema_json) return;
     const comp = currentSite.schema_json.find(c => c.id === compId);
@@ -4816,6 +6138,15 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".canvas-section-wrapper").forEach(el => {
       el.classList.toggle("active-editing", el.getAttribute("data-comp-id") === compId);
     });
+
+    if (switchMode) {
+      if (window.setStudioViewMode) {
+        window.setStudioViewMode('edit');
+      }
+      if (window.switchRightPanelMode) {
+        window.switchRightPanelMode('settings');
+      }
+    }
 
     renderInspector(comp);
     renderStudioLayers();
@@ -4827,19 +6158,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const d = comp.data || {};
     const t = comp.type;
 
-    let html = `
-      <div style="margin-bottom: 1.15rem; padding-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.1); display:flex; justify-content:space-between; align-items:center;">
-        <div>
-          <span style="font-size: 0.72rem; font-weight: 800; color: #38bdf8; text-transform: uppercase;">${t.toUpperCase()} BLOCK</span>
-          <h3 style="font-size: 1.1rem; color: #283752; margin: 0.15rem 0 0 0;">${escapeHtml(comp.title)}</h3>
-        </div>
-        <div style="display:flex; gap:0.35rem;">
-          <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', -1)" title="Move Up">⬆</button>
-          <button class="btn-sec-tool" onclick="moveComponent('${comp.id}', 1)" title="Move Down">⬇</button>
-          <button class="btn-sec-tool tool-del" onclick="deleteComponent('${comp.id}')" title="Delete">🗑</button>
-        </div>
-      </div>
-    `;
+    let html = '';
 
     if (t === "hero") {
       html += `
@@ -5393,7 +6712,34 @@ document.addEventListener("DOMContentLoaded", () => {
       `;
     }
 
-    if (['about','stats','agenda','sponsors','testimonials','announcement'].includes(t)) {
+    if (t === 'announcement') {
+      html += `
+        <div class="inspector-card-group">
+          <div class="inspector-group-title">
+            <i class="fa-solid fa-bullhorn"></i>
+            <span>Announcement Notice Ribbon</span>
+          </div>
+          <div class="inspector-field">
+            <label>Announcement Headline</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.section_title || '')}" oninput="updateField('${comp.id}','section_title',this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Announcement Details</label>
+            <textarea class="inspector-input" oninput="updateField('${comp.id}','section_subtitle',this.value)">${escapeHtml(d.section_subtitle || '')}</textarea>
+          </div>
+          <div class="inspector-field">
+            <label>Call-to-Action Link Text</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.link_text || '')}" oninput="updateField('${comp.id}','link_text',this.value)">
+          </div>
+          <div class="inspector-field">
+            <label>Call-to-Action Destination URL</label>
+            <input type="text" class="inspector-input" value="${escapeHtml(d.link_url || '')}" oninput="updateField('${comp.id}','link_url',this.value)">
+          </div>
+        </div>
+      `;
+    }
+
+    if (['about','stats','agenda','sponsors','testimonials'].includes(t)) {
       html += `<div class="inspector-field"><label>Section design</label><select class="inspector-select" onchange="updateField('${comp.id}','design',this.value)">${[['grid','Card grid'],['list','Editorial list'],['spotlight','Centered spotlight']].map(([value,label]) => `<option value="${value}" ${(d.design || 'grid') === value ? 'selected' : ''}>${label}</option>`).join('')}</select></div>`;
       for (const [key,label] of [['section_title','Heading'],['section_subtitle','Introduction']]) html += `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateField('${comp.id}','${key}',this.value)">${escapeHtml(d[key] || (key === 'cta_link' ? d.cta_url : '') || '')}</textarea></div>`;
       html += (d.items || []).map((item,index) => `<div class="inspector-card-group"><div class="inspector-group-title">Item ${index+1}</div>${[['title','Title / name / number'],['description','Description / quote / session details'],['image','Image or logo URL (optional)']].map(([key,label]) => `<div class="inspector-field"><label>${label}</label><textarea class="inspector-input" oninput="updateSubField('${comp.id}','items',${index},'${key}',this.value)">${escapeHtml(item[key] || '')}</textarea></div>`).join('')}<button type="button" class="btn-sec-tool" onclick="deleteSubItem('${comp.id}','items',${index})">Remove item</button></div>`).join('');
@@ -5404,6 +6750,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const fields = t === 'navbar' ? [['brand_name','Brand name'],['cta_label','Button label'],['cta_link','Button link']] : [['brand_name','Brand name'],['tagline','Short introduction'],['copyright','Copyright text']];
       html += fields.map(([key,label]) => `<div class="inspector-field"><label>${label}</label><input class="inspector-input" value="${escapeHtml(d[key] || (key === 'cta_link' ? d.cta_url : '') || '')}" oninput="updateField('${comp.id}','${key}',this.value)"></div>`).join('');
       if (t === 'navbar') {
+        html = `<div class="inspector-card-group"><label class="control-label">Navbar design</label><select class="inspector-select" onchange="updateField('${comp.id}','layout_variant',this.value)">${[['business','Business · Clean CTA'],['portfolio','Portfolio · Centered Brand'],['services','Services · Appointment Bar'],['product','Product · Floating Header'],['editorial','Editorial · Masthead']].map(([value,label]) => `<option value="${value}" ${(d.layout_variant || 'business') === value ? 'selected' : ''}>${label}</option>`).join('')}</select><p class="panel-section-subtitle">Switch header designs without losing your links or brand.</p></div>` + html;
         html += `<div class="inspector-card-group"><h4>Brand display</h4><label>Show<select class="inspector-input" onchange="updateField('${comp.id}','brand_mode',this.value)"><option value="text" ${(d.brand_mode || (d.logo_url?'image':'text'))==='text'?'selected':''}>Text name</option><option value="image" ${(d.brand_mode || (d.logo_url?'image':'text'))==='image'?'selected':''}>Logo image</option></select></label><h4>Logo image</h4><button type="button" class="btn-sec-tool" onclick="chooseStudioImage('${comp.id}','logo_url')">${d.logo_url?'Replace logo':'Upload logo'}</button>${d.logo_url?`<button type="button" class="btn-sec-tool" onclick="updateField('${comp.id}','logo_url','')">Remove logo</button>`:''}<div class="inspector-field"><label>Logo description</label><input class="inspector-input" value="${escapeHtml(d.logo_alt||'')}" oninput="updateField('${comp.id}','logo_alt',this.value)"><label>Logo height (20–120 px)</label><input type="number" class="inspector-input" min="20" max="120" value="${Number(d.logo_height)||40}" oninput="updateField('${comp.id}','logo_height',this.value)"></div></div>`;
         html += '<h4>Navigation links</h4>'  + (d.links || []).map((link, index) => `<div class="inspector-field"><label>Link ${index + 1} text</label><input class="inspector-input" value="${escapeHtml(link.label || '')}" oninput="updateSubField('${comp.id}','links',${index},'label',this.value)"><label>Destination</label><input class="inspector-input" value="${escapeHtml(link.url || '')}" placeholder="#about or https://…" oninput="updateSubField('${comp.id}','links',${index},'url',this.value)"><label>Display as</label><select class="inspector-input" onchange="updateSubField('${comp.id}','links',${index},'style',this.value)"><option value="link" ${link.style!=='button'?'selected':''}>Text link</option><option value="button" ${link.style==='button'?'selected':''}>Button</option></select><button type="button" class="btn-sec-tool" onclick="changeStudioNavLinks('${comp.id}','remove',${index})">Remove</button></div>`).join('');
         html += `<button type="button" class="btn-sec-tool" onclick="changeStudioNavLinks('${comp.id}','link')">+ Add link</button> <button type="button" class="btn-sec-tool" onclick="changeStudioNavLinks('${comp.id}','button')">+ Add button</button>`;

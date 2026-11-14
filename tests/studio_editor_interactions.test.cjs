@@ -32,4 +32,56 @@ assert.equal(frame.style.width,'1440px'); assert.equal(Number(frame.style.zoom),
 tablet=true;vm.runInContext('fitStudioCanvas()',context);assert.equal(frame.style.width,'768px');assert.equal(Number(frame.style.zoom),1);
 mobile=true;vm.runInContext('fitStudioCanvas()',context);assert.equal(frame.style.width,'380px');
 zoom='0.75';vm.runInContext('fitStudioCanvas()',context);assert.equal(Number(frame.style.zoom),0.75);
+
+// Test component palette selection and count badges
+const paletteCode = source.slice(source.indexOf('  function updateComponentPaletteStatus()'), source.indexOf('  window.duplicateStudioSection ='));
+function mockPaletteBtn(type) {
+  let classes = new Set(), attrs = {}, children = [];
+  return {
+    getAttribute(name) { return name === 'data-type' ? type : attrs[name]; },
+    setAttribute(name, val) { attrs[name] = val; },
+    removeAttribute(name) { delete attrs[name]; },
+    classList: {
+      add(cls) { classes.add(cls); },
+      remove(cls) { classes.delete(cls); },
+      contains(cls) { return classes.has(cls); }
+    },
+    querySelector(sel) {
+      if (sel === '.comp-count-badge') return children.find(c => c.className?.includes('comp-count-badge')) || null;
+      if (sel === '.comp-palette-remove-quick') return children.find(c => c.className?.includes('comp-palette-remove-quick')) || null;
+      return null;
+    },
+    appendChild(child) { children.push(child); return child; }
+  };
+}
+const btnCustom = mockPaletteBtn('custom');
+const btnHero = mockPaletteBtn('hero');
+const btnFaq = mockPaletteBtn('faq');
+context.currentSite = {
+  schema_json: [
+    { id: '1', type: 'custom' },
+    { id: '2', type: 'custom' },
+    { id: '3', type: 'custom' },
+    { id: '4', type: 'hero' }
+  ]
+};
+context.activeComponentId = '1';
+context.document.querySelectorAll = sel => sel === '.btn-add-comp' ? [btnCustom, btnHero, btnFaq] : [];
+context.document.createElement = tag => ({ className: '', textContent: '', title: '', remove() {} });
+vm.runInContext(paletteCode, context);
+vm.runInContext('updateComponentPaletteStatus()', context);
+
+// Custom: added 3 times -> selected + count badge 3
+assert.equal(btnCustom.classList.contains('is-added'), true);
+assert.equal(btnCustom.querySelector('.comp-count-badge')?.textContent, '3');
+assert.equal(btnCustom.querySelector('.comp-count-badge')?.className, 'comp-count-badge is-multiple');
+
+// Hero: added 1 time -> selected + single checkmark badge
+assert.equal(btnHero.classList.contains('is-added'), true);
+assert.equal(btnHero.querySelector('.comp-count-badge')?.textContent, '✓');
+assert.equal(btnHero.querySelector('.comp-count-badge')?.className, 'comp-count-badge is-single');
+
+// FAQ: not added -> unselected, no badge
+assert.equal(btnFaq.classList.contains('is-added'), false);
+assert.equal(btnFaq.querySelector('.comp-count-badge'), null);
 console.log('Inline commit, Escape cancel, nested fields, ambiguous fields and viewport zoom checks passed.');

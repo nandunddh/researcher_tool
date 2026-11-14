@@ -115,8 +115,8 @@ def build_template_components(
         event_date_val = custom_opts.get("event_date") or "October 14–18, 2026"
 
     event_location_val = brief_venue or custom_opts.get("event_location") or "Boston Convention Center, MA"
-    event_format_val = custom_opts.get("event_format") or brief.get("event_format") or "Format to be announced"
-    hero_layout = custom_opts.get("hero_layout_variant") or tmpl.get("layout", "split")
+    event_format_val = custom_opts.get("event_format") or brief.get("event_format") or brief.get("venue_format") or "Format to be announced"
+    hero_layout = custom_opts.get("hero_layout_variant") or ("conference_program" if brief else tmpl.get("layout", "split"))
 
     nav_brand = custom_opts.get("nav_brand") or site_name
     nav_cta = custom_opts.get("nav_cta") or "Register Now"
@@ -403,13 +403,41 @@ def build_template_components(
 # Standalone HTML Compiler (Supporting Dark, Pitch Obsidian, and Clean Light)
 # -----------------------------------------------------------------------------
 
-def compile_website_html(site_data: dict) -> Tuple[str, str]:
+def compile_website_html(site_data: dict, page_id=None) -> Tuple[str, str]:
     """
     Compiles the dynamic component tree into pure, standalone production-ready HTML and CSS.
-    Handles Light Mode, Dark Mode, and Pitch Obsidian modes cleanly.
+    Handles Light Mode, Dark Mode, Pitch Obsidian modes, multi-page routing, SEO meta tags, and GA analytics.
     Returns (html_content, css_content).
     """
-    title = site_data.get("name", "Website")
+    site_name = site_data.get("name", "Website")
+    meta_cfg = site_data.get("meta_config") or {}
+    pages = site_data.get("pages") or []
+
+    target_page = None
+    if pages and isinstance(pages, list):
+        if page_id:
+            clean_pid = page_id.strip("/").lower()
+            target_page = next((p for p in pages if p.get("id") == page_id or (p.get("slug") or "").strip("/").lower() == clean_pid), None)
+        if not target_page:
+            active_pid = site_data.get("active_page_id")
+            if active_pid:
+                target_page = next((p for p in pages if p.get("id") == active_pid), None)
+        if not target_page:
+            target_page = next((p for p in pages if p.get("is_home")), pages[0])
+
+    if target_page:
+        components = target_page.get("schema_json", [])
+        page_name = target_page.get("name") or "Home"
+        is_home_page = bool(target_page.get("is_home", False) or target_page.get("slug") in ("/", "", None))
+        title = target_page.get("meta_title") or meta_cfg.get("meta_title") or site_data.get("meta_title") or (site_name if is_home_page else f"{page_name} · {site_name}")
+        meta_desc = target_page.get("meta_description") or meta_cfg.get("meta_description") or site_data.get("meta_description") or ""
+        meta_kw = target_page.get("meta_keywords") or meta_cfg.get("meta_keywords") or site_data.get("meta_keywords") or ""
+    else:
+        components = site_data.get("schema_json", [])
+        title = meta_cfg.get("meta_title") or site_data.get("meta_title") or site_name
+        meta_desc = meta_cfg.get("meta_description") or site_data.get("meta_description") or ""
+        meta_kw = meta_cfg.get("meta_keywords") or site_data.get("meta_keywords") or ""
+
     theme = site_data.get("theme_config", {})
     mode = theme.get("mode", "dark")
     bg_color = theme.get("bg_color", "#f8fafc" if mode == "light" else "#0b0f19")
@@ -430,7 +458,6 @@ def compile_website_html(site_data: dict) -> Tuple[str, str]:
     input_color = "#0f172a" if is_light else "#fff"
     font_family = theme.get("font_family", "'Outfit', 'Inter', sans-serif")
 
-    components = site_data.get("schema_json", [])
     if isinstance(components, str):
         try:
             components = json.loads(components)
@@ -1139,6 +1166,9 @@ textarea.form-input {{
                 embed_height = 300
             body_html_parts.append(f'<iframe title="Custom section" sandbox="" srcdoc="{escape_html(str(data.get("html", "")), quote=True)}" style="display:block;width:100%;height:{embed_height}px;border:0"></iframe>')
         elif c_type == "navbar":
+            variant = data.get("layout_variant", "business")
+            if variant not in ("business", "portfolio", "services", "product", "editorial"):
+                variant = "business"
             logo_html = ""
             logo_url = str(data.get("logo_url", ""))
             if re.match(r'^(https?://|/(?!/)|data:image/(?:png|jpeg|webp|gif);base64,)', logo_url):
@@ -1152,7 +1182,7 @@ textarea.form-input {{
             brand_html = logo_html if brand_mode == "image" else escape_html(str(data.get("brand_name", title)))
             links_html = "".join([f'<a class="{"btn-nav" if l.get("style") == "button" else "nav-link"}" href="{l.get("url", "#")}">{l.get("label", "")}</a>' for l in data.get("links", [])])
             body_html_parts.append(f"""
-<nav class="site-navbar">
+<nav class="site-navbar library-nav-{variant}">
   <div class="site-container nav-inner">
     <a href="#" class="nav-brand" style="display:flex;align-items:center;gap:10px;">{brand_html}</a>
     <div class="nav-links">
@@ -1501,15 +1531,60 @@ textarea.form-input {{
 .studio-placed-button {display:inline-block;padding:12px 22px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-size:16px;}
 @media(max-width:600px){.studio-placed-element{position:relative;left:auto!important;top:auto!important;margin:12px;max-width:calc(100% - 24px);}}
 """
+    css += '.library-nav-portfolio .nav-inner,.library-nav-portfolio.editor-library-nav{flex-direction:column!important;gap:18px;background:#f4eee5!important}.library-nav-portfolio .nav-brand,.library-nav-portfolio.editor-library-nav>div:first-child{font-family:Georgia,serif!important;font-style:italic;font-size:28px!important}.library-nav-services .nav-inner,.library-nav-services.editor-library-nav{border-top:6px solid #265852;background:#edf2ef!important}.library-nav-product.site-navbar,.library-nav-product.editor-library-nav{margin:16px;border-radius:18px!important;border:1px solid #d5c9f7!important;background:linear-gradient(120deg,#f3edff,#e7efff)!important}.library-nav-editorial .nav-inner,.library-nav-editorial.editor-library-nav{flex-direction:column!important;gap:20px;border-bottom:2px solid currentColor!important}.library-nav-editorial .nav-brand,.library-nav-editorial.editor-library-nav>div:first-child{font-family:Georgia,serif!important;font-size:32px!important;letter-spacing:2px}.editor-library-nav{flex-wrap:wrap;gap:16px}.editor-library-nav>div:last-child{display:flex;flex-wrap:wrap;gap:10px}@media(max-width:600px){.site-navbar .nav-inner{flex-wrap:wrap;gap:16px}.site-navbar .nav-links{display:flex!important;flex-wrap:wrap;gap:12px}}'
     ambient = bool(theme.get("animated_background"))
     if ambient:
         css += (Path(__file__).parent / "static" / "studio-ambient.css").read_text(encoding="utf-8")
+    og_image = meta_cfg.get("og_image") or site_data.get("og_image") or ""
+    meta_author = meta_cfg.get("meta_author") or site_data.get("meta_author") or site_name
+    canonical_url = meta_cfg.get("canonical_url") or site_data.get("canonical_url") or ""
+    robots = meta_cfg.get("robots") or site_data.get("robots") or "index, follow"
+    ga_code = meta_cfg.get("ga_tracking_id") or site_data.get("ga_tracking_id") or site_data.get("ga_code") or ""
+    custom_head = meta_cfg.get("custom_head_code") or site_data.get("custom_head_code") or ""
+    custom_body = meta_cfg.get("custom_body_code") or site_data.get("custom_body_code") or ""
+
+    meta_tags = []
+    if meta_desc:
+        meta_tags.append(f'  <meta name="description" content="{escape_html(meta_desc)}">')
+        meta_tags.append(f'  <meta property="og:description" content="{escape_html(meta_desc)}">')
+        meta_tags.append(f'  <meta name="twitter:description" content="{escape_html(meta_desc)}">')
+    if meta_kw:
+        meta_tags.append(f'  <meta name="keywords" content="{escape_html(meta_kw)}">')
+    if meta_author:
+        meta_tags.append(f'  <meta name="author" content="{escape_html(meta_author)}">')
+    meta_tags.append(f'  <meta name="robots" content="{escape_html(robots)}">')
+    if canonical_url:
+        meta_tags.append(f'  <link rel="canonical" href="{escape_html(canonical_url)}">')
+    meta_tags.append(f'  <meta property="og:title" content="{escape_html(title)}">')
+    meta_tags.append('  <meta property="og:type" content="website">')
+    meta_tags.append(f'  <meta name="twitter:title" content="{escape_html(title)}">')
+    if og_image:
+        meta_tags.append(f'  <meta property="og:image" content="{escape_html(og_image)}">')
+        meta_tags.append(f'  <meta name="twitter:image" content="{escape_html(og_image)}">')
+        meta_tags.append('  <meta name="twitter:card" content="summary_large_image">')
+    else:
+        meta_tags.append('  <meta name="twitter:card" content="summary">')
+
+    meta_html = "\n".join(meta_tags)
+    ga_script = ""
+    if ga_code and re.match(r'^[A-Za-z0-9\-_]+$', ga_code.strip()):
+        clean_ga = ga_code.strip()
+        ga_script = f"""  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id={clean_ga}"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){{dataLayer.push(arguments);}}
+    gtag('js', new Date());
+    gtag('config', '{clean_ga}');
+  </script>"""
+
     full_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{title}</title>
+  <title>{escape_html(title)}</title>
+{meta_html}
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
@@ -1517,9 +1592,12 @@ textarea.form-input {{
   <style>
 {css}
   </style>
+{ga_script}
+{custom_head}
 </head>
 <body class="{'studio-ambient' if ambient else ''}">
 {"".join(body_html_parts)}
+{custom_body}
 </body>
 </html>
 """
@@ -1640,7 +1718,8 @@ class WebsiteBuilderEngine:
         template_id: Optional[str] = "genomics",
         theme_config: Optional[dict] = None,
         custom_options: Optional[dict] = None,
-        conference_id: Optional[str] = None
+        conference_id: Optional[str] = None,
+        initial_components: Optional[list] = None
     ) -> dict:
         """Creates a brand new website configured with the chosen template and wizard options."""
         clean_name = (name or "My Website").strip()
@@ -1663,6 +1742,9 @@ class WebsiteBuilderEngine:
         
         if template_id == "blank":
             components = []
+
+        if initial_components is not None:
+            components = initial_components
 
         # Merge theme
         if theme_config:
@@ -1787,6 +1869,12 @@ class WebsiteBuilderEngine:
             raw_conf = payload["conference_id"]
             site["conference_id"] = (raw_conf.strip() if isinstance(raw_conf, str) and raw_conf.strip() else None)
 
+        for meta_k in ("meta_config", "meta_title", "meta_description", "meta_keywords",
+                       "og_image", "ga_tracking_id", "custom_head_code", "custom_body_code",
+                       "pages", "active_page_id"):
+            if meta_k in payload:
+                site[meta_k] = payload[meta_k]
+
         site["updated_at"] = datetime.now().isoformat()
         compiled_html, compiled_css = compile_website_html(site)
         site["compiled_html"] = compiled_html
@@ -1892,21 +1980,41 @@ class WebsiteBuilderEngine:
         return None
 
     def export_site_zip(self, site_id: str) -> Tuple[Optional[bytes], str]:
-        """Bundles standalone compiled site into a downloadable ZIP archive."""
+        """Bundles standalone compiled site into a downloadable ZIP archive, supporting multi-page exports."""
         site = self.get_site(site_id)
         if not site:
             return None, "Site not found"
 
-        compiled_html, compiled_css = compile_website_html(site)
+        pages = site.get("pages") or []
         slug = site.get("slug", "website")
-
         buf = io.BytesIO()
+
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            zf.writestr("index.html", compiled_html)
-            zf.writestr("style.css", compiled_css)
+            if pages and isinstance(pages, list) and len(pages) > 1:
+                # Multi-page website export
+                for p in pages:
+                    p_id = p.get("id")
+                    p_slug = (p.get("slug") or "/").strip("/").replace("/", "_")
+                    is_home = bool(p.get("is_home") or not p_slug)
+                    file_name = "index.html" if is_home else f"{p_slug}.html"
+                    p_html, _ = compile_website_html(site, page_id=p_id)
+                    zf.writestr(file_name, p_html)
+                # Global shared stylesheet
+                _, compiled_css = compile_website_html(site)
+                zf.writestr("style.css", compiled_css)
+            else:
+                compiled_html, compiled_css = compile_website_html(site)
+                zf.writestr("index.html", compiled_html)
+                zf.writestr("style.css", compiled_css)
+
             zf.writestr("site_config.json", json.dumps(site, indent=2))
             readme = f"""# {site.get('name', 'Website')}
-Generated with SciProspect Website Builder.
+Generated with SciProspect Website Builder (Multi-Page & SEO Enabled).
+
+## Included Files:
+- {'\n- '.join([p.get('name', 'Page') + ' -> ' + ('index.html' if p.get('is_home') or not (p.get('slug') or '').strip('/') else (p.get('slug') or '').strip('/') + '.html') for p in pages]) if pages and len(pages) > 1 else '- index.html (Homepage)'}
+- style.css (Global design tokens & typography)
+- site_config.json (Complete schema configuration)
 
 ## Hosting Instructions:
 - **Netlify / Vercel**: Drag and drop this unzipped folder into Netlify Drop or run `vercel`.

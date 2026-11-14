@@ -13,13 +13,63 @@ const ROOT_LINKS: NavItem[] = [
   { label: "Open Data Collector", url: "/root/collector", icon: "bolt" },
 ];
 
-export function Sidebar({ currentPath }: { currentPath: string }) {
+const ORG_LINKS: NavItem[] = [
+  { label: "Dashboard", url: "/organization/dashboard", icon: "bolt" },
+  { label: "Open Data Collector", url: "/organization/collector", icon: "bolt" },
+];
+
+const CLIENT_LINKS: NavItem[] = [
+  { label: "Dashboard", url: "/client/dashboard", icon: "bolt" },
+  { label: "Open Data Collector", url: "/client/collector", icon: "bolt" },
+];
+
+const CONFERENCE_LINKS: NavItem[] = [
+  { label: "Dashboard", url: "/conference/dashboard", icon: "bolt" },
+  { label: "Open Data Collector", url: "/conference/collector", icon: "bolt" },
+];
+
+export function Sidebar({
+  currentPath,
+  namespace = "root",
+}: {
+  currentPath: string;
+  namespace?: "root" | "organization" | "client" | "conference";
+}) {
+  const effectiveNamespace =
+    namespace !== "root"
+      ? namespace
+      : currentPath.startsWith("/organization")
+      ? "organization"
+      : currentPath.startsWith("/client")
+      ? "client"
+      : currentPath.startsWith("/conference")
+      ? "conference"
+      : "root";
+
+  const links =
+    effectiveNamespace === "organization"
+      ? ORG_LINKS
+      : effectiveNamespace === "client"
+      ? CLIENT_LINKS
+      : effectiveNamespace === "conference"
+      ? CONFERENCE_LINKS
+      : ROOT_LINKS;
+
+  const heading =
+    effectiveNamespace === "organization"
+      ? "ORGANIZATION"
+      : effectiveNamespace === "client"
+      ? "CLIENT WORKSPACE"
+      : effectiveNamespace === "conference"
+      ? "CONFERENCE TEAM"
+      : "ROOT ADMIN";
+
+  const studioUrl = `/${effectiveNamespace}/scistudio`;
+
   return (
     <aside className="app-sidebar">
       <div className="sidebar-brand">
-        <span className="collector-brand-symbol">
-          S<span>·</span>
-        </span>
+        <span className="sciprospect-original-mark" aria-hidden="true" />
         <div className="collector-brand-name">
           SciProspect
           <small>Research intelligence</small>
@@ -27,9 +77,9 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
       </div>
 
       <div className="sidebar-section sidebar-collector-section">
-        <div className="sidebar-heading">ROOT ADMIN</div>
+        <div className="sidebar-heading">{heading}</div>
         <nav className="sidebar-nav">
-          {ROOT_LINKS.map((item) => (
+          {links.map((item) => (
             <a
               key={item.url}
               className={`nav-tab ${currentPath === item.url ? "active" : ""}`}
@@ -47,8 +97,8 @@ export function Sidebar({ currentPath }: { currentPath: string }) {
         <div className="sidebar-heading">STUDIO</div>
         <nav className="sidebar-nav">
           <a
-            href="/root/scistudio"
-            className="nav-tab studio-nav-card"
+            href={studioUrl}
+            className={`nav-tab studio-nav-card ${currentPath.includes("/scistudio") ? "active" : ""}`}
             title="SciStudio Website builder"
           >
             <Icon name="layers" size={18} />

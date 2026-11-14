@@ -1,11 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
+import { LoadingIndicator } from "@/components/loading-indicator";
 import { api } from "@/lib/api";
 import type { Account } from "@/lib/contracts";
-import { Icon } from "@/components/icon";
-import { SignOut } from "@/components/sign-out";
 import { Modal } from "@/components/modal";
-import { Sidebar } from "@/components/sidebar";
+import { AdminShell } from "./shell";
 
 export function RootDashboard() {
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -46,25 +45,10 @@ export function RootDashboard() {
   );
 
   return (
-    <div className="admin-layout">
-      <Sidebar currentPath="/root/dashboard" />
-      <div className="admin-content">
-        <header className="admin-header">
-          <div className="page-brand">
-            <span>
-              <Icon name="grid" />
-            </span>
-            <div>
-              <h1>Root Dashboard</h1>
-              <small>Platform management</small>
-            </div>
-          </div>
-          <SignOut />
-        </header>
-        <main className="admin-main">
-          {error && <p role="alert" className="alert">{error}</p>}
+    <AdminShell title="Root Dashboard" path="/root/dashboard">
+      {error && <p role="alert" className="alert">{error}</p>}
           {loading ? (
-            <p role="status">Loading accounts…</p>
+            <LoadingIndicator label="Loading accounts"/>
           ) : (
             <>
               <div className="metrics">
@@ -114,11 +98,11 @@ export function RootDashboard() {
                     </thead>
                     <tbody>
                       {visible.map((account, index) => (
-                        <tr key={`${account.client_email}-${index}`}>
+                        <tr key={`${account.client_email}-${index}`} className={account.status === "stopped" ? "account-stopped" : undefined}>
                           <td data-label="Account">
                             <strong>{account.org_name || account.client_name}</strong>
                             <small>
-                              {account.account_type === "org"
+                              {account.is_root ? "Root administrator" : account.account_type === "org"
                                 ? "Organization"
                                 : "Client account"}
                             </small>
@@ -129,7 +113,7 @@ export function RootDashboard() {
                           </td>
                           <td data-label="Plan">{account.tier}</td>
                           <td data-label="Status">
-                            <span className="badge">{account.status}</span>
+                            <span className={account.status === "stopped" ? "badge status-stopped" : "badge"}>{account.status}</span>
                           </td>
                           <td data-label="Team">{account.members.length} members</td>
                           <td data-label="SciStudio">
@@ -153,9 +137,7 @@ export function RootDashboard() {
               </section>
             </>
           )}
-        </main>
-      </div>
-      {selected && (
+          {selected && (
         <Modal
           title={selected.org_name || selected.client_name}
           onClose={() => setSelected(null)}
@@ -188,6 +170,6 @@ export function RootDashboard() {
           </a>
         </Modal>
       )}
-    </div>
+    </AdminShell>
   );
 }
