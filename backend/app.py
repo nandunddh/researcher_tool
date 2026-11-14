@@ -1804,6 +1804,19 @@ async def builder_create_site(request: Request):
     conf_id = (body.get("conference_id") or "").strip() or None
     if conf_id:
         _require_owned_conference(conf_id, user)
+    initial_components = body.get('initial_components')
+    if initial_components is not None:
+        allowed = {'navbar','hero','about','features','speakers','gallery','pricing','faq','contact','footer','image','custom','content'}
+        if not isinstance(initial_components, list) or len(initial_components) > 100:
+            raise HTTPException(status_code=400, detail='Choose up to 100 components.')
+        ids = set()
+        for component in initial_components:
+            if not isinstance(component, dict) or component.get('type') not in allowed or not isinstance(component.get('data'), dict):
+                raise HTTPException(status_code=400, detail='Invalid component.')
+            identifier = component.get('id')
+            if not isinstance(identifier, str) or not re.fullmatch(r'[a-zA-Z0-9_-]{1,100}', identifier) or identifier in ids:
+                raise HTTPException(status_code=400, detail='Invalid component identifier.')
+            ids.add(identifier)
     site = builder_engine.create_site(
         user_email=user.get("client_email", ""),
         name=name,
@@ -1811,7 +1824,8 @@ async def builder_create_site(request: Request):
         template_id=template_id,
         theme_config=theme_config,
         custom_options=custom_options,
-        conference_id=conf_id
+        conference_id=conf_id,
+        initial_components=initial_components
     )
     return {"status": "ok", "site": site}
 

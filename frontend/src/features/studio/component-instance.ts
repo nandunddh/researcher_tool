@@ -16,6 +16,12 @@ export function instantiateComponent(item:LibraryComponent,name="Your brand"):Co
  else if(type==="footer")data={brand_name:name,tagline:"A short introduction to your business.",copyright:"Your copyright text",links:[{label:"Privacy",url:"#privacy"},{label:"Terms",url:"#terms"}]};
  else if(type==="image")data={image_url:"",caption:"Your image"};
  else if(type==="cta"){type="hero";data={headline:"Ready for your next step?",subheadline:"Give visitors one clear action.",layout_variant:"text_only",primary_btn_text:"Get started",primary_btn_url:"#contact",secondary_btn_text:"",hero_image:""}}
+ else if(['text','button','columns','divider','icons','svg','gradient'].includes(item.variant)) {
+  type='content';
+  const node=(kind:string,text='')=>({id:crypto.randomUUID(),kind,text,size:kind==='heading'?36:18,padding:16});
+  const nodes=item.variant==='columns'?[node('text','Column one'),node('text','Column two')]:item.variant==='icons'?[{...node('icon'),symbol:'grid'},{...node('icon'),symbol:'circle'},{...node('icon'),symbol:'diamond'}]:[item.variant==='text'?node('heading',name):item.variant==='button'?{...node('button','Get started'),url:'#contact'}:item.variant==='svg'?{...node('icon'),symbol:'circle'}:node(item.variant)];
+  data={columns:item.variant==='columns'?2:item.variant==='icons'?3:1,mobile_columns:1,gap:24,nodes};
+ }
  else {
   type="custom";
   const html:Record<string,string>={text:`<h2>${escape(name)}</h2>`,button:'<a class="action" href="#contact">Get started</a>',columns:'<div class="columns"><div><h3>Column 1</h3><p>Add your content.</p></div><div><h3>Column 2</h3><p>Add your content.</p></div></div>',divider:'<hr>',icons:'<div class="icons">'+[0,1,2].map(n=>`<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="${["M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z","M12 3 2 8l10 5 10-5-10-5z M2 12l10 5 10-5","M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8 M4 21v-3a8 8 0 0 1 16 0v3"][n]}"/></svg>`).join("")+'</div>',svg:'<svg viewBox="0 0 400 180" role="img" aria-label="Orbit illustration"><ellipse cx="200" cy="90" rx="140" ry="55" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="200" cy="90" r="35" fill="currentColor"/></svg>',gradient:'<div class="gradient"></div>'};

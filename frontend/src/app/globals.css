@@ -94,3 +94,10 @@
 .sciprospect-original-mark{display:block;width:46px;height:46px;flex:0 0 46px;border-radius:10px;background-color:#fff;background-image:url('/branding/sciprospect-concepts.png');background-repeat:no-repeat;background-size:487.283px 324.855px;background-position:-7.931px -88.828px}
 .sidebar-brand .collector-brand-name{font-family:'Segoe UI',Arial,sans-serif;font-weight:750;letter-spacing:-.65px;white-space:nowrap}
 .sidebar-brand .collector-brand-name small{font-weight:400;letter-spacing:0}
+/* Full wordmark lockup with a dedicated, original-artwork icon. */
+.app-sidebar .sidebar-brand{gap:10px;min-height:95px}
+.sciprospect-original-mark{background-image:url('/branding/sciprospect-a-icon.png');background-size:contain;background-position:center}
+.sidebar-brand .collector-brand-name{font-size:22px;letter-spacing:-1px;line-height:1.15}
+@media(max-width:800px){.admin-layout .sidebar-brand{justify-content:center}}
+.studio-brand{gap:10px}
+.studio-brand .studio-wordmark{font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:750;letter-spacing:-1px;line-height:1.15}

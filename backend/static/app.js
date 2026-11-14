@@ -3508,11 +3508,27 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Editor history stores only editable content, never account or session data.
   let studioHistory = [], studioHistoryIndex = -1, studioSaved = '', studioSaving = false;
-  const studioSnapshot = () => JSON.stringify({name: currentSite.name, theme_config: currentSite.theme_config, schema_json: currentSite.schema_json});
+  let studioAutosaveTimer = null, studioSaveError = '';
+  const studioSnapshot = () => StudioState.snapshot(currentSite);
+  const studioRecoveryKey = () => `scistudio:recovery:${currentSite.user_email || 'session'}:${currentSite.site_id}`;
+  function scheduleStudioSave() {
+    clearTimeout(studioAutosaveTimer);
+    if (!currentSite || studioSnapshot() === studioSaved) return;
+    try { sessionStorage.setItem(studioRecoveryKey(), JSON.stringify({ base:studioSaved, draft:studioSnapshot(), time:Date.now() })); } catch (_) { /* Storage can be unavailable or full. */ }
+    // Published sites currently serve saved HTML directly. Do not silently alter a live website.
+    if (currentSite.status === 'published') return;
+    const site = currentSite;
+    studioAutosaveTimer = setTimeout(() => {
+      if (site === currentSite && studioSnapshot() !== studioSaved) saveSiteDraft(true).catch(() => {});
+    }, 1800);
+  }
   function studioStatus() {
     const dirty = currentSite && studioSnapshot() !== studioSaved;
     const label = document.getElementById('studio-save-state');
-    if (label) label.textContent = studioSaving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved';
+    if (label) {
+      label.textContent = studioSaving ? 'Saving…' : studioSaveError ? 'Save failed · Retry Save' : dirty ? (currentSite.status === 'published' ? 'Unsaved · Save updates live site' : 'Unsaved changes') : 'Saved';
+      label.dataset.state = studioSaveError ? 'error' : dirty ? 'dirty' : 'saved';
+    }
     document.getElementById('studio-undo').disabled = studioHistoryIndex <= 0;
     document.getElementById('studio-redo').disabled = studioHistoryIndex >= studioHistory.length - 1;
     return dirty;
@@ -3528,12 +3544,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     studioStatus();
     renderStudioLayers();
+    scheduleStudioSave();
   }
   function studioTravel(direction) {
     const next = studioHistoryIndex + direction;
     if (!currentSite || next < 0 || next >= studioHistory.length) return;
     studioHistoryIndex = next;
-    Object.assign(currentSite, JSON.parse(studioHistory[next]));
+    StudioState.restore(currentSite, studioHistory[next]);
+    window.renderStudioPagesList?.();
+    window.populateSeoPane?.();
     studioSiteName.value = currentSite.name;
     const theme = currentSite.theme_config || {};
     themePrimaryColor.value = theme.primary_color || '#38bdf8';
@@ -3824,7 +3843,18 @@ document.addEventListener("DOMContentLoaded", () => {
       if (!res.ok) throw new Error("Failed to load site");
       currentSite = await res.json();
       activeComponentId = null;
-      studioHistory = []; studioHistoryIndex = -1; studioSaved = studioSnapshot();
+      clearTimeout(studioAutosaveTimer); studioSaveError = '';
+      studioHistory = []; studioHistoryIndex = -1;
+      window.initializeStudioPages?.();
+      studioSaved = studioSnapshot();
+      try {
+        const recovery = JSON.parse(sessionStorage.getItem(studioRecoveryKey()) || 'null');
+        if (recovery?.draft && recovery.draft !== studioSaved && Date.now()-recovery.time < 86400000) {
+          const restore = await window.showStudioConfirm({type:'warning',title:'Restore unsaved edits?',message:recovery.base === studioSaved ? 'This tab has unsaved work from your previous session.' : 'This tab has unsaved work, but the server version has also changed. Restore only if you want to replace it.',confirmText:'Restore edits',cancelText:'Use server version'});
+          if (restore) StudioState.restore(currentSite, recovery.draft);
+          else sessionStorage.removeItem(studioRecoveryKey());
+        }
+      } catch (_) { /* Ignore unreadable recovery data. */ }
       inspectorContent.innerHTML = '<p class="empty-inspector-notice">Select a section to customize its content and appearance.</p>';
 
       const namespace = window.location.pathname.split('/')[1];
@@ -3909,7 +3939,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       renderCanvas();
       if (window.setStudioViewMode) {
-        window.setStudioViewMode('preview');
+        window.setStudioViewMode('edit');
       } else if (window.switchRightPanelMode) {
         window.switchRightPanelMode('preview');
       }
@@ -4056,7 +4086,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if(event.data?.type==='scistudio-library-close'){componentLibraryHost.close();return;}
     if(event.data?.type!=='scistudio-library-add'||!currentSite) return;
     const incoming=event.data.component;
-    const allowed=['navbar','hero','about','features','speakers','gallery','pricing','faq','contact','footer','image','custom'];
+    const allowed=['navbar','hero','about','features','speakers','gallery','pricing','faq','contact','footer','image','custom','content'];
     if(!incoming||!allowed.includes(incoming.type)||!incoming.data||typeof incoming.data!=='object')return;
     const component=JSON.parse(JSON.stringify(incoming));component.id='comp_'+crypto.randomUUID();
     if(['navbar','footer'].includes(component.type))component.data.brand_name=currentSite.name||'Your brand';
@@ -4214,7 +4244,7 @@ document.addEventListener("DOMContentLoaded", () => {
   } catch (_) {}
   function openStudioQuick(comp,path,node,kind='text') {
     const linkKeys={primary_btn_text:'primary_btn_url',secondary_btn_text:'secondary_btn_url',cta_label:'cta_url',btn_label:'btn_url'};
-    const linkKey=kind==='text'?linkKeys[path.at(-1)]:null;
+    const linkKey=kind==='text'?(comp.type==='content'&&comp.data.nodes?.[Number(path[1])]?.kind==='button'?'url':linkKeys[path.at(-1)]):null;
     const linkPath=linkKey?[...path.slice(0,-1),linkKey]:null;
     studioQuickTarget={comp,path,node,kind,start:null,end:null};
     const key=JSON.stringify(path),style=kind==='image'?(comp.image_formats?.[key]||{}):(comp.field_formats?.[key]?.style||{});
@@ -4402,8 +4432,23 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // Save Site Draft
+  const persistStudioDraft = StudioState.createSaver(async ({site, snapshot}) => {
+    const res = await fetch(`/api/builder/sites/${encodeURIComponent(site.site_id)}`, {
+      method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(site)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Failed to save draft');
+    if (currentSite?.site_id === site.site_id) {
+      studioSaved = snapshot;
+      if (studioSnapshot() === snapshot) {
+        try { sessionStorage.removeItem(studioRecoveryKey()); } catch (_) {}
+      }
+    }
+  });
   async function saveSiteDraft(silent = false) {
-    if (!currentSite || studioSaving) return false;
+    if (!currentSite) return false;
+    clearTimeout(studioAutosaveTimer);
+    studioSaveError = '';
     studioSaving = true; studioStatus();
     const savingSite = currentSite;
     try {
@@ -4416,21 +4461,18 @@ document.addEventListener("DOMContentLoaded", () => {
         }
       }
       const savedSnapshot = studioSnapshot();
-      const res = await fetch(`/api/builder/sites/${currentSite.site_id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(currentSite)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to save draft");
-      if (currentSite === savingSite) studioSaved = savedSnapshot;
+      await persistStudioDraft({site:currentSite,snapshot:savedSnapshot});
       if (!silent) showToast("Website draft saved successfully!", "success");
       return true;
     } catch (e) {
+      if (currentSite === savingSite) studioSaveError = e.message;
       if (!silent) showToast(`Save error: ${e.message}`, "error");
       if (silent) throw e;
       return false;
-    } finally { studioSaving = false; studioStatus(); }
+    } finally {
+      studioSaving = false; studioStatus();
+      if (!studioSaveError && currentSite === savingSite) scheduleStudioSave();
+    }
   }
 
   if (btnStudioSave) btnStudioSave.addEventListener("click", () => saveSiteDraft(false));
@@ -5760,6 +5802,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function renderComponentHTML(comp, primary) {
     const d = comp.data || {};
     const t = comp.type;
+    if(t==='content') return `<style>${StudioBlocks.css}</style>${StudioBlocks.render(d,true)}`;
     if(t==='image') return d.image_url ? `<figure style="margin:0;padding:24px"><img src="${escapeHtml(d.image_url)}" alt="${escapeHtml(d.caption||'')}" style="display:block;width:100%;height:auto;border-radius:12px"><figcaption>${escapeHtml(d.caption||'')}</figcaption></figure>` : `<div class="studio-image-placeholder"><button type="button" onclick="event.stopPropagation();chooseStudioImage('${comp.id}')">+ Upload an image</button><p>PNG, JPG, WebP or GIF · automatically optimized</p></div>`;
     if (['about','stats','agenda','sponsors','testimonials'].includes(t)) {
       const theme = sectionStudioTheme(comp);
@@ -6113,7 +6156,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const confirmed = await window.showStudioConfirm({
       type: "danger",
       title: "Remove Section?",
-      message: `Are you sure you want to remove "${compTitle}" from the page? This action cannot be undone.`,
+      message: `Remove "${compTitle}" from this page? You can restore it with Undo.`,
       confirmText: "Remove Section",
       cancelText: "Keep Section"
     });
@@ -6153,12 +6196,43 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // COMPREHENSIVE BLOCK INSPECTOR CONTROLS
+  function nativeInspector(comp) {
+    const d=comp.data;
+    const input=(label,key,value,type='text',extra='')=>`<label>${label}<input class="inspector-input" data-native-field="${key}" type="${type}" value="${escapeHtml(String(value??''))}" ${extra}></label>`;
+    return `<div class="inspector-card-group" data-native-root="${comp.id}"><h4>Responsive layout</h4>${input('Desktop columns','columns',d.columns||1,'number','min="1" max="4"')}${input('Mobile columns','mobile_columns',d.mobile_columns||1,'number','min="1" max="2"')}${input('Gap (px)','gap',d.gap??24,'number','min="0" max="96"')}<h4>Elements</h4><div class="native-add-actions">${['heading','text','button','image','divider','icon','gradient'].map(kind=>`<button type="button" data-native-add="${kind}">+ ${kind}</button>`).join('')}</div>${(d.nodes||[]).map((node,index)=>`<details class="native-node-settings" data-native-node="${index}"><summary>${index+1}. ${escapeHtml(node.kind)} · ${escapeHtml((node.text||node.alt||'').slice(0,24))}</summary><div class="native-node-actions"><button type="button" data-native-move="-1" ${index===0?'disabled':''}>Up</button><button type="button" data-native-move="1" ${index===d.nodes.length-1?'disabled':''}>Down</button><button type="button" data-native-duplicate>Duplicate</button><button type="button" data-native-remove>Remove</button></div>${['text','heading','button'].includes(node.kind)?`<label>Text<textarea class="inspector-input" data-native-field="text">${escapeHtml(node.text||'')}</textarea></label>`:''}${node.kind==='button'?input('Destination','url',node.url||'#'):''}${node.kind==='image'?`${input('Image URL','image',String(node.image||'').startsWith('data:')?'':node.image)}${input('Alt text','alt',node.alt)}<button type="button" data-native-upload>Upload image</button>`:''}${node.kind==='gradient'?`${input('Start color','start',node.start||'#c7d2fe','color')}${input('End color','end',node.end||'#a5f3fc','color')}${input('Angle','angle',node.angle??135,'number','min="0" max="360"')}`:''}${node.kind==='icon'?`<label>Symbol<select class="inspector-input" data-native-field="symbol">${['grid','circle','diamond'].map(v=>`<option ${node.symbol===v?'selected':''}>${v}</option>`).join('')}</select></label>`:''}${['image','gradient'].includes(node.kind)?input('Height','height',node.height||240,'number','min="40" max="900"'):''}${input('Font size','size',node.size||20,'number','min="10" max="120"')}${input('Text color','color',node.color||'#18233b','color')}${input('Background','background',node.background||'#ffffff','color')}<label>Alignment<select class="inspector-input" data-native-field="align">${['left','center','right'].map(v=>`<option ${(node.align||'left')===v?'selected':''}>${v}</option>`).join('')}</select></label>${input('Padding','padding',node.padding??16,'number','min="0" max="120"')}${input('Corners','radius',node.radius??12,'number','min="0" max="80"')}${input('Column span','span',node.span||1,'number',`min="1" max="${d.columns||1}"`)}</details>`).join('')}</div>`;
+  }
+  inspectorContent.addEventListener('change',event=>{
+    const root=event.target.closest('[data-native-root]');if(!root)return;
+    const comp=currentSite?.schema_json.find(c=>c.id===root.dataset.nativeRoot);if(!comp)return;
+    const key=event.target.dataset.nativeField;if(!key)return;
+    const detail=event.target.closest('[data-native-node]'),node=detail?comp.data.nodes[Number(detail.dataset.nativeNode)]:comp.data;
+    const value=event.target.type==='number'?Number(event.target.value):event.target.value;
+    if(key==='url'&&StudioBlocks.url(value)!==value){showToast('Use an https:// URL, #section, mailto: or tel: link.','error');return;}
+    if(key==='image'&&value&&!StudioBlocks.image(value)){showToast('Use an image URL or upload a file.','error');return;}
+    node[key]=value;renderCanvas();
+  });
+  inspectorContent.addEventListener('click',event=>{
+    const button=event.target.closest('button'),root=button?.closest('[data-native-root]');if(!root)return;
+    const comp=currentSite?.schema_json.find(c=>c.id===root.dataset.nativeRoot);if(!comp)return;
+    const detail=button.closest('[data-native-node]'),index=Number(detail?.dataset.nativeNode),nodes=comp.data.nodes,oldIds=nodes.map(n=>n.id);
+    if(button.dataset.nativeAdd){if(nodes.length>=100)return;nodes.push({id:crypto.randomUUID(),kind:button.dataset.nativeAdd,text:'Your text',url:'#',size:20});}
+    else if(button.hasAttribute('data-native-remove')){nodes.splice(index,1);}
+    else if(button.hasAttribute('data-native-duplicate')){nodes.splice(index+1,0,{...structuredClone(nodes[index]),id:crypto.randomUUID(),copiedFrom:nodes[index].id});}
+    else if(button.hasAttribute('data-native-move')){const to=index+Number(button.dataset.nativeMove);if(to<0||to>=nodes.length)return;[nodes[index],nodes[to]]=[nodes[to],nodes[index]];}
+    else if(button.hasAttribute('data-native-upload')){
+      const node=canvasSectionsList.querySelector(`[data-comp-id="${comp.id}"]`);
+      studioQuickTarget={comp,path:['nodes',String(index),'image'],node,kind:'image'};
+      const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.onchange=()=>uploadStudioImage(input.files[0]);input.click();return;
+    } else return;
+    StudioState.reindexFormats(comp,oldIds);renderCanvas();renderInspector(comp);
+  });
   function renderInspector(comp) {
     if (!inspectorContent) return;
     const d = comp.data || {};
     const t = comp.type;
 
     let html = '';
+    if(t==='content') html=nativeInspector(comp);
 
     if (t === "hero") {
       html += `

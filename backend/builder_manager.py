@@ -15,6 +15,7 @@ import io
 import zipfile
 from html import escape as escape_html
 from studio_formatting import apply_component_formatting, contrast_color
+from studio_blocks import render_native_blocks, native_runtime
 import time
 from datetime import datetime
 from pathlib import Path
@@ -1141,7 +1142,9 @@ textarea.form-input {{
         c_type = comp.get("type", "")
         data = comp.get("data", {})
 
-        if c_type == 'image':
+        if c_type == 'content':
+            body_html_parts.append(render_native_blocks(comp))
+        elif c_type == 'image':
             image_url=str(data.get('image_url',''))
             if re.match(r'^(https?://|/(?!/)|data:image/(?:png|jpeg|webp|gif);base64,)',image_url):
                 caption=escape_html(str(data.get('caption','')))
@@ -1597,6 +1600,7 @@ textarea.form-input {{
 </head>
 <body class="{'studio-ambient' if ambient else ''}">
 {"".join(body_html_parts)}
+{native_runtime() if any(c.get('type') == 'content' for c in components) else ''}
 {custom_body}
 </body>
 </html>

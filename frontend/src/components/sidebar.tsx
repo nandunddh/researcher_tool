@@ -68,13 +68,12 @@ export function Sidebar({
 
   return (
     <aside className="app-sidebar">
-      <div className="sidebar-brand">
+      <a className="sidebar-brand" href={`/${effectiveNamespace}/dashboard`} aria-label="SciProspect dashboard">
         <span className="sciprospect-original-mark" aria-hidden="true" />
         <div className="collector-brand-name">
           SciProspect
-          <small>Research intelligence</small>
         </div>
-      </div>
+      </a>
 
       <div className="sidebar-section sidebar-collector-section">
         <div className="sidebar-heading">{heading}</div>

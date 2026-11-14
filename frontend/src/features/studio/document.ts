@@ -12,6 +12,7 @@ export interface StudioDocument {
   sections: Section[];
 }
 export const componentRegistry = {
+  content: { name: "Editable elements", category: "Content" },
   navbar: { name: "Navigation bar", category: "Navigation" },
   hero: { name: "Hero", category: "Content" },
   features: { name: "Highlights", category: "Content" },
