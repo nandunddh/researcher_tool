@@ -42,3 +42,6 @@ Recorded from the user's feedback on 2026-11-08. These are requested improvement
 - Both sidebars can be hidden and restored without losing editing state.
 - The sample website looks intentional at all supported viewport sizes.
 - A new user can select text, format it, replace an image, switch a section design, and preview the result without searching through the right sidebar.
+
+## Advanced editor roadmap (2026-11-15)
+See [docs/SCISTUDIO_ADVANCED_ROADMAP.md](docs/SCISTUDIO_ADVANCED_ROADMAP.md) for ordered tasks, acceptance criteria, current limitations and candidate design/editing libraries. These are planned capabilities, not completion claims.

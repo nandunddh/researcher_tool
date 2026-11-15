@@ -1,8 +1,18 @@
 "use client";
+import { modernPreset } from "./modern-presets";
 import { Icon } from "@/components/icon";
 import { NavigationPreview } from "./navigation-preview";
 import type { LibraryComponent,NavigationVariant } from "./component-catalog";
 export function SectionPreview({item,brand,accent,logo,interactive=true}:{item:LibraryComponent;brand?:string;accent?:string;logo?:string;interactive?:boolean}){
+ if(item.variant.startsWith("modern-")) {
+  const preset=modernPreset(item.variant,brand);
+  return <section className="modern-preset-preview" aria-label={`${item.name} preview`} style={{display:"grid",gridTemplateColumns:`repeat(${preset.columns}, minmax(0,1fr))`,gap:16,padding:24,background:"#fff"}}>
+   <style>{`.modern-preset-preview>div{min-width:0;overflow-wrap:anywhere}.modern-preset-preview h2,.modern-preset-preview p{margin:0;font:inherit;white-space:pre-wrap;color:inherit}@media(max-width:600px){.modern-preset-preview{grid-template-columns:1fr!important}.modern-preset-preview>div{grid-column:auto!important}}`}</style>
+   {preset.nodes.map((node,i)=><div key={i} style={{gridColumn:`span ${node.span}`,padding:node.padding,borderRadius:node.radius,background:node.background,color:node.color,fontSize:node.size,fontFamily:"system-ui, sans-serif",textAlign:node.align}}>
+    {node.kind==="heading"?<h2>{node.text}</h2>:node.kind==="button"?<button type="button" style={{padding:"12px 24px",border:0,borderRadius:8,background:accent||"#5a50dc",color:"white",font:"inherit"}}>{node.text}</button>:<p>{node.text}</p>}
+   </div>)}
+  </section>;
+ }
  if(item.category==="Navigation")return <NavigationPreview variant={item.variant as NavigationVariant} brand={brand} accent={accent} logo={logo} interactive={interactive}/>;
  const heading=brand||"Make something meaningful.";
  const visual=<div className="component-visual"><Icon name="layers" size={48}/><span>Your image</span></div>;

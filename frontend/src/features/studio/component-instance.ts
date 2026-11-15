@@ -1,10 +1,12 @@
+import { modernPreset } from "./modern-presets";
 import type { LibraryComponent } from "./component-catalog";
 export type ComponentInstance={id:string;type:string;title:string;data:Record<string,unknown>;library:{id:string;version:number};studio_style?:Record<string,unknown>};
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
 export function instantiateComponent(item:LibraryComponent,name="Your brand"):ComponentInstance{
  let type=item.variant,data:Record<string,unknown>={};
  const title={section_title:item.name,section_tag:"",section_subtitle:"Replace this sample with your own content."};
- if(item.category==="Navigation"){type="navbar";data={brand_name:name,brand_mode:"text",logo_url:"",layout_variant:item.variant,links:[{label:"Home",url:"#"},{label:"About",url:"#about"},{label:"Contact",url:"#contact"}],cta_label:item.variant==="product"?"Start free":item.variant==="services"?"Book a consultation":item.variant==="editorial"?"Subscribe":"Get in touch",cta_link:"#contact"}}
+ if(item.variant.startsWith("modern-")){type="content";const preset=modernPreset(item.variant,name);data={...preset,nodes:preset.nodes.map(node=>({...node,id:crypto.randomUUID()}))};}
+ else if(item.category==="Navigation"){type="navbar";data={brand_name:name,brand_mode:"text",logo_url:"",layout_variant:item.variant,links:[{label:"Home",url:"#"},{label:"About",url:"#about"},{label:"Contact",url:"#contact"}],cta_label:item.variant==="product"?"Start free":item.variant==="services"?"Book a consultation":item.variant==="editorial"?"Subscribe":"Get in touch",cta_link:"#contact"}}
  else if(type==="hero")data={eyebrow:"INTRODUCING YOUR BRAND",headline:"Make something meaningful.",subheadline:"A clear introduction to what you do and why it matters.",primary_btn_text:"Get started",primary_btn_url:"#contact",secondary_btn_text:"Learn more",secondary_btn_url:"#about",hero_image:"",layout_variant:"split"};
  else if(type==="about")data={...title,section_title:"Our story",items:[{title:"Our purpose",description:"Share your purpose and the people behind your work.",image:""}],design:"spotlight"};
  else if(type==="features")data={...title,section_title:"What we do",items:["Strategy","Design","Development"].map(title=>({title,description:"Describe the value you bring.",icon:"fa-solid fa-layer-group"}))};

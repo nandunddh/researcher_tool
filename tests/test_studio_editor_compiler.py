@@ -11,11 +11,19 @@ node = next(n for n in ast.parse(source.read_text(encoding='utf-8')).body if isi
 import sys
 sys.path.insert(0,str(source.parent))
 from studio_formatting import apply_component_formatting, contrast_color
+from studio_blocks import render_native_blocks, native_runtime
 namespace = {'apply_component_formatting':apply_component_formatting,'contrast_color':contrast_color,'Tuple': Tuple, 're': re, 'escape_html': escape}
+namespace.update(render_native_blocks=render_native_blocks,native_runtime=native_runtime)
 exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
 compile_site = namespace['compile_website_html']
 
 class StudioCompilerTests(unittest.TestCase):
+    def test_native_blocks_include_portable_shared_renderer(self):
+        html = self.render([{'type':'content','data':{'nodes':[{'kind':'heading','text':'</script><script>alert(1)</script>'}]}}])
+        self.assertIn('data-sci-native', html)
+        self.assertIn('StudioBlocks.hydrate()', html)
+        self.assertNotIn('</script><script>alert(1)</script>', html)
+        self.assertIn('\\u003c/script\\u003e', html)
     def test_placed_elements_and_custom_gradient_export(self):
         html = self.render([{'type':'navbar','data':{},
             'studio_style':{'background':'#123456','gradient':'custom','gradient_end':'#abcdef','gradient_angle':45},

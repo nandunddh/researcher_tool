@@ -136,3 +136,6 @@ text exclusion, viewport sizes/zoom, and hidden output. Existing editor history,
 save-race, and compiler checks pass. These are local automated checks, not a
 completed browser visual acceptance pass. Image selection still uses the existing
 URL controls; asset upload/cropping and per-device style overrides are not added.
+
+## Advanced builder direction (2026-11-15)
+The general-purpose website-builder roadmap is tracked in [SCISTUDIO_ADVANCED_ROADMAP.md](SCISTUDIO_ADVANCED_ROADMAP.md). It supersedes conference-only creation UX above; organization ownership and authorization still apply. Start with the React editor foundation proof of concept, then direct editing, reusable components, brand/responsive controls, safe publishing and working website features.

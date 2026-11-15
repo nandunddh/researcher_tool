@@ -3943,7 +3943,7 @@ document.addEventListener("DOMContentLoaded", () => {
       } else if (window.switchRightPanelMode) {
         window.switchRightPanelMode('preview');
       }
-      if (window.showStudioComponentPreview) {
+      if (window.studioCurrentViewMode === 'preview' && window.showStudioComponentPreview) {
         window.showStudioComponentPreview('navbar', 'business');
       }
       const initialPaletteCard = document.querySelector('.btn-add-comp[data-type="navbar"][data-variant="business"]');
@@ -4132,7 +4132,9 @@ document.addEventListener("DOMContentLoaded", () => {
       builderStudioView.classList.remove('studio-panels-hidden');
       document.getElementById('studio-toggle-panels').textContent='Focus mode';
       document.getElementById('studio-toggle-panels').setAttribute('aria-pressed','false');
-      const hidden=builderStudioView.classList.toggle(cls);
+      const openingInspector=id==='studio-right-toggle' && document.body.classList.contains('studio-preview-mode');
+      if(openingInspector) window.setStudioViewMode('edit');
+      const hidden=openingInspector ? (builderStudioView.classList.remove(cls),false) : builderStudioView.classList.toggle(cls);
       event.currentTarget.setAttribute('aria-pressed',String(!hidden));
       saveStudioPanels();
       requestAnimationFrame(fitStudioCanvas);
@@ -4543,6 +4545,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const canvasDeck = document.getElementById('studio-canvas-preview-deck');
     if (canvasDeck) canvasDeck.style.display = isPreview ? 'block' : 'none';
 
+    if (!isPreview && window.switchRightPanelMode) window.switchRightPanelMode(isSeo ? 'seo' : 'settings');
     if (isPreview && window.showStudioComponentPreview) {
       window.showStudioComponentPreview(window.studioActivePreviewType, window.studioActivePreviewVariant);
     }
@@ -4615,6 +4618,15 @@ document.addEventListener("DOMContentLoaded", () => {
   // Right Panel Mode Switcher: Component Preview vs Block Settings vs SEO & Analytics
   let studioPreviewGuard = false;
   window.switchRightPanelMode = function(mode) {
+    if(mode !== 'preview') {
+      document.body.classList.remove('studio-preview-mode');
+      window.studioCurrentViewMode=mode==='seo'?'seo':'edit';
+      builderStudioView.classList.remove('studio-right-hidden','studio-panels-hidden');
+      document.getElementById('studio-right-toggle')?.setAttribute('aria-pressed','true');
+      document.getElementById('studio-toggle-panels')?.setAttribute('aria-pressed','false');
+      document.getElementById('studio-toggle-panels').textContent='Focus mode';
+      requestAnimationFrame(fitStudioCanvas);
+    }
     const previewPane = document.getElementById('studio-preview-pane');
     const settingsPane = document.getElementById('studio-settings-pane');
     const seoPane = document.getElementById('studio-seo-pane');
@@ -4941,6 +4953,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!currentSite.meta_config) currentSite.meta_config = {};
     currentSite[field] = val;
     currentSite.meta_config[field] = val;
+    studioRecord();
 
     // Real-time update live SERP & Social Share preview
     const liveTitle = document.getElementById('social-preview-title');
@@ -5795,6 +5808,7 @@ document.addEventListener("DOMContentLoaded", () => {
     }).join("") + '<div class="studio-insert-line last"><button type="button" onclick="openStudioLibrary()">+ Add section</button></div>';
     wireStudioInlineEditing();
     wireStudioElementDragging();
+    wireNativeElements();
     updateComponentPaletteStatus();
   }
 
@@ -6196,6 +6210,52 @@ document.addEventListener("DOMContentLoaded", () => {
   };
 
   // COMPREHENSIVE BLOCK INSPECTOR CONTROLS
+  const savedSectionsKey=()=>`scistudio:sections:${currentSite?.user_email||'session'}`;
+  const savedSectionsDialog=document.createElement('dialog');
+  savedSectionsDialog.className='studio-saved-sections';document.body.append(savedSectionsDialog);
+  function getSavedSections(){try{return JSON.parse(localStorage.getItem(savedSectionsKey())||'[]');}catch(_){return [];}}
+  window.saveReusableSection=id=>{
+    const comp=currentSite?.schema_json.find(c=>c.id===id);if(!comp)return;
+    try{const entries=getSavedSections();entries.unshift({key:crypto.randomUUID(),component:structuredClone(comp)});localStorage.setItem(savedSectionsKey(),JSON.stringify(entries.slice(0,30)));showToast('Section saved in this browser.','success');}catch(_){showToast('Browser storage is full. Remove a saved section or use smaller images.','error');}
+  };
+  window.openSavedSections=()=>{
+    if(!currentSite)return;
+    savedSectionsDialog.innerHTML='<header><h3>My sections</h3><button type="button" data-close aria-label="Close saved sections">Close</button></header><p>Reusable sections saved in this browser for your account.</p><div data-entries></div>';
+    savedSectionsDialog.querySelector('[data-close]').onclick=()=>savedSectionsDialog.close();
+    const list=savedSectionsDialog.querySelector('[data-entries]'),entries=getSavedSections();
+    if(!entries.length){
+      const message=document.createElement('p');message.textContent='No saved sections yet. Select a section on your page and save it here to reuse later.';
+      const action=document.createElement('button');action.type='button';
+      action.textContent=activeComponentId?'Save selected section':'Choose a section';
+      action.onclick=()=>{if(activeComponentId){window.saveReusableSection(activeComponentId);window.openSavedSections();}else{savedSectionsDialog.close();window.setStudioViewMode('edit');builderStudioView.classList.remove('studio-left-hidden');document.getElementById('studio-left-toggle')?.setAttribute('aria-pressed','true');}};
+      list.append(message,action);
+    }
+    entries.forEach(entry=>{
+      const row=document.createElement('div');row.className='saved-section-row';
+      const name=document.createElement('strong');name.textContent=entry.component.title||entry.component.type;
+      const add=document.createElement('button');add.textContent='Insert';add.onclick=()=>{const comp=structuredClone(entry.component);comp.id='comp_'+crypto.randomUUID();currentSite.schema_json.push(comp);savedSectionsDialog.close();renderCanvas();selectComponentForEditing(comp.id);studioRecord();};
+      const remove=document.createElement('button');remove.textContent='Remove';remove.onclick=()=>{try{localStorage.setItem(savedSectionsKey(),JSON.stringify(getSavedSections().filter(item=>item.key!==entry.key)));row.remove();}catch(_){showToast('Unable to update browser storage.','error');}};
+      row.append(name,add,remove);list.append(row);
+    });
+    if(!savedSectionsDialog.open)savedSectionsDialog.showModal();
+  };
+  const savedSectionsButton=document.createElement('button');savedSectionsButton.type='button';savedSectionsButton.className='btn-studio-action';savedSectionsButton.textContent='My sections';savedSectionsButton.onclick=window.openSavedSections;
+  document.querySelector('.studio-panel-toggles')?.append(savedSectionsButton);
+  function wireNativeElements() {
+    canvasSectionsList.querySelectorAll('[data-native-index]').forEach(node=>{
+      const comp=currentSite.schema_json.find(c=>c.id===node.closest('[data-comp-id]').dataset.compId);
+      if(!comp)return;
+      const index=Number(node.dataset.nativeIndex);
+      const handle=document.createElement('button');handle.type='button';handle.className='native-drag-handle';handle.textContent='Move';handle.draggable=true;handle.setAttribute('aria-label','Drag element to reorder');
+      handle.onclick=event=>{event.stopPropagation();selectComponentForEditing(comp.id);const detail=inspectorContent.querySelector(`[data-native-node="${index}"]`);if(detail){detail.open=true;detail.scrollIntoView({block:'nearest'});}};
+      handle.ondragstart=event=>{event.stopPropagation();event.dataTransfer.setData('application/scistudio-element',JSON.stringify({component:comp.id,index}));event.dataTransfer.effectAllowed='move';};
+      node.prepend(handle);
+      node.ondragover=event=>{if(event.dataTransfer.types.includes('application/scistudio-element')){event.preventDefault();event.stopPropagation();node.classList.add('native-drop-target');}};
+      node.ondragleave=()=>node.classList.remove('native-drop-target');
+      node.ondrop=event=>{const raw=event.dataTransfer.getData('application/scistudio-element');if(!raw)return;event.preventDefault();event.stopPropagation();node.classList.remove('native-drop-target');try{const from=JSON.parse(raw);if(from.component!==comp.id||from.index===index)return;const ids=comp.data.nodes.map(n=>n.id),[moved]=comp.data.nodes.splice(from.index,1);if(!moved)return;comp.data.nodes.splice(index,0,moved);StudioState.reindexFormats(comp,ids);renderCanvas();renderInspector(comp);}catch(_){}};
+      node.querySelector('.sci-native-placeholder')?.addEventListener('click',event=>{event.stopPropagation();selectComponentForEditing(comp.id);const detail=inspectorContent.querySelector(`[data-native-node="${index}"]`);if(detail){detail.open=true;detail.querySelector('[data-native-upload]')?.click();}});
+    });
+  }
   function nativeInspector(comp) {
     const d=comp.data;
     const input=(label,key,value,type='text',extra='')=>`<label>${label}<input class="inspector-input" data-native-field="${key}" type="${type}" value="${escapeHtml(String(value??''))}" ${extra}></label>`;
@@ -6834,7 +6894,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (t === 'custom') html += `<div class="inspector-field"><label>HTML and CSS (scripts disabled)</label><textarea class="inspector-input studio-code-input" spellcheck="false" oninput="updateField('${comp.id}','html',this.value)">${escapeHtml(d.html || '')}</textarea><label>Embed height (px)</label><input type="number" class="inspector-input" min="100" max="2000" value="${Number(d.height) || 300}" onchange="updateField('${comp.id}','height',this.value)"></div>`;
     if (t === 'hero') html = `<div class="inspector-card-group"><label class="control-label">Hero design</label><select class="inspector-select" onchange="setHeroLayoutVariant('${comp.id}',this.value)">${[['split','Split showcase'],['conference_program','Conference program'],['centered','Centered spotlight'],['image_left','Image on left'],['image_top','Image first'],['text_only','Minimal typography']].map(([value,label]) => `<option value="${value}" ${(d.layout_variant || 'split') === value ? 'selected' : ''}>${label}</option>`).join('')}</select><p class="panel-section-subtitle">Switch designs without losing your content.</p></div>` + html;
     html += `<div class="inspector-card-group"><h4>Place elements</h4><p>Add, then drag the move handle on the canvas. Double-click to edit text. Mobile stacks these elements.</p><button type="button" class="btn-sec-tool" onclick="addStudioElement('${comp.id}','text')">+ Add text</button> <button type="button" class="btn-sec-tool" onclick="addStudioElement('${comp.id}','button')">+ Add button</button>${(comp.elements||[]).map((item,index)=>`<div class="inspector-field"><label>${item.kind==='button'?'Button':'Text'}</label><input class="inspector-input" value="${escapeHtml(item.text||'')}" oninput="updateStudioElement('${comp.id}',${index},'text',this.value)">${item.kind==='button'?`<label>Destination</label><input class="inspector-input" value="${escapeHtml(item.url||'')}" oninput="updateStudioElement('${comp.id}',${index},'url',this.value)">`:''}<button type="button" class="btn-sec-tool" onclick="updateStudioElement('${comp.id}',${index},'remove','')">Remove</button></div>`).join('')}</div>`;
-    inspectorContent.innerHTML = studioAppearanceControls(comp) + html;
+    inspectorContent.innerHTML = `<button type="button" class="btn-sec-tool" onclick="saveReusableSection('${comp.id}')">Save to My sections</button>` + studioAppearanceControls(comp) + html;
     organizeStudioInspector(comp);
   }
 

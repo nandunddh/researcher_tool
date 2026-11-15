@@ -1,9 +1,11 @@
+import { modernComponents } from "./modern-presets";
 export type LibraryLevel = "basic" | "medium" | "pro";
 export type LibraryFilter = "all" | LibraryLevel;
 export type NavigationVariant = "business" | "portfolio" | "services" | "product" | "editorial";
 export type LibraryGroup = "Sections" | "Elements" | "Assets";
 export type LibraryComponent = {id:string;version:number;name:string;category:string;group:LibraryGroup;level:LibraryLevel;description:string;variant:string;features:string[]};
 export const componentCatalog:LibraryComponent[] = [
+ ...modernComponents,
  {id:"nav-classic",version:2,name:"Northstar / Business",category:"Navigation",group:"Sections",level:"basic",description:"A confident business header with a services dropdown and a clear next step.",variant:"business",features:["Services dropdown","Primary CTA","Mobile menu"]},
  {id:"nav-centered",version:2,name:"Atelier / Portfolio",category:"Navigation",group:"Sections",level:"basic",description:"An editorial wordmark, quiet navigation and a warm, expressive canvas.",variant:"portfolio",features:["Centered brand","Contact action","Mobile menu"]},
  {id:"nav-split",version:2,name:"Forma / Services",category:"Navigation",group:"Sections",level:"medium",description:"Contact details and availability above a practical, appointment-focused header.",variant:"services",features:["Contact strip","Service categories","Booking CTA"]},

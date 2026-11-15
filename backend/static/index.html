@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="/sciprospect_icon.svg">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-  <link rel="stylesheet" href="/index.css?v=14.0">
+  <link rel="stylesheet" href="/index.css?v=16.1">
     <style>
     /* Complete suppression of Microsoft Edge & browser native reveal icons */
     ::-ms-reveal,
@@ -761,6 +761,7 @@
       <div id="builder-studio-view" style="display: none; height: 100%;">
         <!-- Studio Navigation Bar -->
         <div class="builder-studio-topbar">
+          <div class="studio-toolbar-identity">
           <div class="studio-topbar-left">
             <button class="btn-studio-back" id="btn-studio-back" title="Back to Websites Dashboard">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
@@ -790,21 +791,30 @@
             </div>
           </div>
 
+          </div>
+          <div class="studio-toolbar-context">
           <div class="studio-mode-pill-toggle" role="group" aria-label="Editor workspace mode">
-            <button type="button" id="btn-mode-add-preview" class="studio-mode-pill-btn active" onclick="setStudioViewMode('preview')" title="40% library on left, 60% live preview on canvas">
+            <button type="button" id="btn-mode-add-preview" class="studio-mode-pill-btn active" onclick="setStudioViewMode('preview')" title="Browse components and preview before adding">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-              <span>Add &amp; Preview</span>
+              <span>Library</span>
             </button>
             <button type="button" id="btn-mode-edit-blocks" class="studio-mode-pill-btn" onclick="setStudioViewMode('edit')" title="Configure section settings and page properties">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-              <span>Edit Sections</span>
+              <span>Design</span>
             </button>
             <button type="button" id="btn-mode-seo-top" class="studio-mode-pill-btn" onclick="switchRightPanelMode('seo')" title="Configure SEO Meta tags, Google Analytics, and Pages">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-              <span>SEO &amp; Analytics</span>
+              <span>Site settings</span>
             </button>
           </div>
-          <div class="studio-panel-toggles"><button type="button" id="studio-left-toggle" aria-pressed="true" title="Toggle sections panel">Sections</button><button type="button" id="studio-right-toggle" aria-pressed="true" title="Toggle settings panel">Settings</button></div>
+          <div class="studio-panel-toggles" role="group" aria-label="Workspace panels">
+            <button type="button" id="studio-left-toggle" class="studio-panel-icon" aria-pressed="true" aria-label="Toggle layers panel" title="Layers — show or hide the left panel">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/><path d="M6 8v8" stroke-width="2.5"/></svg>
+            </button>
+            <button type="button" id="studio-right-toggle" class="studio-panel-icon" aria-pressed="true" aria-label="Toggle inspector panel" title="Inspector — show or hide the right panel">
+              <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M15 4v16"/><path d="M18 8v8" stroke-width="2.5"/></svg>
+            </button>
+          </div>
           <!-- Responsive View Toggles (Desktop / Mobile Preview) -->
           <div class="studio-device-toggles">
             <button class="btn-device-toggle active" data-device="desktop" id="btn-device-desktop" title="Desktop View (100%)">
@@ -822,6 +832,7 @@
           <div class="studio-canvas-tools">
             <select id="studio-zoom" aria-label="Canvas zoom"><option value="fit">Fit</option><option value="0.5">50%</option><option value="0.75">75%</option><option value="1">100%</option></select><span id="studio-canvas-scale" aria-live="polite">1440px · Fit</span>
             <button type="button" class="btn-studio-action" id="studio-toggle-panels" aria-pressed="false" title="Hide editing panels to expand the canvas">Focus mode</button>
+          </div>
           </div>
           <!-- Studio Action Buttons -->
           <div class="studio-topbar-right">
@@ -862,11 +873,12 @@
 
           <!-- Section outline and component library -->
           <aside class="builder-components-panel">
-            <div class="studio-panel-heading"><span>Your page</span><button type="button" class="studio-add-open" onclick="openStudioLibrary()">+ Add section</button></div>
+            <div class="studio-panel-heading"><span>Layers</span><button type="button" class="studio-add-open" onclick="openStudioLibrary()">+ Add section</button></div>
             <div class="panel-section-title">PAGE SECTIONS</div>
             <p class="panel-section-subtitle">Drag to reorder. Select to customize.</p>
             <div id="studio-layer-list" aria-label="Page sections"></div>
             <div class="studio-history-controls"><button type="button" id="studio-undo" title="Undo (Ctrl+Z)">↶ Undo</button><button type="button" id="studio-redo" title="Redo (Ctrl+Shift+Z)">↷ Redo</button></div>
+            <div class="studio-library-tools">
             <div class="panel-section-title">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
               <span>ADD COMPONENT</span>
@@ -1208,6 +1220,7 @@
                 <option value="#0f172a">Slate Steel (Pro)</option>
               </select>
             </div>
+            </div>
           </aside>
 
           <!-- Column 2: Live Assembled Canvas Frame -->
@@ -1281,7 +1294,7 @@
               </div>
               <div id="inspector-content">
                 <div class="empty-inspector-notice">
-                  <span style="font-size: 2rem;">👈</span>
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9 3v18M9 9h12"/></svg>
                   <p>Click any block on the canvas to configure its text, images, speakers, and pricing tiers.</p>
                 </div>
               </div>
@@ -1829,7 +1842,7 @@
   <script src="/studio-formatting.js?v=1.0"></script>
   <script src="/studio-state.js?v=1"></script>
   <script src="/studio-blocks.js?v=1"></script>
-  <script src="/app.js?v=15.0"></script>
+  <script src="/app.js?v=16.1"></script>
   <!-- =================================================================== -->
   <!-- UNIFIED SCIENTIFIC AUTHENTICATION GATE (LOGIN MODAL)                -->
   <!-- =================================================================== -->

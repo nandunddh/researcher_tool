@@ -25,7 +25,7 @@
    }
    const imageFormat=component.image_formats?.[JSON.stringify(['nodes',String(i),'image'])];
    if(!editable && imageFormat && root.StudioFormatting && node.kind==='image') {
-    content=content.replace('<img ',`<img style="${esc(root.StudioFormatting.css(imageFormat))}" `).replace(/alt="[^"]*"/,`alt="${esc(imageFormat.alt??node.alt??'')}"`);
+    content=content.replace(/style="([^"]*)"/,(_,base)=>`style="${base};${esc(root.StudioFormatting.css(imageFormat))}"`).replace(/alt="[^"]*"/,`alt="${esc(imageFormat.alt??node.alt??'')}"`);
    }
    return `<div class="sci-native-node" ${editable?`data-native-index="${i}"`:''} style="${style}">${content}</div>`;
   }).join('')}</div>`;
