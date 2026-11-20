@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildSiteCss, cleanElements, cleanLink, hrefToLink, linkHref, resolveStyle, safeImage, safeUrl, upgradeSection,
+  buildSiteCss, cleanElements, cleanLink, getElements, hrefToLink, linkHref, needsKeyMigration, resolveStyle, safeImage, safeUrl, upgradeSection,
   type Responsive, type Style,
 } from "../src/features/studio/site-schema";
 import type { Section } from "../src/features/studio/document";
@@ -43,7 +43,7 @@ test("generated CSS contains only sanitized values and uses container breakpoint
   const section = {
     id: "hero", type: "hero", data: {},
     section_style: { desktop: { background: "#ffffff" }, mobile: { paddingY: 20 } },
-    elements: [
+    canvas_elements: [
       { id: "h1", kind: "heading", slot: "content", style: { desktop: { color: "#123456" }, tablet: { fontSize: 40 }, mobile: { color: "red}body{x" } } },
       { id: "bad\"]{}*{", kind: "text", slot: "content", style: { desktop: { color: "#000" } } },
     ],
@@ -66,8 +66,27 @@ test("screen sizes inherit from larger screens", () => {
 test("upgrade ignores unsafe legacy images and leaves unsupported sections alone", () => {
   const ctx = { sections: [] };
   const hero = upgradeSection({ id: "h", type: "hero", data: { hero_image: "javascript:x", headline: "T" } }, ctx);
-  const image = (hero.elements as { role: string; src?: string }[]).find(e => e.role === "image");
+  assert.equal(hero.elements, undefined, "never written to the key the Python publisher uses");
+  const image = (hero.canvas_elements as { role: string; src?: string }[]).find(e => e.role === "image");
   assert.equal(image?.src, undefined);
   const faq = { id: "f", type: "faq", data: { faqs: [] } };
   assert.equal(upgradeSection(faq, ctx), faq);
+});
+
+test("canvas elements never collide with the Python publisher's free elements", () => {
+  const ctx = { sections: [] };
+  const free = [{ kind: "button", text: "Free", x: 10, y: 20 }];
+  const withFree = upgradeSection({ id: "h", type: "hero", data: { headline: "T" }, elements: free }, ctx);
+  assert.deepEqual(withFree.elements, free, "Python free elements are kept untouched");
+  assert.ok(Array.isArray(withFree.canvas_elements));
+  assert.equal(getElements({ id: "c", type: "custom", data: {}, elements: free }), undefined);
+});
+
+test("sections saved with the old key are moved to the new key", () => {
+  const old = { id: "h", type: "hero", data: {}, elements: [{ id: "el_1", kind: "heading", slot: "content", role: "headline", text: "Hi", style: { desktop: {} } }] };
+  assert.equal(needsKeyMigration(old), true);
+  const moved = upgradeSection(old, { sections: [] });
+  assert.equal(moved.elements, undefined);
+  assert.equal(needsKeyMigration(moved), false);
+  assert.equal(getElements(moved)?.[0].text, "Hi");
 });

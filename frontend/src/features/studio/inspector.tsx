@@ -1,18 +1,26 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import {
-  addMenuItem, findElement, moveMenuItem, moveSection, removeMenuItem, resetElementStyle, sectionLayouts,
+  addMenuItem, findElement, moveMenuItem, moveSection, removeMenuItem, removeSection, resetElementStyle, sectionLayouts,
   setElementStyle, setLayout, setSectionStyle, updateElement, updateMenuItem,
+  addListItem, moveListItem, removeListItem, setSectionField, linkContext, type DataPath,
   type EditorSite, type Selection,
 } from "./editor-model";
-import { cleanLink, getElements, getSectionStyle, resolveStyle, type Link, type SiteElement, type Style, type Viewport } from "./site-schema";
+import { cleanLink, getElements, getSectionStyle, hrefToLink, linkHref, resolveStyle, safeImage, type Link, type SiteElement, type Style, type Viewport } from "./site-schema";
 import { uploadImage } from "./media";
+import type { Section } from "./document";
+import { Field, FillField, NumberField, Segmented, WeightField, useMeasured, type Measured } from "./inspector-fields";
+import { cleanFieldValue, headerFields, sectionRegistry, type FieldDef } from "./section-registry";
+import { hasBlock } from "./section-blocks";
 import styles from "./react-editor.module.css";
 
 export type Change = (fn: (site: EditorSite) => EditorSite, coalesceKey?: string) => void;
+/** A question shown in the app's own confirmation popup (never the browser's). */
+export type ConfirmRequest = { title: string; description: string; label: string; run: () => void };
 type Props = {
   site: EditorSite; selection: Selection | null; viewport: Viewport; readOnly: boolean;
   change: Change; onSelect: (selection: Selection) => void; onError: (message: string) => void;
+  ask: (request: ConfirmRequest) => void;
 };
 
 export const elementNames: Record<string, string> = {
@@ -23,58 +31,6 @@ export const elementName = (e: SiteElement) => elementNames[e.role ?? ""] ?? e.k
 const screenNames: Record<Viewport, string> = { desktop: "all screens", tablet: "tablet and mobile", mobile: "mobile only" };
 
 // ---------------------------------------------------------------- small fields
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return <label className={styles.field}><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
-}
-
-function ColorField({ label, value, disabled, onChange }: { label: string; value?: string; disabled: boolean; onChange: (v: string | null) => void }) {
-  const [draft, setDraft] = useState(value ?? "");
-  useEffect(() => setDraft(value ?? ""), [value]);
-  const swatch = value && value !== "transparent" ? value.slice(0, 7) : "#ffffff";
-  return (
-    <div className={styles.field}>
-      <span>{label}</span>
-      <div className={styles.colorRow}>
-        <input type="color" aria-label={`${label} picker`} value={swatch.length === 4 ? `#${[...swatch.slice(1)].map(c => c + c).join("")}` : swatch}
-          disabled={disabled} onChange={e => onChange(e.target.value)} />
-        <input aria-label={`${label} code`} value={draft} placeholder="Default" disabled={disabled} spellCheck={false}
-          onChange={e => setDraft(e.target.value)}
-          onBlur={() => { if (draft !== (value ?? "")) onChange(draft.trim() ? draft.trim() : null); }}
-          onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }} />
-        <button type="button" disabled={disabled || !value} onClick={() => onChange(null)}>Clear</button>
-      </div>
-    </div>
-  );
-}
-
-function RangeField({ label, value, min, max, fallback, unit = "px", disabled, onChange }: {
-  label: string; value?: number; min: number; max: number; fallback: number; unit?: string; disabled: boolean; onChange: (v: number | null) => void;
-}) {
-  return (
-    <div className={styles.field}>
-      <span>{label}<em>{value === undefined ? "Auto" : `${value}${unit}`}</em></span>
-      <div className={styles.rangeRow}>
-        <input type="range" aria-label={label} min={min} max={max} value={value ?? fallback} disabled={disabled}
-          onChange={e => onChange(Number(e.target.value))} />
-        <button type="button" disabled={disabled || value === undefined} onClick={() => onChange(null)}>Auto</button>
-      </div>
-    </div>
-  );
-}
-
-function Segmented<T extends string>({ label, value, options, disabled, onChange }: {
-  label: string; value?: T; options: [T, string][]; disabled: boolean; onChange: (v: T) => void;
-}) {
-  return (
-    <div className={styles.field} role="group" aria-label={label}>
-      <span>{label}</span>
-      <div className={styles.segmented}>
-        {options.map(([v, text]) => <button key={v} type="button" aria-pressed={value === v} disabled={disabled} onClick={() => onChange(v)}>{text}</button>)}
-      </div>
-    </div>
-  );
-}
-
 function normalizeUrl(input: string): string {
   const v = input.trim();
   if (!v || /^(https?:|mailto:|tel:|#|\/)/i.test(v)) return v;
@@ -135,16 +91,17 @@ export function LinkChooser({ site, link, disabled, excludeSection, onChange }: 
       )}
       {type === "section" && (
         sections.length ? (
+          <>
           <Field label="Section">
             <select value={link?.type === "section" ? link.sectionId : ""} disabled={disabled} onChange={e => onChange({ type: "section", sectionId: e.target.value })}>
-              {link?.type !== "section" && (
-                <option value="" disabled>
-                  {link?.type === "url" && link.href.startsWith("#") ? `Choose a section (“${link.href.slice(1)}” isn’t on this page yet)` : "Choose a section"}
-                </option>
-              )}
+              {link?.type !== "section" && <option value="" disabled>Choose a section</option>}
               {sections.map(s => <option key={s.id} value={s.id}>{s.title || s.type}</option>)}
             </select>
           </Field>
+          {link?.type === "url" && link.href.startsWith("#") && (
+            <p className={styles.hint}>This link points to “{link.href.slice(1)}”, which isn’t on this page yet. Choose a section above.</p>
+          )}
+          </>
         ) : <p className={styles.hint}>Add another section to this page first.</p>
       )}
       {(type === "url" || type === "email" || type === "phone") && (
@@ -202,36 +159,34 @@ function ImageField({ site, value, disabled, onChange, onError }: {
 }
 
 // ---------------------------------------------------------------- panels
-function StyleFields({ element, style, viewport, disabled, set, reset }: {
-  element: SiteElement; style: Style; viewport: Viewport; disabled: boolean;
+function StyleFields({ element, style, viewport, disabled, measured, set, reset }: {
+  element: SiteElement; style: Style; viewport: Viewport; disabled: boolean; measured: Measured;
   set: (patch: Partial<Record<keyof Style, unknown>>) => void; reset: () => void;
 }) {
   const textual = element.kind !== "image" && !(element.kind === "logo" && element.mode === "image");
   return (
     <>
       {textual && <>
-        <RangeField label="Text size" value={style.fontSize} min={10} max={element.kind === "heading" ? 120 : 60}
-          fallback={element.kind === "heading" ? 48 : 16} disabled={disabled} onChange={v => set({ fontSize: v })} />
-        <Field label="Text weight">
-          <select value={style.fontWeight ?? ""} disabled={disabled} onChange={e => set({ fontWeight: e.target.value ? Number(e.target.value) : null })}>
-            <option value="">Default</option><option value="300">Light</option><option value="400">Regular</option>
-            <option value="500">Medium</option><option value="600">Semi-bold</option><option value="700">Bold</option><option value="800">Extra bold</option>
-          </select>
-        </Field>
-        <ColorField label="Text color" value={style.color} disabled={disabled} onChange={v => set({ color: v })} />
+        <NumberField label="Text size" value={style.fontSize} measured={measured.fontSize} min={8} max={160}
+          disabled={disabled} onChange={v => set({ fontSize: v })} />
+        <WeightField value={style.fontWeight} measured={measured.fontWeight} disabled={disabled} onChange={v => set({ fontWeight: v })} />
+        <FillField label="Text color" color={style.color} gradient={element.kind === "button" ? undefined : style.gradient} shown={measured.color}
+          allowGradient={element.kind !== "button" && element.kind !== "menu"} disabled={disabled}
+          onColor={v => set({ color: v })} onGradient={g => set({ gradient: g })} />
       </>}
       {(element.kind === "heading" || element.kind === "text") && (
         <Segmented label="Alignment" value={style.textAlign} disabled={disabled} onChange={v => set({ textAlign: v })}
           options={[["left", "Left"], ["center", "Center"], ["right", "Right"]]} />
       )}
       {element.kind === "button" && <>
-        <ColorField label="Button color" value={style.background} disabled={disabled} onChange={v => set({ background: v })} />
-        <RangeField label="Corner roundness" value={style.radius} min={0} max={40} fallback={10} disabled={disabled} onChange={v => set({ radius: v })} />
+        <FillField label="Button color" color={style.background} gradient={style.gradient} shown={measured.background} disabled={disabled}
+          onColor={v => set({ background: v, gradient: null })} onGradient={g => set({ gradient: g, ...(g ? { background: null } : {}) })} />
+        <NumberField label="Corner roundness" value={style.radius} measured={measured.radius} min={0} max={60} disabled={disabled} onChange={v => set({ radius: v })} />
       </>}
       {(element.kind === "image" || (element.kind === "logo" && element.mode === "image")) && <>
-        <RangeField label="Width" value={style.width} min={24} max={element.kind === "logo" ? 400 : 1400} fallback={element.kind === "logo" ? 140 : 560}
+        <NumberField label="Width" value={style.width} measured={measured.width} min={24} max={element.kind === "logo" ? 400 : 1400}
           disabled={disabled} onChange={v => set({ width: v })} />
-        {element.kind === "image" && <RangeField label="Corner roundness" value={style.radius} min={0} max={80} fallback={18} disabled={disabled} onChange={v => set({ radius: v })} />}
+        {element.kind === "image" && <NumberField label="Corner roundness" value={style.radius} measured={measured.radius} min={0} max={80} disabled={disabled} onChange={v => set({ radius: v })} />}
       </>}
       {viewport !== "desktop" && (
         <button type="button" className={styles.linkButton} disabled={disabled || !element.style[viewport]} onClick={reset}>
@@ -246,6 +201,7 @@ function ElementPanel({ site, sectionId, element, viewport, readOnly, change, on
   const key = (field: string) => `${element.id}:${field}`;
   const edit = (patch: Parameters<typeof updateElement>[3], coalesce?: string) => change(s => updateElement(s, sectionId, element.id, patch), coalesce);
   const style = resolveStyle(element.style, viewport);
+  const measured = useMeasured(`[data-el="${element.id}"]`, [site, viewport]);
   const setStyle = (patch: Partial<Record<keyof Style, unknown>>) =>
     change(s => setElementStyle(s, sectionId, element.id, viewport, patch), key(`style:${viewport}:${Object.keys(patch).join()}`));
   const resetStyle = () => change(s => resetElementStyle(s, sectionId, element.id, viewport));
@@ -298,24 +254,117 @@ function ElementPanel({ site, sectionId, element, viewport, readOnly, change, on
       <section className={styles.group}>
         <h3>Style</h3>
         <p className={styles.scope} data-screen={viewport}>Changes apply to {screenNames[viewport]}.</p>
-        <StyleFields element={element} style={style} viewport={viewport} disabled={readOnly} set={setStyle} reset={resetStyle} />
+        <StyleFields element={element} style={style} viewport={viewport} disabled={readOnly} measured={measured} set={setStyle} reset={resetStyle} />
       </section>
     </>
   );
 }
 
-function SectionPanel({ site, sectionId, viewport, readOnly, change, onSelect }: Omit<Props, "selection" | "onError"> & { sectionId: string }) {
+/** One field of a content section, bound to a path inside its data. */
+function DataField({ site, section, def, path, readOnly, change, onError }: {
+  site: EditorSite; section: Section; def: FieldDef; path: DataPath; readOnly: boolean; change: Change; onError: (m: string) => void;
+}) {
+  let value: unknown = section.data;
+  for (const step of path) value = Array.isArray(value) ? value[step as number] : value && typeof value === "object" ? (value as Record<string, unknown>)[step as string] : undefined;
+  const set = (raw: unknown, coalesce = true) => {
+    const clean = cleanFieldValue(def.kind, raw, def);
+    if (clean === undefined) { onError(def.kind === "image" ? "Use an uploaded image or a link starting with https://" : def.kind === "link" ? "This link is not valid." : "That value can’t be used here."); return; }
+    change(s => {
+      const target = s.schema_json.find(x => x.id === section.id);
+      // Create a missing top-level field (e.g. a new subtitle) before setting it.
+      const prepared = target && path.length === 1 && !(String(path[0]) in target.data)
+        ? setSectionField({ ...s, schema_json: s.schema_json.map(x => x.id === section.id ? { ...x, data: { ...x.data, [String(path[0])]: "" } } : x) }, section.id, path, clean)
+        : setSectionField(s, section.id, path, clean);
+      return prepared;
+    }, coalesce ? `${section.id}:${path.join(".")}` : undefined);
+  };
+  const text = typeof value === "string" ? value : typeof value === "number" ? String(value) : "";
+  switch (def.kind) {
+    case "textarea": return <Field label={def.label} hint={def.hint}><textarea rows={4} value={text} disabled={readOnly} placeholder={def.placeholder} onChange={e => set(e.target.value)} /></Field>;
+    case "lines": return <Field label={def.label} hint={def.hint}><textarea rows={4} value={Array.isArray(value) ? value.join("\n") : ""} disabled={readOnly} onChange={e => set(e.target.value)} /></Field>;
+    case "select": return (
+      <Field label={def.label}>
+        <select value={text || def.options?.[0]?.[0]} disabled={readOnly} onChange={e => set(e.target.value, false)}>
+          {def.options?.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </Field>
+    );
+    case "toggle": return <label className={styles.check}><input type="checkbox" checked={value === true} disabled={readOnly} onChange={e => set(e.target.checked, false)} />{def.label}</label>;
+    case "number": return <Field label={def.label} hint={def.hint}><input inputMode="numeric" value={text} disabled={readOnly} onChange={e => set(e.target.value)} /></Field>;
+    case "image": return <ImageField site={site} value={safeImage(value)} disabled={readOnly} onError={onError} onChange={src => set(src, false)} />;
+    case "link": {
+      const ctx = linkContext(site);
+      return (
+        <div className={styles.field}>
+          <span>{def.label}</span>
+          <LinkChooser site={site} link={hrefToLink(value, ctx)} disabled={readOnly} excludeSection={section.id}
+            onChange={link => set(link ? linkHref(link, ctx) : "#", false)} />
+        </div>
+      );
+    }
+    default: return <Field label={def.label} hint={def.hint}><input value={text} disabled={readOnly} placeholder={def.placeholder} onChange={e => set(e.target.value)} /></Field>;
+  }
+}
+
+function SectionContent({ site, section, readOnly, change, onError }: { site: EditorSite; section: Section; readOnly: boolean; change: Change; onError: (m: string) => void }) {
+  const def = sectionRegistry[section.type];
+  if (!def) return null;
+  const common = { site, section, readOnly, change, onError };
+  return (
+    <>
+      {(def.header || def.fields.length > 0) && (
+        <section className={styles.group}>
+          <h3>Content</h3>
+          <p className={styles.hint}>Tip: double-click any text on the page to edit it there.</p>
+          {def.header && headerFields.map(f => <DataField key={f.key} {...common} def={f} path={[f.key]} />)}
+          {def.fields.map(f => <DataField key={f.key} {...common} def={f} path={[f.key]} />)}
+        </section>
+      )}
+      {def.lists.map(listDef => {
+        const items = Array.isArray(section.data[listDef.key]) ? (section.data[listDef.key] as unknown[]) : [];
+        return (
+          <section key={listDef.key} className={styles.group}>
+            <h3>{listDef.label} ({items.length})</h3>
+            {items.map((_, index) => (
+              <details key={index} className={styles.menuItem} open={items.length <= 3}>
+                <summary>{listDef.itemLabel} {index + 1}{itemTitle(items[index]) && <span> · {itemTitle(items[index])}</span>}</summary>
+                {listDef.fields.map(f => <DataField key={f.key} {...common} def={f} path={[listDef.key, index, f.key]} />)}
+                <div className={styles.buttonRow}>
+                  <button type="button" disabled={readOnly || index === 0} onClick={() => change(s => moveListItem(s, section.id, listDef.key, index, -1))} aria-label={`Move ${listDef.itemLabel} ${index + 1} up`}>↑</button>
+                  <button type="button" disabled={readOnly || index === items.length - 1} onClick={() => change(s => moveListItem(s, section.id, listDef.key, index, 1))} aria-label={`Move ${listDef.itemLabel} ${index + 1} down`}>↓</button>
+                  <button type="button" disabled={readOnly} onClick={() => change(s => removeListItem(s, section.id, listDef.key, index))}>Remove</button>
+                </div>
+              </details>
+            ))}
+            <button type="button" className={styles.addButton} disabled={readOnly || items.length >= listDef.max}
+              onClick={() => change(s => addListItem(s, section.id, listDef.key, listDef.newItem(), listDef.max))}>+ Add {listDef.itemLabel.toLowerCase()}</button>
+          </section>
+        );
+      })}
+    </>
+  );
+}
+const itemTitle = (item: unknown) => {
+  if (!item || typeof item !== "object") return "";
+  const r = item as Record<string, unknown>;
+  const t = [r.title, r.name, r.q, r.label, r.caption, r.text].find(v => typeof v === "string" && v.trim());
+  return typeof t === "string" ? (t.length > 28 ? `${t.slice(0, 28)}…` : t) : "";
+};
+
+function SectionPanel({ site, sectionId, viewport, readOnly, change, onSelect, onError, ask }: Omit<Props, "selection"> & { sectionId: string }) {
   const section = site.schema_json.find(s => s.id === sectionId)!;
   const layouts = sectionLayouts[section.type];
   const layout = String(section.data.layout_variant || Object.keys(layouts ?? {})[0] || "");
   const elements = getElements(section);
+  const editable = !!elements || hasBlock(section.type);
   const style = resolveStyle(getSectionStyle(section), viewport);
-  const setStyle = (patch: Record<string, unknown>) => change(s => setSectionStyle(s, sectionId, viewport, patch), `${sectionId}:style:${Object.keys(patch).join()}`);
+  const measured = useMeasured(`[data-section="${sectionId}"]`, [site, viewport]);
+  const setStyle = (patch: Record<string, unknown>) => change(s => setSectionStyle(s, sectionId, viewport, patch), `${sectionId}:style:${viewport}:${Object.keys(patch).join()}`);
   const index = site.schema_json.indexOf(section);
   return (
     <>
-      <h2>{section.title || section.type}</h2>
-      {!elements && <p className={styles.hint}>This section can’t be edited here yet. It keeps its current design when you save.</p>}
+      <h2>{section.title || sectionRegistry[section.type]?.name || section.type}</h2>
+      {!editable && <p className={styles.hint}>Editing this section’s content is coming soon. It keeps its current design when you save.</p>}
       {elements && (
         <section className={styles.group}>
           <h3>Items in this section</h3>
@@ -325,6 +374,7 @@ function SectionPanel({ site, sectionId, viewport, readOnly, change, onSelect }:
           </div>
         </section>
       )}
+      {!elements && <SectionContent site={site} section={section} readOnly={readOnly} change={change} onError={onError} />}
       {layouts && (
         <section className={styles.group}>
           <h3>Layout</h3>
@@ -336,13 +386,15 @@ function SectionPanel({ site, sectionId, viewport, readOnly, change, onSelect }:
           </Field>
         </section>
       )}
-      {elements && (
+      {editable && (
         <section className={styles.group}>
           <h3>Background & spacing</h3>
           <p className={styles.scope} data-screen={viewport}>Changes apply to {screenNames[viewport]}.</p>
-          <ColorField label="Background color" value={style.background} disabled={readOnly} onChange={v => setStyle({ background: v })} />
-          <ColorField label="Text color" value={style.color} disabled={readOnly} onChange={v => setStyle({ color: v })} />
-          <RangeField label="Space above and below" value={style.paddingY} min={0} max={240} fallback={section.type === "hero" ? 72 : 20}
+          <FillField label="Background" color={style.background} gradient={style.gradient} shown={measured.background} disabled={readOnly}
+            onColor={v => setStyle({ background: v, gradient: null })} onGradient={g => setStyle({ gradient: g })} />
+          <FillField label="Text color" color={style.color} shown={measured.color} allowGradient={false} disabled={readOnly}
+            onColor={v => setStyle({ color: v })} onGradient={() => undefined} />
+          <NumberField label="Space above and below" value={style.paddingY} measured={measured.paddingY} min={0} max={240}
             disabled={readOnly} onChange={v => setStyle({ paddingY: v })} />
         </section>
       )}
@@ -352,6 +404,18 @@ function SectionPanel({ site, sectionId, viewport, readOnly, change, onSelect }:
           <button type="button" disabled={readOnly || index === 0} onClick={() => change(s => moveSection(s, sectionId, -1))}>Move up</button>
           <button type="button" disabled={readOnly || index === site.schema_json.length - 1} onClick={() => change(s => moveSection(s, sectionId, 1))}>Move down</button>
         </div>
+      </section>
+      <section className={styles.group}>
+        <button type="button" className={styles.danger} disabled={readOnly}
+          onClick={() => ask({
+            title: `Delete “${section.title || section.type}”?`,
+            description: "This removes the section from your page. You can bring it back with Undo until you leave the editor.",
+            label: "Delete section",
+            run: () => { change(s => removeSection(s, sectionId)); onSelect({ sectionId: "" }); },
+          })}>
+          Delete section
+        </button>
+        <p className={styles.hint}>You can bring it back with Undo (Ctrl+Z).</p>
       </section>
     </>
   );

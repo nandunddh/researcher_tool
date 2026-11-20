@@ -21,7 +21,10 @@ export type Link =
   | { type: "email"; address: string }
   | { type: "phone"; number: string };
 
+/** Two-colour gradient. On text it colours the letters; on buttons and sections the fill. */
+export type Gradient = { from: string; to: string; angle: number };
 export type Style = {
+  gradient?: Gradient;
   color?: string;
   background?: string;
   fontSize?: number;
@@ -32,7 +35,7 @@ export type Style = {
   paddingY?: number;
   width?: number;
 };
-export type SectionStyle = { background?: string; color?: string; paddingY?: number };
+export type SectionStyle = { background?: string; gradient?: Gradient; color?: string; paddingY?: number };
 export type Responsive<T> = { desktop: T; tablet?: T; mobile?: T };
 
 export type MenuItem = { id: string; label: string; link?: Link; meta?: Record<string, Json> };
@@ -57,7 +60,7 @@ export const elementSections = ["navbar", "hero"] as const;
 const MAX_TEXT = 5000;
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
-const WEIGHTS = [300, 400, 500, 600, 700, 800];
+const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 const KINDS: readonly ElementKind[] = ["logo", "heading", "text", "button", "image", "menu"];
 
 export function newId(prefix = "el"): string {
@@ -100,6 +103,13 @@ export function cleanLink(v: unknown): Link | undefined {
   }
 }
 
+export function cleanGradient(v: unknown): Gradient | undefined {
+  if (!isRecord(v)) return undefined;
+  const from = safeColor(v.from), to = safeColor(v.to);
+  const angle = clamp(v.angle, 0, 360);
+  return from && to ? { from, to, angle: angle ?? 90 } : undefined;
+}
+
 export function cleanStyle(v: unknown): Style {
   if (!isRecord(v)) return {};
   const out: Style = {};
@@ -107,6 +117,7 @@ export function cleanStyle(v: unknown): Style {
   const background = safeColor(v.background); if (background) out.background = background;
   const fontSize = clamp(v.fontSize, 8, 160); if (fontSize !== undefined) out.fontSize = fontSize;
   if (typeof v.fontWeight === "number" && WEIGHTS.includes(v.fontWeight)) out.fontWeight = v.fontWeight;
+  const gradient = cleanGradient(v.gradient); if (gradient) out.gradient = gradient;
   if (v.textAlign === "left" || v.textAlign === "center" || v.textAlign === "right") out.textAlign = v.textAlign;
   const radius = clamp(v.radius, 0, 200); if (radius !== undefined) out.radius = radius;
   const px = clamp(v.paddingX, 0, 200); if (px !== undefined) out.paddingX = px;
@@ -117,6 +128,7 @@ export function cleanStyle(v: unknown): Style {
 export function cleanSectionStyle(v: unknown): SectionStyle {
   if (!isRecord(v)) return {};
   const out: SectionStyle = {};
+  const gradient = cleanGradient(v.gradient); if (gradient) out.gradient = gradient;
   const background = safeColor(v.background); if (background) out.background = background;
   const color = safeColor(v.color); if (color) out.color = color;
   const py = clamp(v.paddingY, 0, 400); if (py !== undefined) out.paddingY = py;
@@ -168,11 +180,28 @@ export function cleanElements(v: unknown): SiteElement[] {
 }
 
 // ---------------------------------------------------------------- section access
+/** Where canvas elements are stored. Not `elements`: the Python publisher already
+ *  uses that key for free-floating text and buttons and would render ours there. */
+export const ELEMENTS_KEY = "canvas_elements";
+
+/** Early builds stored canvas elements under `elements`. Those items always have
+ *  `slot` and `style`; Python's free elements never do, so they are told apart. */
+function isOldCanvasList(v: unknown): v is unknown[] {
+  return Array.isArray(v) && v.length > 0 && v.every(item => isRecord(item) && typeof item.slot === "string" && isRecord(item.style));
+}
+
 export function getElements(section: Section): SiteElement[] | undefined {
-  return Array.isArray(section.elements) ? cleanElements(section.elements) : undefined;
+  if (Array.isArray(section[ELEMENTS_KEY])) return cleanElements(section[ELEMENTS_KEY]);
+  return isOldCanvasList(section.elements) ? cleanElements(section.elements) : undefined;
+}
+/** True when a saved section still uses the old storage key and should be re-saved. */
+export function needsKeyMigration(section: Section): boolean {
+  return !Array.isArray(section[ELEMENTS_KEY]) && isOldCanvasList(section.elements);
 }
 export function withElements(section: Section, elements: SiteElement[]): Section {
-  return { ...section, elements: elements as unknown as Json };
+  const next: Section = { ...section, [ELEMENTS_KEY]: elements as unknown as Json };
+  if (isOldCanvasList(next.elements)) delete next.elements;
+  return next;
 }
 export function getSectionStyle(section: Section): Responsive<SectionStyle> {
   return cleanResponsive(section.section_style, cleanSectionStyle);
@@ -231,7 +260,9 @@ const el = (kind: ElementKind, slot: string, role: string, extra: Partial<SiteEl
 
 /** Adds elements to a legacy navbar/hero. Other sections are returned unchanged. */
 export function upgradeSection(section: Section, ctx: LinkContext): Section {
-  if (getElements(section) || !(elementSections as readonly string[]).includes(section.type)) return section;
+  const existing = getElements(section);
+  if (existing) return needsKeyMigration(section) ? withElements(section, existing) : section;
+  if (!(elementSections as readonly string[]).includes(section.type)) return section;
   const d = section.data;
   if (section.type === "navbar") {
     const links = Array.isArray(d.links) ? d.links : [];
@@ -300,10 +331,16 @@ export function resolveStyle<T extends object>(style: Responsive<T>, viewport: V
   return { ...style.desktop, ...style.tablet, ...style.mobile };
 }
 
+const gradientCss = (g: Gradient) => `linear-gradient(${g.angle}deg,${g.from},${g.to})`;
+
 function elementDecls(s: Style, kind: ElementKind): string[] {
   const out: string[] = [];
   if (s.color) out.push(`color:${s.color}`);
   if (s.background) out.push(`background:${s.background}`);
+  if (s.gradient && kind === "button") out.push(`background:${gradientCss(s.gradient)}`);
+  else if (s.gradient && kind !== "image") {
+    out.push(`background:${gradientCss(s.gradient)}`, "-webkit-background-clip:text", "background-clip:text", "-webkit-text-fill-color:transparent");
+  }
   if (s.fontSize !== undefined) out.push(`font-size:${s.fontSize}px`);
   if (s.fontWeight !== undefined) out.push(`font-weight:${s.fontWeight}`);
   if (s.textAlign) out.push(`text-align:${s.textAlign}`);
@@ -315,7 +352,8 @@ function elementDecls(s: Style, kind: ElementKind): string[] {
 }
 function sectionDecls(s: SectionStyle): string[] {
   const out: string[] = [];
-  if (s.background) out.push(`background:${s.background}`);
+  if (s.gradient) out.push(`background:${gradientCss(s.gradient)}`);
+  else if (s.background) out.push(`background:${s.background}`);
   if (s.color) out.push(`color:${s.color}`);
   if (s.paddingY !== undefined) out.push(`padding-block:${s.paddingY}px`);
   return out;

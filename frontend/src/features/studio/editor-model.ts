@@ -1,4 +1,4 @@
-import { readDocument, type Section } from "./document";
+import { readDocument, type Json, type Section } from "./document";
 import {
   cleanLink, cleanSectionStyle, cleanStyle, getElements, getSectionStyle, newId, safeImage, syncLegacy,
   upgradeSection, withElements, withSectionStyle,
@@ -87,6 +87,11 @@ export function moveSection(site: EditorSite, id: string, delta: number): Editor
   const [item] = schema_json.splice(index, 1);
   schema_json.splice(target, 0, item);
   return { ...site, schema_json };
+}
+
+export function removeSection(site: EditorSite, id: string): EditorSite {
+  if (!site.schema_json.some(s => s.id === id)) return site;
+  return { ...site, schema_json: site.schema_json.filter(s => s.id !== id) };
 }
 
 export function dropSection(site: EditorSite, id: string, beforeId: string): EditorSite {
@@ -194,6 +199,52 @@ export function moveMenuItem(site: EditorSite, sectionId: string, elementId: str
     const [item] = items.splice(index, 1);
     items.splice(target, 0, item);
     return items;
+  });
+}
+
+// ---------------------------------------------------------------- section content
+export type DataPath = (string | number)[];
+const isObj = (v: unknown): v is Record<string, Json> => !!v && typeof v === "object" && !Array.isArray(v);
+
+/** Sets one value inside a section's `data`. Every step of the path must already
+ *  exist (except the final key on an object), so edits cannot create odd shapes. */
+export function setSectionField(site: EditorSite, sectionId: string, path: DataPath, value: Json): EditorSite {
+  if (!path.length) throw new Error("Nothing to change.");
+  return mapSection(site, sectionId, section => {
+    let node: Json = section.data;
+    for (const step of path.slice(0, -1)) {
+      if (Array.isArray(node) && typeof step === "number" && step >= 0 && step < node.length) node = node[step];
+      else if (isObj(node) && typeof step === "string" && step in node) node = node[step];
+      else throw new Error("This item no longer exists.");
+    }
+    const last = path[path.length - 1];
+    if (Array.isArray(node) && typeof last === "number" && last >= 0 && last < node.length) node[last] = value;
+    else if (isObj(node) && typeof last === "string" && !/^(__proto__|constructor|prototype)$/.test(last)) node[last] = value;
+    else throw new Error("This item no longer exists.");
+    return section;
+  });
+}
+
+function mapList(site: EditorSite, sectionId: string, key: string, fn: (list: Json[]) => Json[]): EditorSite {
+  return mapSection(site, sectionId, section => {
+    const current = section.data[key];
+    if (current !== undefined && !Array.isArray(current)) throw new Error("This list cannot be edited.");
+    return { ...section, data: { ...section.data, [key]: fn([...(current ?? [])]) } };
+  });
+}
+export function addListItem(site: EditorSite, sectionId: string, key: string, item: Record<string, Json>, max = 50): EditorSite {
+  return mapList(site, sectionId, key, list => (list.length >= max ? list : [...list, structuredClone(item)]));
+}
+export function removeListItem(site: EditorSite, sectionId: string, key: string, index: number): EditorSite {
+  return mapList(site, sectionId, key, list => list.filter((_, i) => i !== index));
+}
+export function moveListItem(site: EditorSite, sectionId: string, key: string, index: number, delta: number): EditorSite {
+  return mapList(site, sectionId, key, list => {
+    const target = index + delta;
+    if (index < 0 || index >= list.length || target < 0 || target >= list.length) return list;
+    const [item] = list.splice(index, 1);
+    list.splice(target, 0, item);
+    return list;
   });
 }
 

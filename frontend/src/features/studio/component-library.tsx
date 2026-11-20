@@ -4,7 +4,7 @@ import { Modal } from "@/components/modal";
 import { Icon } from "@/components/icon";
 import { SectionPreview } from "./section-preview";
 import { componentCatalog,filterComponents,type LibraryGroup,type LibraryFilter,type LibraryComponent } from "./component-catalog";
-function ComponentThumbnail({item}:{item:LibraryComponent}){
+export function ComponentThumbnail({item}:{item:LibraryComponent}){
  const container = useRef<HTMLDivElement>(null);
  const content = useRef<HTMLDivElement>(null);
  const [scale, setScale] = useState<number>();

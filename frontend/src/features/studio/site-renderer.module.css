@@ -101,4 +101,24 @@
 .site[data-editing] [data-placeholder]:empty::before { content: attr(data-placeholder); opacity: 0.45; font-weight: 400; }
 .preserved { padding: 28px 32px; color: var(--muted); background: #f8fafc; border-block: 1px dashed #d4daea; }
 .preserved p { margin: 4px 0 0; font-size: 14px; }
+.block { position: relative; }
+.site[data-editing] .block[data-hidden] > :first-child { opacity: 0.45; }
+.site[data-editing] .block[data-hidden] .classicBadge { opacity: 1; }
+.preservedPreview { position: relative; pointer-events: auto; }
+.preservedPreview > :first-child { pointer-events: none; }
+.classicBadge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #1c1d29e6;
+  color: #e8e6ff;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.site[data-editing] :is(.preserved, .preservedPreview):is(:hover, [data-selected]) .classicBadge { opacity: 1; }
 .muted { opacity: 0.6; font-size: 13px; }
