@@ -360,3 +360,9 @@
 .editor .layers .panelTabs { grid-template-columns: repeat(3, 1fr); }
 .editor .pagePicker { flex-direction: row; margin: 0; }
 .editor .pagePicker select { width: auto; }
+
+/* The app's confirmation popup keeps its own button look inside the editor. */
+.editor :global(.confirm-dialog) button { padding: 10px 18px; border: 1px solid #dce1ed; border-radius: 10px; background: #f5f6fa; color: #24324b; font-weight: 600; }
+.editor :global(.confirm-dialog) button:hover:not(:disabled) { border-color: #c7cde0; background: #eceef5; color: #24324b; }
+.editor :global(.confirm-dialog) button:global(.confirm-destructive) { border-color: #dc2626; background: #dc2626; color: white; }
+.editor :global(.confirm-dialog) button:global(.confirm-destructive):hover:not(:disabled) { border-color: #b91c1c; background: #b91c1c; color: white; }

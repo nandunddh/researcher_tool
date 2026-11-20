@@ -106,6 +106,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const [announcement, announce] = useState("");
   const [confirmRequest, ask] = useState<ConfirmRequest | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const leaving = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   useEffect(() => {
@@ -139,7 +140,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   }, [endpoint, showError]);
 
   useEffect(() => {
-    const guard = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = ""; } };
+    const guard = (e: BeforeUnloadEvent) => { if (dirty && !leaving.current) { e.preventDefault(); e.returnValue = ""; } };
     window.addEventListener("beforeunload", guard);
     return () => window.removeEventListener("beforeunload", guard);
   }, [dirty]);
@@ -232,7 +233,8 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                 title: "Leave without saving?",
                 description: "You have unsaved changes. If you leave now, they will be lost.",
                 label: "Leave without saving",
-                run: () => window.location.assign(href),
+                // Already confirmed in our popup: skip the browser's own "Leave site?" check.
+                run: () => { leaving.current = true; window.location.assign(href); },
               });
             }}>
             <Icon name="arrow" size={16} />
