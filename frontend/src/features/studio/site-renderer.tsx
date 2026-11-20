@@ -1,0 +1,192 @@
+"use client";
+/**
+ * One renderer for SciStudio pages. The editor canvas passes `edit` to add selection
+ * and in-place text editing; without it the output is the visitor-facing page.
+ */
+import { createElement, useEffect, useMemo, useRef, useState, type MouseEvent, type ReactNode } from "react";
+import type { Section } from "./document";
+import {
+  buildSiteCss, getElements, linkHref, safeImage, sectionAnchor,
+  type LinkContext, type PageRef, type SiteElement,
+} from "./site-schema";
+import styles from "./site-renderer.module.css";
+
+export type CanvasSelection = { sectionId: string; elementId?: string };
+export type EditHooks = {
+  selection: CanvasSelection | null;
+  readOnly: boolean;
+  onSelect: (selection: CanvasSelection) => void;
+  onText: (sectionId: string, elementId: string, text: string) => void;
+  dragging?: string | null;
+  onDropSection?: (beforeId: string) => void;
+};
+
+const labels: Record<string, string> = {
+  logo: "brand name", eyebrow: "small label", headline: "headline", subheadline: "description",
+  cta: "button text", primary: "button text", secondary: "second button text",
+};
+
+function EditableText({ tag, value, placeholder, edit, multiline, onCommit, ...rest }: {
+  tag: string; value: string; placeholder: string; edit?: EditHooks; multiline?: boolean;
+  onCommit: (text: string) => void; [key: string]: unknown;
+}) {
+  const ref = useRef<HTMLElement>(null);
+  const [active, setActive] = useState(false);
+  useEffect(() => {
+    const node = ref.current;
+    if (!active || !node) return;
+    node.focus();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [active]);
+  const canEdit = !!edit && !edit.readOnly;
+  return createElement(tag, {
+    ...rest,
+    ref,
+    "data-placeholder": edit ? `Add ${placeholder}` : undefined,
+    contentEditable: active ? "plaintext-only" : undefined,
+    suppressContentEditableWarning: true,
+    title: canEdit && !active ? "Double-click to edit text" : undefined,
+    onDoubleClick: canEdit ? () => setActive(true) : undefined,
+    onBlur: active ? () => {
+      setActive(false);
+      const next = (ref.current?.innerText ?? value).replace(/ /g, " ");
+      if (next !== value) onCommit(multiline ? next : next.replace(/\s*\n\s*/g, " ").trim());
+    } : undefined,
+    onKeyDown: active ? (e: KeyboardEvent & { currentTarget: HTMLElement; preventDefault(): void }) => {
+      if (e.key === "Escape") { e.currentTarget.textContent = value; e.currentTarget.blur(); }
+      else if (e.key === "Enter" && (!multiline || e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.blur(); }
+    } : undefined,
+  }, value);
+}
+
+function ElementView({ element, section, ctx, edit }: { element: SiteElement; section: Section; ctx: LinkContext; edit?: EditHooks }) {
+  const selected = edit?.selection?.elementId === element.id;
+  const common = {
+    "data-el": element.id,
+    "data-kind": element.kind,
+    "data-role": element.role,
+    ...(edit ? {
+      "data-editable": true,
+      "data-selected": selected || undefined,
+      onClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); edit.onSelect({ sectionId: section.id, elementId: element.id }); },
+    } : {}),
+  };
+  const textValue = element.text ?? "";
+  const editable = (tag: string, className?: string, multiline = false) => (
+    <EditableText key={`${element.id}:${textValue}`} tag={tag} className={className} value={textValue} edit={edit}
+      multiline={multiline} placeholder={labels[element.role ?? ""] ?? "text"}
+      onCommit={text => edit?.onText(section.id, element.id, text)} {...common} />
+  );
+  const href = linkHref(element.link, ctx);
+  const newTab = element.link?.type === "url" && element.link.newTab;
+
+  switch (element.kind) {
+    case "logo": {
+      const src = element.mode === "image" ? safeImage(element.src) : undefined;
+      if (src) return <span className={styles.logo} {...common}><img src={src} alt={element.alt || element.text || "Logo"} /></span>;
+      if (!textValue && !edit) return null;
+      return editable("span", styles.logo);
+    }
+    case "heading":
+      if (!textValue && !edit) return null;
+      return editable(element.role === "headline" ? "h1" : "h2", styles.heading);
+    case "text":
+      if (!textValue && !edit) return null;
+      return editable(element.role === "eyebrow" ? "small" : "p", element.role === "eyebrow" ? styles.eyebrow : styles.text, true);
+    case "button":
+      if (!textValue && !edit) return null;
+      return (
+        <a className={`${styles.button} ${element.role === "secondary" ? styles.secondary : ""}`} href={edit ? undefined : href}
+          {...(newTab && !edit ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+          data-el={element.id} data-kind="button" data-role={element.role}
+          {...(edit ? { "data-editable": true, "data-selected": selected || undefined, onClick: common.onClick } : {})}>
+          <EditableText key={`${element.id}:${textValue}`} tag="span" value={textValue} edit={edit}
+            placeholder={labels[element.role ?? ""] ?? "button text"} onCommit={text => edit?.onText(section.id, element.id, text)} />
+        </a>
+      );
+    case "image": {
+      const src = safeImage(element.src);
+      if (src) return <img className={styles.image} src={src} alt={element.alt ?? ""} loading="lazy" {...common} />;
+      return edit ? <div className={styles.imagePlaceholder} {...common}>Add an image</div> : null;
+    }
+    case "menu":
+      return (
+        <nav className={styles.menu} aria-label="Main navigation" {...common}>
+          <ul>
+            {(element.items ?? []).map(item => {
+              const itemHref = linkHref(item.link, ctx);
+              const itemTab = item.link?.type === "url" && item.link.newTab;
+              return <li key={item.id}><a href={edit ? undefined : itemHref} {...(itemTab && !edit ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{item.label || (edit ? "Untitled link" : "")}</a></li>;
+            })}
+            {edit && !element.items?.length && <li className={styles.muted}>Add links in the panel</li>}
+          </ul>
+        </nav>
+      );
+  }
+}
+
+function SectionView({ section, ctx, edit }: { section: Section; ctx: LinkContext; edit?: EditHooks }) {
+  const elements = getElements(section);
+  const layout = typeof section.data.layout_variant === "string" ? section.data.layout_variant : "";
+  const sectionProps = {
+    id: sectionAnchor(section),
+    "data-section": section.id,
+    "data-type": section.type,
+    "data-layout": layout || undefined,
+    ...(edit ? {
+      "data-selected": (edit.selection?.sectionId === section.id && !edit.selection.elementId) || undefined,
+      onClick: () => edit.onSelect({ sectionId: section.id }),
+      onDragOver: (e: React.DragEvent) => { if (edit.dragging) e.preventDefault(); },
+      onDrop: (e: React.DragEvent) => { e.preventDefault(); edit.onDropSection?.(section.id); },
+    } : {}),
+  };
+  if (!elements) {
+    if (!edit) return null;
+    return (
+      <section className={styles.preserved} {...sectionProps}>
+        <strong>{section.title || section.type}</strong>
+        <p>This section keeps its current design. Switch to Saved preview to see it.</p>
+      </section>
+    );
+  }
+  const slot = (name: string): ReactNode[] =>
+    elements.filter(e => e.slot === name).map(e => <ElementView key={e.id} element={e} section={section} ctx={ctx} edit={edit} />);
+
+  if (section.type === "navbar") {
+    return (
+      <header className={styles.navbar} {...sectionProps}>
+        <div className={styles.brand}>{slot("brand")}</div>
+        <div className={styles.links}>{slot("links")}</div>
+        <div className={styles.actions}>{slot("actions")}</div>
+      </header>
+    );
+  }
+  const image = elements.find(e => e.slot === "media");
+  const hasImage = layout !== "text_only" && (!!safeImage(image?.src) || !!edit);
+  return (
+    <section className={styles.hero} data-has-image={hasImage || undefined} {...sectionProps}>
+      <div className={styles.heroContent}>
+        {slot("content")}
+        <div className={styles.heroActions}>{slot("actions")}</div>
+      </div>
+      {hasImage && <div className={styles.heroMedia}>{slot("media")}</div>}
+    </section>
+  );
+}
+
+export function SiteRenderer({ sections, pages, siteSlug, edit }: {
+  sections: Section[]; pages?: PageRef[]; siteSlug?: string; edit?: EditHooks;
+}) {
+  const css = useMemo(() => buildSiteCss(sections), [sections]);
+  const ctx = useMemo(() => ({ sections, pages, siteSlug }), [sections, pages, siteSlug]);
+  return (
+    <div className={styles.site} data-editing={edit ? true : undefined}>
+      <style>{css}</style>
+      {sections.map(section => <SectionView key={section.id} section={section} ctx={ctx} edit={edit} />)}
+    </div>
+  );
+}

@@ -63,3 +63,15 @@ Recommended first experiment: Puck + our React components, with Tiptap for rich 
 
 ## Completion protocol for each task
 Mark TODO -> IN PROGRESS -> VERIFIED. Include changed files, focused automated checks and visual desktop/mobile review. Test real save/reload and published rendering, not only screenshots. User runs development servers/builds unless requested otherwise.
+
+### Stage 1 progress — 2026-11-16
+A separate /{namespace}/scistudio/{siteId}/react-edit route now provides a React inspector prototype for existing navbar/hero fields and a saved backend-rendered preview. Website cards expose it as React prototype. Other sections and unknown fields are retained by the save adapter; ambiguous multi-page saves are rejected. Published sites are read-only here. This is an initial compatibility slice, not the completed React canvas or Puck evaluation. Remaining: live React rendering parity, component insertion/reordering, editor-engine proof of concept, concurrency protection and browser save/reload verification. Do not replace the existing editor yet.
+
+### Stage 1 progress — live canvas slice
+Added a simplified React navbar/hero canvas, selection, desktop/mobile canvas width, explicit section move controls and bounded undo/redo history. Saved preview remains the reference for full existing rendering; unsupported sections have labeled placeholders and remain in the document. This is not renderer parity or drag-and-drop. Next: verify browser interactions, shared renderer parity, React engine evaluation and element-level drag/drop. Automated coverage includes immutable reorder and active-page synchronization.
+
+### Stage 1 progress — section composition
+React prototype now inserts a navbar or hero after the selected section (or at the end), and supports native desktop drag/drop from Layers onto another layer or canvas section. Drop places the source before the target. Move up/down remains the keyboard/touch alternative. Both insertion and ordering use the existing undo/redo history and save adapter. Model tests reject duplicate IDs and external/self drops and preserve unknown section data. Browser drag/drop verification is pending; element-level free positioning and Puck evaluation are still outstanding.
+
+### Stage 1 progress — direct text and navigation editing
+Navbar/hero text can now be edited from the React canvas by double-click or keyboard Enter/Space; Apply commits one history step, Cancel/Escape discards, Ctrl/Cmd+Enter applies. Inspector supports text/image logo mode and adding, editing or removing navigation links while preserving extra metadata. This is plain-text editing, not rich text. Rendering remains simplified and browser verification is pending.

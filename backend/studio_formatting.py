@@ -75,11 +75,22 @@ def apply_component_formatting(html, comp, background=None):
             if isinstance(value,str): fields.append((json.dumps(next_path,separators=(',',':')),value))
             elif isinstance(value,(dict,list)): visit(value,next_path)
     visit(comp.get('data',{}),[])
+    positions=comp.get('item_positions') or {}
+    if comp.get('type')=='navbar' and comp.get('data',{}).get('nav_flow') is not False:
+        positions={k:v for k,v in positions.items() if not (k=='["cta_label"]' or k.startswith('["links",'))}
+    def position_css(key):
+        try:
+            pos=positions[key];x=max(-2000,min(2000,float(pos.get('x',0))));y=max(-2000,min(2000,float(pos.get('y',0))))
+            css=f'position:relative;--sci-position-x:{x:g}px;--sci-position-y:{y:g}px;translate:var(--sci-position-x) var(--sci-position-y);z-index:{max(0,min(100,int(pos.get("z",0))))}'
+            for dimension in ('width','height'):
+                if pos.get(dimension) is not None: css+=f';{dimension}:{max(1,min(2000,float(pos[dimension]))):g}px;box-sizing:border-box;display:inline-block'
+            return css
+        except (KeyError,TypeError,ValueError): return ''
     formats=comp.get('field_formats') or {}
     images=comp.get('image_formats') or {}
     bg=(comp.get('studio_style') or {}).get('background') or background
     class Formatter(HTMLParser):
-        def __init__(self): super().__init__(convert_charrefs=True); self.output=[]; self.skip=0
+        def __init__(self): super().__init__(convert_charrefs=True); self.output=[]; self.skip=0; self.stack=[]
         def handle_starttag(self,tag,attrs):
             if tag in ('script','style','iframe'): self.skip+=1
             if tag=='img':
@@ -89,13 +100,25 @@ def apply_component_formatting(html, comp, background=None):
                     extra=formatting_css(images[matches[0]])
                     old=dict(attrs).get('style','')
                     attrs=[(k,v) for k,v in attrs if k not in ('style','alt')]+[('style',old+';'+extra),('alt',str(images[matches[0]].get('alt',dict(attrs).get('alt',''))))]
+            if tag=='img':
+                matches=[key for key,value in fields if value==dict(attrs).get('src') and key in positions]
+                if len(matches)==1: attrs=[(k,v) for k,v in attrs if k!='style']+[('style',dict(attrs).get('style','')+';'+position_css(matches[0]))]
+            if tag not in ('img','br','hr','input','meta','link','source','area','wbr'): self.stack.append((tag,len(self.output)))
             self.output.append('<'+tag+''.join(' '+key+(('="'+escape(value,quote=True)+'"') if value is not None else '') for key,value in attrs)+'>')
         def handle_startendtag(self,tag,attrs): self.handle_starttag(tag,attrs)
         def handle_endtag(self,tag):
             if tag in ('script','style','iframe'): self.skip=max(0,self.skip-1)
+            if self.stack and self.stack[-1][0]==tag:self.stack.pop()
             self.output.append('</'+tag+'>')
         def handle_data(self,data):
+            moved=[key for key,value in fields if value.strip()==data.strip() and key in positions]
+            if len(moved)==1 and self.stack and not self.skip:
+                tag,index=next(((t,i) for t,i in reversed(self.stack) if t in ('a','button')),self.stack[-1])
+                opening=self.output[index];extra=position_css(moved[0])
+                if 'style="' in opening: opening=opening.replace('style="','style="'+extra+';',1)
+                else: opening=opening[:-1]+' style="'+extra+'">'
+                self.output[index]=opening
             matches=[key for key,value in fields if value==data and key in formats]
             self.output.append(text_markup(data,formats[matches[0]],None if re.search(r'btn_text|btn_label|cta_label',matches[0]) else bg) if len(matches)==1 and not self.skip else data if self.skip else escape(data))
         def handle_comment(self,data): self.output.append('<!--'+data+'-->')
-    parser=Formatter();parser.feed(html);parser.close();return ''.join(parser.output)
+    parser=Formatter();parser.feed(html);parser.close();return ''.join(parser.output)+('<style>@media(max-width:600px){[style*="--sci-position-x"]{translate:none!important;width:auto!important;height:auto!important;z-index:auto!important}}</style>' if positions else '')

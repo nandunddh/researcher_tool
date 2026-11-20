@@ -3773,10 +3773,24 @@ document.addEventListener("DOMContentLoaded", () => {
       grip.onkeydown=e=>{const delta={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];if(!delta)return;e.preventDefault();e.stopPropagation();item.x=clamp((Number(item.x)||0)+delta[0],95);item.y=clamp((Number(item.y)||0)+delta[1],95);node.style.left=item.x+'%';node.style.top=item.y+'%';studioRecord();};
     });
   }
+  const studioLayoutFields = [
+    ['content_width', '--studio-content-width', 1600, 'Content width'],
+    ['padding_tablet', '--studio-padding-tablet', 160, 'Tablet spacing'],
+    ['padding_mobile', '--studio-padding-mobile', 160, 'Mobile spacing'],
+  ];
   function studioSectionStyle(comp) {
     const style = comp.studio_style || {}, rules = [];
     for (const [key, css, max] of [['padding','padding',160],['radius','border-radius',80]]) {
-      if (style[key] !== undefined && style[key] !== '') rules.push(`${css}:${Math.min(max, Math.max(0, Number(style[key]) || 0))}px`);
+      if (style[key] !== undefined && style[key] !== '') {
+        const value = Math.min(max, Math.max(0, Number(style[key]) || 0));
+        rules.push(`${css}:${value}px`);
+        if (key === 'padding') rules.push(`--studio-padding-base:${value}px`);
+      }
+    }
+    for (const [key, property, limit] of studioLayoutFields) {
+      if (style[key] != null && style[key] !== '' && Number.isFinite(Number(style[key]))) {
+        rules.push(`${property}:${Math.max(key === 'content_width' ? 320 : 0, Math.min(limit, Number(style[key])))}px`);
+      }
     }
     if (/^#[0-9a-f]{6}$/i.test(style.background || '')) rules.push(`background:${style.background}`,`--studio-section-ink:${StudioFormatting.contrast(style.background)}`);
     const colors=style.gradient==='custom'?[style.background||'#ffffff',/^#[0-9a-f]{6}$/i.test(style.gradient_end||'')?style.gradient_end:'#dbeafe']:studioBackgroundThemes[style.gradient];
@@ -3787,7 +3801,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const style = comp.studio_style || {};
     return `<div class="inspector-card-group studio-appearance"><div class="inspector-group-title">Section appearance</div>
       <label>Section name<input class="inspector-input" value="${escapeHtml(comp.title || comp.type)}" oninput="updateStudioStyle('${comp.id}','title',this.value)"></label>
-      <label>Outer spacing (px)<input class="inspector-input" type="range" min="0" max="160" value="${Number(style.padding) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','padding',this.value)"><output>${style.padding === undefined || style.padding === '' ? 'Default' : Number(style.padding)+' px'}</output></label>
+      <label>Base spacing (px)<input class="inspector-input" type="range" min="0" max="160" value="${Number(style.padding) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','padding',this.value)"><output>${style.padding === undefined || style.padding === '' ? 'Default' : Number(style.padding)+' px'}</output></label>
+      <div class="studio-layout-fields">
+        ${studioLayoutFields.map(([key, , max, label]) =>
+          `<label>${label} (px)<input class="inspector-input" type="number" min="${key === 'content_width' ? 320 : 0}" max="${max}" placeholder="Auto" value="${style[key] != null && style[key] !== '' && Number.isFinite(Number(style[key])) ? Number(style[key]) : ''}" oninput="if(this.validity.valid)updateStudioStyle('${comp.id}','${key}',this.value)"></label>`
+        ).join('')}
+      </div>
       <label>Corner radius (px)<input class="inspector-input" type="range" min="0" max="80" value="${Number(style.radius) || 0}" oninput="this.nextElementSibling.textContent=this.value+' px'" onchange="updateStudioStyle('${comp.id}','radius',this.value)"><output>${style.radius === undefined || style.radius === '' ? 'Default' : Number(style.radius)+' px'}</output></label>
       <label>Background theme<select class="inspector-input" onchange="setStudioBackgroundTheme('${comp.id}',this.value)"><option value="">Solid color</option><option value="custom" ${style.gradient==='custom'?'selected':''}>Custom gradient</option>${Object.keys(studioBackgroundThemes).map(name=>`<option value="${name}" ${style.gradient===name?'selected':''}>${name[0].toUpperCase()+name.slice(1)} gradient</option>`).join('')}</select></label>
       ${style.gradient==='custom'?`<label>Second color<input class="inspector-input" type="color" value="${/^#[0-9a-f]{6}$/i.test(style.gradient_end||'')?style.gradient_end:'#dbeafe'}" oninput="updateStudioStyle('${comp.id}','gradient_end',this.value)"></label><label>Gradient angle<input type="range" min="0" max="360" value="${Number(style.gradient_angle)||135}" onchange="updateStudioStyle('${comp.id}','gradient_angle',this.value)"></label>`:''}
@@ -3811,7 +3830,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!studioDrag || !event.target.closest('#canvas-sections-list,#studio-layer-list')) return;
     event.preventDefault(); clearDropMark();
     const target = event.target.closest('[data-comp-id],[data-layer-id]');
-    if (target) target.classList.add(event.clientY > target.getBoundingClientRect().top + target.getBoundingClientRect().height / 2 ? 'studio-drop-after' : 'studio-drop-before');
+    if (target) {
+      const box = target.getBoundingClientRect();
+      const after = target.dataset.layerId
+        ? event.clientX > box.left + box.width / 2
+        : event.clientY > box.top + box.height / 2;
+      target.classList.add(after ? 'studio-drop-after' : 'studio-drop-before');
+    }
   });
   builderStudioView.addEventListener('drop', event => {
     if (!studioDrag || !event.target.closest('#canvas-sections-list,#studio-layer-list')) return;
@@ -3820,8 +3845,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const targetId = target?.dataset.compId || target?.dataset.layerId;
     const after = target?.classList.contains('studio-drop-after');
     clearDropMark();
-    let id = studioDrag.id;
-    if (studioDrag.type) { addNewComponent(studioDrag.type, studioDrag.variant); id = activeComponentId; }
+    if (studioDrag.type) {
+      const sections = currentSite.schema_json || [];
+      const index = sections.findIndex(section => section.id === targetId);
+      addNewComponent(studioDrag.type, studioDrag.variant, index < 0 ? sections.length : index + Number(Boolean(after)));
+      studioDrag = null;
+      return;
+    }
+    const id = studioDrag.id;
     if (id !== targetId) {
       const sections = currentSite.schema_json;
       const from = sections.findIndex(c => c.id === id);
@@ -3938,19 +3969,9 @@ document.addEventListener("DOMContentLoaded", () => {
       }
 
       renderCanvas();
-      if (window.setStudioViewMode) {
-        window.setStudioViewMode('edit');
-      } else if (window.switchRightPanelMode) {
-        window.switchRightPanelMode('preview');
-      }
-      if (window.studioCurrentViewMode === 'preview' && window.showStudioComponentPreview) {
-        window.showStudioComponentPreview('navbar', 'business');
-      }
-      const initialPaletteCard = document.querySelector('.btn-add-comp[data-type="navbar"][data-variant="business"]');
-      if (initialPaletteCard) {
-        document.querySelectorAll('.btn-add-comp').forEach(b => b.classList.remove('palette-preview-active'));
-        initialPaletteCard.classList.add('palette-preview-active');
-      }
+      window.studioActivePreviewType = 'navbar';
+      window.studioActivePreviewVariant = 'business';
+      window.setStudioViewMode('preview');
       showToast(`Editing: ${currentSite.name}`, "success");
     } catch (e) {
       showToast(`Studio error: ${e.message}`, "error");
@@ -4046,10 +4067,27 @@ document.addEventListener("DOMContentLoaded", () => {
       </div>
     `;
     advanced.innerHTML = `<p class="studio-settings-help">Section visibility</p><label class="studio-setting-check"><input type="checkbox" ${comp.hidden ? 'checked' : ''}> Hide on the website</label><p class="studio-settings-help">Hidden sections remain in the outline and can be restored.</p><button type="button" class="studio-reset-style">Reset section appearance</button>`;
-    advanced.querySelector('input').onchange = event => {
+    const positionControls = document.createElement('div');
+    const sections = currentSite.schema_json;
+    for (const [label, destination] of [['Move to top', 0], ['Move to bottom', sections.length - 1]]) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn-sec-tool';
+      button.textContent = label;
+      button.disabled = sections.indexOf(comp) === destination;
+      button.onclick = () => {
+        const index = sections.findIndex(section => section.id === comp.id);
+        if (index < 0) return;
+        window.moveComponent(comp.id, destination - index);
+        selectComponentForEditing(comp.id);
+      };
+      positionControls.append(button);
+    }
+    advanced.append(positionControls);
+    advanced.querySelector('input[type=checkbox]').onchange = event => {
       comp.hidden = event.target.checked; renderCanvas(); renderInspector(comp);
     };
-    advanced.querySelector('button').onclick = async () => {
+    advanced.querySelector('.studio-reset-style').onclick = async () => {
       const ok = await window.showStudioConfirm({
         type: 'warning',
         title: 'Reset Section Styling?',
@@ -4066,7 +4104,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
   const studioLibrary = document.createElement('dialog');
   studioLibrary.className = 'studio-library-dialog';
-  studioLibrary.innerHTML = `<div class="studio-library-heading"><div><span class="studio-library-eyebrow">BUILD YOUR PAGE</span><h2>Add a section</h2><p>Choose a starting point. Make it yours on the canvas.</p></div><button type="button" class="studio-library-close" aria-label="Close section library">×</button></div><input type="search" class="studio-library-filter" aria-label="Search section library" placeholder="Search sections…"><div class="studio-library-cards"></div>`;
+  studioLibrary.innerHTML = `<div class="studio-library-heading"><div><h2>Add a section</h2></div><button type="button" class="studio-library-close" aria-label="Close section library">×</button></div><input type="search" class="studio-library-filter" aria-label="Search section library" placeholder="Search sections…"><div class="studio-library-cards"></div>`;
   document.body.append(studioLibrary);
   studioLibrary.querySelector('.studio-library-close').onclick = () => studioLibrary.close();
   studioLibrary.addEventListener('click', event => { if (event.target === studioLibrary) { const r=studioLibrary.getBoundingClientRect(); if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom) studioLibrary.close(); } });
@@ -4113,12 +4151,13 @@ document.addEventListener("DOMContentLoaded", () => {
       const button = document.createElement('button'); button.type='button'; button.dataset.libraryType=source.dataset.type;
       const title=source.querySelector('.comp-title')?.textContent || source.dataset.type;
       const description=source.querySelector('.comp-desc')?.textContent || '';
-      const visual = source.dataset.type === 'hero' ? 'split' : ['gallery','speakers','pricing'].includes(source.dataset.type) ? 'grid' : 'list';
+      const { type, variant } = source.dataset;
+      const visual = type === 'navbar' ? `nav-${variant}` : variant || (['gallery','speakers','pricing'].includes(type) ? 'grid' : 'list');
       button.innerHTML=studioMiniature(visual)+`<strong>${escapeHtml(title)}</strong><span>${escapeHtml(description)}</span>`;
       button.onclick=() => {
-        addNewComponent(source.dataset.type);
-        const sections=currentSite.schema_json; const index=sections.findIndex(c=>c.id===studioInsertBefore);
-        if(index>=0) { const inserted=sections.pop(); sections.splice(index,0,inserted); renderCanvas(); }
+        const sections = currentSite.schema_json || [];
+        const index = sections.findIndex(section => section.id === studioInsertBefore);
+        addNewComponent(source.dataset.type, source.dataset.variant, index < 0 ? sections.length : index);
         studioLibrary.close(); selectComponentForEditing(activeComponentId);
       };
       cards.append(button);
@@ -4127,6 +4166,17 @@ document.addEventListener("DOMContentLoaded", () => {
     studioLibrary.querySelector('input').focus();
   };
   document.getElementById('studio-zoom').addEventListener('change',fitStudioCanvas);
+  const studioCompact = matchMedia('(max-width: 800px)');
+  function hideOtherStudioPanel(openSide) {
+    if (!studioCompact.matches) return;
+    const other = openSide === 'left' ? 'right' : 'left';
+    builderStudioView.classList.add('studio-' + other + '-hidden');
+    document.getElementById('studio-' + other + '-toggle').setAttribute('aria-pressed', 'false');
+  }
+  studioCompact.addEventListener('change', () => {
+    if (studioCompact.matches) hideOtherStudioPanel('left');
+    requestAnimationFrame(fitStudioCanvas);
+  });
   for (const [id,cls] of [['studio-left-toggle','studio-left-hidden'],['studio-right-toggle','studio-right-hidden']]) {
     document.getElementById(id).onclick=event=>{
       builderStudioView.classList.remove('studio-panels-hidden');
@@ -4136,7 +4186,8 @@ document.addEventListener("DOMContentLoaded", () => {
       if(openingInspector) window.setStudioViewMode('edit');
       const hidden=openingInspector ? (builderStudioView.classList.remove(cls),false) : builderStudioView.classList.toggle(cls);
       event.currentTarget.setAttribute('aria-pressed',String(!hidden));
-      saveStudioPanels();
+      if (!hidden) hideOtherStudioPanel(id === 'studio-left-toggle' ? 'left' : 'right');
+      if (!studioCompact.matches) saveStudioPanels();
       requestAnimationFrame(fitStudioCanvas);
     };
   }
@@ -4244,6 +4295,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById(id).setAttribute('aria-pressed',String(!panels[side]));
     }
   } catch (_) {}
+  hideOtherStudioPanel('left');
   function openStudioQuick(comp,path,node,kind='text') {
     const linkKeys={primary_btn_text:'primary_btn_url',secondary_btn_text:'secondary_btn_url',cta_label:'cta_url',btn_label:'btn_url'};
     const linkKey=kind==='text'?(comp.type==='content'&&comp.data.nodes?.[Number(path[1])]?.kind==='button'?'url':linkKeys[path.at(-1)]):null;
@@ -4314,6 +4366,68 @@ document.addEventListener("DOMContentLoaded", () => {
   builderCanvasFrame.parentElement.addEventListener('scroll',closeStudioQuick);
 
   // Find unambiguous leaf text fields; editing never rewrites a section's HTML.
+  let studioMoveItems=false;
+  const moveItemsButton=document.createElement('button');moveItemsButton.type='button';moveItemsButton.className='btn-studio-action';moveItemsButton.textContent='Move items';moveItemsButton.setAttribute('aria-pressed','false');
+  moveItemsButton.onclick=()=>{studioMoveItems=!studioMoveItems;moveItemsButton.setAttribute('aria-pressed',String(studioMoveItems));builderStudioView.classList.toggle('studio-move-items',studioMoveItems);studioQuick.hidden=true;if(!studioMoveItems)positionPanel.hidden=true;showToast(studioMoveItems?'Drag text, buttons or images. Arrow keys nudge; Home resets. Mobile keeps normal flow.':'Text editing enabled.','success');};
+  document.querySelector('.studio-panel-toggles')?.append(moveItemsButton);
+  const positionPanel=document.createElement('div');positionPanel.className='studio-position-panel';positionPanel.hidden=true;document.body.append(positionPanel);
+  let positionSelection=null,positionSnap=false;
+  function showPositionPanel(comp,key,target){
+    positionSelection={comp,key,target};const p=comp.item_positions?.[key]||{x:0,y:0};
+    positionPanel.hidden=false;positionPanel.innerHTML=`<header><strong>Layout & position</strong><button type="button" data-pos-close aria-label="Close position controls">×</button></header><p>${comp.type==='navbar'&&target.dataset.navItem?'Navigation flow: drag left/right to reorder':'Free position · overlapping allowed · desktop/tablet'}</p>${comp.type==='navbar'&&target.dataset.navItem?`<label>Layout mode<select data-nav-flow><option value="flow" ${comp.data.nav_flow!==false?'selected':''}>Flow — make space</option><option value="free" ${comp.data.nav_flow===false?'selected':''}>Free — allow overlap</option></select></label>`:''}<div class="position-fields">${[['x','X offset'],['y','Y offset'],['width','Width'],['height','Height'],['z','Layer']].map(([k,label])=>`<label>${label}<input type="number" data-pos="${k}" value="${Number.isFinite(p[k])?p[k]:k==='x'||k==='y'||k==='z'?0:''}" placeholder="Auto" min="${k==='x'||k==='y'?-2000:k==='z'?0:1}" max="${k==='z'?100:2000}"></label>`).join('')}</div><label><input type="checkbox" data-pos-snap ${positionSnap?'checked':''}> Snap to 8px grid</label><div class="position-actions"><button data-pos-layer="back">Send to back</button><button data-pos-layer="down">Backward</button><button data-pos-layer="up">Forward</button><button data-pos-layer="front">Bring to front</button><button data-pos-reset>Reset layout</button></div><small>Blank sizes use Auto. Offsets do not reflow neighbors. Mobile resets positioning.</small>`;
+    const flowSelect=positionPanel.querySelector('[data-nav-flow]');if(flowSelect)flowSelect.onchange=()=>{comp.data.nav_flow=flowSelect.value==='flow';positionPanel.hidden=true;renderCanvas();studioRecord();};
+    positionPanel.querySelector('[data-pos-close]').onclick=()=>{positionPanel.hidden=true;};
+    positionPanel.querySelector('[data-pos-snap]').onchange=e=>{positionSnap=e.target.checked;};
+    const update=patch=>{comp.item_positions||={};comp.item_positions[key]={...p,...patch};renderCanvas();studioRecord();const fresh=[...canvasSectionsList.querySelectorAll('[data-studio-format-key]')].find(n=>n.dataset.studioFormatKey===key&&n.closest('[data-comp-id]')?.dataset.compId===comp.id);if(fresh)showPositionPanel(comp,key,fresh.closest('a,button')||fresh);};
+    if(flowSelect&&comp.data.nav_flow!==false)positionPanel.querySelectorAll('[data-pos], [data-pos-layer], [data-pos-snap]').forEach(input=>input.disabled=true);
+    positionPanel.querySelectorAll('[data-pos]').forEach(input=>input.onchange=()=>{const k=input.dataset.pos,v=input.value===''?undefined:Number(input.value);if(v!==undefined&&!Number.isFinite(v))return;update({[k]:v===undefined?undefined:Math.max(k==='x'||k==='y'?-2000:k==='z'?0:1,Math.min(k==='z'?100:2000,v))});});
+    positionPanel.querySelectorAll('[data-pos-layer]').forEach(button=>button.onclick=()=>{const levels=Object.values(comp.item_positions||{}).map(v=>Number(v.z)||0),z=Number(p.z)||0;update({z:button.dataset.posLayer==='front'?Math.min(100,Math.max(0,...levels)+1):button.dataset.posLayer==='back'?0:Math.max(0,Math.min(100,z+(button.dataset.posLayer==='up'?1:-1)))});});
+    positionPanel.querySelector('[data-pos-reset]').onclick=()=>update({x:0,y:0,width:undefined,height:undefined,z:0});
+  }
+  function wireNavbarFlow(){
+    canvasSectionsList.querySelectorAll('[data-nav-item]').forEach(target=>{
+      const wrapper=target.closest('[data-comp-id]'),comp=currentSite.schema_json.find(c=>c.id===wrapper.dataset.compId);
+      target.addEventListener('pointerdown',event=>{
+        if(!studioMoveItems||event.button!==0||comp.data.nav_flow===false)return;
+        event.preventDefault();event.stopImmediatePropagation();positionPanel.hidden=true;target.focus();target.setPointerCapture(event.pointerId);
+        const row=target.parentElement,original=[...row.children],startX=event.clientX;let moved=false;
+        const move=e=>{if(Math.abs(e.clientX-startX)<5&&!moved)return;moved=true;target.classList.add('studio-nav-moving');const siblings=[...row.children].filter(n=>n!==target);const before=siblings.find(n=>e.clientX<n.getBoundingClientRect().left+n.getBoundingClientRect().width/2);row.insertBefore(target,before||null);};
+        const finish=e=>{target.removeEventListener('pointermove',move);target.removeEventListener('pointerup',finish);target.removeEventListener('pointercancel',cancel);target.classList.remove('studio-nav-moving');if(target.hasPointerCapture(event.pointerId))target.releasePointerCapture(event.pointerId);if(moved){comp.data.nav_order=[...row.children].map(n=>n.dataset.navItem);comp.data.nav_flow=true;renderCanvas();studioRecord();}else showPositionPanel(comp,target.dataset.studioFormatKey||JSON.stringify(target.dataset.navItem==='cta'?['cta_label']:['links',target.dataset.navItem.slice(5),'label']),target);};
+        const cancel=()=>{original.forEach(n=>row.append(n));target.removeEventListener('pointermove',move);target.removeEventListener('pointerup',finish);target.removeEventListener('pointercancel',cancel);target.classList.remove('studio-nav-moving');};
+        target.addEventListener('pointermove',move);target.addEventListener('pointerup',finish);target.addEventListener('pointercancel',cancel);
+      },true);
+    });
+  }
+  function wireStudioFreePosition(){
+    canvasSectionsList.querySelectorAll('[data-studio-format-key]').forEach(node=>{
+      const wrapper=node.closest('[data-comp-id]'),comp=currentSite.schema_json.find(c=>c.id===wrapper?.dataset.compId),key=node.dataset.studioFormatKey;if(!comp)return;
+      const target=node.closest('a,button')||node;const position=comp.item_positions?.[key];
+      const apply=(x,y)=>{target.style.setProperty('--studio-item-x',x+'px');target.style.setProperty('--studio-item-y',y+'px');target.classList.add('studio-positioned-item');};
+      if(position && !(target.dataset.navItem && comp.data.nav_flow!==false)){apply(position.x||0,position.y||0);target.style.zIndex=String(position.z||0);for(const dimension of ['width','height'])if(Number.isFinite(position[dimension])){target.style[dimension]=position[dimension]+'px';target.style.boxSizing='border-box';target.style.display='inline-block';}}
+
+      target.tabIndex=0;
+      target.addEventListener('click',event=>{if(studioMoveItems){event.preventDefault();event.stopImmediatePropagation();showPositionPanel(comp,key,target);}},true);
+      target.addEventListener('dblclick',event=>{if(studioMoveItems){event.preventDefault();event.stopImmediatePropagation();}},true);
+      target.addEventListener('pointerdown',event=>{
+        if(target.dataset.navItem && comp.data.nav_flow!==false)return;
+        if(!studioMoveItems||event.button!==0||builderCanvasFrame.classList.contains('mobile-view'))return;
+        event.preventDefault();event.stopImmediatePropagation();showPositionPanel(comp,key,target);target.focus();target.setPointerCapture(event.pointerId);
+        const start=comp.item_positions?.[key]||{x:0,y:0},rect=target.getBoundingClientRect(),bounds=wrapper.getBoundingClientRect(),scale=wrapper.getBoundingClientRect().width/wrapper.offsetWidth||1,sx=event.clientX,sy=event.clientY;
+        let x=start.x,y=start.y;
+        const move=e=>{x=Math.round(start.x+Math.max(bounds.left-rect.left,Math.min(bounds.right-rect.right,e.clientX-sx))/scale);y=Math.round(start.y+Math.max(bounds.top-rect.top,Math.min(bounds.bottom-rect.bottom,e.clientY-sy))/scale);if(positionSnap){x=Math.round(x/8)*8;y=Math.round(y/8)*8;}apply(x,y);};
+        const end=e=>{target.removeEventListener('pointermove',move);target.removeEventListener('pointerup',end);target.removeEventListener('pointercancel',cancel);if(target.hasPointerCapture(event.pointerId))target.releasePointerCapture(event.pointerId);comp.item_positions||={};comp.item_positions[key]={...start,x,y};studioRecord();showPositionPanel(comp,key,target);};
+        const cancel=()=>{apply(start.x,start.y);target.removeEventListener('pointermove',move);target.removeEventListener('pointerup',end);target.removeEventListener('pointercancel',cancel);};
+        target.addEventListener('pointermove',move);target.addEventListener('pointerup',end);target.addEventListener('pointercancel',cancel);
+      },true);
+      target.addEventListener('keydown',event=>{
+        if(target.dataset.navItem && comp.data.nav_flow!==false)return;
+        if(!studioMoveItems||builderCanvasFrame.classList.contains('mobile-view')||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home'].includes(event.key))return;
+        event.preventDefault();event.stopImmediatePropagation();comp.item_positions||={};const pos=comp.item_positions[key]||{x:0,y:0},step=event.shiftKey?10:1;
+        const x=event.key==='Home'?0:pos.x+(event.key==='ArrowRight'?step:event.key==='ArrowLeft'?-step:0),y=event.key==='Home'?0:pos.y+(event.key==='ArrowDown'?step:event.key==='ArrowUp'?-step:0);
+        comp.item_positions[key]={...pos,x:Math.max(-2000,Math.min(2000,x)),y:Math.max(-2000,Math.min(2000,y))};apply(comp.item_positions[key].x,comp.item_positions[key].y);studioRecord();showPositionPanel(comp,key,target);
+      },true);
+    });
+  }
   function wireStudioInlineEditing() {
     canvasSectionsList.querySelectorAll('[data-comp-id]').forEach(wrapper=>{
       const comp=currentSite.schema_json.find(c=>c.id===wrapper.dataset.compId); if(!comp || comp.hidden) return;
@@ -4482,13 +4596,16 @@ document.addEventListener("DOMContentLoaded", () => {
   // Publish Site Live
   if (btnStudioPublish) {
     btnStudioPublish.addEventListener("click", async () => {
-      if (!currentSite) return;
+      if (!currentSite || btnStudioPublish.disabled) return;
+      const publishingSite = currentSite;
+      btnStudioPublish.disabled = true;
       try {
-        if (!await saveSiteDraft(true)) return;
-        const res = await fetch(`/api/builder/sites/${currentSite.site_id}/publish`, { method: "POST" });
+        if (!await saveSiteDraft(true) || currentSite !== publishingSite) return;
+        const res = await fetch(`/api/builder/sites/${encodeURIComponent(publishingSite.site_id)}/publish`, { method: "POST" });
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Publish failed");
-        currentSite.status = "published";
+        publishingSite.status = "published";
+        if (currentSite !== publishingSite) return;
         if (studioSiteStatus) {
           studioSiteStatus.textContent = "Published";
           studioSiteStatus.className = "site-status-badge published";
@@ -4496,6 +4613,8 @@ document.addEventListener("DOMContentLoaded", () => {
         showToast("🚀 Website is LIVE and accessible to the public!", "success");
       } catch (e) {
         showToast(`Publish error: ${e.message}`, "error");
+      } finally {
+        btnStudioPublish.disabled = false;
       }
     });
   }
@@ -4535,6 +4654,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const isPreview = (mode === 'preview');
     const isSeo = (mode === 'seo');
     document.body.classList.toggle('studio-preview-mode', isPreview);
+    if (isPreview) {
+      builderStudioView.classList.remove('studio-left-hidden', 'studio-panels-hidden');
+      builderStudioView.classList.add('studio-right-hidden');
+      document.getElementById('studio-left-toggle').setAttribute('aria-pressed', 'true');
+      document.getElementById('studio-right-toggle').setAttribute('aria-pressed', 'false');
+      const focus = document.getElementById('studio-toggle-panels');
+      focus.setAttribute('aria-pressed', 'false');
+      focus.textContent = 'Focus mode';
+      requestAnimationFrame(fitStudioCanvas);
+    }
     const btnPreviewMode = document.getElementById('btn-mode-add-preview');
     const btnEditMode = document.getElementById('btn-mode-edit-blocks');
     const btnSeoMode = document.getElementById('btn-mode-seo-top');
@@ -4622,6 +4751,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.classList.remove('studio-preview-mode');
       window.studioCurrentViewMode=mode==='seo'?'seo':'edit';
       builderStudioView.classList.remove('studio-right-hidden','studio-panels-hidden');
+      hideOtherStudioPanel('right');
       document.getElementById('studio-right-toggle')?.setAttribute('aria-pressed','true');
       document.getElementById('studio-toggle-panels')?.setAttribute('aria-pressed','false');
       document.getElementById('studio-toggle-panels').textContent='Focus mode';
@@ -4969,7 +5099,7 @@ document.addEventListener("DOMContentLoaded", () => {
         titleCount.style.color = (val || '').length > 60 ? '#ef4444' : '#64748b';
       }
     } else if (field === 'meta_description') {
-      if (liveDesc) liveDesc.textContent = val || 'Join leading researchers, faculty, and industry pioneers for groundbreaking discoveries.';
+      if (liveDesc) liveDesc.textContent = val || 'Explore new research through keynote talks, scientific sessions, and poster presentations.';
       if (descCount) {
         descCount.textContent = `${(val || '').length} / 160`;
         descCount.style.color = (val || '').length > 160 ? '#ef4444' : '#64748b';
@@ -5124,7 +5254,7 @@ document.addEventListener("DOMContentLoaded", () => {
           { label: 'Pricing', url: '#pricing' },
           { label: 'Contact', url: '#contact' }
         ],
-        cta_label: v === 'product' ? 'Start Free' : (v === 'services' ? 'Book Consultation' : (v === 'editorial' ? 'Subscribe' : 'Register Now')),
+        cta_label: 'Register',
         cta_link: '#pricing'
       };
     } else if (type === 'image') {
@@ -5221,22 +5351,22 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (type === "speakers") {
       compData = {
         section_tag: "FACULTY",
-        section_title: "Distinguished Keynote Speakers",
-        section_subtitle: "Pioneering faculty and principal investigators presenting revolutionary work.",
+        section_title: "Keynote speakers",
+        section_subtitle: "Meet the researchers presenting keynote talks.",
         speakers: [
           {
-            name: "Prof. Elena Rostova",
+            name: "Speaker name",
             role: "Chief Scientist & Chair",
-            affiliation: "Oxford Genomic Technologies",
+            affiliation: "Institution",
             photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
-            bio: "Leader in next-generation single-cell analysis and clinical genomics."
+            bio: "Add the speaker’s biography."
           },
           {
-            name: "Dr. Marcus Vance",
+            name: "Speaker name",
             role: "Director of Research",
-            affiliation: "Stanford Research Institute",
+            affiliation: "Institution",
             photo: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&auto=format&fit=crop&q=80",
-            bio: "Principal Investigator on ongoing NIH-funded translational programs."
+            bio: "Add the speaker’s biography."
           }
         ]
       };
@@ -5428,7 +5558,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const canvasContent = document.getElementById('studio-canvas-preview-content');
       const deckTitle = document.getElementById('canvas-deck-title');
       const deckVariant = document.getElementById('canvas-deck-variant');
-      const canvasAddText = document.getElementById('canvas-preview-add-text');
+      const canvasAddButton = canvasDeck?.querySelector('.btn-canvas-preview-add');
       const btnCanvasRemove = document.getElementById('btn-canvas-preview-remove');
 
       if (canvasDeck && canvasContent) {
@@ -5439,8 +5569,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         canvasContent.innerHTML = previewHtml;
 
-        if (canvasAddText) {
-          canvasAddText.textContent = countOnPage > 0 ? `+ Add another section (${countOnPage} on page)` : `+ Add this section to page`;
+        if (canvasAddButton) {
+          const label = `Add ${typeMeta.name} to page`;
+          canvasAddButton.setAttribute('aria-label', label);
+          canvasAddButton.title = countOnPage ? `${label} (${countOnPage} already on page)` : label;
         }
         if (btnCanvasRemove) {
           btnCanvasRemove.style.display = countOnPage > 0 ? 'inline-flex' : 'none';
@@ -5477,7 +5609,7 @@ document.addEventListener("DOMContentLoaded", () => {
               </div>
             ` : ''}
 
-            <button type="button" class="btn-studio-add-now" onclick="addNewComponent('${type}','${curVariant}')">
+            <button type="button" class="btn-studio-add-now" onclick="addStudioSection('${type}','${curVariant}')">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               <span>+ Add this section to page</span>
             </button>
@@ -5506,7 +5638,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <div style="padding: 2rem; text-align: center; color: #64748b; background: #fff;">
             <p style="font-weight: 700; color: #0f172a; margin: 0 0 0.5rem;">Preview unavailable for ${escapeHtml(type)}</p>
             <p style="font-size: 0.9rem; margin: 0 0 1rem;">${escapeHtml(err.message || 'Error compiling sample preview')}</p>
-            <button type="button" class="btn-palette-add-active" style="display:inline-flex; width:auto;" onclick="addNewComponent('${type}','${variant || ''}')">+ Add this section to page</button>
+            <button type="button" class="btn-palette-add-active" style="display:inline-flex; width:auto;" onclick="addStudioSection('${type}','${variant || ''}')">+ Add this section to page</button>
           </div>
         `;
       }
@@ -5535,7 +5667,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
+  function wirePaletteAdd(card) {
+    const row = document.createElement('div');
+    row.className = 'studio-palette-item';
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'studio-palette-add';
+    add.textContent = '+ Add';
+    const name = card.querySelector('.comp-title').textContent.trim();
+    add.setAttribute('aria-label', `Add ${name} to page`);
+    add.addEventListener('click', event => {
+      if (event.detail > 1) return;
+      addNewComponent(card.dataset.type, card.dataset.variant);
+    });
+    card.replaceWith(row);
+    row.append(card, add);
+  }
+
   document.querySelectorAll(".btn-add-comp").forEach(btn => {
+    wirePaletteAdd(btn);
     btn.addEventListener("mouseenter", () => {
       const type = btn.getAttribute("data-type");
       const variant = btn.getAttribute("data-variant");
@@ -5566,7 +5716,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
-  function addNewComponent(type, variant = null) {
+  function addNewComponent(type, variant = null, insertionIndex = null) {
     if (!currentSite) return;
     if (!currentSite.schema_json) currentSite.schema_json = [];
 
@@ -5594,8 +5744,8 @@ document.addEventListener("DOMContentLoaded", () => {
       compData = { image_url: '', caption: '' };
     } else if (type === 'announcement') {
       compData = {
-        section_title: '📢 Important Update: Call for Submissions Open',
-        section_subtitle: 'Deadlines, session tracks, and speaker registration are now live.',
+        section_title: 'Call for abstracts',
+        section_subtitle: 'Review submission guidelines and deadlines.',
         link_text: 'Learn More →',
         link_url: '#pricing'
       };
@@ -5618,20 +5768,19 @@ document.addEventListener("DOMContentLoaded", () => {
       const heroVar = ['split', 'conference_program', 'centered', 'image_left', 'image_top', 'text_only'].includes(variant) ? variant : 'split';
       compData = {
         layout_variant: heroVar,
-        eyebrow: "🌟 NEW HIGHLIGHT 2026",
-        headline: "Innovative Research & Outreach",
+        eyebrow: "SCIENTIFIC CONFERENCE",
+        headline: currentSite.name || "Scientific Research Conference",
         headline_gradient: true,
-        gradient_preset: "cyan_blue",
         subheadline: "Join leading researchers, faculty, and industry pioneers for groundbreaking discoveries.",
-        primary_btn_text: "Register Today",
-        primary_btn_url: "#contact",
-        primary_btn_style: "gradient",
-        primary_btn_radius: "pill",
+        primary_btn_text: "Register",
+        primary_btn_url: "#pricing",
+        primary_btn_style: "solid",
+        primary_btn_radius: "rounded",
         secondary_btn_text: "Explore Tracks",
         secondary_btn_url: "#features",
         hero_image: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?w=900&auto=format&fit=crop&q=80",
         hero_image_radius: "14px",
-        hero_image_shadow: "deep",
+        hero_image_shadow: "none",
         hero_image_aspect: "16/9"
       };
     } else if (type === "features") {
@@ -5648,22 +5797,22 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (type === "speakers") {
       compData = {
         section_tag: "FACULTY",
-        section_title: "Distinguished Keynote Speakers",
-        section_subtitle: "Pioneering faculty and principal investigators presenting revolutionary work.",
+        section_title: "Keynote speakers",
+        section_subtitle: "Meet the researchers presenting keynote talks.",
         speakers: [
           {
-            name: "Prof. Elena Rostova",
-            role: "Chief Scientist & Chair",
-            affiliation: "Oxford Genomic Technologies",
+            name: "Speaker name",
+            role: "Keynote speaker",
+            affiliation: "Institution",
             photo: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=400&auto=format&fit=crop&q=80",
-            bio: "Leader in next-generation single-cell analysis and clinical genomics."
+            bio: "Add the speaker’s biography."
           },
           {
-            name: "Dr. Marcus Vance",
-            role: "Director of Research",
-            affiliation: "Stanford Research Institute",
+            name: "Speaker name",
+            role: "Invited speaker",
+            affiliation: "Institution",
             photo: "https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=400&auto=format&fit=crop&q=80",
-            bio: "Principal Investigator on ongoing NIH-funded translational programs."
+            bio: "Add the speaker’s biography."
           }
         ]
       };
@@ -5743,7 +5892,9 @@ document.addEventListener("DOMContentLoaded", () => {
       data: compData
     };
 
-    if (type === 'navbar') {
+    if (insertionIndex !== null) {
+      currentSite.schema_json.splice(insertionIndex, 0, newComp);
+    } else if (type === 'navbar') {
       currentSite.schema_json.unshift(newComp);
     } else {
       currentSite.schema_json.push(newComp);
@@ -5755,6 +5906,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
     showToast(`Added ${type === 'navbar' ? 'Navigation Bar' : type} section`, "success");
   }
+
+  window.addStudioSection = addNewComponent;
 
   // RENDER CANVAS WITH DYNAMIC HIGH-CONTRAST LIGHT & DARK MODES
   function renderCanvas() {
@@ -5782,11 +5935,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (comps.length === 0) {
       canvasSectionsList.innerHTML = `
-        <div class="studio-empty-canvas" style="text-align: center; padding: 4.5rem 1.5rem; background: #ffffff !important; border-radius: 14px; border: 2px dashed #cbd5e1; margin: 2rem auto; max-width: 620px; box-shadow: 0 4px 20px rgba(0,0,0,0.03);">
-          <span style="font-size: 2.75rem; display:block; margin-bottom: 0.6rem;">🎨</span>
-          <h3 style="color: #0f172a !important; margin-bottom: 0.4rem; font-weight: 700; font-size: 1.25rem;">Canvas is Empty</h3>
-          <p style="color: #64748b !important; margin-bottom: 1.25rem; font-size: 0.95rem;">Choose a section from the left library or hover any component to preview it on the right.</p>
-          <button type="button" class="studio-add-open" onclick="openStudioLibrary()" style="display:inline-flex; align-items:center; gap:0.5rem; background:#5b50d6; color:#fff; border:none; padding:0.65rem 1.3rem; border-radius:8px; font-weight:600; cursor:pointer;">+ Add your first section</button>
+        <div class="studio-empty-canvas">
+          <h3>Build your first page section</h3>
+          <p>Choose a layout or insert one of your saved sections.</p>
+          <button type="button" class="studio-add-open" onclick="openStudioLibrary()">Browse components</button>
         </div>
       `;
       updateComponentPaletteStatus();
@@ -5800,13 +5952,15 @@ document.addEventListener("DOMContentLoaded", () => {
         <div class="canvas-section-wrapper ${comp.type === 'navbar' ? 'studio-navbar-section' : ''} ${comp.hidden ? 'studio-section-hidden' : ''} ${isSelected ? 'active-editing' : ''}" data-comp-id="${comp.id}" onclick="selectComponentForEditing('${comp.id}')">
           ${comp.hidden ? '' : studioElementsMarkup(comp)}
           <!-- Section Render -->
-          <div class="section-preview-render ${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?'studio-contrast-section':''}" style="pointer-events:none;${studioSectionStyle(comp)}">
+          <div class="section-preview-render studio-responsive-section ${/^#[0-9a-f]{6}$/i.test(comp.studio_style?.background||'')?'studio-contrast-section':''}" style="pointer-events:none;${studioSectionStyle(comp)}">
             ${comp.hidden ? '<div class="studio-hidden-notice">Hidden section · Select Advanced to restore</div>' : renderComponentHTML(comp, primary)}
           </div>
         </div>
       `;
     }).join("") + '<div class="studio-insert-line last"><button type="button" onclick="openStudioLibrary()">+ Add section</button></div>';
     wireStudioInlineEditing();
+    wireNavbarFlow();
+    wireStudioFreePosition();
     wireStudioElementDragging();
     wireNativeElements();
     updateComponentPaletteStatus();
@@ -5837,8 +5991,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const cardBg = isLight ? "#ffffff" : "rgba(255, 255, 255, 0.04)";
     const cardBorder = isLight ? "#e2e8f0" : "rgba(255, 255, 255, 0.08)";
     const cardShadow = isLight ? "0 4px 16px rgba(0, 0, 0, 0.06)" : "none";
-    const navBorder = isLight ? "#e2e8f0" : "rgba(255, 255, 255, 0.08)";
-    const navBg = isLight ? "rgba(255, 255, 255, 0.95)" : "rgba(11, 15, 25, 0.9)";
+
+
 
     if (t === "announcement") {
       const bannerBg = d.bg_color || (isLight ? "linear-gradient(90deg, #eff6ff 0%, #f5f3ff 100%)" : "linear-gradient(90deg, #1e1b4b 0%, #0f172a 100%)");
@@ -5864,14 +6018,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
     if (t === "navbar") {
       const libraryVariant=['business','portfolio','services','product','editorial'].includes(d.layout_variant)?d.layout_variant:'business';
-      const links = (d.links || []).map(l => `<a href="#" style="color:${isLight ? '#334155' : '#cbd5e1'};font-size:0.88rem;margin-right:1.25rem;font-weight:500;${l.style==='button'?`background:${primary};padding:0.5rem 0.9rem;border-radius:6px;color:${StudioFormatting.contrast(primary)};`:''}">${escapeHtml(l.label)}</a>`).join("");
+      const links = (d.links || []).map((l,i) => `<a data-nav-item="link-${i}" class="${l.style === 'button' ? 'btn-nav' : 'nav-link'}" href="#">${escapeHtml(l.label)}</a>`).join("");
+      const navItems=Array.from((d.links||[]).keys()).map(i=>'link-'+i).concat('cta');
+      const order=[...new Set([...(Array.isArray(d.nav_order)?d.nav_order:[]),...navItems])].filter(k=>navItems.includes(k));
+      const template=document.createElement('template');template.innerHTML=links+`<span data-nav-item="cta" class="btn-nav">${escapeHtml(d.cta_label||'Register')}</span>`;
+      const orderedLinks=order.map(k=>[...template.content.children].find(n=>n.dataset.navItem===k)?.outerHTML||'').join('');
       return `
-        <div class="editor-library-nav library-nav-${libraryVariant}" style="padding:1rem 1.5rem;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${navBorder};background:${navBg};">
-          <div style="font-weight:800;color:${textTitle};font-size:1.2rem;display:flex;align-items:center;gap:0.5rem;">
+        <div class="editor-library-nav library-nav-${libraryVariant}" data-studio-nav style="--nav-primary:${primary};--nav-accent:${accent};--nav-ink:${textTitle};--nav-surface:${isLight ? '#fff' : '#131b2e'}">
+          <div class="nav-inner">
+          <div class="nav-brand">
             ${d.brand_mode !== 'text' && d.logo_url && /^(https?:\/\/|\/(?!\/)|data:image\/(?:png|jpeg|webp|gif);base64,)/.test(d.logo_url) ? `<img src="${escapeHtml(d.logo_url)}" alt="${escapeHtml(d.logo_alt || d.brand_name || 'Logo')}" style="height:${Math.min(120,Math.max(20,Number(d.logo_height)||40))}px;width:auto;max-width:240px;object-fit:contain;">` : d.brand_mode === 'image' ? `<button type="button" style="pointer-events:auto" class="btn-sec-tool" onclick="event.stopPropagation();chooseStudioImage('${comp.id}','logo_url')">+ Logo</button>` : ''}
             ${(d.brand_mode || (d.logo_url ? 'image' : 'text')) === 'text' ? `<span>${escapeHtml(d.brand_name || 'Brand')}</span>` : ''}
           </div>
-          <div>${links} <span style="background:${primary};color:#fff;padding:0.45rem 1rem;border-radius:6px;font-size:0.85rem;font-weight:700;">${escapeHtml(d.cta_label || 'Register')}</span></div>
+          <div class="studio-nav-flow nav-links">${orderedLinks}</div>
+          </div>
         </div>
       `;
     } else if (t === "hero") {
@@ -6155,9 +6315,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const targetIdx = idx + dir;
     if (targetIdx < 0 || targetIdx >= comps.length) return;
 
-    const temp = comps[idx];
-    comps[idx] = comps[targetIdx];
-    comps[targetIdx] = temp;
+    const [section] = comps.splice(idx, 1);
+    comps.splice(targetIdx, 0, section);
 
     renderCanvas();
     showToast("Section reordered", "info");
@@ -6214,12 +6373,48 @@ document.addEventListener("DOMContentLoaded", () => {
   const savedSectionsDialog=document.createElement('dialog');
   savedSectionsDialog.className='studio-saved-sections';document.body.append(savedSectionsDialog);
   function getSavedSections(){try{return JSON.parse(localStorage.getItem(savedSectionsKey())||'[]');}catch(_){return [];}}
-  window.saveReusableSection=id=>{
-    const comp=currentSite?.schema_json.find(c=>c.id===id);if(!comp)return;
-    try{const entries=getSavedSections();entries.unshift({key:crypto.randomUUID(),component:structuredClone(comp)});localStorage.setItem(savedSectionsKey(),JSON.stringify(entries.slice(0,30)));showToast('Section saved in this browser.','success');}catch(_){showToast('Browser storage is full. Remove a saved section or use smaller images.','error');}
+  const sectionNameDialog = document.createElement('dialog');
+  sectionNameDialog.className = 'studio-saved-sections studio-section-name-dialog';
+  sectionNameDialog.setAttribute('aria-labelledby', 'studio-section-name-title');
+  sectionNameDialog.innerHTML = '<form><header><h3 id="studio-section-name-title">Save to My sections</h3></header><label for="studio-reusable-section-name">Section name</label><input id="studio-reusable-section-name" required maxlength="120" autofocus><div><button type="button" data-cancel>Cancel</button><button type="submit">Save section</button></div></form>';
+  document.body.append(sectionNameDialog);
+  const sectionNameInput = sectionNameDialog.querySelector('input');
+  sectionNameDialog.querySelector('[data-cancel]').onclick = () => sectionNameDialog.close();
+
+  window.saveReusableSection = (id) => {
+    const comp = currentSite?.schema_json.find(section => section.id === id);
+    if (!comp || sectionNameDialog.open) return;
+
+    sectionNameInput.value = (comp.title || comp.type || '').slice(0, 120);
+    sectionNameDialog.querySelector('form').onsubmit = event => {
+      event.preventDefault();
+      const name = sectionNameInput.value.trim();
+      if (!name) {
+        sectionNameInput.focus();
+        return;
+      }
+      try {
+        const entries = getSavedSections();
+        const component = structuredClone(comp);
+        component.title = name;
+        entries.unshift({key: crypto.randomUUID(), component});
+        localStorage.setItem(savedSectionsKey(), JSON.stringify(entries.slice(0, 30)));
+      } catch (_) {
+        showToast('Browser storage is full. Remove a saved section or use smaller images.', 'error');
+        return;
+      }
+      sectionNameDialog.close();
+      if (savedSectionsDialog.open) window.openSavedSections();
+      showToast('Section saved in this browser.', 'success');
+    };
+    sectionNameDialog.showModal();
+    sectionNameInput.select();
   };
   window.openSavedSections=()=>{
     if(!currentSite)return;
+    const site = currentSite;
+    const pageId = site.active_page_id;
+    const selectedId = activeComponentId;
     savedSectionsDialog.innerHTML='<header><h3>My sections</h3><button type="button" data-close aria-label="Close saved sections">Close</button></header><p>Reusable sections saved in this browser for your account.</p><div data-entries></div>';
     savedSectionsDialog.querySelector('[data-close]').onclick=()=>savedSectionsDialog.close();
     const list=savedSectionsDialog.querySelector('[data-entries]'),entries=getSavedSections();
@@ -6227,20 +6422,29 @@ document.addEventListener("DOMContentLoaded", () => {
       const message=document.createElement('p');message.textContent='No saved sections yet. Select a section on your page and save it here to reuse later.';
       const action=document.createElement('button');action.type='button';
       action.textContent=activeComponentId?'Save selected section':'Choose a section';
-      action.onclick=()=>{if(activeComponentId){window.saveReusableSection(activeComponentId);window.openSavedSections();}else{savedSectionsDialog.close();window.setStudioViewMode('edit');builderStudioView.classList.remove('studio-left-hidden');document.getElementById('studio-left-toggle')?.setAttribute('aria-pressed','true');}};
+      action.onclick=()=>{if(activeComponentId){window.saveReusableSection(activeComponentId);}else{savedSectionsDialog.close();window.setStudioViewMode('edit');builderStudioView.classList.remove('studio-left-hidden');document.getElementById('studio-left-toggle')?.setAttribute('aria-pressed','true');}};
       list.append(message,action);
     }
     entries.forEach(entry=>{
       const row=document.createElement('div');row.className='saved-section-row';
       const name=document.createElement('strong');name.textContent=entry.component.title||entry.component.type;
-      const add=document.createElement('button');add.textContent='Insert';add.onclick=()=>{const comp=structuredClone(entry.component);comp.id='comp_'+crypto.randomUUID();currentSite.schema_json.push(comp);savedSectionsDialog.close();renderCanvas();selectComponentForEditing(comp.id);studioRecord();};
+      const add=document.createElement('button');add.textContent='Insert';add.onclick = () => {
+        savedSectionsDialog.close();
+        if (currentSite !== site || site.active_page_id !== pageId) return;
+        const sections = site.schema_json ||= [];
+        const index = sections.findIndex(section => section.id === selectedId);
+        const component = structuredClone(entry.component);
+        component.id = 'comp_' + crypto.randomUUID();
+        component.hidden = false;
+        sections.splice(index < 0 ? sections.length : index + 1, 0, component);
+        renderCanvas();
+        selectComponentForEditing(component.id);
+      };
       const remove=document.createElement('button');remove.textContent='Remove';remove.onclick=()=>{try{localStorage.setItem(savedSectionsKey(),JSON.stringify(getSavedSections().filter(item=>item.key!==entry.key)));row.remove();}catch(_){showToast('Unable to update browser storage.','error');}};
       row.append(name,add,remove);list.append(row);
     });
     if(!savedSectionsDialog.open)savedSectionsDialog.showModal();
   };
-  const savedSectionsButton=document.createElement('button');savedSectionsButton.type='button';savedSectionsButton.className='btn-studio-action';savedSectionsButton.textContent='My sections';savedSectionsButton.onclick=window.openSavedSections;
-  document.querySelector('.studio-panel-toggles')?.append(savedSectionsButton);
   function wireNativeElements() {
     canvasSectionsList.querySelectorAll('[data-native-index]').forEach(node=>{
       const comp=currentSite.schema_json.find(c=>c.id===node.closest('[data-comp-id]').dataset.compId);
@@ -6259,7 +6463,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function nativeInspector(comp) {
     const d=comp.data;
     const input=(label,key,value,type='text',extra='')=>`<label>${label}<input class="inspector-input" data-native-field="${key}" type="${type}" value="${escapeHtml(String(value??''))}" ${extra}></label>`;
-    return `<div class="inspector-card-group" data-native-root="${comp.id}"><h4>Responsive layout</h4>${input('Desktop columns','columns',d.columns||1,'number','min="1" max="4"')}${input('Mobile columns','mobile_columns',d.mobile_columns||1,'number','min="1" max="2"')}${input('Gap (px)','gap',d.gap??24,'number','min="0" max="96"')}<h4>Elements</h4><div class="native-add-actions">${['heading','text','button','image','divider','icon','gradient'].map(kind=>`<button type="button" data-native-add="${kind}">+ ${kind}</button>`).join('')}</div>${(d.nodes||[]).map((node,index)=>`<details class="native-node-settings" data-native-node="${index}"><summary>${index+1}. ${escapeHtml(node.kind)} · ${escapeHtml((node.text||node.alt||'').slice(0,24))}</summary><div class="native-node-actions"><button type="button" data-native-move="-1" ${index===0?'disabled':''}>Up</button><button type="button" data-native-move="1" ${index===d.nodes.length-1?'disabled':''}>Down</button><button type="button" data-native-duplicate>Duplicate</button><button type="button" data-native-remove>Remove</button></div>${['text','heading','button'].includes(node.kind)?`<label>Text<textarea class="inspector-input" data-native-field="text">${escapeHtml(node.text||'')}</textarea></label>`:''}${node.kind==='button'?input('Destination','url',node.url||'#'):''}${node.kind==='image'?`${input('Image URL','image',String(node.image||'').startsWith('data:')?'':node.image)}${input('Alt text','alt',node.alt)}<button type="button" data-native-upload>Upload image</button>`:''}${node.kind==='gradient'?`${input('Start color','start',node.start||'#c7d2fe','color')}${input('End color','end',node.end||'#a5f3fc','color')}${input('Angle','angle',node.angle??135,'number','min="0" max="360"')}`:''}${node.kind==='icon'?`<label>Symbol<select class="inspector-input" data-native-field="symbol">${['grid','circle','diamond'].map(v=>`<option ${node.symbol===v?'selected':''}>${v}</option>`).join('')}</select></label>`:''}${['image','gradient'].includes(node.kind)?input('Height','height',node.height||240,'number','min="40" max="900"'):''}${input('Font size','size',node.size||20,'number','min="10" max="120"')}${input('Text color','color',node.color||'#18233b','color')}${input('Background','background',node.background||'#ffffff','color')}<label>Alignment<select class="inspector-input" data-native-field="align">${['left','center','right'].map(v=>`<option ${(node.align||'left')===v?'selected':''}>${v}</option>`).join('')}</select></label>${input('Padding','padding',node.padding??16,'number','min="0" max="120"')}${input('Corners','radius',node.radius??12,'number','min="0" max="80"')}${input('Column span','span',node.span||1,'number',`min="1" max="${d.columns||1}"`)}</details>`).join('')}</div>`;
+    return `<div class="inspector-card-group" data-native-root="${comp.id}"><h4>Responsive layout</h4>${input('Desktop columns','columns',d.columns||1,'number','min="1" max="4"')}${input('Mobile columns','mobile_columns',d.mobile_columns||1,'number','min="1" max="2"')}${input('Gap (px)','gap',d.gap??24,'number','min="0" max="96"')}<h4>Elements</h4><div class="native-add-actions">${['heading','text','button','image','menu','divider','icon','gradient'].map(kind=>`<button type="button" data-native-add="${kind}">+ ${kind}</button>`).join('')}</div>${(d.nodes||[]).map((node,index)=>`<details class="native-node-settings" data-native-node="${index}"><summary>${index+1}. ${escapeHtml(node.kind)} · ${escapeHtml((node.text||node.alt||'').slice(0,24))}</summary><div class="native-node-actions"><button type="button" data-native-move="-1" ${index===0?'disabled':''}>Up</button><button type="button" data-native-move="1" ${index===d.nodes.length-1?'disabled':''}>Down</button><button type="button" data-native-duplicate>Duplicate</button><button type="button" data-native-remove>Remove</button></div>${['text','heading','button','menu'].includes(node.kind)?`<label>Text<textarea class="inspector-input" data-native-field="text">${escapeHtml(node.text||'')}</textarea></label>`:''}${node.kind==='menu'?`<label>Menu links (label | URL per line)<textarea class="inspector-input" data-native-field="links">${escapeHtml(node.links||'')}</textarea></label>`:''}<label>Effect<select class="inspector-input" data-native-field="effect">${['none','gradient','lift'].map(v=>`<option ${node.effect===v?'selected':''}>${v}</option>`).join('')}</select></label>${node.effect==='gradient'?`${input('Gradient start','start',node.start||'#ddd6fe','color')}${input('Gradient end','end',node.end||'#a5f3fc','color')}`:''}${node.kind==='button'?input('Destination','url',node.url||'#'):''}${node.kind==='image'?`${input('Image URL','image',String(node.image||'').startsWith('data:')?'':node.image)}${input('Alt text','alt',node.alt)}<button type="button" data-native-upload>Upload image</button>`:''}${node.kind==='gradient'?`${input('Start color','start',node.start||'#c7d2fe','color')}${input('End color','end',node.end||'#a5f3fc','color')}${input('Angle','angle',node.angle??135,'number','min="0" max="360"')}`:''}${node.kind==='icon'?`<label>Symbol<select class="inspector-input" data-native-field="symbol">${['grid','circle','diamond'].map(v=>`<option ${node.symbol===v?'selected':''}>${v}</option>`).join('')}</select></label>`:''}${['image','gradient'].includes(node.kind)?input('Height','height',node.height||240,'number','min="40" max="900"'):''}${input('Font size','size',node.size||20,'number','min="10" max="120"')}${input('Text color','color',node.color||'#18233b','color')}${input('Background','background',node.background||'#ffffff','color')}<label>Alignment<select class="inspector-input" data-native-field="align">${['left','center','right'].map(v=>`<option ${(node.align||'left')===v?'selected':''}>${v}</option>`).join('')}</select></label>${input('Padding','padding',node.padding??16,'number','min="0" max="120"')}${input('Corners','radius',node.radius??12,'number','min="0" max="80"')}${input('Column span','span',node.span||1,'number',`min="1" max="${d.columns||1}"`)}</details>`).join('')}</div>`;
   }
   inspectorContent.addEventListener('change',event=>{
     const root=event.target.closest('[data-native-root]');if(!root)return;
@@ -6275,7 +6479,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const button=event.target.closest('button'),root=button?.closest('[data-native-root]');if(!root)return;
     const comp=currentSite?.schema_json.find(c=>c.id===root.dataset.nativeRoot);if(!comp)return;
     const detail=button.closest('[data-native-node]'),index=Number(detail?.dataset.nativeNode),nodes=comp.data.nodes,oldIds=nodes.map(n=>n.id);
-    if(button.dataset.nativeAdd){if(nodes.length>=100)return;nodes.push({id:crypto.randomUUID(),kind:button.dataset.nativeAdd,text:'Your text',url:'#',size:20});}
+    if (button.dataset.nativeAdd) {
+      if (nodes.length >= 100) return;
+      const kind = button.dataset.nativeAdd;
+      const node = { id: crypto.randomUUID(), kind, text: 'Your text', url: '#', size: 20 };
+      if (kind === 'menu') {
+        node.text = 'Explore';
+        node.links = 'Program | #agenda\nSpeakers | #speakers';
+      }
+      nodes.push(node);
+    }
     else if(button.hasAttribute('data-native-remove')){nodes.splice(index,1);}
     else if(button.hasAttribute('data-native-duplicate')){nodes.splice(index+1,0,{...structuredClone(nodes[index]),id:crypto.randomUUID(),copiedFrom:nodes[index].id});}
     else if(button.hasAttribute('data-native-move')){const to=index+Number(button.dataset.nativeMove);if(to<0||to>=nodes.length)return;[nodes[index],nodes[to]]=[nodes[to],nodes[index]];}

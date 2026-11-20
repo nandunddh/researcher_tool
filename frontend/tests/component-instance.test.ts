@@ -17,6 +17,6 @@ test("repeated additions are independent and brand propagates",()=>{
 test("text remains native editable data rather than executable HTML",()=>{const item=componentCatalog.find(c=>c.id==="text-heading")!;const instance=instantiateComponent(item,'<script>alert(1)</script>');assert.equal(instance.type,'content');assert.equal(instance.data.html,undefined);assert.equal((instance.data.nodes as {text:string}[])[0].text,'<script>alert(1)</script>')});
 
 test("modern presets produce independent native editable layouts",()=>{
- const presets=componentCatalog.filter(c=>c.id.startsWith("modern-"));assert.equal(presets.length,8);
+ const presets=componentCatalog.filter(c=>c.id.startsWith("modern-"));assert.equal(presets.length,11);
  for(const item of presets){const a=instantiateComponent(item,"Sample"),b=instantiateComponent(item,"Sample");assert.equal(a.type,"content");const nodes=a.data.nodes as {id:string;span:number;text:string}[];assert.ok(nodes.length>=2);assert.ok(nodes.every(n=>n.span<=Number(a.data.columns)));assert.notEqual(nodes[0].id,(b.data.nodes as {id:string}[])[0].id);assert.equal(a.data.html,undefined);}
 });

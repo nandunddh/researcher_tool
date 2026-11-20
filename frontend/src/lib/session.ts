@@ -18,7 +18,7 @@ export async function session(): Promise<Session | null> {
 }
 export async function requireSession(namespace: Namespace) {
   const current = await session();
-  if (!current) redirect(`/?next=/${namespace}/scistudio`);
+  if (!current) redirect(`/login?next=/${namespace}/scistudio`);
   if (current.user.workspace_namespace !== namespace) redirect(`/${current.user.workspace_namespace}/dashboard`);
   return current.user;
 }

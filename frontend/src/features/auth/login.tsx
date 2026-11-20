@@ -43,10 +43,10 @@ export function Login({ returnPath }: { returnPath: string | null }) {
       <div className="login-backdrop-glow" aria-hidden="true" />
       <section className="login-card">
         <div className="login-header">
-          <div className="login-mark">
-            <img src="/sciprospect_icon.svg" alt="SciProspect" width="42" height="42" />
+          <div className="login-brand" aria-label="SciProspect">
+            <img src="/branding/sciprospect-a-icon.png" alt="" width="56" height="56" />
+            <span>SciProspect</span>
           </div>
-          <span className="login-badge">SciProspect Portal</span>
           <h1>{mode === "login" ? "Welcome back" : "Reset Password"}</h1>
           <p>
             {mode === "login"

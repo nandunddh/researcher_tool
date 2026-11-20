@@ -85,3 +85,47 @@ assert.equal(btnHero.querySelector('.comp-count-badge')?.className, 'comp-count-
 assert.equal(btnFaq.classList.contains('is-added'), false);
 assert.equal(btnFaq.querySelector('.comp-count-badge'), null);
 console.log('Inline commit, Escape cancel, nested fields, ambiguous fields and viewport zoom checks passed.');
+
+// Quick Add must insert the variant on the card, even when a different design is previewed.
+const quickAddSource = source.match(/^  function wirePaletteAdd\(card\) \{[\s\S]*?^  \}/m);
+assert.ok(quickAddSource, 'The palette provides a quick-add handler');
+const insertions = [];
+const created = [];
+const quickAddContext = {
+  window: {studioActivePreviewType: 'navbar', studioActivePreviewVariant: 'business'},
+  currentSite: {schema_json: []},
+  addNewComponent(type, variant) { insertions.push([type, variant]); },
+  document: {
+    createElement(tag) {
+      const node = {
+        tag,
+        children: [],
+        append(...nodes) { this.children.push(...nodes); },
+        setAttribute(name, value) { this[name] = value; },
+        addEventListener(type, handler) { this['on' + type] = handler; },
+      };
+      created.push(node);
+      return node;
+    },
+  },
+};
+vm.createContext(quickAddContext);
+vm.runInContext(quickAddSource[0], quickAddContext);
+const card = {
+  dataset: {type: 'navbar', variant: 'portfolio'},
+  querySelector() { return {textContent: 'Navbar · Portfolio'}; },
+  replaceWith(row) { this.row = row; },
+};
+quickAddContext.wirePaletteAdd(card);
+const row = card.row;
+const add = created.find(node => node.className === 'studio-palette-add');
+assert.equal(add?.tag, 'button');
+assert.equal(row.className, 'studio-palette-item');
+assert.equal(add['aria-label'], 'Add Navbar \u00b7 Portfolio to page');
+assert.deepEqual(row.children, [card, add], 'Both actions are siblings');
+const clickAdd = detail => add.onclick({detail, stopPropagation() {}, preventDefault() {}});
+clickAdd(1);
+clickAdd(2);
+assert.deepEqual(insertions, [['navbar', 'portfolio']]);
+clickAdd(0);
+assert.equal(insertions.length, 2, 'Keyboard activation adds another instance');

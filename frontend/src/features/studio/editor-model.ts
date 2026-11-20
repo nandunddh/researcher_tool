@@ -1,0 +1,213 @@
+import { readDocument, type Section } from "./document";
+import {
+  cleanLink, cleanSectionStyle, cleanStyle, getElements, getSectionStyle, newId, safeImage, syncLegacy,
+  upgradeSection, withElements, withSectionStyle,
+  type Link, type LinkContext, type MenuItem, type PageRef, type SectionStyle, type SiteElement, type Style, type Viewport,
+} from "./site-schema";
+
+export type EditorSite = {
+  site_id: string;
+  name: string;
+  slug?: string;
+  status?: string;
+  schema_json: Section[];
+  pages?: (PageRef & { schema_json?: Section[]; [key: string]: unknown })[];
+  active_page_id?: string;
+  [key: string]: unknown;
+};
+export type Selection = { sectionId: string; elementId?: string };
+
+export const sectionLayouts: Record<string, Record<string, string>> = {
+  navbar: { business: "Business", portfolio: "Portfolio", services: "Services", product: "Product", editorial: "Editorial" },
+  hero: {
+    split: "Image right", image_left: "Image left", centered: "Centered", image_top: "Image above",
+    text_only: "Text only", conference_program: "Conference program",
+  },
+};
+
+export function linkContext(site: EditorSite): LinkContext {
+  return { sections: site.schema_json, pages: site.pages, siteSlug: site.slug };
+}
+
+/** Validates the loaded document and adds elements to navbar/hero sections. */
+export function prepareSite(site: EditorSite): EditorSite {
+  const sections = readDocument(site.schema_json).sections;
+  const ctx = { ...linkContext(site), sections };
+  return { ...site, schema_json: sections.map(s => upgradeSection(s, ctx)) };
+}
+
+function mapSection(site: EditorSite, sectionId: string, fn: (s: Section) => Section): EditorSite {
+  const index = site.schema_json.findIndex(s => s.id === sectionId);
+  if (index < 0) throw new Error("This section no longer exists.");
+  const schema_json = [...site.schema_json];
+  schema_json[index] = fn(structuredClone(schema_json[index]));
+  return { ...site, schema_json };
+}
+function mapElement(site: EditorSite, sectionId: string, elementId: string, fn: (e: SiteElement) => SiteElement): EditorSite {
+  return mapSection(site, sectionId, section => {
+    const elements = getElements(section);
+    const index = elements?.findIndex(e => e.id === elementId) ?? -1;
+    if (!elements || index < 0) throw new Error("This item no longer exists.");
+    elements[index] = fn(elements[index]);
+    return withElements(section, elements);
+  });
+}
+
+export function findElement(site: EditorSite, selection: Selection | null) {
+  const section = selection ? site.schema_json.find(s => s.id === selection.sectionId) : undefined;
+  const element = section && selection?.elementId ? getElements(section)?.find(e => e.id === selection.elementId) : undefined;
+  return { section, element };
+}
+
+// ---------------------------------------------------------------- sections
+export function setLayout(site: EditorSite, sectionId: string, value: string): EditorSite {
+  const section = site.schema_json.find(s => s.id === sectionId);
+  const layouts = section ? sectionLayouts[section.type] : undefined;
+  if (!section || !layouts || !Object.hasOwn(layouts, value)) throw new Error("Unsupported layout");
+  if ((section.data.layout_variant || Object.keys(layouts)[0]) === value) return site;
+  return mapSection(site, sectionId, s => ({ ...s, data: { ...s.data, layout_variant: value } }));
+}
+
+export function setSectionStyle(site: EditorSite, sectionId: string, viewport: Viewport, patch: Partial<Record<keyof SectionStyle, unknown>>): EditorSite {
+  return mapSection(site, sectionId, section => {
+    const style = getSectionStyle(section);
+    const merged: Record<string, unknown> = { ...(style[viewport] ?? {}) };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined || value === null || value === "") delete merged[key];
+      else merged[key] = value;
+    }
+    return withSectionStyle(section, { ...style, [viewport]: cleanSectionStyle(merged) });
+  });
+}
+
+export function moveSection(site: EditorSite, id: string, delta: number): EditorSite {
+  const index = site.schema_json.findIndex(s => s.id === id), target = index + delta;
+  if (index < 0 || target < 0 || target >= site.schema_json.length) return site;
+  const schema_json = [...site.schema_json];
+  const [item] = schema_json.splice(index, 1);
+  schema_json.splice(target, 0, item);
+  return { ...site, schema_json };
+}
+
+export function dropSection(site: EditorSite, id: string, beforeId: string): EditorSite {
+  if (id === beforeId || !site.schema_json.some(s => s.id === id) || !site.schema_json.some(s => s.id === beforeId)) return site;
+  const schema_json = [...site.schema_json];
+  const [item] = schema_json.splice(schema_json.findIndex(s => s.id === id), 1);
+  schema_json.splice(schema_json.findIndex(s => s.id === beforeId), 0, item);
+  return { ...site, schema_json };
+}
+
+export function insertSection(site: EditorSite, section: Section, afterId?: string): EditorSite {
+  readDocument([...site.schema_json, section]);
+  const copy = upgradeSection(structuredClone(section), linkContext(site));
+  const schema_json = [...site.schema_json];
+  const index = schema_json.findIndex(s => s.id === afterId);
+  schema_json.splice(index < 0 ? schema_json.length : index + 1, 0, copy);
+  return { ...site, schema_json };
+}
+
+// ---------------------------------------------------------------- elements
+export type ElementPatch = { text?: string; mode?: "text" | "image"; src?: string; alt?: string; link?: Link | null };
+
+export function updateElement(site: EditorSite, sectionId: string, elementId: string, patch: ElementPatch): EditorSite {
+  return mapElement(site, sectionId, elementId, e => {
+    const next = { ...e };
+    if (patch.text !== undefined) next.text = String(patch.text).slice(0, 5000);
+    if (patch.alt !== undefined) next.alt = String(patch.alt).slice(0, 300);
+    if (patch.mode !== undefined) {
+      if (patch.mode !== "text" && patch.mode !== "image") throw new Error("Invalid logo type");
+      next.mode = patch.mode;
+    }
+    if (patch.src !== undefined) {
+      if (patch.src === "") delete next.src;
+      else {
+        const src = safeImage(patch.src);
+        if (!src) throw new Error("Use an uploaded image or a link starting with https://");
+        next.src = src;
+      }
+    }
+    if (patch.link !== undefined) {
+      if (patch.link === null) delete next.link;
+      else {
+        const link = cleanLink(patch.link);
+        if (!link) throw new Error("This link is not valid.");
+        next.link = link;
+      }
+    }
+    return next;
+  });
+}
+
+/** Changes style for one screen size. Empty values remove the setting (falls back
+ *  to the larger screen). */
+export function setElementStyle(site: EditorSite, sectionId: string, elementId: string, viewport: Viewport, patch: Partial<Record<keyof Style, unknown>>): EditorSite {
+  return mapElement(site, sectionId, elementId, e => {
+    const merged: Record<string, unknown> = { ...(e.style[viewport] ?? {}) };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined || value === null || value === "") delete merged[key];
+      else merged[key] = value;
+    }
+    return { ...e, style: { ...e.style, [viewport]: cleanStyle(merged) } };
+  });
+}
+
+export function resetElementStyle(site: EditorSite, sectionId: string, elementId: string, viewport: Viewport): EditorSite {
+  return mapElement(site, sectionId, elementId, e => {
+    if (viewport === "desktop") return { ...e, style: { ...e.style, desktop: {} } };
+    const style = { ...e.style };
+    delete style[viewport];
+    return { ...e, style };
+  });
+}
+
+// ---------------------------------------------------------------- menus
+function mapItems(site: EditorSite, sectionId: string, elementId: string, fn: (items: MenuItem[]) => MenuItem[]): EditorSite {
+  return mapElement(site, sectionId, elementId, e => {
+    if (e.kind !== "menu") throw new Error("Invalid navigation");
+    return { ...e, items: fn([...(e.items ?? [])]) };
+  });
+}
+export function addMenuItem(site: EditorSite, sectionId: string, elementId: string): EditorSite {
+  return mapItems(site, sectionId, elementId, items => items.length >= 40 ? items : [...items, { id: newId("item"), label: "New link" }]);
+}
+export function updateMenuItem(site: EditorSite, sectionId: string, elementId: string, itemId: string, patch: { label?: string; link?: Link | null }): EditorSite {
+  return mapItems(site, sectionId, elementId, items => items.map(item => {
+    if (item.id !== itemId) return item;
+    const next = { ...item };
+    if (patch.label !== undefined) next.label = String(patch.label).slice(0, 200);
+    if (patch.link === null) delete next.link;
+    else if (patch.link !== undefined) {
+      const link = cleanLink(patch.link);
+      if (!link) throw new Error("This link is not valid.");
+      next.link = link;
+    }
+    return next;
+  }));
+}
+export function removeMenuItem(site: EditorSite, sectionId: string, elementId: string, itemId: string): EditorSite {
+  return mapItems(site, sectionId, elementId, items => items.filter(item => item.id !== itemId));
+}
+export function moveMenuItem(site: EditorSite, sectionId: string, elementId: string, itemId: string, delta: number): EditorSite {
+  return mapItems(site, sectionId, elementId, items => {
+    const index = items.findIndex(i => i.id === itemId), target = index + delta;
+    if (index < 0 || target < 0 || target >= items.length) return items;
+    const [item] = items.splice(index, 1);
+    items.splice(target, 0, item);
+    return items;
+  });
+}
+
+// ---------------------------------------------------------------- saving
+export function editorPayload(site: EditorSite) {
+  const ctx = linkContext(site);
+  const sections = readDocument(site.schema_json.map(s => syncLegacy(s, ctx))).sections;
+  const payload: { schema_json: Section[]; pages?: EditorSite["pages"]; active_page_id?: string } = { schema_json: sections };
+  if (site.pages?.length) {
+    if (!site.active_page_id || !site.pages.some(p => p.id === site.active_page_id)) {
+      throw new Error("This website's current page could not be found. Reload the editor and try again.");
+    }
+    payload.pages = site.pages.map(p => (p.id === site.active_page_id ? { ...p, schema_json: sections } : structuredClone(p)));
+    payload.active_page_id = site.active_page_id;
+  }
+  return payload;
+}

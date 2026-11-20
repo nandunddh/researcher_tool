@@ -469,6 +469,10 @@ def compile_website_html(site_data: dict, page_id=None) -> Tuple[str, str]:
 /* Standalone Compiled CSS - {title} */
 :root {{
   --primary: {primary_color};
+  --nav-primary: {primary_color};
+  --nav-accent: {accent_color};
+  --nav-surface: {card_bg};
+  --nav-ink: {'#0f172a' if is_light else '#f8fafc'};
   --accent: {accent_color};
   --bg-dark: {bg_color};
   --bg-card: {card_bg};
@@ -1130,6 +1134,19 @@ textarea.form-input {{
 .studio-auto-contrast > nav,.studio-auto-contrast > header,.studio-auto-contrast > section,.studio-auto-contrast > footer { background:transparent!important; }
 .studio-auto-contrast h1,.studio-auto-contrast h2,.studio-auto-contrast h3,.studio-auto-contrast h4 { color:var(--text-main)!important; -webkit-text-fill-color:var(--text-main); }
 .studio-auto-contrast p { color:var(--text-muted)!important; }
+.studio-auto-contrast :is(.section-tag, .program-card-badge, .program-meta-icon, .program-card-title i) {
+  color:var(--section-ink)!important;
+}
+.studio-responsive-section > :is(nav, header, section, footer) {
+  max-width:var(--studio-content-width, none); margin-inline:auto;
+}
+@media (max-width: 900px) {
+  .studio-responsive-section { padding:var(--studio-padding-tablet, var(--studio-padding-base, 0px)) !important; }
+}
+@media (max-width: 600px) {
+  .studio-responsive-section { padding:var(--studio-padding-mobile, var(--studio-padding-tablet, var(--studio-padding-base, 0px))) !important; }
+}
+
 """
     body_html_parts = []
 
@@ -1183,14 +1200,18 @@ textarea.form-input {{
                 logo_html = f'<img src="{escape_html(logo_url, quote=True)}" alt="{logo_alt}" style="height:{logo_height}px;width:auto;max-width:240px;object-fit:contain;">'
             brand_mode = data.get("brand_mode") or ("image" if logo_html else "text")
             brand_html = logo_html if brand_mode == "image" else escape_html(str(data.get("brand_name", title)))
-            links_html = "".join([f'<a class="{"btn-nav" if l.get("style") == "button" else "nav-link"}" href="{l.get("url", "#")}">{l.get("label", "")}</a>' for l in data.get("links", [])])
+            nav_items = {f"link-{i}": f'<a class="{"btn-nav" if l.get("style") == "button" else "nav-link"}" href="{escape_html(str(l.get("url", "#")), quote=True)}">{escape_html(str(l.get("label", "")))}</a>' for i,l in enumerate(data.get("links", []))}
+            nav_items["cta"] = f'<a href="{escape_html(str(data.get("cta_link", data.get("cta_url", "#pricing"))), quote=True)}" class="btn-nav">{escape_html(str(data.get("cta_label", "Register")))}</a>'
+            nav_order = data.get("nav_order") if isinstance(data.get("nav_order"), list) else []
+            nav_order = list(dict.fromkeys([k for k in nav_order if isinstance(k,str) and k in nav_items]+list(nav_items)))
+            links_html = "".join(nav_items[k] for k in nav_order)
             body_html_parts.append(f"""
-<nav class="site-navbar library-nav-{variant}">
+<nav class="site-navbar library-nav-{variant}" data-studio-nav>
   <div class="site-container nav-inner">
     <a href="#" class="nav-brand" style="display:flex;align-items:center;gap:10px;">{brand_html}</a>
     <div class="nav-links">
       {links_html}
-      <a href="{data.get("cta_link", data.get("cta_url", "#pricing"))}" class="btn-nav">{data.get("cta_label", "Register")}</a>
+
     </div>
   </div>
 </nav>
@@ -1470,7 +1491,7 @@ textarea.form-input {{
 </footer>
 """)
 
-        if (comp.get('field_formats') or comp.get('image_formats')) and len(body_html_parts) > part_start:
+        if (comp.get('field_formats') or comp.get('image_formats') or comp.get('item_positions')) and len(body_html_parts) > part_start:
             body_html_parts[part_start:] = [apply_component_formatting(''.join(body_html_parts[part_start:]), comp, bg_color)]
 
         # Restrict shared section appearance to safe, bounded CSS values.
@@ -1483,8 +1504,21 @@ textarea.form-input {{
                     if value != value:
                         value = 0
                     rules.append(f"{css_property}:{value:g}px")
+                    if key == "padding":
+                        rules.append(f"--studio-padding-base:{value:g}px")
                 except (ValueError, TypeError):
                     pass
+        for key, property_name, minimum, maximum in (
+            ("content_width", "--studio-content-width", 320, 1600),
+            ("padding_tablet", "--studio-padding-tablet", 0, 160),
+            ("padding_mobile", "--studio-padding-mobile", 0, 160),
+        ):
+            try:
+                value = float(appearance[key])
+            except (KeyError, ValueError, TypeError):
+                continue
+            if value == value and abs(value) != float("inf"):
+                rules.append(f"{property_name}:{min(maximum, max(minimum, value)):g}px")
         background = str(appearance.get("background", ""))
         if re.fullmatch(r"#[0-9a-fA-F]{6}", background):
             rules.append(f"background:{background}")
@@ -1504,7 +1538,7 @@ textarea.form-input {{
             rules.append(f"background:linear-gradient({angle:g}deg,{gradient_colors[0]},{gradient_colors[1]})")
         if rules and len(body_html_parts) > part_start:
             section_html = "".join(body_html_parts[part_start:])
-            body_html_parts[part_start:] = [f'<div class="{'studio-auto-contrast' if re.fullmatch(r'#[0-9a-fA-F]{6}', background) else 'studio-section-style'}" style="{";".join(rules)}">{section_html}</div>']
+            body_html_parts[part_start:] = [f'<div class="studio-responsive-section {'studio-auto-contrast' if re.fullmatch(r'#[0-9a-fA-F]{6}', background) else 'studio-section-style'}" style="{";".join(rules)}">{section_html}</div>']
 
         if comp.get("elements") and len(body_html_parts) > part_start:
             elements = []
@@ -1534,7 +1568,7 @@ textarea.form-input {{
 .studio-placed-button {display:inline-block;padding:12px 22px;background:#2563eb;color:#fff;border-radius:8px;text-decoration:none;font-size:16px;}
 @media(max-width:600px){.studio-placed-element{position:relative;left:auto!important;top:auto!important;margin:12px;max-width:calc(100% - 24px);}}
 """
-    css += '.library-nav-portfolio .nav-inner,.library-nav-portfolio.editor-library-nav{flex-direction:column!important;gap:18px;background:#f4eee5!important}.library-nav-portfolio .nav-brand,.library-nav-portfolio.editor-library-nav>div:first-child{font-family:Georgia,serif!important;font-style:italic;font-size:28px!important}.library-nav-services .nav-inner,.library-nav-services.editor-library-nav{border-top:6px solid #265852;background:#edf2ef!important}.library-nav-product.site-navbar,.library-nav-product.editor-library-nav{margin:16px;border-radius:18px!important;border:1px solid #d5c9f7!important;background:linear-gradient(120deg,#f3edff,#e7efff)!important}.library-nav-editorial .nav-inner,.library-nav-editorial.editor-library-nav{flex-direction:column!important;gap:20px;border-bottom:2px solid currentColor!important}.library-nav-editorial .nav-brand,.library-nav-editorial.editor-library-nav>div:first-child{font-family:Georgia,serif!important;font-size:32px!important;letter-spacing:2px}.editor-library-nav{flex-wrap:wrap;gap:16px}.editor-library-nav>div:last-child{display:flex;flex-wrap:wrap;gap:10px}@media(max-width:600px){.site-navbar .nav-inner{flex-wrap:wrap;gap:16px}.site-navbar .nav-links{display:flex!important;flex-wrap:wrap;gap:12px}}'
+    css += (Path(__file__).parent / "static" / "studio-navigation.css").read_text(encoding="utf-8-sig")
     ambient = bool(theme.get("animated_background"))
     if ambient:
         css += (Path(__file__).parent / "static" / "studio-ambient.css").read_text(encoding="utf-8")

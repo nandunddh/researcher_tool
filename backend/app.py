@@ -433,7 +433,7 @@ async def api_auth_login(request: Request):
     password = (body.get("password") or "").strip()
 
     if not identifier and not password:
-        raise HTTPException(status_code=400, detail="Please enter your License Key or Email and Password.")
+        raise HTTPException(status_code=400, detail="Please enter your Email and Password.")
 
     ok, user, msg = license_engine.authenticate(identifier, password if password else None)
     if not ok:
@@ -1923,6 +1923,78 @@ async def builder_export_site(site_id: str, request: Request):
         media_type="application/zip",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'}
     )
+
+
+# -----------------------------------------------------------------------------
+# SciStudio media: images uploaded from the editor
+# -----------------------------------------------------------------------------
+MEDIA_MAX_BYTES = 5 * 1024 * 1024
+MEDIA_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
+MEDIA_EXT_TYPES = {ext: mime for mime, ext in MEDIA_TYPES.items()}
+
+
+def _media_dir(site_id: str) -> Path:
+    from builder_manager import get_websites_dir
+    return get_websites_dir() / "media" / site_id
+
+
+def _sniff_image(data: bytes) -> Optional[str]:
+    """Identify the image type from its content; the client's Content-Type is not trusted.
+    SVG is deliberately not accepted because it can carry scripts."""
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data[:6] in (b"GIF87a", b"GIF89a"):
+        return "image/gif"
+    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+@app.post("/api/builder/sites/{site_id}/media")
+async def builder_upload_media(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        declared = 0
+    if declared > MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="This image is larger than 5 MB. Choose a smaller image.")
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > MEDIA_MAX_BYTES:
+            raise HTTPException(status_code=413, detail="This image is larger than 5 MB. Choose a smaller image.")
+    if not data:
+        raise HTTPException(status_code=400, detail="This file is empty.")
+    mime = _sniff_image(bytes(data[:16]))
+    if not mime:
+        raise HTTPException(status_code=415, detail="Choose a PNG, JPG, WebP or GIF image.")
+    import uuid
+    name = f"{uuid.uuid4().hex}.{MEDIA_TYPES[mime]}"
+    folder = _media_dir(site_id)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / name).write_bytes(bytes(data))
+    return {"status": "ok", "url": f"/api/builder/media/{site_id}/{name}"}
+
+
+@app.get("/api/builder/media/{site_id}/{name}")
+async def builder_serve_media(site_id: str, name: str):
+    """Public: published pages embed these images. Names are random and unguessable."""
+    match = re.fullmatch(r"([a-f0-9]{32})\.(png|jpg|webp|gif)", name)
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id) or not match:
+        raise HTTPException(status_code=404, detail="Image not found.")
+    path = _media_dir(site_id) / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Image not found.")
+    return FileResponse(path, media_type=MEDIA_EXT_TYPES[match.group(2)], headers={
+        "Cache-Control": "public, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+    })
 
 
 @app.get("/sites/{slug}")

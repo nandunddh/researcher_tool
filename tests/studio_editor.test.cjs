@@ -6,7 +6,7 @@ const moduleCode = source.slice(source.indexOf('  // Editor history stores'), so
 const nodes = new Map();
 function element() { return {textContent:'',value:'',disabled:false,dataset:{},children:[],handlers:{},classList:{add(){},remove(){},contains(){return false;}},addEventListener(name,fn){this.handlers[name]=fn;},replaceChildren(){this.children=[];},append(child){this.children.push(child);}}; }
 const studio = element();
-const context = {console,crypto:require('node:crypto').webcrypto, currentSite:{name:'Demo',schema_json:[{id:'a',type:'hero',title:'Hero',data:{headline:'Original'}},{id:'b',type:'footer',title:'Footer',data:{}}],theme_config:{}},activeComponentId:null,
+const context = {console, StudioState:require("../backend/static/studio-state.js"), setTimeout, clearTimeout,crypto:require('node:crypto').webcrypto, currentSite:{name:'Demo',schema_json:[{id:'a',type:'hero',title:'Hero',data:{headline:'Original'}},{id:'b',type:'footer',title:'Footer',data:{}}],theme_config:{}},activeComponentId:null,
  document:{getElementById(id){if(!nodes.has(id)) nodes.set(id,element());return nodes.get(id);},querySelectorAll(){return [];},createElement:element,addEventListener(){}},window:{addEventListener(){}},builderStudioView:studio,studioSiteName:element(),themePrimaryColor:element(),themeAccentColor:element(),themeBgPreset:element(),labelPrimaryColor:element(),labelAccentColor:element(),inspectorContent:element(),escapeHtml:s=>String(s),saveSiteDraft(){},renderInspector(){},selectComponentForEditing(id){context.activeComponentId=id;}};
 vm.createContext(context);
 context.renderCanvas = () => vm.runInContext('studioRecord()',context);
@@ -25,7 +25,7 @@ vm.runInContext('studioTravel(1)',context);
 assert.equal(context.currentSite.schema_json.length,3);
 context.window.updateStudioStyle('a','padding','40');
 assert.equal(context.currentSite.schema_json[0].studio_style.padding,'40');
-assert.equal(vm.runInContext('studioSectionStyle(currentSite.schema_json[0])',context),'padding:40px');
+assert.equal(vm.runInContext('studioSectionStyle(currentSite.schema_json[0])',context),'padding:40px;--studio-padding-base:40px');
 // Simulate a section being dropped after the footer.
 vm.runInContext('studioDrag = {id:"a"}',context);
 const target={dataset:{compId:'b'},classList:{contains(){return true;}}};
@@ -43,11 +43,12 @@ console.log('Editor history, duplication, style updates, drag ordering and redo 
   context.fetch = () => new Promise(resolve => completeRequest = resolve);
   context.showToast = () => {};
   context.studioSiteName.value = context.currentSite.name;
-  const saveCode = source.slice(source.indexOf('  async function saveSiteDraft('),source.indexOf('  if (btnStudioSave)'));
+  const saveCode = source.slice(source.indexOf('  const persistStudioDraft ='),source.indexOf('  if (btnStudioSave)'));
   vm.runInContext(saveCode,context);
   const pending = vm.runInContext('saveSiteDraft()',context);
   assert.equal(vm.runInContext('studioSaving',context),true);
   context.window.updateStudioStyle('a','radius','32');
+  await Promise.resolve();
   completeRequest({ok:true,json:async()=>({site:{name:'Stale server copy'}})});
   assert.equal(await pending,true);
   assert.equal(context.currentSite.schema_json.find(c=>c.id==='a').studio_style.radius,'32');
@@ -57,3 +58,35 @@ console.log('Editor history, duplication, style updates, drag ordering and redo 
   assert.equal(vm.runInContext('studioStatus()',context),true);
   console.log('Save race and failed-save dirty-state checks passed.');
 })().catch(error => { console.error(error); process.exitCode=1; });
+
+{
+  const state = new Set(['studio-left-hidden', 'studio-panels-hidden']);
+  const attributes = new Map();
+  const controls = new Map();
+  const libraryContext = {
+    window: {},
+    document: {
+      body: {classList: {toggle() {}}},
+      getElementById(id) {
+        if (!controls.has(id)) controls.set(id, {
+          classList: {toggle() {}}, style: {},
+          setAttribute(key, value) { attributes.set(id + '/' + key, value); },
+        });
+        return controls.get(id);
+      },
+    },
+    builderStudioView: {classList: {
+      add(name) {state.add(name);},
+      remove(...names) {names.forEach(name => state.delete(name));},
+    }},
+    requestAnimationFrame() {}, fitStudioCanvas() {},
+  };
+  const modeCode = source.slice(source.indexOf('  window.setStudioViewMode ='), source.indexOf('  window.addCurrentlyPreviewedSection'));
+  vm.runInNewContext(modeCode, libraryContext);
+  libraryContext.window.setStudioViewMode('preview');
+  assert.deepEqual([...state], ['studio-right-hidden']);
+  assert.equal(attributes.get('studio-right-toggle/aria-pressed'), 'false');
+  assert.equal(attributes.get('studio-left-toggle/aria-pressed'), 'true');
+  const openCode = source.slice(source.indexOf('  window.openBuilderStudio ='), source.indexOf('showToast(`Editing:'));
+  assert.match(openCode, /window\.setStudioViewMode\('preview'\)/);
+}

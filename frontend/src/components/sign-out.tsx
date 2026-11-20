@@ -1,8 +1,17 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Icon } from "./icon";
-export function SignOut() {
-  const [busy, setBusy] = useState(false), [error, setError] = useState("");
-  return <div><button className="danger" disabled={busy} onClick={async () => { setBusy(true); try { await api("/api/auth/logout", { method: "POST" }); window.location.assign("/"); } catch { setError("Sign out failed. Try again."); setBusy(false); } }}><Icon name="power" />{busy ? "Signing out…" : "Sign out"}</button>{error && <small role="alert">{error}</small>}</div>;
+import { Modal } from "./modal";
+export function SignOut({profileMenu=false}:{profileMenu?:boolean}) {
+ const [open,setOpen]=useState(false), menuId=useId(), container=useRef<HTMLDivElement>(null), trigger=useRef<HTMLButtonElement>(null);
+ useEffect(()=>{if(!open)return;const close=(event:PointerEvent)=>{if(!container.current?.contains(event.target as Node))setOpen(false)};document.addEventListener("pointerdown",close);return()=>document.removeEventListener("pointerdown",close)},[open]);
+ const [busy,setBusy]=useState(false),[error,setError]=useState(""),[confirm,setConfirm]=useState(false);
+ async function logout(){if(busy)return;setBusy(true);setError("");try{await api("/api/auth/logout",{method:"POST"});window.location.assign("/login")}catch{setError("Sign out failed. Please try again.");setBusy(false)}}
+ const requestLogout=()=>{setOpen(false);setError("");setConfirm(true)};
+ return <div ref={container} className={profileMenu?"profile-dropdown":undefined} onKeyDown={event=>{if(event.key==="Escape"&&open){event.stopPropagation();setOpen(false);trigger.current?.focus()}}} onBlur={event=>{if(!event.currentTarget.contains(event.relatedTarget))setOpen(false)}}>
+ {profileMenu?<><button ref={trigger} type="button" className="profile-icon-button" aria-label="Account options" title="Account options" aria-expanded={open} aria-controls={menuId} onClick={()=>setOpen(!open)}><Icon name="user"/></button>{open&&<div id={menuId} className="profile-dropdown-panel"><button type="button" className="danger" disabled={busy} onClick={requestLogout}><Icon name="power"/>Sign out</button></div>}</>:<button type="button" className="danger" title="Sign out" aria-label="Sign out" style={{width:44,height:44,padding:0,display:"inline-flex",alignItems:"center",justifyContent:"center"}} disabled={busy} onClick={requestLogout}><Icon name="power"/></button>}
+
+ {confirm&&<Modal title="Sign out?" onClose={()=>{if(!busy)setConfirm(false)}}><div style={{textAlign:"center"}}><p>Are you sure you want to sign out?</p>{error&&<p role="alert" className="alert">{error}</p>}<div className="modal-actions" style={{justifyContent:"center"}}><button type="button" autoFocus disabled={busy} onClick={()=>setConfirm(false)}>Cancel</button><button type="button" className="danger" disabled={busy} aria-busy={busy} onClick={()=>void logout()}>{busy?"Signing out…":"Sign out"}</button></div></div></Modal>}
+ </div>;
 }

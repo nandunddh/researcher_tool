@@ -13,11 +13,30 @@ sys.path.insert(0,str(source.parent))
 from studio_formatting import apply_component_formatting, contrast_color
 from studio_blocks import render_native_blocks, native_runtime
 namespace = {'apply_component_formatting':apply_component_formatting,'contrast_color':contrast_color,'Tuple': Tuple, 're': re, 'escape_html': escape}
-namespace.update(render_native_blocks=render_native_blocks,native_runtime=native_runtime)
+namespace.update(Path=Path, __file__=str(source), render_native_blocks=render_native_blocks,native_runtime=native_runtime)
 exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), 'exec'), namespace)
 compile_site = namespace['compile_website_html']
 
 class StudioCompilerTests(unittest.TestCase):
+    def test_navigation_variants_export_shared_theme_styles(self):
+        for variant in ("business", "portfolio", "services", "product", "editorial"):
+            with self.subTest(variant=variant):
+                html, css = compile_site({
+                    "name": "Test conference",
+                    "theme_config": {"mode": "dark", "primary_color": "#31547a"},
+                    "schema_json": [{"type": "navbar", "data": {
+                        "layout_variant": variant,
+                        "brand_name": "Research Forum",
+                        "links": [{"label": "Program", "url": "#program"}],
+                        "cta_label": "Register",
+                    }}],
+                })
+                self.assertIn(f'library-nav-{variant}" data-studio-nav', html)
+                self.assertIn("Research Forum", html)
+                self.assertIn('href="#program"', html)
+                self.assertIn("--nav-primary: #31547a", css)
+                self.assertIn("var(--nav-action-start)", css)
+
     def test_native_blocks_include_portable_shared_renderer(self):
         html = self.render([{'type':'content','data':{'nodes':[{'kind':'heading','text':'</script><script>alert(1)</script>'}]}}])
         self.assertIn('data-sci-native', html)
