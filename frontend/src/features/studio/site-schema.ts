@@ -54,7 +54,7 @@ export type SiteElement = {
   style: Responsive<Style>;
 };
 export type PageRef = { id: string; name?: string; slug?: string; is_home?: boolean };
-export type LinkContext = { sections: Section[]; pages?: PageRef[]; siteSlug?: string };
+export type LinkContext = { sections: Section[]; pages?: PageRef[]; siteSlug?: string; pagePath?: (page: PageRef) => string };
 
 export const elementSections = ["navbar", "hero"] as const;
 const MAX_TEXT = 5000;
@@ -225,6 +225,7 @@ export function linkHref(link: Link | undefined, ctx: LinkContext): string {
   switch (link.type) {
     case "page": {
       const page = ctx.pages?.find(p => p.id === link.pageId);
+      if (page && ctx.pagePath) return ctx.pagePath(page);
       if (!page || !ctx.siteSlug) return "#";
       const slug = (page.slug || "").replace(/^\/+|\/+$/g, "");
       const base = `/sites/${encodeURIComponent(ctx.siteSlug)}`;

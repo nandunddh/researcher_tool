@@ -336,3 +336,27 @@
 .shareCard small { font-size: 11px; color: #8a90a6; text-transform: uppercase; }
 .editor .check { display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 8px; text-align: left; }
 .editor .check input { width: auto; margin: 0; }
+
+/* ---------- pages */
+.pages { display: flex; flex-direction: column; gap: 10px; }
+.pageList { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.pageList > li { display: flex; align-items: center; gap: 4px; border-radius: 9px; }
+.pageList > li[data-active] { background: var(--brand-soft); }
+.editor .pageOpen { flex: 1; justify-content: flex-start; min-width: 0; border-color: transparent; background: transparent; color: var(--text); }
+.editor .pageOpen:hover:not(:disabled) { background: var(--panel-2); border-color: transparent; }
+.pageList > li[data-active] .pageOpen { color: var(--accent-text); font-weight: 600; }
+.pageOpen > span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; }
+.pageOpen small { font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--faint); border: 1px solid var(--line-strong); border-radius: 5px; padding: 1px 5px; }
+.pageTools { display: none; gap: 2px; }
+.pageList > li:hover .pageTools, .pageList > li:focus-within .pageTools, .pageList > li[data-active] .pageTools { display: inline-flex; }
+.editor .pageTools button { padding: 4px 6px; border-color: transparent; background: transparent; color: var(--muted); font-size: 12px; }
+.pageEdit { flex: 1; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.slugRow { display: flex; align-items: center; gap: 4px; font-weight: 400 !important; }
+.slugRow i { font-style: normal; font-size: 11px; color: var(--faint); white-space: nowrap; max-width: 45%; overflow: hidden; text-overflow: ellipsis; }
+.newPage { display: grid; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line); }
+.editor .newPage input { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+.pagePicker { display: inline-flex; align-items: center; gap: 6px; padding: 0 4px 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); color: var(--muted); }
+.editor .pagePicker select { padding: 7px 6px; border: 0; background: transparent; color: var(--text); font-weight: 600; max-width: 160px; }
+.editor .layers .panelTabs { grid-template-columns: repeat(3, 1fr); }
+.editor .pagePicker { flex-direction: row; margin: 0; }
+.editor .pagePicker select { width: auto; }

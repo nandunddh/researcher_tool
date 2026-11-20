@@ -5,8 +5,9 @@ import { Icon } from "@/components/icon";
 import { componentCatalog, type LibraryComponent } from "./component-catalog";
 import { instantiateComponent } from "./component-instance";
 import type { Section } from "./document";
-import { dropSection, editorPayload, findElement, insertSection, prepareSite, updateElement, type EditorSite, type Selection } from "./editor-model";
+import { contentSignature, switchPage, dropSection, editorPayload, findElement, insertSection, prepareSite, updateElement, type EditorSite, type Selection } from "./editor-model";
 import { ComponentsPanel } from "./components-panel";
+import { PagesPanel } from "./pages-panel";
 import { ComponentLibrary } from "./component-library";
 import { SiteSettings } from "./site-settings";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -14,6 +15,7 @@ import { Inspector, elementName, type Change, type ConfirmRequest } from "./insp
 import { libraryFallback } from "./library-fallback";
 import { getElements, needsKeyMigration, type Viewport } from "./site-schema";
 import { SiteRenderer } from "./site-renderer";
+import { hasBlock } from "./section-blocks";
 import styles from "./react-editor.module.css";
 
 type State = { site: EditorSite | null; past: EditorSite[]; future: EditorSite[]; saved: EditorSite | null; lastKey?: string; lastAt: number; error: string };
@@ -91,12 +93,13 @@ const isTyping = (t: EventTarget | null) => t instanceof HTMLElement && (t.isCon
 export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: string }) {
   const [state, dispatch] = useReducer(reducer, { site: null, past: [], future: [], saved: null, lastAt: 0, error: "" });
   const { site, error } = state;
-  const dirty = !!site && site !== state.saved;
+  // Switching pages changes which page is open, not the content, so compare content.
+  const dirty = useMemo(() => !!site && site !== state.saved && (!state.saved || contentSignature(site) !== contentSignature(state.saved)), [site, state.saved]);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [busy, setBusy] = useState(false);
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [layersOpen, setLayersOpen] = useState(true);
-  const [leftTab, setLeftTab] = useState<"add" | "layers">("layers");
+  const [leftTab, setLeftTab] = useState<"add" | "layers" | "pages">("layers");
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -197,7 +200,9 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const renderPreserved = useMemo(() => libraryFallback(site?.name), [site?.name]);
 
   // Preview opens the saved website on its own page (same renderer as the canvas).
-  const previewUrl = `/${namespace}/scistudio/${encodeURIComponent(siteId)}/preview`;
+  const openPage = site?.pages?.find(pg => pg.id === site.active_page_id);
+  const openSlug = openPage && !openPage.is_home ? (openPage.slug || "").replace(/^\/+|\/+$/g, "") : "";
+  const previewUrl = `/${namespace}/scistudio/${encodeURIComponent(siteId)}/preview${openSlug ? `?page=${encodeURIComponent(openSlug)}` : ""}`;
   function openPreview() {
     if (!dirty) { window.open(previewUrl, "_blank", "noopener"); return; }
     ask({
@@ -241,6 +246,14 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
         </div>
 
         <div className={styles.toolbarCenter}>
+          {site && (site.pages?.length ?? 0) > 1 && (
+            <label className={styles.pagePicker} title="Choose which page to edit">
+              <Icon name="doc" size={14} />
+              <select aria-label="Page being edited" value={site.active_page_id} onChange={e => change(s => switchPage(s, e.target.value))}>
+                {site.pages!.map(pg => <option key={pg.id} value={pg.id}>{pg.name || "Untitled page"}</option>)}
+              </select>
+            </label>
+          )}
           <button type="button" className={styles.addPrimary} disabled={!site || readOnly} onClick={() => setLibraryOpen(true)}
             title="Browse all section designs and add one to your page">
             <Icon name="plus" size={15} /> Add section
@@ -286,9 +299,10 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
             <div className={styles.panelTabs} role="tablist" aria-label="Left panel">
               <button type="button" role="tab" aria-selected={leftTab === "add"} onClick={() => setLeftTab("add")}><Icon name="plus" size={15} /> Add</button>
               <button type="button" role="tab" aria-selected={leftTab === "layers"} onClick={() => setLeftTab("layers")}><Icon name="layers" size={15} /> Layers</button>
+              <button type="button" role="tab" aria-selected={leftTab === "pages"} onClick={() => setLeftTab("pages")}><Icon name="doc" size={15} /> Pages</button>
             </div>
             <span role="status" className={styles.announce}>{announcement}</span>
-            {leftTab === "add" ? <ComponentsPanel disabled={readOnly} onAdd={add} /> : (
+            {leftTab === "pages" ? <PagesPanel site={site} readOnly={readOnly} change={change} ask={ask} /> : leftTab === "add" ? <ComponentsPanel disabled={readOnly} onAdd={add} /> : (
               <>
                 <p className={styles.hint}>Drag a section onto another to place it above.</p>
                 <ul className={styles.layerList}>
@@ -304,9 +318,9 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                           onDrop={e => { e.preventDefault(); drop(s.id); }}
                           onDragEnd={() => { setDragging(null); setDropTarget(null); }}
                           onClick={() => setSelection({ sectionId: s.id })}>
-                          <Icon name={elements ? "grid" : "doc"} size={14} />
+                          <Icon name={elements || hasBlock(s.type) ? "grid" : "doc"} size={14} />
                           <span>{s.title || s.type}</span>
-                          {!elements && <small>preview</small>}
+                          {s.hidden === true ? <small>hidden</small> : !elements && !hasBlock(s.type) && <small>preview</small>}
                         </button>
                         {open && elements && (
                           <ul>

@@ -248,6 +248,102 @@ export function moveListItem(site: EditorSite, sectionId: string, key: string, i
   });
 }
 
+// ---------------------------------------------------------------- pages
+export type EditorPage = NonNullable<EditorSite["pages"]>[number];
+
+/** A copy of a section with new IDs everywhere, safe to place on another page. */
+export function freshCopy(section: Section): Section {
+  const copy = structuredClone(section);
+  copy.id = newId("comp");
+  const elements = getElements(copy);
+  if (elements) {
+    return withElements(copy, elements.map(e => ({
+      ...e, id: newId(), ...(e.items ? { items: e.items.map(i => ({ ...i, id: newId("item") })) } : {}),
+    })));
+  }
+  return copy;
+}
+
+export function slugify(name: string): string {
+  return name.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "page";
+}
+function uniqueSlug(pages: EditorPage[], base: string, exceptId?: string) {
+  let slug = base, n = 2;
+  while (pages.some(p => p.id !== exceptId && (p.slug || "").replace(/^\/+|\/+$/g, "") === slug)) slug = `${base}-${n++}`;
+  return slug;
+}
+
+/** Single-page sites get a page list (with the current sections as Home) on first use. */
+export function ensurePages(site: EditorSite): EditorSite {
+  if (site.pages?.length && site.active_page_id && site.pages.some(p => p.id === site.active_page_id)) return site;
+  if (site.pages?.length) return { ...site, active_page_id: (site.pages.find(p => p.is_home) ?? site.pages[0]).id };
+  return { ...site, pages: [{ id: "page_home", name: "Home", slug: "", is_home: true, schema_json: site.schema_json }], active_page_id: "page_home" };
+}
+
+/** Stores the open page's sections back into its page entry. */
+function storeActive(site: EditorSite): EditorPage[] {
+  return (site.pages ?? []).map(p => (p.id === site.active_page_id ? { ...p, schema_json: site.schema_json } : p));
+}
+
+export function switchPage(site: EditorSite, pageId: string): EditorSite {
+  const ready = ensurePages(site);
+  if (ready.active_page_id === pageId) return ready;
+  const pages = storeActive(ready);
+  const target = pages.find(p => p.id === pageId);
+  if (!target) throw new Error("This page no longer exists.");
+  const sections = readDocument(Array.isArray(target.schema_json) ? target.schema_json : []).sections;
+  const ctx = { sections, pages, siteSlug: site.slug };
+  return { ...ready, pages, active_page_id: pageId, schema_json: sections.map(s => upgradeSection(s, ctx)) };
+}
+
+/** Adds a page and opens it. It starts with copies of this page's navigation bar and footer. */
+export function addPage(site: EditorSite, name: string): EditorSite {
+  const ready = ensurePages(site);
+  const pages = storeActive(ready);
+  if (pages.length >= 30) throw new Error("A website can have up to 30 pages.");
+  const clean = name.trim().slice(0, 60) || "New page";
+  const id = newId("page");
+  const shared = ready.schema_json.filter(s => s.type === "navbar" || s.type === "footer").map(freshCopy);
+  const page: EditorPage = { id, name: clean, slug: uniqueSlug(pages, slugify(clean)), is_home: false, schema_json: shared };
+  return { ...ready, pages: [...pages, page], active_page_id: id, schema_json: shared };
+}
+
+export function renamePage(site: EditorSite, pageId: string, name: string, slug?: string): EditorSite {
+  const ready = ensurePages(site);
+  const pages = storeActive(ready);
+  const page = pages.find(p => p.id === pageId);
+  if (!page) throw new Error("This page no longer exists.");
+  const clean = name.trim().slice(0, 60);
+  if (!clean) throw new Error("Give the page a name.");
+  const nextSlug = page.is_home ? "" : uniqueSlug(pages, slugify(slug ?? clean), pageId);
+  return { ...ready, pages: pages.map(p => (p.id === pageId ? { ...p, name: clean, slug: nextSlug } : p)) };
+}
+
+export function removePage(site: EditorSite, pageId: string): EditorSite {
+  const ready = ensurePages(site);
+  const page = ready.pages!.find(p => p.id === pageId);
+  if (!page) return ready;
+  if (page.is_home) throw new Error("The home page can’t be deleted.");
+  const opened = ready.active_page_id === pageId ? switchPage(ready, ready.pages!.find(p => p.is_home)!.id) : ready;
+  return { ...opened, pages: storeActive(opened).filter(p => p.id !== pageId) };
+}
+
+/** Content fingerprint of every page, ignoring which page is open. */
+export function contentSignature(site: EditorSite): string {
+  const ready = ensurePages(site);
+  return JSON.stringify({ sections: ready.pages ? null : site.schema_json, pages: storeActive(ready).map(p => [p.id, p.name, p.slug, p.schema_json]) });
+}
+
+export function movePage(site: EditorSite, pageId: string, delta: number): EditorSite {
+  const ready = ensurePages(site);
+  const pages = storeActive(ready);
+  const index = pages.findIndex(p => p.id === pageId), target = index + delta;
+  if (index < 0 || target < 0 || target >= pages.length) return ready;
+  const [page] = pages.splice(index, 1);
+  pages.splice(target, 0, page);
+  return { ...ready, pages };
+}
+
 // ---------------------------------------------------------------- saving
 export function editorPayload(site: EditorSite) {
   const ctx = linkContext(site);
@@ -257,7 +353,13 @@ export function editorPayload(site: EditorSite) {
     if (!site.active_page_id || !site.pages.some(p => p.id === site.active_page_id)) {
       throw new Error("This website's current page could not be found. Reload the editor and try again.");
     }
-    payload.pages = site.pages.map(p => (p.id === site.active_page_id ? { ...p, schema_json: sections } : structuredClone(p)));
+    // Every page's navbar/hero text is written back for the current publisher, not just the open page.
+    payload.pages = site.pages.map(p => {
+      if (p.id === site.active_page_id) return { ...p, schema_json: sections };
+      const own = Array.isArray(p.schema_json) ? p.schema_json : [];
+      const pageCtx = { ...ctx, sections: own };
+      return { ...structuredClone(p), schema_json: own.map(s => syncLegacy(structuredClone(s), pageCtx)) };
+    });
     payload.active_page_id = site.active_page_id;
   }
   return payload;

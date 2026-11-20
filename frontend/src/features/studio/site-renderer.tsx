@@ -160,11 +160,13 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
   );
 }
 
-export function SiteRenderer({ sections, pages, siteSlug, edit, fallback }: {
+export function SiteRenderer({ sections, pages, siteSlug, edit, fallback, pagePath }: {
   sections: Section[]; pages?: PageRef[]; siteSlug?: string; edit?: EditHooks; fallback?: RenderFallback;
+  /** Where links to other pages point (the preview keeps them inside the preview). */
+  pagePath?: (page: PageRef) => string;
 }) {
   const css = useMemo(() => buildSiteCss(sections), [sections]);
-  const ctx = useMemo(() => ({ sections, pages, siteSlug }), [sections, pages, siteSlug]);
+  const ctx = useMemo(() => ({ sections, pages, siteSlug, pagePath }), [sections, pages, siteSlug, pagePath]);
   return (
     <div className={styles.site} data-editing={edit ? true : undefined}>
       <style>{css}</style>
