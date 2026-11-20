@@ -8,7 +8,7 @@ test("return paths cannot redirect outside role workspaces", () => {
   assert.equal(safeReturnPath("/organization/scistudio/site_12345678/edit"), "/organization/scistudio/site_12345678/edit");
 });
 test("clean edit and preview paths remain distinct", () => {
-  assert.equal(studioPath("organization", "site_12345678"), "/organization/scistudio/site_12345678/edit");
+  assert.equal(studioPath("organization", "site_12345678"), "/organization/scistudio/site_12345678/react-edit");
   assert.equal(studioPath("organization", "site_12345678", "preview"), "/organization/scistudio/site_12345678/preview");
   assert.equal(isNamespace("api"), false);
 });

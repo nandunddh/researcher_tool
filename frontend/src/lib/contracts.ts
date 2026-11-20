@@ -24,7 +24,8 @@ export type ClientBrief = {
   venue_format: string; contact_email: string;
 };
 export function studioPath(namespace: Namespace, siteId?: string, action: "edit" | "preview" = "edit") {
-  return `/${namespace}/scistudio${siteId ? `/${encodeURIComponent(siteId)}/${action}` : ""}`;
+  // "edit" opens the React editor; the classic editor stays reachable from its toolbar.
+  return `/${namespace}/scistudio${siteId ? `/${encodeURIComponent(siteId)}/${action === "edit" ? "react-edit" : action}` : ""}`;
 }
 export function safeReturnPath(path: string | undefined): string | null {
   if (!path || !path.startsWith("/") || path.startsWith("//") || /[\\\r\n]/.test(path)) return null;
