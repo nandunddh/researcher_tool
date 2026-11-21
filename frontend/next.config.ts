@@ -9,7 +9,6 @@ const config: NextConfig = {
       // Browser requests stay on one origin; FastAPI owns authorization and sessions.
       beforeFiles: [
         { source: "/api/:path*", destination: `${backend}/api/:path*` },
-        { source: "/sites/:path*", destination: `${backend}/sites/:path*` },
       ],
       // Existing editor/admin/collector remain functional during incremental migration.
       fallback: [{ source: "/:path*", destination: `${backend}/:path*` }],

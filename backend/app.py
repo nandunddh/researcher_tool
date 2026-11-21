@@ -26,6 +26,7 @@ from fastapi.staticfiles import StaticFiles
 import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from app_config import get_data_dir, set_data_dir
+from public_site import FormRateLimit, published_page
 sys.path.append(str(Path(__file__).resolve().parent.parent / "app" / "main"))
 from license_manager import license_engine
 
@@ -1982,9 +1983,19 @@ async def builder_upload_media(site_id: str, request: Request):
     return {"status": "ok", "url": f"/api/builder/media/{site_id}/{name}"}
 
 
+_form_rate_limit = FormRateLimit()
+
+
+def _limit_form_requests(request):
+    peer = request.client.host if request.client else "unknown"
+    if not _form_rate_limit.allow(peer):
+        raise HTTPException(status_code=429, detail="Please wait a minute and try again.", headers={"Retry-After": "60"})
+
+
 @app.post("/api/public/forms/{site_id}/{form_id}")
 async def submit_website_form(site_id: str, form_id: str, request: Request):
     """Public: a visitor submits a form on a website. Values are checked against the form's own fields."""
+    _limit_form_requests(request)
     import forms
     if not re.fullmatch(r"site_[a-f0-9]{8}", site_id) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", form_id):
         raise HTTPException(status_code=404, detail="Form not found.")
@@ -2025,6 +2036,7 @@ async def _public_form(site_id: str, form_id: str):
 @app.post("/api/public/forms/{site_id}/{form_id}/quote")
 async def quote_registration(site_id: str, form_id: str, request: Request):
     """Public: live price for a registration (category, add-ons, discount code). Computed on the server."""
+    _limit_form_requests(request)
     import forms
     section = await _public_form(site_id, form_id)
     try:
@@ -2040,6 +2052,7 @@ async def quote_registration(site_id: str, form_id: str, request: Request):
 @app.post("/api/public/forms/{site_id}/{form_id}/pay-test/{submission_id}")
 async def pay_registration_test(site_id: str, form_id: str, submission_id: int, request: Request):
     """Public: test-mode payment for a registration (stand-in until Stripe is connected)."""
+    _limit_form_requests(request)
     import forms
     section = await _public_form(site_id, form_id)
     try:
@@ -2078,21 +2091,21 @@ async def builder_serve_media(site_id: str, name: str):
     })
 
 
+@app.get("/api/public/sites/{slug}")
+@app.get("/api/public/sites/{slug}/{page_slug}")
+async def get_published_page(slug: str, page_slug: Optional[str] = None):
+    page = published_page(builder_engine.get_site_by_slug(slug), page_slug)
+    if page is None:
+        raise HTTPException(status_code=404, detail="This website or page is unavailable.")
+    return JSONResponse(page, headers={"Cache-Control": "no-store"})
+
+
 @app.get("/sites/{slug}")
 @app.get("/sites/{slug}/{page_slug}")
-async def serve_public_website(slug: str, page_slug=None):
-    """Public delivery endpoint for published websites with multi-page support."""
-    site = builder_engine.get_site_by_slug(slug)
-    if not site or site.get("status") != "published":
-        return HTMLResponse(
-            "<!DOCTYPE html><html><head><title>Site Not Found</title></head><body style='font-family:sans-serif;text-align:center;padding:5rem;background:#0f172a;color:#fff;'><h1>404 - Website Not Found</h1><p>The requested website does not exist or has not been published yet.</p></body></html>",
-            status_code=404
-        )
-    if page_slug:
-        html, _ = compile_website_html(site, page_id=page_slug)
-        return HTMLResponse(content=html, status_code=200)
-    return HTMLResponse(content=site["compiled_html"], status_code=200)
-
+async def serve_public_website(slug: str, page_slug: Optional[str] = None):
+    from urllib.parse import quote
+    path = "/sites/" + quote(slug, safe="")
+    return _to_react(path + ("/" + quote(page_slug, safe="") if page_slug else ""))
 
 
 # -----------------------------------------------------------------------------
