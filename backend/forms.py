@@ -12,7 +12,7 @@ from psycopg2.extras import Json
 
 import db
 
-FORM_TYPES = ("contact", "form_button")
+FORM_TYPES = ("contact", "form_button", "registration")
 FIELD_TYPES = ("text", "email", "phone", "textarea", "select", "checkbox")
 MAX_VALUE = 5000
 EMAIL = re.compile(r"^[^\s@<>\"']{1,64}@[^\s@<>\"']{1,190}\.[A-Za-z]{2,}$")
@@ -29,7 +29,7 @@ def form_fields(section: dict) -> List[dict]:
     fields = (section.get("data") or {}).get("form_fields")
     if isinstance(fields, list) and fields:
         return [f for f in fields if isinstance(f, dict) and isinstance(f.get("id"), str)]
-    return DEFAULT_CONTACT_FIELDS
+    return DEFAULT_REGISTRATION_FIELDS if section.get("type") == "registration" else DEFAULT_CONTACT_FIELDS
 
 
 def find_form(site: dict, form_id: str) -> Tuple[Optional[dict], Optional[str]]:
@@ -94,6 +94,100 @@ def list_submissions(site_id: str, limit: int = 500) -> List[dict]:
             (site_id, limit),
         )
         return [{
-            "id": r[0], "form_id": r[1], "form_type": r[2], "page_id": r[3], "data": r[4],
+            "id": r[0], "form_id": r[1], "form_type": r[2], "page_id": r[3],
+            "data": {k: v for k, v in (r[4] or {}).items() if not k.startswith("_payment")},
             "status": r[5], "created_at": r[6].isoformat(),
         } for r in cur.fetchall()]
+
+
+# ---------------------------------------------------------------- registration pricing
+from datetime import date  # noqa: E402
+import secrets  # noqa: E402
+
+DEFAULT_REGISTRATION_FIELDS = [
+    {"id": "name", "label": "Full name", "type": "text", "required": True},
+    {"id": "email", "label": "Email", "type": "email", "required": True},
+    {"id": "organization", "label": "Organization", "type": "text", "required": True},
+    {"id": "phone", "label": "Phone", "type": "phone", "required": False},
+    {"id": "country", "label": "Country", "type": "text", "required": True},
+]
+
+
+def _money(v) -> float:
+    try:
+        return max(0.0, round(float(v), 2))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def current_period(data: dict, today: date) -> Tuple[str, str]:
+    """Early bird until its end date, then standard until its end date, then late."""
+    for key, label, end in (("early", "Early bird", data.get("early_bird_ends")), ("standard", "Standard", data.get("standard_ends"))):
+        try:
+            if end and today <= date.fromisoformat(str(end)):
+                return key, label
+        except ValueError:
+            continue
+    return "late", "Late"
+
+
+def quote(section: dict, payload: dict, today: Optional[date] = None) -> Tuple[Optional[dict], Optional[str]]:
+    """Server-side price for a registration. Prices and discount codes come only from the saved form."""
+    data = section.get("data") or {}
+    period, period_label = current_period(data, today or date.today())
+    category = next((c for c in data.get("categories") or [] if isinstance(c, dict) and c.get("id") == payload.get("category")), None)
+    if not category:
+        return None, "Please choose a registration type."
+    base = _money(category.get(period))
+    lines = [{"label": f"{category.get('name', 'Registration')} ({period_label})", "amount": base}]
+    quantities = payload.get("addons") if isinstance(payload.get("addons"), dict) else {}
+    for addon in data.get("addons") or []:
+        if not isinstance(addon, dict):
+            continue
+        try:
+            qty = int(quantities.get(addon.get("id"), 0))
+        except (TypeError, ValueError):
+            qty = 0
+        qty = max(0, min(qty, int(addon.get("max") or 10)))
+        if qty:
+            lines.append({"label": f"{addon.get('name', 'Add-on')} × {qty}", "amount": round(_money(addon.get("price")) * qty, 2)})
+    subtotal = round(sum(l["amount"] for l in lines), 2)
+    discount, code = 0.0, str(payload.get("discount_code") or "").strip().upper()
+    if code:
+        match = next((d for d in data.get("discount_codes") or [] if isinstance(d, dict) and str(d.get("code", "")).strip().upper() == code), None)
+        if not match:
+            return None, "This discount code is not valid."
+        discount = round(subtotal * min(100.0, _money(match.get("percent"))) / 100, 2)
+    return {
+        "currency": str(data.get("currency") or "USD")[:3].upper(), "period": period, "lines": lines,
+        "subtotal": subtotal, "discount": discount, "discount_code": code if discount else "", "total": round(subtotal - discount, 2),
+    }, None
+
+
+def order_summary(order: dict) -> str:
+    parts = [f"{l['label']} {order['currency']} {l['amount']:.2f}" for l in order["lines"]]
+    if order["discount"]:
+        parts.append(f"Discount {order['discount_code']} -{order['discount']:.2f}")
+    return "; ".join(parts) + f" = {order['currency']} {order['total']:.2f}"
+
+
+def save_registration(site_id: str, form_id: str, page_id: Optional[str], values: dict, order: dict) -> Tuple[int, str]:
+    token = secrets.token_urlsafe(16)
+    values = {**values, "_order": {"label": "Order", "value": order_summary(order)}, "_total": {"label": "Total", "value": f"{order['currency']} {order['total']:.2f}"}}
+    with db.transaction() as cur:
+        cur.execute(
+            "INSERT INTO form_submissions (site_id, form_id, form_type, page_id, data, status) VALUES (%s, %s, 'registration', %s, %s, 'awaiting payment') RETURNING id",
+            (site_id, form_id, page_id, Json({**values, "_payment_token": token})),
+        )
+        return cur.fetchone()[0], token
+
+
+def mark_test_payment(site_id: str, submission_id: int, token: str) -> bool:
+    """Test mode stand-in for Stripe: marks a registration as paid. shortcut: no real payment, replace with Stripe checkout + webhook."""
+    with db.transaction() as cur:
+        cur.execute(
+            "UPDATE form_submissions SET status = 'paid (test)' WHERE id = %s AND site_id = %s AND form_type = 'registration' "
+            "AND status = 'awaiting payment' AND data->>'_payment_token' = %s",
+            (submission_id, site_id, token),
+        )
+        return cur.rowcount == 1

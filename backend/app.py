@@ -2001,8 +2001,54 @@ async def submit_website_form(site_id: str, form_id: str, request: Request):
     values, problem = forms.clean_submission(section, payload)
     if problem:
         raise HTTPException(status_code=400, detail=problem)
+    message = (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."
+    if section["type"] == "registration":
+        order, problem = forms.quote(section, payload)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
+        submission_id, token = forms.save_registration(site_id, form_id, page_id, values, order)
+        return {"status": "ok", "message": message, "submission_id": submission_id, "payment_token": token, "order": order}
     forms.save_submission(site_id, form_id, section["type"], page_id, values)
-    return {"status": "ok", "message": (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."}
+    return {"status": "ok", "message": message}
+
+
+async def _public_form(site_id: str, form_id: str):
+    import forms
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", form_id):
+        raise HTTPException(status_code=404, detail="Form not found.")
+    section, _ = forms.find_form(builder_engine.get_site(site_id) or {}, form_id)
+    if not section or section.get("type") != "registration":
+        raise HTTPException(status_code=404, detail="Form not found.")
+    return section
+
+
+@app.post("/api/public/forms/{site_id}/{form_id}/quote")
+async def quote_registration(site_id: str, form_id: str, request: Request):
+    """Public: live price for a registration (category, add-ons, discount code). Computed on the server."""
+    import forms
+    section = await _public_form(site_id, form_id)
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid form data.")
+    order, problem = forms.quote(section, payload if isinstance(payload, dict) else {})
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    return {"status": "ok", "order": order}
+
+
+@app.post("/api/public/forms/{site_id}/{form_id}/pay-test/{submission_id}")
+async def pay_registration_test(site_id: str, form_id: str, submission_id: int, request: Request):
+    """Public: test-mode payment for a registration (stand-in until Stripe is connected)."""
+    import forms
+    await _public_form(site_id, form_id)
+    try:
+        token = str((await request.json()).get("payment_token", ""))
+    except Exception:
+        token = ""
+    if not forms.mark_test_payment(site_id, submission_id, token):
+        raise HTTPException(status_code=400, detail="This payment could not be completed.")
+    return {"status": "ok", "message": "Payment received (test mode). Your registration is confirmed."}
 
 
 @app.get("/api/builder/sites/{site_id}/submissions")

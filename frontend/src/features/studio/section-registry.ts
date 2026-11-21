@@ -145,6 +145,29 @@ export const sectionRegistry: Record<string, SectionDef> = {
 };
 
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
+sectionRegistry.registration = {
+  name: "Registration", header: true,
+  fields: [t("currency", "Currency", { placeholder: "USD" }),
+    t("early_bird_ends", "Early bird ends (YYYY-MM-DD)", { placeholder: "2027-03-31" }),
+    t("standard_ends", "Standard ends (YYYY-MM-DD)", { placeholder: "2027-05-31", hint: "After this date the late price applies." }),
+    t("btn_text", "Button text"), t("success_message", "Message after payment")],
+  lists: [
+    { key: "categories", label: "Registration types", itemLabel: "Type", max: 12,
+      fields: [t("name", "Name"), { key: "early", label: "Early bird price", kind: "number", max: 1000000 },
+        { key: "standard", label: "Standard price", kind: "number", max: 1000000 }, { key: "late", label: "Late price", kind: "number", max: 1000000 }],
+      newItem: () => ({ id: `cat_${crypto.randomUUID().slice(0, 6)}`, name: "New type", early: 0, standard: 0, late: 0 }) },
+    { key: "addons", label: "Add-ons", itemLabel: "Add-on", max: 10,
+      fields: [t("name", "Name"), { key: "price", label: "Price each", kind: "number", max: 1000000 }, { key: "max", label: "Maximum quantity", kind: "number", min: 1, max: 20 }],
+      newItem: () => ({ id: `add_${crypto.randomUUID().slice(0, 6)}`, name: "New add-on", price: 0, max: 5 }) },
+    { key: "discount_codes", label: "Discount codes (hidden from visitors)", itemLabel: "Code", max: 50,
+      fields: [t("code", "Code"), { key: "percent", label: "Discount %", kind: "number", min: 1, max: 100 }],
+      newItem: () => ({ code: "EARLY10", percent: 10 }) },
+    { ...sectionRegistry.contact.lists[0], defaults: [
+      { id: "name", label: "Full name", type: "text", required: true }, { id: "email", label: "Email", type: "email", required: true },
+      { id: "organization", label: "Organization", type: "text", required: true }, { id: "phone", label: "Phone", type: "phone", required: false },
+      { id: "country", label: "Country", type: "text", required: true }] },
+  ],
+};
 
 export const headerFields: FieldDef[] = [
   t("section_tag", "Small label", { placeholder: "KEY FOCUS" }),

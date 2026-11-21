@@ -175,18 +175,31 @@ export const defaultContactFields: Rec[] = [
   { id: "email", label: "Email", type: "email", required: true },
   { id: "message", label: "Message", type: "textarea", required: true },
 ];
+export const defaultRegistrationFields: Rec[] = [
+  { id: "name", label: "Full name", type: "text", required: true },
+  { id: "email", label: "Email", type: "email", required: true },
+  { id: "organization", label: "Organization", type: "text", required: true },
+  { id: "phone", label: "Phone", type: "phone", required: false },
+  { id: "country", label: "Country", type: "text", required: true },
+];
 const autoComplete: Record<string, string> = { email: "email", phone: "tel", name: "name" };
 
 /** Renders a form from its field list and sends it to the backend (saved in the database). */
-function WebsiteForm({ c, children, inline }: { c: Ctx; children: ReactNode; inline?: boolean }) {
+function WebsiteForm({ c, children, inline, top, extra, onResult }: {
+  c: Ctx; children: ReactNode; inline?: boolean; top?: ReactNode;
+  /** Extra values sent with the fields (registration: type, add-ons, discount). */
+  extra?: () => Record<string, unknown>;
+  /** Return true to take over after a successful send (registration shows payment). */
+  onResult?: (body: Record<string, unknown>) => boolean;
+}) {
   const d = c.section.data;
-  const fields = list(d.form_fields).length ? list(d.form_fields) : defaultContactFields;
+  const fields = list(d.form_fields).length ? list(d.form_fields) : c.section.type === "registration" ? defaultRegistrationFields : defaultContactFields;
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (c.edit) return;
     const form = new FormData(e.currentTarget);
-    const values: Record<string, unknown> = { _hp: form.get("_hp") ?? "" };
+    const values: Record<string, unknown> = { _hp: form.get("_hp") ?? "", ...(extra?.() ?? {}) };
     for (const f of fields) values[str(f.id)] = f.type === "checkbox" ? form.get(str(f.id)) === "on" : str(form.get(str(f.id)));
     if (!c.ctx.siteId) { setState({ kind: "error", message: "This form can be sent from the preview or the live site." }); return; }
     setState({ kind: "sending" });
@@ -196,6 +209,7 @@ function WebsiteForm({ c, children, inline }: { c: Ctx; children: ReactNode; inl
       });
       const body = await res.json().catch(() => null);
       if (!res.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Your message could not be sent. Please try again.");
+      if (onResult?.(body)) { setState({ kind: "idle" }); return; }
       setState({ kind: "sent", message: body?.message ?? "Thank you! Your message has been sent." });
       (e.target as HTMLFormElement).reset();
     } catch (err) {
@@ -204,6 +218,7 @@ function WebsiteForm({ c, children, inline }: { c: Ctx; children: ReactNode; inl
   }
   return (
     <form className={`${styles.form} ${inline ? styles.formInline : ""}`} onSubmit={submit} noValidate={!!c.edit}>
+      {top}
       {fields.map(f => {
         const id = str(f.id), label = str(f.label) || id, required = f.required === true, disabled = !!c.edit;
         const mark = required ? " *" : "";
@@ -265,6 +280,100 @@ function Contact({ c }: { c: Ctx }) {
         <div><Header c={c} center={false} />{details}</div>
         {form}
       </div>
+    </div>
+  );
+}
+
+type Order = { currency: string; lines: { label: string; amount: number }[]; subtotal: number; discount: number; total: number };
+const money = (currency: string, n: number) => `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
+/** Which price applies today: early bird, standard, then late. Mirrors backend/forms.py current_period. */
+export function currentPeriod(d: Rec, today = new Date().toISOString().slice(0, 10)): { key: "early" | "standard" | "late"; label: string; ends: string } {
+  if (str(d.early_bird_ends) && today <= str(d.early_bird_ends)) return { key: "early", label: "Early bird", ends: str(d.early_bird_ends) };
+  if (str(d.standard_ends) && today <= str(d.standard_ends)) return { key: "standard", label: "Standard", ends: str(d.standard_ends) };
+  return { key: "late", label: "Late", ends: "" };
+}
+
+/** Registration: choose a type, add-ons and a discount code; the server prices it, then test payment. */
+function Registration({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  const cats = list(d.categories), addons = list(d.addons), currency = str(d.currency) || "USD";
+  const period = currentPeriod(d);
+  const [category, setCategory] = useState(str(cats[0]?.id));
+  const [qty, setQty] = useState<Record<string, number>>({});
+  const [code, setCode] = useState("");
+  const [order, setOrder] = useState<Order | null>(null);
+  const [note, setNote] = useState("");
+  const [pay, setPay] = useState<{ id: number; token: string; order: Order } | null>(null);
+  const [done, setDone] = useState("");
+  const chosen = cats.find(x => str(x.id) === category);
+  const estimate = (Number(chosen?.[period.key]) || 0) + addons.reduce((sum, a) => sum + (Number(a.price) || 0) * (qty[str(a.id)] ?? 0), 0);
+  const base = `/api/public/forms/${encodeURIComponent(c.ctx.siteId ?? "")}/${encodeURIComponent(c.section.id)}`;
+  const payload = () => ({ category, addons: qty, discount_code: code.trim() });
+
+  async function applyCode() {
+    if (c.edit || !c.ctx.siteId) return;
+    setNote("");
+    const res = await fetch(`${base}/quote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
+    const body = await res.json().catch(() => null);
+    if (res.ok) { setOrder(body.order); setNote(body.order.discount ? "Discount applied." : ""); } else { setOrder(null); setNote(body?.detail ?? "This code could not be checked."); }
+  }
+  async function payNow() {
+    if (!pay) return;
+    const res = await fetch(`${base}/pay-test/${pay.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payment_token: pay.token }) });
+    const body = await res.json().catch(() => null);
+    if (res.ok) setDone(body.message); else setNote(body?.detail ?? "Payment failed.");
+  }
+
+  const picker = (
+    <div className={styles.regPicker}>
+      <p className={styles.regPeriod}>{period.label} prices{period.ends && <> · until {new Date(period.ends).toLocaleDateString()}</>}</p>
+      <div className={styles.regTypes} role="radiogroup" aria-label="Registration type">
+        {cats.map((x, i) => (
+          <label key={i} className={styles.regType} data-active={str(x.id) === category || undefined}>
+            <input type="radio" name="_category" checked={str(x.id) === category} onChange={() => { setCategory(str(x.id)); setOrder(null); }} disabled={!!c.edit} />
+            <T c={c} path={["categories", i, "name"]} tag="strong" placeholder="type name" />
+            <span>{money(currency, Number(x[period.key]) || 0)}</span>
+          </label>
+        ))}
+      </div>
+      {addons.map((a, i) => (
+        <label key={i} className={styles.regAddon}>
+          <span><T c={c} path={["addons", i, "name"]} placeholder="add-on" /> <small>{money(currency, Number(a.price) || 0)} each</small></span>
+          <select value={qty[str(a.id)] ?? 0} disabled={!!c.edit} onChange={e => { setQty(q => ({ ...q, [str(a.id)]: Number(e.target.value) })); setOrder(null); }}>
+            {Array.from({ length: (Number(a.max) || 5) + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+        </label>
+      ))}
+      <div className={styles.regCode}>
+        <input placeholder="Discount code" value={code} disabled={!!c.edit} onChange={e => { setCode(e.target.value); setOrder(null); }} aria-label="Discount code" />
+        <button type="button" className={styles.button} onClick={() => void applyCode()} disabled={!code.trim()}>Apply</button>
+      </div>
+      {note && <p className={order?.discount ? styles.formSuccess : styles.formError}>{note}</p>}
+      <p className={styles.regTotal}>Total <strong>{money(currency, order ? order.total : estimate)}</strong>{order?.discount ? <small> (−{money(currency, order.discount)})</small> : null}</p>
+    </div>
+  );
+
+  return (
+    <div className={`${styles.wrap} ${styles.narrow}`}>
+      <Header c={c} />
+      {done ? <p role="status" className={`${styles.form} ${styles.formSuccess}`}>{done}</p> : pay ? (
+        <div className={styles.form}>
+          <h3>Payment <small className={styles.muted}>(test mode, no money is charged)</small></h3>
+          {pay.order.lines.map((l, i) => <p key={i} className={styles.regLine}><span>{l.label}</span><span>{money(pay.order.currency, l.amount)}</span></p>)}
+          {pay.order.discount > 0 && <p className={styles.regLine}><span>Discount</span><span>−{money(pay.order.currency, pay.order.discount)}</span></p>}
+          <p className={styles.regTotal}>Total <strong>{money(pay.order.currency, pay.order.total)}</strong></p>
+          <label>Card number<input value="4242 4242 4242 4242" readOnly /></label>
+          <button type="button" className={styles.button} data-primary onClick={() => void payNow()}>Pay {money(pay.order.currency, pay.order.total)} (test)</button>
+          {note && <p className={styles.formError}>{note}</p>}
+        </div>
+      ) : (
+        <WebsiteForm c={c} top={picker} extra={payload}
+          onResult={body => { if (body.submission_id) { setPay({ id: Number(body.submission_id), token: String(body.payment_token), order: body.order as Order }); return true; } return false; }}>
+          <T c={c} path={["btn_text"]} placeholder="button text" />
+          {!str(d.btn_text) && !c.edit && "Continue to payment"}
+        </WebsiteForm>
+      )}
     </div>
   );
 }
@@ -399,7 +508,7 @@ function Content({ c }: { c: Ctx }) {
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
-  image: ImageBlock, custom: Custom, content: Content, form_button: FormButton,
+  image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,
 };
 
 export function hasBlock(type: string) {

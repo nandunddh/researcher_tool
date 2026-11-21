@@ -41,3 +41,29 @@ class FormTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+from datetime import date  # noqa: E402
+
+REG = {"id": "r1", "type": "registration", "data": {
+    "currency": "usd", "early_bird_ends": "2027-03-31", "standard_ends": "2027-05-31",
+    "categories": [{"id": "academic", "name": "Academic", "early": 699, "standard": 799, "late": 899}],
+    "addons": [{"id": "night", "name": "Night", "price": 190, "max": 3}],
+    "discount_codes": [{"code": "EARLY10", "percent": 10}],
+}}
+
+
+class RegistrationPricingTests(unittest.TestCase):
+    def test_price_follows_the_date(self):
+        q = lambda d: forms.quote(REG, {"category": "academic"}, d)[0]["total"]
+        self.assertEqual(q(date(2027, 3, 31)), 699)
+        self.assertEqual(q(date(2027, 4, 1)), 799)
+        self.assertEqual(q(date(2027, 6, 1)), 899)
+
+    def test_addons_discount_and_tampering(self):
+        order, _ = forms.quote(REG, {"category": "academic", "addons": {"night": 99, "fake": 5}, "discount_code": "early10", "price": 1}, date(2027, 1, 1))
+        self.assertEqual(order["subtotal"], 699 + 190 * 3, "quantity capped at max; unknown add-ons and client prices ignored")
+        self.assertEqual(order["discount"], round((699 + 570) * 0.10, 2))
+        self.assertEqual(order["currency"], "USD")
+        self.assertIn("not valid", forms.quote(REG, {"category": "academic", "discount_code": "FREE"})[1])
+        self.assertIn("registration type", forms.quote(REG, {"category": "vip"})[1])

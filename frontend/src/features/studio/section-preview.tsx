@@ -16,7 +16,7 @@ export function SectionPreview({item,brand,accent,logo,interactive=true}:{item:L
    </div>)}
   </section>;
  }
- if(item.variant.startsWith("contact")||item.variant==="form-button"){
+ if(item.variant.startsWith("contact")||item.variant==="form-button"||item.variant==="registration"){
   // Form designs preview with the real section, so the thumbnail matches what users get.
   const section=instantiateComponent(item,brand) as unknown as Section;
   return <div className={siteStyles.site} style={{background:"white"}} aria-label={`${item.name} preview`}><SectionBlock section={section} ctx={{sections:[section]}}/></div>;
