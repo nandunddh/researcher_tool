@@ -10,6 +10,7 @@ const ROOT_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/root/dashboard", icon: "bolt" },
   { label: "Add Account", url: "/root/add-account", icon: "doc" },
   { label: "Manage Accounts", url: "/root/accounts", icon: "doc" },
+  { label: "Design Library", url: "/root/designs", icon: "layers" },
   { label: "Open Data Collector", url: "/root/collector", icon: "bolt" },
 ];
 

@@ -1,9 +1,10 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Icon } from "@/components/icon";
 import { ComponentThumbnail } from "./component-library";
 import { componentCatalog, filterComponents, type LibraryComponent, type LibraryGroup } from "./component-catalog";
 import { instantiateComponent } from "./component-instance";
+import { useImportedDesigns } from "./design-library";
 import { elementSections } from "./site-schema";
 import { hasBlock } from "./section-blocks";
 import { COMPONENT_MIME } from "./site-renderer";
@@ -16,15 +17,18 @@ export const editableIds = new Set(
     .map(item => item.id),
 );
 
+const isEditable = (item: LibraryComponent) => editableIds.has(item.id) || Boolean(item.preset);
+
 const groups: LibraryGroup[] = ["Sections", "Elements", "Assets"];
 
 export function ComponentsPanel({ disabled, onAdd, onDragItem }: { disabled: boolean; onAdd: (item: LibraryComponent) => void; onDragItem?: (id: string | null) => void }) {
+  useImportedDesigns();
   const [group, setGroup] = useState<LibraryGroup>("Sections");
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
-  const categories = useMemo(() => ["All", ...new Set(componentCatalog.filter(c => c.group === group).map(c => c.category))], [group]);
+  const categories = ["All", ...new Set(componentCatalog.filter(c => c.group === group).map(c => c.category))];
   const items = filterComponents("all", query, group, category)
-    .sort((a, b) => Number(editableIds.has(b.id)) - Number(editableIds.has(a.id)));
+    .sort((a, b) => Number(isEditable(b)) - Number(isEditable(a)));
 
   return (
     <div className={styles.components}>
@@ -43,7 +47,7 @@ export function ComponentsPanel({ disabled, onAdd, onDragItem }: { disabled: boo
       <p className={styles.hint}>Click a design to add it below the selected section.</p>
       <ul className={styles.cards}>
         {items.map(item => {
-          const editable = editableIds.has(item.id);
+          const editable = isEditable(item);
           return (
             <li key={item.id} className={styles.card} data-disabled={disabled || undefined} draggable={!disabled}
               onDragStart={e => { e.dataTransfer.effectAllowed = "copy"; e.dataTransfer.setData(COMPONENT_MIME, item.id); onDragItem?.(item.id); }}

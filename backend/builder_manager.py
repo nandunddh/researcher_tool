@@ -50,6 +50,11 @@ def build_template_components(
     Builds the tailored dynamic components and theme config based on the chosen template
     and the user's customized wizard options.
     """
+    if str(template_id or "").startswith("lib-"):
+        import design_library
+        imported = design_library.template_components(template_id)
+        if imported:
+            return imported
     tmpl = next((t for t in TEMPLATES_CATALOG if t["id"] == template_id), TEMPLATES_CATALOG[0])
     theme = dict(tmpl["theme"])
     theme["animated_background"] = True
@@ -420,8 +425,12 @@ class WebsiteBuilderEngine:
                "created_at, updated_at FROM websites")
 
     def list_templates(self) -> List[dict]:
-        """Returns the curated starter templates."""
-        return TEMPLATES_CATALOG
+        """Returns the curated starter templates plus templates the root admin imported."""
+        import db
+        if not db.is_configured():
+            return TEMPLATES_CATALOG
+        import design_library
+        return TEMPLATES_CATALOG + design_library.templates_for_gallery()
 
     def list_sites(self, user_email: str, conference_id: Optional[str] = None) -> List[dict]:
         """Lists the user's websites (all websites for the root admin), newest first."""

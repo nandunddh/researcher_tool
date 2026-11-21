@@ -1822,6 +1822,51 @@ async def builder_template_document(template_id: str):
     return {"site_id": "", "name": name, "theme_config": theme, "schema_json": components}
 
 
+@app.get("/api/library")
+async def library_list(request: Request):
+    """Imported designs for the Components panel (templates appear in the template gallery)."""
+    import design_library
+    _require_authenticated_user(request)
+    return {"items": design_library.list_items()}
+
+
+def _require_root(request: Request) -> dict:
+    user = _require_authenticated_user(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Only the root administrator can manage the design library.")
+    return user
+
+
+@app.post("/api/library")
+async def library_import(request: Request):
+    """Imports one design file, or a list of them. Nothing is saved unless every design passes the checks."""
+    import design_library
+    user = _require_root(request)
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="That is not valid JSON. Copy the whole design file and try again.")
+    packs = body if isinstance(body, list) else [body]
+    if not 1 <= len(packs) <= 20:
+        raise HTTPException(status_code=400, detail="Import between 1 and 20 designs at a time.")
+    clean = []
+    for i, pack in enumerate(packs):
+        try:
+            clean.append(design_library.validate(pack))
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Design {i + 1}: {exc}" if len(packs) > 1 else str(exc))
+    return {"items": [design_library.save(d, user.get("client_email", "")) for d in clean]}
+
+
+@app.delete("/api/library/{item_id}")
+async def library_delete(item_id: str, request: Request):
+    import design_library
+    _require_root(request)
+    if not design_library.delete(item_id):
+        raise HTTPException(status_code=404, detail="Design not found.")
+    return {"status": "ok"}
+
+
 @app.get("/api/builder/conferences")
 async def builder_list_conferences(request: Request):
     user = _require_authenticated_user(request)

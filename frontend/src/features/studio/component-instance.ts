@@ -1,8 +1,10 @@
 import { modernPreset } from "./modern-presets";
 import type { LibraryComponent } from "./component-catalog";
-export type ComponentInstance={id:string;type:string;title:string;data:Record<string,unknown>;library:{id:string;version:number};studio_style?:Record<string,unknown>};
+export type ComponentInstance={id:string;type:string;title:string;data:Record<string,unknown>;library:{id:string;version:number};studio_style?:Record<string,unknown>;section_style?:Record<string,unknown>};
 const escape=(s:string)=>s.replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]!));
 export function instantiateComponent(item:LibraryComponent,name="Your brand"):ComponentInstance{
+ if(item.preset){const data=structuredClone(item.preset.data);if(Array.isArray(data.nodes))data.nodes=data.nodes.map(n=>({...(n as object),id:crypto.randomUUID()}));
+  return {id:`comp_${crypto.randomUUID()}`,type:item.preset.type,title:item.name,data,library:{id:item.id,version:item.version},...(item.preset.studio_style?{studio_style:structuredClone(item.preset.studio_style)}:{}),...(item.preset.section_style?{section_style:structuredClone(item.preset.section_style)}:{})};}
  let type=item.variant,data:Record<string,unknown>={};
  const title={section_title:item.name,section_tag:"",section_subtitle:"Replace this sample with your own content."};
  if(item.variant.startsWith("modern-")){type="content";const preset=modernPreset(item.variant,name);data={...preset,nodes:preset.nodes.map(node=>({...node,id:crypto.randomUUID()}))};}

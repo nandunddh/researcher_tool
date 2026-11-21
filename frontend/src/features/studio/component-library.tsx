@@ -1,4 +1,5 @@
 "use client";
+import { useImportedDesigns } from "./design-library";
 import { useEffect, useRef, useState } from "react";
 import { Modal } from "@/components/modal";
 import { Icon } from "@/components/icon";
@@ -31,6 +32,7 @@ export function ComponentThumbnail({item}:{item:LibraryComponent}){
  );
 }
 export function ComponentLibrary({onClose,onAdd}:{onClose:()=>void;onAdd?:(item:LibraryComponent)=>void}){
+ useImportedDesigns();
  const [level,setLevel]=useState<LibraryFilter>("all"),[query,setQuery]=useState(""),[preview,setPreview]=useState<LibraryComponent|null>(null),[device,setDevice]=useState("desktop"),[brand,setBrand]=useState(""),[accent,setAccent]=useState(""),[logo,setLogo]=useState(""),[uploadError,setUploadError]=useState("");
  const [group,setGroup]=useState<LibraryGroup>("Sections"),[category,setCategory]=useState("All");
  const categories=["All",...new Set(componentCatalog.filter(c=>c.group===group).map(c=>c.category))];
