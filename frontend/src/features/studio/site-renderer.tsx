@@ -3,7 +3,8 @@
  * One renderer for SciStudio pages. The editor canvas passes `edit` to add selection
  * and in-place text editing; without it the output is the visitor-facing page.
  */
-import { useMemo, type MouseEvent, type ReactNode } from "react";
+import { themeVariables } from "./studio-theme";
+import { useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { EditableText } from "./editable-text";
 import { Icon } from "@/components/icon";
 import { SectionBlock, hasBlock } from "./section-blocks";
@@ -185,15 +186,15 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
   );
 }
 
-export function SiteRenderer({ sections, pages, siteSlug, siteId, edit, fallback, pagePath }: {
-  sections: Section[]; pages?: PageRef[]; siteSlug?: string; siteId?: string; edit?: EditHooks; fallback?: RenderFallback;
+export function SiteRenderer({ themeConfig, sections, pages, siteSlug, siteId, edit, fallback, pagePath }: {
+  themeConfig?: unknown; sections: Section[]; pages?: PageRef[]; siteSlug?: string; siteId?: string; edit?: EditHooks; fallback?: RenderFallback;
   /** Where links to other pages point (the preview keeps them inside the preview). */
   pagePath?: (page: PageRef) => string;
 }) {
   const css = useMemo(() => buildSiteCss(sections), [sections]);
   const ctx = useMemo(() => ({ sections, pages, siteSlug, siteId, pagePath }), [sections, pages, siteSlug, siteId, pagePath]);
   return (
-    <div className={styles.site} data-editing={edit ? true : undefined}>
+    <div className={styles.site} style={themeVariables(themeConfig) as CSSProperties} data-editing={edit ? true : undefined}>
       <style>{css}</style>
       {sections.map(section => <SectionView key={section.id} section={section} ctx={ctx} edit={edit} fallback={fallback} />)}
       {edit?.dragging && (

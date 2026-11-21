@@ -10,6 +10,8 @@ import { contentSignature, moveSection, removeSection, switchPage, dropSection, 
 import { ComponentsPanel } from "./components-panel";
 import { PagesPanel } from "./pages-panel";
 import { ComponentLibrary } from "./component-library";
+import { ThemePanel } from "./theme-panel";
+import { updateTheme } from "./studio-theme";
 import { SiteSettings } from "./site-settings";
 import { SubmissionsInbox } from "./submissions-inbox";
 import { QuickToolbar } from "./quick-toolbar";
@@ -102,7 +104,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const [busy, setBusy] = useState(false);
   const [viewport, setViewport] = useState<Viewport>("desktop");
   const [layersOpen, setLayersOpen] = useState(true);
-  const [leftTab, setLeftTab] = useState<"add" | "layers" | "pages">("layers");
+  const [leftTab, setLeftTab] = useState<"add" | "layers" | "pages" | "theme">("layers");
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [dragging, setDragging] = useState<string | null>(null);
   const [draggingItem, setDraggingItem] = useState<string | null>(null);
@@ -319,9 +321,10 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
               <button type="button" role="tab" aria-selected={leftTab === "add"} onClick={() => setLeftTab("add")}><Icon name="plus" size={15} /> Add</button>
               <button type="button" role="tab" aria-selected={leftTab === "layers"} onClick={() => setLeftTab("layers")}><Icon name="layers" size={15} /> Layers</button>
               <button type="button" role="tab" aria-selected={leftTab === "pages"} onClick={() => setLeftTab("pages")}><Icon name="doc" size={15} /> Pages</button>
+              <button type="button" role="tab" aria-selected={leftTab === "theme"} onClick={() => setLeftTab("theme")}>Theme</button>
             </div>
             <span role="status" className={styles.announce}>{announcement}</span>
-            {leftTab === "pages" ? <PagesPanel site={site} readOnly={readOnly} change={change} ask={ask} /> : leftTab === "add" ? <ComponentsPanel disabled={readOnly} onAdd={add} onDragItem={setDraggingItem} /> : (
+            {leftTab === "theme" ? <ThemePanel config={site.theme_config} disabled={readOnly} onChange={patch => change(s => updateTheme(s, patch), "theme-" + Object.keys(patch)[0])} /> : leftTab === "pages" ? <PagesPanel site={site} readOnly={readOnly} change={change} ask={ask} /> : leftTab === "add" ? <ComponentsPanel disabled={readOnly} onAdd={add} onDragItem={setDraggingItem} /> : (
               <>
                 <p className={styles.hint}>Drag a section onto another to place it above.</p>
                 <ul className={styles.layerList}>
@@ -379,7 +382,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                     </div>
                   </div>
                 )}
-                <SiteRenderer sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={renderPreserved} edit={{
+                <SiteRenderer themeConfig={site.theme_config} sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={renderPreserved} edit={{
                   selection, readOnly, dragging: dragging ?? (draggingItem ? "__component__" : null), dropTarget,
                   onDragSection: setDragging, onDragHover: setDropTarget,
                   onDropComponent: (itemId, beforeId) => { add(componentCatalog.find(c => c.id === itemId), beforeId); setDraggingItem(null); setDropTarget(null); },

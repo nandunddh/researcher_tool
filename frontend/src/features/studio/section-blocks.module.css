@@ -32,7 +32,7 @@
 .checks li { display: flex; gap: 8px; align-items: flex-start; font-size: 15px; }
 .checks svg { color: var(--accent); margin-top: 4px; }
 
-.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 22px; border: 0; border-radius: 10px; background: #f1f2f8; color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 22px; border: 0; border-radius: var(--button-radius, 10px); background: #f1f2f8; color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; }
 .button[data-primary] { background: var(--accent); color: white; }
 
 .photo { margin: 0; overflow: hidden; border-radius: 16px; background: #f4f5fa; }
