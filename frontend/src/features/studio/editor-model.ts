@@ -89,6 +89,15 @@ export function moveSection(site: EditorSite, id: string, delta: number): Editor
   return { ...site, schema_json };
 }
 
+/** Copies a section (with new IDs) right below the original. */
+export function duplicateSection(site: EditorSite, id: string): EditorSite {
+  const index = site.schema_json.findIndex(s => s.id === id);
+  if (index < 0) return site;
+  const schema_json = [...site.schema_json];
+  schema_json.splice(index + 1, 0, freshCopy(site.schema_json[index]));
+  return { ...site, schema_json };
+}
+
 export function removeSection(site: EditorSite, id: string): EditorSite {
   if (!site.schema_json.some(s => s.id === id)) return site;
   return { ...site, schema_json: site.schema_json.filter(s => s.id !== id) };

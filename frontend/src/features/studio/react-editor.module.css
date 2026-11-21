@@ -376,3 +376,18 @@
 .inboxList dl { margin: 0; padding: 4px 12px 12px; display: grid; gap: 8px; }
 .inboxList dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); }
 .inboxList dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* ---------- quick toolbar on the canvas */
+.canvas { position: relative; }
+.quickBar { position: absolute; z-index: 20; display: flex; align-items: center; gap: 2px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); box-shadow: 0 8px 24px #0e0f1633; white-space: nowrap; }
+.editor .quickBar button { min-width: 30px; height: 30px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; font-size: 13px; }
+.editor .quickBar button:hover:not(:disabled) { background: var(--panel-2); }
+.editor .quickBar button[aria-pressed=true] { background: var(--brand-soft); color: var(--accent-text); }
+.editor .quickBar select { height: 30px; padding: 0 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg); color: var(--text); font-size: 12.5px; }
+.stepper { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 7px; }
+.editor .stepper button { min-width: 24px; height: 28px; padding: 0; }
+.stepper > span { min-width: 30px; text-align: center; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.swatch { display: inline-grid; place-items: center; width: 30px; height: 30px; border-radius: 7px; cursor: pointer; }
+.swatch input { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: none; cursor: pointer; }
+.swatch input::-webkit-color-swatch-wrapper { padding: 0; }
+.swatch input::-webkit-color-swatch { border: 0; border-radius: 50%; }

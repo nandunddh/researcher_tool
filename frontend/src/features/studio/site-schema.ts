@@ -25,6 +25,9 @@ export type Link =
 export type Gradient = { from: string; to: string; angle: number };
 export type Style = {
   gradient?: Gradient;
+  fontFamily?: string;
+  italic?: boolean;
+  underline?: boolean;
   color?: string;
   background?: string;
   fontSize?: number;
@@ -60,6 +63,14 @@ export const elementSections = ["navbar", "hero"] as const;
 const MAX_TEXT = 5000;
 const ID = /^[A-Za-z0-9_-]{1,80}$/;
 const HEX = /^#(?:[0-9a-f]{3}|[0-9a-f]{4}|[0-9a-f]{6}|[0-9a-f]{8})$/i;
+/** Fonts users can pick. System fonts only, so nothing extra has to load. */
+export const FONT_STACKS: Record<string, string> = {
+  modern: "system-ui,-apple-system,'Segoe UI',sans-serif",
+  classic: "Georgia,'Times New Roman',serif",
+  elegant: "'Palatino Linotype',Palatino,'Book Antiqua',serif",
+  friendly: "'Trebuchet MS','Segoe UI',sans-serif",
+  technical: "ui-monospace,'Cascadia Code',Consolas,monospace",
+};
 const WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 const KINDS: readonly ElementKind[] = ["logo", "heading", "text", "button", "image", "menu"];
 
@@ -118,6 +129,9 @@ export function cleanStyle(v: unknown): Style {
   const fontSize = clamp(v.fontSize, 8, 160); if (fontSize !== undefined) out.fontSize = fontSize;
   if (typeof v.fontWeight === "number" && WEIGHTS.includes(v.fontWeight)) out.fontWeight = v.fontWeight;
   const gradient = cleanGradient(v.gradient); if (gradient) out.gradient = gradient;
+  if (typeof v.fontFamily === "string" && Object.hasOwn(FONT_STACKS, v.fontFamily)) out.fontFamily = v.fontFamily;
+  if (v.italic === true) out.italic = true;
+  if (v.underline === true) out.underline = true;
   if (v.textAlign === "left" || v.textAlign === "center" || v.textAlign === "right") out.textAlign = v.textAlign;
   const radius = clamp(v.radius, 0, 200); if (radius !== undefined) out.radius = radius;
   const px = clamp(v.paddingX, 0, 200); if (px !== undefined) out.paddingX = px;
@@ -345,6 +359,9 @@ function elementDecls(s: Style, kind: ElementKind): string[] {
   if (s.fontSize !== undefined) out.push(`font-size:${s.fontSize}px`);
   if (s.fontWeight !== undefined) out.push(`font-weight:${s.fontWeight}`);
   if (s.textAlign) out.push(`text-align:${s.textAlign}`);
+  if (s.fontFamily && FONT_STACKS[s.fontFamily]) out.push(`font-family:${FONT_STACKS[s.fontFamily]}`);
+  if (s.italic) out.push("font-style:italic");
+  if (s.underline) out.push("text-decoration:underline");
   if (s.radius !== undefined) out.push(`border-radius:${s.radius}px`);
   if (s.paddingY !== undefined) out.push(`padding-block:${s.paddingY}px`);
   if (s.paddingX !== undefined) out.push(`padding-inline:${s.paddingX}px`);

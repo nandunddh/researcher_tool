@@ -49,3 +49,20 @@ test("section gradients are cleaned and written as CSS", () => {
   const bad = setSectionStyle(site, "spk", "desktop", { gradient: { from: "red;}", to: "#445566", angle: 45 } });
   assert.equal(getSectionStyle(bad.schema_json[0]).desktop.gradient, undefined);
 });
+
+test("quick toolbar styles: font, italic and underline are cleaned and written as CSS", async () => {
+  const { cleanStyle } = await import("../src/features/studio/site-schema");
+  assert.deepEqual(cleanStyle({ fontFamily: "classic", italic: true, underline: true }), { fontFamily: "classic", italic: true, underline: true });
+  assert.deepEqual(cleanStyle({ fontFamily: "Comic Sans; color:red", italic: "yes" }), {});
+  const css = buildSiteCss([{ id: "h", type: "hero", data: {}, canvas_elements: [{ id: "e1", kind: "heading", slot: "content", style: { desktop: { fontFamily: "classic", italic: true } } }] } as never]);
+  assert.match(css, /font-family:Georgia/);
+  assert.match(css, /font-style:italic/);
+});
+
+test("duplicate places a copy with new ids right below", async () => {
+  const { duplicateSection } = await import("../src/features/studio/editor-model");
+  const next = duplicateSection(site, "spk");
+  assert.equal(next.schema_json.length, 2);
+  assert.notEqual(next.schema_json[1].id, "spk");
+  assert.deepEqual(next.schema_json[1].data, site.schema_json[0].data);
+});

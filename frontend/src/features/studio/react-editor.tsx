@@ -11,6 +11,7 @@ import { PagesPanel } from "./pages-panel";
 import { ComponentLibrary } from "./component-library";
 import { SiteSettings } from "./site-settings";
 import { SubmissionsInbox } from "./submissions-inbox";
+import { QuickToolbar } from "./quick-toolbar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Inspector, elementName, type Change, type ConfirmRequest } from "./inspector";
 import { libraryFallback } from "./library-fallback";
@@ -110,6 +111,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const leaving = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inboxOpen, setInboxOpen] = useState(false);
+  const canvasRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   useEffect(() => {
     try { if (localStorage.getItem("scistudio-editor-theme") === "dark") setTheme("dark"); } catch { /* storage unavailable */ }
@@ -347,7 +349,9 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
             )}
           </aside>
 
-            <div className={styles.canvas} onClick={e => { if (e.target === e.currentTarget) setSelection(null); }}>
+            <div ref={canvasRef} className={styles.canvas} onClick={e => { if (e.target === e.currentTarget) setSelection(null); }}>
+              <QuickToolbar site={site} selection={selection} viewport={viewport} readOnly={readOnly} canvas={canvasRef}
+                change={change} ask={ask} onSelect={setSelection} onMore={() => setInspectorOpen(true)} />
               <ScaledSheet width={widths[viewport]}>
                 {!site.schema_json.length && (
                   <div className={styles.empty}>
