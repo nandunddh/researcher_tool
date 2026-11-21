@@ -4,7 +4,7 @@ import {componentCatalog} from "../src/features/studio/component-catalog";
 import {instantiateComponent} from "../src/features/studio/component-instance";
 import {readDocument,legacySections} from "../src/features/studio/document";
 test("every library entry becomes a persistable existing editor component",()=>{
- const allowed=new Set(["navbar","hero","about","features","gallery","speakers","pricing","faq","contact","footer","custom","image","content","form_button","registration"]);
+ const allowed=new Set(["navbar","hero","about","features","gallery","speakers","pricing","faq","contact","footer","custom","image","content","form_button","registration","key_dates"]);
  const instances=componentCatalog.map(c=>instantiateComponent(c,"My brand"));
  assert.equal(new Set(instances.map(c=>c.id)).size,instances.length);
  for(const item of instances){assert.ok(allowed.has(item.type));assert.ok(item.data);assert.ok(item.library.id)}

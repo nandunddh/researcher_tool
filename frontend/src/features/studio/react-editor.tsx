@@ -119,6 +119,8 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   useEffect(() => {
     const open = (e: Event) => setEventTab(typeof (e as CustomEvent).detail === "string" ? (e as CustomEvent).detail : "basics");
     window.addEventListener(OPEN_EVENT, open);
+    const fromCard = new URLSearchParams(window.location.search).get("event");  // "Event details" on a site card
+    if (fromCard) setEventTab(fromCard);
     return () => window.removeEventListener(OPEN_EVENT, open);
   }, []);
   const [inboxOpen, setInboxOpen] = useState(false);

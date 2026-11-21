@@ -4,7 +4,7 @@
  * Used by the editor canvas, the preview page and (later) the published site.
  */
 import { paletteMime, reorderMime } from "./form-palette";
-import { currentPeriod, priceIn, registrationData } from "./registration-pricing";
+import { currentPeriod, keyDates, priceIn, registrationData } from "./registration-pricing";
 import { useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
 import { linkHref, safeImage, type LinkContext } from "./site-schema";
@@ -538,7 +538,28 @@ function Content({ c }: { c: Ctx }) {
   );
 }
 
+function KeyDates({ c }: { c: Ctx }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const dates = keyDates(c.ctx.event, c.section.data);
+  return (
+    <div className={`${styles.wrap} ${styles.narrow}`}>
+      <Header c={c} />
+      {!dates.length ? (c.edit ? <p className={styles.muted}>Add dates in <strong>Event details</strong> (top bar): price periods, deadlines and the event dates.</p> : null) : (
+        <ol className={styles.dates}>
+          {dates.map((x, i) => (
+            <li key={i} data-passed={x.date < today || undefined}>
+              <time dateTime={x.date}>{new Date(`${x.date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</time>
+              <span>{x.name}{x.date < today && <small> · Passed</small>}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
+  key_dates: KeyDates,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
   image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,

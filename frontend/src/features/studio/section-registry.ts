@@ -145,6 +145,11 @@ export const sectionRegistry: Record<string, SectionDef> = {
 };
 
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
+sectionRegistry.key_dates = {
+  name: "Key dates", header: true,
+  fields: [{ key: "show_prices", label: "Show when each price period ends", kind: "toggle" }, { key: "show_event", label: "Show the event's first and last day", kind: "toggle" }],
+  lists: [],
+};
 sectionRegistry.registration = {
   name: "Registration", header: true,
   // Tickets, prices, add-ons and codes live in Event details; the form ticks which ones it offers.

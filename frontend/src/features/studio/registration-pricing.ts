@@ -38,3 +38,14 @@ export function registrationData(data: Rec, event?: Rec): Rec {
   return { ...data, currency: str(basics.currency) || "USD", periods: recs(event.periods),
     categories: pick(event.tickets, "ticket_ids"), addons: pick(event.addons, "addon_ids"), discount_codes: pick(event.discounts, "discount_ids") };
 }
+
+/** Dates from Event details: deadlines, when each price period ends, and the event itself. */
+export function keyDates(event: Rec | undefined, d: Rec): { name: string; date: string }[] {
+  if (!event) return [];
+  const basics = event.basics && typeof event.basics === "object" ? event.basics as Rec : {};
+  const out = recs(event.deadlines).map(x => ({ name: str(x.name), date: str(x.date) }));
+  if (d.show_prices !== false) out.push(...recs(event.periods).filter(p => str(p.ends)).map(p => ({ name: `${str(p.name)} registration ends`, date: str(p.ends) })));
+  if (d.show_event !== false) out.push({ name: "Conference begins", date: str(basics.starts) }, { name: "Conference ends", date: str(basics.ends) });
+  return out.filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date) && x.name).sort((a, b) => a.date.localeCompare(b.date));
+}
+

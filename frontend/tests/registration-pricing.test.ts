@@ -38,3 +38,13 @@ test("a form uses Event details and only the ticked items", () => {
   const own = { categories: [{ id: "own" }] };
   assert.equal(registrationData(own, {}), own, "no tickets in Event details: form keeps its own data");
 });
+
+import { keyDates } from "../src/features/studio/registration-pricing";
+
+test("key dates come from Event details in date order", () => {
+  const event = { basics: { starts: "2027-06-10", ends: "" }, periods: data.periods, deadlines: [{ name: "Abstracts", date: "2027-02-01" }, { name: "Bad", date: "soon" }] };
+  assert.deepEqual(keyDates(event, {}).map(x => x.name),
+    ["Abstracts", "Early registration ends", "Standard registration ends", "Conference begins"], "sorted; invalid and empty dates skipped");
+  assert.deepEqual(keyDates(event, { show_prices: false, show_event: false }).map(x => x.name), ["Abstracts"]);
+  assert.deepEqual(keyDates(undefined, {}), []);
+});
