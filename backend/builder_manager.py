@@ -495,6 +495,11 @@ class WebsiteBuilderEngine:
             "updated_at": now_str,
             "client_brief": (custom_options.get("client_brief") or {}) if custom_options else {},
         }
+        if str(template_id or "").startswith("lib-") and initial_components is None:
+            import design_library
+            found = design_library.template_site(template_id, new_slug)
+            if found:  # multi-page imported template: every page, home first
+                site_data.update(pages=found[0], active_page_id=found[0][0]["id"], schema_json=found[0][0]["schema_json"])
 
         with db.transaction() as cur:
             cur.execute(

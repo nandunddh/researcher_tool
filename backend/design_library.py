@@ -19,6 +19,31 @@ MAX_SECTIONS = 30
 _HEX = re.compile(r"^#[0-9a-fA-F]{3,8}$")
 _BLOCKED = re.compile(r"<\s*script|javascript:|vbscript:|data:text/html|<\s*iframe", re.I)
 TEMPLATE_PREFIX = "lib-"
+MAX_PAGES = 12
+_PAGE_LINK = re.compile(r"^page:([a-z0-9-]*)$")
+
+
+def _slug(text) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(text).lower()).strip("-")[:40]
+
+
+def _pages_of(design: dict) -> list:
+    """Stored templates before multi-page support kept a flat 'sections' list."""
+    return design.get("pages") or [{"name": "Home", "slug": "", "sections": design.get("sections") or []}]
+
+
+def _resolve_links(value, site_slug: str, slugs: set):
+    """Template links like "page:program" become this site's page addresses (unknown pages → "#")."""
+    if isinstance(value, dict):
+        return {k: _resolve_links(v, site_slug, slugs) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_resolve_links(v, site_slug, slugs) for v in value]
+    match = _PAGE_LINK.match(value) if isinstance(value, str) else None
+    if not match:
+        return value
+    if not site_slug or match.group(1) not in slugs:
+        return "#"
+    return f"/sites/{site_slug}" + (f"/{match.group(1)}" if match.group(1) else "")
 
 
 def _text(value, limit, field, required=False):
@@ -80,10 +105,23 @@ def validate(pack) -> dict:
     if kind == "section":
         clean["section"] = _section(pack.get("section"), 0)
     elif kind == "template":
-        sections = pack.get("sections")
-        if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_SECTIONS:
-            raise ValueError(f"A template needs a 'sections' list with 1 to {MAX_SECTIONS} sections.")
-        clean["sections"] = [_section(s, i) for i, s in enumerate(sections)]
+        # Either "pages": [{name, slug, sections}] (first page = home) or a one-page "sections" list.
+        raw_pages = pack.get("pages") if "pages" in pack else [{"name": "Home", "sections": pack.get("sections")}]
+        if not isinstance(raw_pages, list) or not 1 <= len(raw_pages) <= MAX_PAGES:
+            raise ValueError(f"A template needs a 'pages' list with 1 to {MAX_PAGES} pages.")
+        clean["pages"], used = [], set()
+        for n, page in enumerate(raw_pages):
+            if not isinstance(page, dict):
+                raise ValueError(f"Page {n + 1} must be an object.")
+            name = _text(page.get("name") or f"Page {n + 1}", 40, f"name of page {n + 1}")
+            slug = "" if n == 0 else (_slug(page.get("slug") or name) or f"page-{n + 1}")
+            while slug in used:
+                slug += "-2"
+            used.add(slug)
+            sections = page.get("sections")
+            if not isinstance(sections, list) or not 1 <= len(sections) <= MAX_SECTIONS:
+                raise ValueError(f"Page \"{name}\" needs a 'sections' list with 1 to {MAX_SECTIONS} sections.")
+            clean["pages"].append({"name": name, "slug": slug, "sections": [_section(s, i) for i, s in enumerate(sections)]})
         theme = pack.get("theme") if isinstance(pack.get("theme"), dict) else {}
         clean["theme"] = {k: theme[k] for k in ("primary_color", "accent_color", "bg_color") if _HEX.match(str(theme.get(k, "")))}
         clean["theme"]["mode"] = "dark" if theme.get("mode") == "dark" else "light"
@@ -125,15 +163,32 @@ def delete(item_id: str) -> bool:
 
 def templates_for_gallery():
     return [{"id": TEMPLATE_PREFIX + t["id"], "name": t["name"], "category": t["category"], "layout": "imported",
-             "theme": t["theme"], "description": t["description"], "imported": True} for t in list_items("template")]
+             "theme": t["theme"], "description": t["description"], "imported": True, "page_count": len(_pages_of(t))}
+            for t in list_items("template")]
+
+
+def _load_template(template_id: str):
+    with db.transaction() as cur:
+        cur.execute("SELECT payload FROM library_items WHERE id = %s AND kind = 'template'", (template_id[len(TEMPLATE_PREFIX):],))
+        row = cur.fetchone()
+    return row[0] if row else None
+
+
+def template_site(template_id: str, site_slug: str = ""):
+    """(pages, theme) for an imported template id like 'lib-abc123', or None.
+    Pages are ready to store on a site: ids, fresh section ids and resolved page links."""
+    design = _load_template(template_id)
+    if not design:
+        return None
+    raw = _pages_of(design)
+    slugs = {p.get("slug", "") for p in raw}
+    pages = [{"id": "page_home" if n == 0 else f"page_{uuid.uuid4().hex[:8]}", "name": p.get("name") or "Page", "slug": p.get("slug", ""),
+              "is_home": n == 0, "schema_json": [fresh_ids(_resolve_links(sec, site_slug, slugs)) for sec in p.get("sections") or []]}
+             for n, p in enumerate(raw)]
+    return pages, dict(design.get("theme") or {})
 
 
 def template_components(template_id: str):
-    """(components, theme) for an imported template id like 'lib-abc123', or None."""
-    item_id = template_id[len(TEMPLATE_PREFIX):]
-    with db.transaction() as cur:
-        cur.execute("SELECT payload FROM library_items WHERE id = %s AND kind = 'template'", (item_id,))
-        row = cur.fetchone()
-    if not row:
-        return None
-    return [fresh_ids(s) for s in row[0]["sections"]], dict(row[0]["theme"])
+    """(home page components, theme) for previews and the template gallery, or None."""
+    found = template_site(template_id)
+    return (found[0][0]["schema_json"], found[1]) if found else None

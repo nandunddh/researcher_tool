@@ -35,7 +35,19 @@ class ValidateTests(unittest.TestCase):
         tpl = lib.validate({"format": "scistudio-design", "kind": "template", "name": "Night", "theme": {"mode": "dark", "primary_color": "#123456", "bg_color": "red"},
                             "sections": [SECTION["section"], {"type": "faq", "data": {"faqs": []}}]})
         self.assertEqual(tpl["theme"], {"primary_color": "#123456", "mode": "dark"}, "bad colors dropped")
-        self.assertEqual(len(tpl["sections"]), 2)
+        self.assertEqual(len(tpl["pages"][0]["sections"]), 2, "one-page 'sections' becomes a Home page")
+
+    def test_multi_page_template(self):
+        tpl = lib.validate({"format": "scistudio-design", "kind": "template", "name": "Summit", "pages": [
+            {"name": "Home", "slug": "ignored", "sections": [{"type": "navbar", "data": {"links": [{"label": "Program", "url": "page:program"}, {"label": "Old", "url": "page:gone"}]}}]},
+            {"name": "Program", "sections": [SECTION["section"]]},
+            {"name": "Program", "sections": [SECTION["section"]]}]})
+        self.assertEqual([p["slug"] for p in tpl["pages"]], ["", "program", "program-2"], "home has no slug; duplicates get a suffix")
+        links = lib._resolve_links(tpl["pages"][0]["sections"][0]["data"]["links"], "my-site-ab12", {"", "program"})
+        self.assertEqual([l["url"] for l in links], ["/sites/my-site-ab12/program", "#"])
+        self.assertEqual(lib._resolve_links("page:", "s", {""}), "/sites/s")
+        with self.assertRaises(ValueError):
+            lib.validate({"format": "scistudio-design", "kind": "template", "name": "X", "pages": [{"name": "Empty", "sections": []}]})
 
     def test_rejections(self):
         def bad(change, fragment):
@@ -85,6 +97,8 @@ class LibraryDbTests(unittest.TestCase):
         tpl = lib.save(lib.validate({"format": "scistudio-design", "kind": "template", "name": "T", "sections": [SECTION["section"]]}), "t")
         try:
             self.assertIn("lib-" + tpl["id"], [t["id"] for t in lib.templates_for_gallery()])
+            pages, _ = lib.template_site("lib-" + tpl["id"], "site-x")
+            self.assertTrue(pages[0]["is_home"])
             components, theme = lib.template_components("lib-" + tpl["id"])
             self.assertTrue(components[0]["id"].startswith("comp_"))
             self.assertEqual(theme["mode"], "light")

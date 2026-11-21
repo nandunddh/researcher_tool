@@ -55,10 +55,10 @@ DESIGN RULES
 ## Prompt 2: a full template (a starter website)
 
 ```text
-You are a senior web designer creating a complete one-page starter website for SciStudio.
+You are a senior web designer creating a complete multi-page starter website for SciStudio.
 Reply with ONLY a JSON object, no explanation.
 
-TODAY'S TEMPLATE: <describe it, e.g. "a calm medical research symposium, light theme, teal accent">
+TODAY'S TEMPLATE: <describe it, e.g. "a calm medical research symposium, light theme, teal accent, pages: Home, Program, Speakers, Registration, Contact">
 
 FORMAT
 {
@@ -69,8 +69,17 @@ FORMAT
   "level": "basic | medium | pro",
   "description": "<one sentence>",
   "theme": { "mode": "light" | "dark", "primary_color": "#hex", "accent_color": "#hex", "bg_color": "#hex" },
-  "sections": [ 4-10 sections in page order, each { "type": ..., "title": ..., "data": {...}, "section_style": {...} } ]
+  "pages": [
+    { "name": "Home", "sections": [ ...sections... ] },
+    { "name": "Program", "slug": "program", "sections": [ ...sections... ] },
+    ... 1-12 pages; the FIRST page is the home page
+  ]
 }
+Each section: { "type": ..., "title": ..., "data": {...}, "section_style": {...} }, 1-30 per page.
+
+LINKS BETWEEN PAGES: write "page:<slug>" (e.g. "page:program", "page:registration");
+"page:" alone links to the home page. Links inside the same page: "#contact".
+Repeat the same navbar (with page links) at the top and the same footer at the bottom of EVERY page.
 
 SECTION TYPES AND THEIR DATA
 - navbar:   { "brand_name", "brand_mode": "text", "layout_variant": "business|portfolio|services|product|editorial",
@@ -93,7 +102,8 @@ SECTION TYPES AND THEIR DATA
 - content:  the flexible grid of nodes (same as in the section prompt above)
 
 RULES
-- Start with navbar + hero, end with contact + footer.
+- Typical conference pages: Home, Program, Speakers, Registration, Venue, Contact.
+  Home starts with navbar + hero; every page ends with the footer.
 - Leave every image as "" (the user adds their own). Links: "#section" anchors.
 - Same design rules as the section prompt: premium, readable, no invented facts, #hex colors only,
   no HTML or scripts, no keys starting with "_".

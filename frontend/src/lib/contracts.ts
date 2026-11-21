@@ -13,7 +13,7 @@ export type Site = {
   updated_at?: string; conference_id?: string | null;
 };
 export type Conference = { conference_id: string; name: string; description?: string };
-export type Template = { id: string; name: string; description: string; category: string };
+export type Template = { id: string; name: string; description: string; category: string; page_count?: number };
 export type Account = {
   client_name: string; client_email: string; org_name?: string; account_type: string;
   is_root?: boolean; tier: string; status: string; scistudio_access: boolean;
