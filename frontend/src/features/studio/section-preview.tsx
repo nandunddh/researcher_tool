@@ -3,7 +3,7 @@ import { modernPreset } from "./modern-presets";
 import { Icon } from "@/components/icon";
 import { NavigationPreview } from "./navigation-preview";
 import { instantiateComponent } from "./component-instance";
-import { SectionBlock } from "./section-blocks";
+import { SectionBlock, hasBlock } from "./section-blocks";
 import type { Section } from "./document";
 import siteStyles from "./site-renderer.module.css";
 import type { LibraryComponent,NavigationVariant } from "./component-catalog";
@@ -16,12 +16,13 @@ export function SectionPreview({item,brand,accent,logo,interactive=true}:{item:L
    </div>)}
   </section>;
  }
- if(item.variant.startsWith("contact")||item.variant==="form-button"||item.variant==="registration"){
+ if((item.preset&&hasBlock(item.preset.type))||item.variant.startsWith("contact")||item.variant==="form-button"||item.variant==="registration"){
   // Form designs preview with the real section, so the thumbnail matches what users get.
   const section=instantiateComponent(item,brand) as unknown as Section;
   return <div className={siteStyles.site} style={{background:"white"}} aria-label={`${item.name} preview`}><SectionBlock section={section} ctx={{sections:[section]}}/></div>;
  }
- if(item.category==="Navigation")return <NavigationPreview variant={item.variant as NavigationVariant} brand={brand} accent={accent} logo={logo} interactive={interactive}/>;
+ // Imported designs use their own data; the built-in navigation previews only know the built-in variants.
+ if(item.category==="Navigation"&&!item.preset)return <NavigationPreview variant={item.variant as NavigationVariant} brand={brand} accent={accent} logo={logo} interactive={interactive}/>;
  const heading=brand||"Make something meaningful.";
  const visual=<div className="component-visual"><Icon name="layers" size={48}/><span>Your image</span></div>;
  const button=<button type="button" className="component-action">Get started <Icon name="external" size={14}/></button>;
