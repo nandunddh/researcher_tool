@@ -5,6 +5,7 @@
  */
 import { useMemo, type MouseEvent, type ReactNode } from "react";
 import { EditableText } from "./editable-text";
+import { Icon } from "@/components/icon";
 import { SectionBlock, hasBlock } from "./section-blocks";
 import type { Section } from "./document";
 import {
@@ -80,7 +81,8 @@ function ElementView({ element, section, ctx, edit }: { element: SiteElement; se
     case "image": {
       const src = safeImage(element.src);
       if (src) return <img className={styles.image} src={src} alt={element.alt ?? ""} loading="lazy" {...common} />;
-      return edit ? <div className={styles.imagePlaceholder} {...common}>Add an image</div> : null;
+      // Same-size placeholder everywhere, so the layout does not change until an image is added.
+      return <div className={styles.imagePlaceholder} data-public={edit ? undefined : true} {...common}>{edit ? "Add an image" : <Icon name="layers" size={36} />}</div>;
     }
     case "menu":
       return (
@@ -148,7 +150,7 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
     );
   }
   const image = elements.find(e => e.slot === "media");
-  const hasImage = layout !== "text_only" && (!!safeImage(image?.src) || !!edit);
+  const hasImage = layout !== "text_only" && !!image;
   return (
     <section className={styles.hero} data-has-image={hasImage || undefined} {...sectionProps}>
       <div className={styles.heroContent}>

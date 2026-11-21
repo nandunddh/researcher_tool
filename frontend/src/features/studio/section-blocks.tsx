@@ -50,6 +50,11 @@ function Header({ c, center = true }: { c: Ctx; center?: boolean }) {
   );
 }
 
+/** Placeholder kept at full size in the editor, preview and live site until an image is added. */
+function EmptyImage({ edit }: { edit?: unknown }) {
+  return <div className={styles.photoEmpty} data-public={edit ? undefined : true} aria-hidden={edit ? undefined : true}>{edit ? "Add an image" : <Icon name="layers" size={32} />}</div>;
+}
+
 function Img({ src, alt, className }: { src: unknown; alt: string; className?: string }) {
   const safe = safeImage(src);
   return safe ? <img className={className} src={safe} alt={alt} loading="lazy" /> : null;
@@ -132,7 +137,7 @@ function Gallery({ c }: { c: Ctx }) {
       <div className={styles.grid}>
         {images.map((img, i) => (
           <figure key={i} className={styles.photo}>
-            {safeImage(img.url) ? <Img src={img.url} alt={str(img.caption)} /> : c.edit && <div className={styles.photoEmpty}>Add an image</div>}
+            {safeImage(img.url) ? <Img src={img.url} alt={str(img.caption)} /> : <EmptyImage edit={c.edit} />}
             <T c={c} path={["images", i, "caption"]} tag="figcaption" placeholder="caption" />
           </figure>
         ))}
@@ -244,7 +249,7 @@ function Contact({ c }: { c: Ctx }) {
   if (layout === "image") return (
     <div className={`${styles.wrap} ${styles.split}`}>
       {safeImage(d.image) ? <Img className={styles.formImage} src={d.image} alt={str(d.section_title)} />
-        : c.edit ? <div className={styles.photoEmpty}>Add an image</div> : <div />}
+        : <EmptyImage edit={c.edit} />}
       <div><Header c={c} center={false} />{form}{details}</div>
     </div>
   );
@@ -323,7 +328,7 @@ function ImageBlock({ c }: { c: Ctx }) {
   const d = c.section.data;
   return (
     <figure className={`${styles.wrap} ${styles.single}`}>
-      {safeImage(d.image_url) ? <Img src={d.image_url} alt={str(d.caption)} /> : c.edit && <div className={styles.photoEmpty}>Add an image</div>}
+      {safeImage(d.image_url) ? <Img src={d.image_url} alt={str(d.caption)} /> : <EmptyImage edit={c.edit} />}
       <T c={c} path={["caption"]} tag="figcaption" className={styles.muted} placeholder="caption" />
     </figure>
   );

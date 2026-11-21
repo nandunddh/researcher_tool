@@ -124,3 +124,4 @@
 .muted { opacity: 0.6; font-size: 13px; }
 /* In the editor, clicks on form fields (disabled there) must reach the section to select it. */
 .site[data-editing] :is(input, textarea, select) { pointer-events: none; }
+.imagePlaceholder[data-public] { border: 0; background: linear-gradient(135deg, #eef0f6, #e3e7f1); color: #b2b9cc; }
