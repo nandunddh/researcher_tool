@@ -1,4 +1,5 @@
 "use client";
+import { editFormFields, fieldTypes, paletteMime } from "./form-palette";
 import { useEffect, useId, useRef, useState } from "react";
 import {
   addMenuItem, findElement, moveMenuItem, moveSection, removeMenuItem, removeSection, resetElementStyle, sectionLayouts,
@@ -318,6 +319,20 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
           <p className={styles.hint}>Tip: double-click any text on the page to edit it there.</p>
           {def.header && headerFields.map(f => <DataField key={f.key} {...common} def={f} path={[f.key]} />)}
           {def.fields.map(f => <DataField key={f.key} {...common} def={f} path={[f.key]} />)}
+        </section>
+      )}
+      {def.lists.some(list => list.key === "form_fields") && (
+        <section className={styles.group}>
+          <h3>Add a field</h3>
+          <p className={styles.hint}>Choose a field or drag it onto the form.</p>
+          <div className={styles.buttonRow} style={{ flexWrap: "wrap" }}>
+            {fieldTypes.map(([type, label]) => {
+              const full = Array.isArray(section.data.form_fields) && section.data.form_fields.length >= def.lists.find(list => list.key === "form_fields")!.max;
+              return <button key={type} type="button" disabled={readOnly || full} draggable={!readOnly && !full}
+                onDragStart={e => { e.dataTransfer.setData(paletteMime, type); e.dataTransfer.effectAllowed = "copy"; }}
+                onClick={() => change(s => editFormFields(s, section.id, type))}>{label}</button>;
+            })}
+          </div>
         </section>
       )}
       {def.lists.map(listDef => {

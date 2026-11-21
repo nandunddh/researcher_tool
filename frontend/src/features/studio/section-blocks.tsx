@@ -3,6 +3,7 @@
  * React versions of every content section, drawn from the section's real `data`.
  * Used by the editor canvas, the preview page and (later) the published site.
  */
+import { paletteMime, reorderMime } from "./form-palette";
 import { useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
 import { safeImage, safeUrl, type LinkContext } from "./site-schema";
@@ -195,6 +196,14 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
   const d = c.section.data;
   const fields = list(d.form_fields).length ? list(d.form_fields) : c.section.type === "registration" ? defaultRegistrationFields : defaultContactFields;
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
+  const editable = !!c.edit?.onFormFields && !c.edit.readOnly;
+  const orderType = reorderMime + "-" + c.section.id.toLowerCase();
+  function accept(e: React.DragEvent, index?: number) {
+    if (!editable || !(e.dataTransfer.types.includes(paletteMime) || (index !== undefined && e.dataTransfer.types.includes(orderType)))) return false;
+    e.preventDefault();
+    e.stopPropagation();
+    return true;
+  }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (c.edit) return;
@@ -217,20 +226,32 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
     }
   }
   return (
-    <form className={`${styles.form} ${inline ? styles.formInline : ""}`} onSubmit={submit} noValidate={!!c.edit}>
+    <form className={`${styles.form} ${inline ? styles.formInline : ""}`} onDragOver={e => accept(e)} onDrop={e => {
+      if (accept(e)) c.edit?.onFormFields?.(c.section.id, e.dataTransfer.getData(paletteMime));
+    }} onSubmit={submit} noValidate={!!c.edit}>
       {top}
-      {fields.map(f => {
+      {fields.map((f, index) => {
+        const dragProps = editable ? {
+          draggable: true, title: "Drag to reorder this field",
+          onDragStart: (e: React.DragEvent) => { e.stopPropagation(); e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData(orderType, String(index)); },
+          onDragOver: (e: React.DragEvent) => accept(e, index),
+          onDrop: (e: React.DragEvent) => {
+            if (!accept(e, index)) return;
+            const type = e.dataTransfer.getData(paletteMime);
+            c.edit?.onFormFields?.(c.section.id, type || { from: Number(e.dataTransfer.getData(orderType)), to: index });
+          },
+        } : {};
         const id = str(f.id), label = str(f.label) || id, required = f.required === true, disabled = !!c.edit;
         const mark = required ? " *" : "";
-        if (f.type === "textarea") return <label key={id}>{label}{mark}<textarea name={id} rows={4} required={required} disabled={disabled} /></label>;
-        if (f.type === "checkbox") return <label key={id} className={styles.checkRow}><input type="checkbox" name={id} required={required} disabled={disabled} />{label}{mark}</label>;
+        if (f.type === "textarea") return <label {...dragProps} key={id}>{label}{mark}<textarea name={id} rows={4} required={required} disabled={disabled} /></label>;
+        if (f.type === "checkbox") return <label {...dragProps} key={id} className={styles.checkRow}><input type="checkbox" name={id} required={required} disabled={disabled} />{label}{mark}</label>;
         if (f.type === "select") return (
-          <label key={id}>{label}{mark}<select name={id} required={required} disabled={disabled} defaultValue="">
+          <label {...dragProps} key={id}>{label}{mark}<select name={id} required={required} disabled={disabled} defaultValue="">
             <option value="" disabled>Choose…</option>
             {(Array.isArray(f.options) ? f.options : []).map((o, i) => <option key={i} value={str(o)}>{str(o)}</option>)}
           </select></label>
         );
-        return <label key={id}>{label}{mark}<input name={id} type={f.type === "email" ? "email" : f.type === "phone" ? "tel" : "text"}
+        return <label {...dragProps} key={id}>{label}{mark}<input name={id} type={f.type === "email" ? "email" : f.type === "phone" ? "tel" : "text"}
           autoComplete={autoComplete[str(f.type)] ?? autoComplete[id]} required={required} disabled={disabled} /></label>;
       })}
       {/* spam trap: hidden from people, bots fill it */}
@@ -389,6 +410,7 @@ function FormButton({ c }: { c: Ctx }) {
         <T c={c} path={["btn_label"]} placeholder="button text" />
         {!str(d.btn_label) && !c.edit && "Contact us"}
       </button>
+      {c.edit?.selection?.sectionId === c.section.id && <WebsiteForm c={c}>{str(d.submit_label) || "Send"}</WebsiteForm>}
       {open && (
         <div className={styles.popup} role="dialog" aria-modal="true" aria-label={str(d.popup_title) || "Form"}
           onClick={e => { if (e.target === e.currentTarget) setOpen(false); }} onKeyDown={e => { if (e.key === "Escape") setOpen(false); }}>

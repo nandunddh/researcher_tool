@@ -24,6 +24,7 @@ export type EditHooks = {
   onText: (sectionId: string, elementId: string, text: string) => void;
   /** In-place edit of a value inside a content section's data. */
   onField?: (sectionId: string, path: (string | number)[], text: string) => void;
+  onFormFields?: (sectionId: string, action: string | { from: number; to: number }) => void;
   dragging?: string | null;
   onDropSection?: (beforeId: string) => void;
   /** Drag and drop on the canvas: move sections by their handle, drop library designs between sections. */

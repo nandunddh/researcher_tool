@@ -1,4 +1,5 @@
 "use client";
+import { editFormFields } from "./form-palette";
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import { Icon } from "@/components/icon";
@@ -384,6 +385,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                   onDropComponent: (itemId, beforeId) => { add(componentCatalog.find(c => c.id === itemId), beforeId); setDraggingItem(null); setDropTarget(null); },
                   onSelect: sel => { setSelection(sel); setInspectorOpen(true); },
                   onText: (sectionId, elementId, text) => change(s => updateElement(s, sectionId, elementId, { text })),
+                  onFormFields: (id, action) => change(s => editFormFields(s, id, action)),
                   onDropSection: drop,
                 }} />
               </ScaledSheet>
