@@ -205,7 +205,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   // Preview opens the saved website on its own page (same renderer as the canvas).
   const openPage = site?.pages?.find(pg => pg.id === site.active_page_id);
   const openSlug = openPage && !openPage.is_home ? (openPage.slug || "").replace(/^\/+|\/+$/g, "") : "";
-  const previewUrl = `/${namespace}/scistudio/${encodeURIComponent(siteId)}/preview${openSlug ? `?page=${encodeURIComponent(openSlug)}` : ""}`;
+  const previewUrl = `/${namespace}/scistudio/${encodeURIComponent(siteId)}/preview${openSlug ? `/${encodeURIComponent(openSlug)}` : ""}`;
   function openPreview() {
     if (!dirty) { window.open(previewUrl, "_blank", "noopener"); return; }
     ask({
