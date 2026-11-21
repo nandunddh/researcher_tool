@@ -38,6 +38,23 @@ export function Login({ returnPath }: { returnPath: string | null }) {
     }
   }
 
+  async function handleForgot(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const result = await api<{ message: string }>("/api/auth/forgot-password/request", {
+        method: "POST", body: JSON.stringify({ email: email.trim() }),
+      });
+      setSuccess(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <main className="login-screen">
       <div className="login-backdrop-glow" aria-hidden="true" />
@@ -51,7 +68,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
           <p>
             {mode === "login"
               ? "Please enter your email and password."
-              : "Self-service password resets are disabled for account security."}
+              : "Enter your account email and we'll send you a link to set a new password."}
           </p>
         </div>
 
@@ -130,22 +147,22 @@ export function Login({ returnPath }: { returnPath: string | null }) {
         )}
 
         {mode === "forgot" && (
-          <div className="forgot-notice" style={{ marginTop: "1rem" }}>
-            <p style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.92rem", lineHeight: 1.5, marginBottom: "1.5rem" }}>
-              To protect your account security, password resets are handled directly by your organization or system administrator. Please reach out to your administrator to receive new credentials.
-            </p>
-            <button
-              type="button"
-              className="primary login-submit"
-              onClick={() => {
-                setError("");
-                setSuccess("");
-                setMode("login");
-              }}
-            >
-              ← Back to Sign in
+          <form onSubmit={handleForgot} noValidate>
+            <div className="form-group">
+              <label htmlFor="forgot-email">Email</label>
+              <div className="input-wrapper">
+                <input id="forgot-email" type="email" autoComplete="email" required value={email}
+                  onChange={e => setEmail(e.target.value)} placeholder="you@organization.org" />
+              </div>
+            </div>
+            <button className="primary login-submit" type="submit" disabled={busy || !email.trim()}>
+              {busy ? "Sending…" : "Send reset link"}
             </button>
-          </div>
+            <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
+              onClick={() => { setError(""); setSuccess(""); setMode("login"); }}>
+              ← Back to sign in
+            </button>
+          </form>
         )}
 
         <footer className="login-footer">

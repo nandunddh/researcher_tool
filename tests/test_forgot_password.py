@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import asyncio
 import json
 import sys
@@ -114,32 +115,23 @@ class ForgotPasswordTests(unittest.TestCase):
         self.assertFalse(ok_mem)
         self.assertEqual(code_mem, 403)
 
-    def test_fastapi_endpoints_and_ui_markup(self):
-        with patch.object(web_app, "license_engine", self.mgr):
-            res_check = asyncio.run(web_app.api_auth_forgot_check(_FakeRequest({"email": "jane@university.edu"})))
-            self.assertEqual(res_check["status"], "ok")
-            self.assertTrue(res_check["exists"])
+    def test_reset_by_emailed_link_only(self):
+        sent = []
+        fake_reset = SimpleNamespace(send_link=sent.append, use_token=lambda token: "jane@university.edu" if token == "good" else None)
+        with patch.object(web_app, "license_engine", self.mgr), patch.dict(sys.modules, {"password_reset": fake_reset}):
+            known = asyncio.run(web_app.api_auth_forgot_request(_FakeRequest({"email": "jane@university.edu"})))
+            unknown = asyncio.run(web_app.api_auth_forgot_request(_FakeRequest({"email": "nope@university.edu"})))
+            self.assertEqual(known, unknown, "same answer, so accounts can't be discovered")
+            self.assertEqual(sent, ["jane@university.edu"], "link sent only to real accounts")
 
-            res_reset = asyncio.run(
-                web_app.api_auth_forgot_reset(
-                    _FakeRequest({"email": "jane@university.edu", "new_password": "EndpointPass1!"})
-                )
-            )
-            self.assertEqual(res_reset["status"], "ok")
-
-            with self.assertRaises(HTTPException) as err:
-                asyncio.run(web_app.api_auth_forgot_check(_FakeRequest({"email": "nope@university.edu"})))
-            self.assertEqual(err.exception.status_code, 404)
-
-        ok_new, _, _ = self.mgr.authenticate("jane@university.edu", "EndpointPass1!")
-        self.assertTrue(ok_new)
-
-        html = (ROOT_DIR / "backend" / "static" / "index.html").read_text(encoding="utf-8")
-        self.assertIn('id="btn-open-forgot-pwd"', html)
-        self.assertIn('id="auth-view-forgot"', html)
-        self.assertIn('id="forgot-step-email"', html)
-        self.assertIn('id="forgot-step-password"', html)
-        self.assertIn('id="auth-success-box"', html)
+            for body, fragment in (({"token": "bad", "new_password": "LongEnough1!"}, "expired"), ({"token": "good", "new_password": "short"}, "8 characters")):
+                with self.assertRaises(HTTPException) as err:
+                    asyncio.run(web_app.api_auth_forgot_confirm(_FakeRequest(body)))
+                self.assertIn(fragment, err.exception.detail)
+            done = asyncio.run(web_app.api_auth_forgot_confirm(_FakeRequest({"token": "good", "new_password": "EndpointPass1!"})))
+            self.assertEqual(done["status"], "ok")
+        self.assertTrue(self.mgr.authenticate("jane@university.edu", "EndpointPass1!")[0])
+        self.assertFalse(hasattr(web_app, "api_auth_forgot_reset"), "email-only reset endpoint must stay removed")
 
 
 if __name__ == "__main__":
