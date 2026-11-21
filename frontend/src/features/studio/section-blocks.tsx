@@ -243,15 +243,15 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
         } : {};
         const id = str(f.id), label = str(f.label) || id, required = f.required === true, disabled = !!c.edit;
         const mark = required ? " *" : "";
-        if (f.type === "textarea") return <label {...dragProps} key={id}>{label}{mark}<textarea name={id} rows={4} required={required} disabled={disabled} /></label>;
-        if (f.type === "checkbox") return <label {...dragProps} key={id} className={styles.checkRow}><input type="checkbox" name={id} required={required} disabled={disabled} />{label}{mark}</label>;
+        if (f.type === "textarea") return <label {...dragProps} key={`${index}:${id}`}>{label}{mark}<textarea name={id} rows={4} required={required} disabled={disabled} /></label>;
+        if (f.type === "checkbox") return <label {...dragProps} key={`${index}:${id}`} className={styles.checkRow}><input type="checkbox" name={id} required={required} disabled={disabled} />{label}{mark}</label>;
         if (f.type === "select") return (
-          <label {...dragProps} key={id}>{label}{mark}<select name={id} required={required} disabled={disabled} defaultValue="">
+          <label {...dragProps} key={`${index}:${id}`}>{label}{mark}<select name={id} required={required} disabled={disabled} defaultValue="">
             <option value="" disabled>Choose…</option>
             {(Array.isArray(f.options) ? f.options : []).map((o, i) => <option key={i} value={str(o)}>{str(o)}</option>)}
           </select></label>
         );
-        return <label {...dragProps} key={id}>{label}{mark}<input name={id} type={f.type === "email" ? "email" : f.type === "phone" ? "tel" : "text"}
+        return <label {...dragProps} key={`${index}:${id}`}>{label}{mark}<input name={id} type={f.type === "email" ? "email" : f.type === "phone" ? "tel" : "text"}
           autoComplete={autoComplete[str(f.type)] ?? autoComplete[id]} required={required} disabled={disabled} /></label>;
       })}
       {/* spam trap: hidden from people, bots fill it */}
