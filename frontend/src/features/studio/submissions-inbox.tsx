@@ -54,7 +54,7 @@ export function SubmissionsInbox({ site, onClose }: { site: EditorSite; onClose:
             <li key={r.id}>
               <button type="button" aria-expanded={open === r.id} onClick={() => setOpen(open === r.id ? null : r.id)}>
                 <strong>{show(Object.values(r.data)[0]?.value ?? "")}</strong>
-                <span>{formName(r)}</span>
+                <span>{formName(r)}{r.status !== "new" && ` · ${r.status}`}</span>
                 <small>{new Date(r.created_at).toLocaleString()}</small>
               </button>
               {open === r.id && (
