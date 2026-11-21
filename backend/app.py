@@ -1912,13 +1912,12 @@ async def builder_publish_site(site_id: str, request: Request):
 
 
 @app.get("/api/builder/sites/{site_id}/export")
-async def builder_export_site(site_id: str, request: Request):
+def builder_export_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
-    zip_bytes, filename = builder_engine.export_site_zip(site_id)
-    if not zip_bytes:
-        raise HTTPException(status_code=404, detail="Site not found or could not be compiled.")
+    site = _require_owned_site(site_id, user)
+    from react_export import export_zip
+    zip_bytes, filename = export_zip(site, _media_dir(site_id))
     return Response(
         content=zip_bytes,
         media_type="application/zip",

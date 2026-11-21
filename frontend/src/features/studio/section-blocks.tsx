@@ -6,7 +6,7 @@
 import { paletteMime, reorderMime } from "./form-palette";
 import { useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
-import { safeImage, safeUrl, type LinkContext } from "./site-schema";
+import { linkHref, safeImage, type LinkContext } from "./site-schema";
 import { EditableText } from "./editable-text";
 import type { EditHooks } from "./site-renderer";
 import { Icon } from "@/components/icon";
@@ -42,7 +42,7 @@ function T({ c, path, tag = "span", className, placeholder, multiline }: {
 }
 
 function href(c: Ctx, value: unknown) {
-  return c.edit ? undefined : safeUrl(value) ?? "#";
+  return c.edit ? undefined : linkHref({ type: "url", href: str(value) }, c.ctx);
 }
 
 function Header({ c, center = true }: { c: Ctx; center?: boolean }) {

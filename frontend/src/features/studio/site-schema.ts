@@ -97,6 +97,7 @@ export function safeUrl(v: unknown): string | undefined {
 }
 export function safeImage(v: unknown): string | undefined {
   if (typeof v !== "string" || v.length > 2_000_000 || /[\s<>"'`\\]/.test(v)) return undefined;
+  if (/^\.\/media\/[a-f0-9]{32}\.(png|jpg|webp|gif)$/.test(v)) return v;
   return /^(https?:\/\/[^/]|\/(?!\/)|data:image\/(png|jpeg|webp|gif);base64,)/i.test(v) ? v : undefined;
 }
 const EMAIL = /^[^\s@<>"']{1,64}@[^\s@<>"']{1,190}\.[A-Za-z]{2,}$/;
@@ -261,7 +262,13 @@ export function linkHref(link: Link | undefined, ctx: LinkContext): string {
       const section = ctx.sections.find(s => s.id === link.sectionId);
       return section ? `#${sectionAnchor(section)}` : "#";
     }
-    case "url": return safeUrl(link.href) ?? "#";
+    case "url": {
+      const url = safeUrl(link.href) ?? "#";
+      if (!ctx.pagePath || !ctx.siteSlug) return url;
+      const path = url.split(/[?#]/, 1)[0];
+      const page = ctx.pages?.find(p => linkHref({ type: "page", pageId: p.id }, { ...ctx, pagePath: undefined }) === path.replace(/\/$/, ""));
+      return page ? ctx.pagePath(page) + url.slice(path.length) : url;
+    }
     case "email": return EMAIL.test(link.address) ? `mailto:${link.address}` : "#";
     case "phone": return PHONE.test(link.number) ? `tel:${link.number.replace(/[ ()-]/g, "")}` : "#";
   }

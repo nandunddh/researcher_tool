@@ -15,9 +15,16 @@ def _public_content(value):
 def published_page(site, address=None):
     if not site or site.get("status") != "published":
         return None
+    return visitor_page(site, address)
+
+
+def visitor_page(site, address=None, *, page_id=None):
+    """Project visitor content after the caller has checked publication or ownership."""
     pages = site.get("pages") or []
     home = next((p for p in pages if p.get("is_home")), pages[0] if pages else {})
     page = next((p for p in pages if (p.get("slug") or "").strip("/") == address), None) if address else home
+    if page_id is not None:
+        page = next((p for p in pages if p.get("id") == page_id), None)
     if page is None:
         return None
     meta = site.get("meta_config")

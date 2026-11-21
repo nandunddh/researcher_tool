@@ -11,8 +11,6 @@ import os
 import json
 import uuid
 import re
-import io
-import zipfile
 from html import escape as escape_html
 from studio_formatting import apply_component_formatting, contrast_color
 from studio_blocks import render_native_blocks, native_runtime
@@ -1838,53 +1836,12 @@ class WebsiteBuilderEngine:
             )
 
     def export_site_zip(self, site_id: str) -> Tuple[Optional[bytes], str]:
-        """Bundles standalone compiled site into a downloadable ZIP archive, supporting multi-page exports."""
+        from react_export import export_zip
         site = self.get_site(site_id)
         if not site:
             return None, "Site not found"
+        return export_zip(site, get_websites_dir() / "media" / site_id)
 
-        pages = site.get("pages") or []
-        slug = site.get("slug", "website")
-        buf = io.BytesIO()
-
-        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-            if pages and isinstance(pages, list) and len(pages) > 1:
-                # Multi-page website export
-                for p in pages:
-                    p_id = p.get("id")
-                    p_slug = (p.get("slug") or "/").strip("/").replace("/", "_")
-                    is_home = bool(p.get("is_home") or not p_slug)
-                    file_name = "index.html" if is_home else f"{p_slug}.html"
-                    p_html, _ = compile_website_html(site, page_id=p_id)
-                    zf.writestr(file_name, p_html)
-                # Global shared stylesheet
-                _, compiled_css = compile_website_html(site)
-                zf.writestr("style.css", compiled_css)
-            else:
-                compiled_html, compiled_css = compile_website_html(site)
-                zf.writestr("index.html", compiled_html)
-                zf.writestr("style.css", compiled_css)
-
-            zf.writestr("site_config.json", json.dumps(site, indent=2))
-            readme = f"""# {site.get('name', 'Website')}
-Generated with SciProspect Website Builder (Multi-Page & SEO Enabled).
-
-## Included Files:
-- {'\n- '.join([p.get('name', 'Page') + ' -> ' + ('index.html' if p.get('is_home') or not (p.get('slug') or '').strip('/') else (p.get('slug') or '').strip('/') + '.html') for p in pages]) if pages and len(pages) > 1 else '- index.html (Homepage)'}
-- style.css (Global design tokens & typography)
-- site_config.json (Complete schema configuration)
-
-## Hosting Instructions:
-- **Netlify / Vercel**: Drag and drop this unzipped folder into Netlify Drop or run `vercel`.
-- **Apache / Nginx / cPanel**: Upload all files to your `public_html` or web root directory.
-- **GitHub Pages**: Push this repository and enable GitHub Pages in settings.
-
-Enjoy your website!
-"""
-            zf.writestr("README.md", readme)
-
-        buf.seek(0)
-        return buf.getvalue(), f"{slug}_website.zip"
 
 
 class _LazyEngine:
