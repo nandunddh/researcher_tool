@@ -93,7 +93,7 @@ export function QuickToolbar({ site, selection, viewport, readOnly, canvas, chan
   const index = site.schema_json.indexOf(section);
   return bar(<>
     <Swatch label="Background" value={sstyle.background ?? measured.background} onChange={v => setS({ background: v, gradient: null })} />
-    <Stepper label="Spacing" value={sstyle.paddingY ?? measured.paddingY ?? 48} step={8} onChange={v => setS({ paddingY: v })} />
+    <Stepper label="Spacing" value={sstyle.paddingY ?? (measured.paddingY || 48)} step={8} onChange={v => setS({ paddingY: v })} />
     <button type="button" title="Move up" disabled={index === 0} onClick={() => change(s => moveSection(s, section.id, -1))}>↑</button>
     <button type="button" title="Move down" disabled={index === site.schema_json.length - 1} onClick={() => change(s => moveSection(s, section.id, 1))}>↓</button>
     <button type="button" title="Duplicate section" onClick={() => change(s => duplicateSection(s, section.id))}>⧉</button>
