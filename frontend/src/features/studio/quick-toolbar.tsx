@@ -34,7 +34,8 @@ export function QuickToolbar({ site, selection, viewport, readOnly, canvas, chan
       if (!node) { setPos(null); return; }
       const r = node.getBoundingClientRect(), h = host.getBoundingClientRect();
       const top = r.top - h.top + host.scrollTop - 48;
-      setPos({ top: Math.max(host.scrollTop + 4, top < host.scrollTop + 4 ? r.bottom - h.top + host.scrollTop + 8 : top), left: Math.max(8, r.left - h.left + host.scrollLeft) });
+      // Tall item scrolled past its top: keep the bar pinned to the top of the visible canvas.
+      setPos({ top: Math.max(host.scrollTop + 8, top), left: Math.max(8, r.left - h.left + host.scrollLeft) });
     };
     place();
     host.addEventListener("scroll", place, { passive: true });

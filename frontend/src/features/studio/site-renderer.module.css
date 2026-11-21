@@ -122,3 +122,5 @@
 }
 .site[data-editing] :is(.preserved, .preservedPreview):is(:hover, [data-selected]) .classicBadge { opacity: 1; }
 .muted { opacity: 0.6; font-size: 13px; }
+/* In the editor, clicks on form fields (disabled there) must reach the section to select it. */
+.site[data-editing] :is(input, textarea, select) { pointer-events: none; }
