@@ -6,6 +6,7 @@ import { componentCatalog, filterComponents, type LibraryComponent, type Library
 import { instantiateComponent } from "./component-instance";
 import { elementSections } from "./site-schema";
 import { hasBlock } from "./section-blocks";
+import { COMPONENT_MIME } from "./site-renderer";
 import styles from "./react-editor.module.css";
 
 /** True when the new editor can edit this design item by item. */
@@ -17,7 +18,7 @@ export const editableIds = new Set(
 
 const groups: LibraryGroup[] = ["Sections", "Elements", "Assets"];
 
-export function ComponentsPanel({ disabled, onAdd }: { disabled: boolean; onAdd: (item: LibraryComponent) => void }) {
+export function ComponentsPanel({ disabled, onAdd, onDragItem }: { disabled: boolean; onAdd: (item: LibraryComponent) => void; onDragItem?: (id: string | null) => void }) {
   const [group, setGroup] = useState<LibraryGroup>("Sections");
   const [category, setCategory] = useState("All");
   const [query, setQuery] = useState("");
@@ -44,7 +45,9 @@ export function ComponentsPanel({ disabled, onAdd }: { disabled: boolean; onAdd:
         {items.map(item => {
           const editable = editableIds.has(item.id);
           return (
-            <li key={item.id} className={styles.card} data-disabled={disabled || undefined}>
+            <li key={item.id} className={styles.card} data-disabled={disabled || undefined} draggable={!disabled}
+              onDragStart={e => { e.dataTransfer.effectAllowed = "copy"; e.dataTransfer.setData(COMPONENT_MIME, item.id); onDragItem?.(item.id); }}
+              onDragEnd={() => onDragItem?.(null)}>
               {/* The preview contains its own buttons, so the card is a box with one
                   full-size Add button layered on top instead of a button wrapper. */}
               <div className={styles.cardThumb}><ComponentThumbnail item={item} /></div>

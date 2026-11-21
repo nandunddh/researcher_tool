@@ -14,6 +14,8 @@ import {
 } from "./site-schema";
 import styles from "./site-renderer.module.css";
 
+/** Data type used when dragging a library design onto the canvas. */
+export const COMPONENT_MIME = "application/x-scistudio-component";
 export type CanvasSelection = { sectionId: string; elementId?: string; path?: string };
 export type EditHooks = {
   selection: CanvasSelection | null;
@@ -24,6 +26,11 @@ export type EditHooks = {
   onField?: (sectionId: string, path: (string | number)[], text: string) => void;
   dragging?: string | null;
   onDropSection?: (beforeId: string) => void;
+  /** Drag and drop on the canvas: move sections by their handle, drop library designs between sections. */
+  dropTarget?: string | null;
+  onDragSection?: (id: string | null) => void;
+  onDragHover?: (id: string | null) => void;
+  onDropComponent?: (itemId: string, beforeId: string | null) => void;
 };
 /** Draws sections the renderer has no element design for yet (library previews). */
 export type RenderFallback = (section: Section) => ReactNode;
@@ -111,14 +118,29 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
     ...(edit ? {
       "data-selected": (edit.selection?.sectionId === section.id && !edit.selection.elementId) || undefined,
       onClick: () => edit.onSelect({ sectionId: section.id }),
-      onDragOver: (e: React.DragEvent) => { if (edit.dragging) e.preventDefault(); },
-      onDrop: (e: React.DragEvent) => { e.preventDefault(); edit.onDropSection?.(section.id); },
+      "data-drop-target": edit.dropTarget === section.id || undefined,
+      onDragOver: (e: React.DragEvent) => {
+        if (!edit.dragging && !e.dataTransfer.types.includes(COMPONENT_MIME)) return;
+        e.preventDefault(); e.stopPropagation();
+        if (edit.dropTarget !== section.id) edit.onDragHover?.(section.id);
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault(); e.stopPropagation();
+        const item = e.dataTransfer.getData(COMPONENT_MIME);
+        if (item) edit.onDropComponent?.(item, section.id); else edit.onDropSection?.(section.id);
+      },
     } : {}),
   };
+  const handle = edit && !edit.readOnly ? (
+    <span className={styles.dragHandle} draggable title="Drag to move this section" aria-hidden="true"
+      onClick={e => e.stopPropagation()}
+      onDragStart={e => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", section.id); edit.onDragSection?.(section.id); }}
+      onDragEnd={() => edit.onDragSection?.(null)}>⠿ Move</span>
+  ) : null;
   if (section.hidden === true && !edit) return null;
   if (!elements && hasBlock(section.type)) {
     return (
-      <section className={styles.block} data-hidden={section.hidden === true || undefined} {...sectionProps}>
+      <section className={styles.block} data-hidden={section.hidden === true || undefined} {...sectionProps}>{handle}
         <SectionBlock section={section} ctx={ctx} edit={edit} />
         {edit && section.hidden === true && <span className={styles.classicBadge}>Hidden from visitors</span>}
       </section>
@@ -126,9 +148,9 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
   }
   if (!elements) {
     const preview = fallback?.(section);
-    if (!edit) return preview ? <section className={styles.preservedPreview} {...sectionProps}>{preview}</section> : null;
+    if (!edit) return preview ? <section className={styles.preservedPreview} {...sectionProps}>{handle}{preview}</section> : null;
     return (
-      <section className={preview ? styles.preservedPreview : styles.preserved} {...sectionProps}>
+      <section className={preview ? styles.preservedPreview : styles.preserved} {...sectionProps}>{handle}
         {preview ?? <>
           <strong>{section.title || section.type}</strong>
           <p>This section keeps its current design.</p>
@@ -142,7 +164,7 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
 
   if (section.type === "navbar") {
     return (
-      <header className={styles.navbar} {...sectionProps}>
+      <header className={styles.navbar} {...sectionProps}>{handle}
         <div className={styles.brand}>{slot("brand")}</div>
         <div className={styles.links}>{slot("links")}</div>
         <div className={styles.actions}>{slot("actions")}</div>
@@ -152,7 +174,7 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
   const image = elements.find(e => e.slot === "media");
   const hasImage = layout !== "text_only" && !!image;
   return (
-    <section className={styles.hero} data-has-image={hasImage || undefined} {...sectionProps}>
+    <section className={styles.hero} data-has-image={hasImage || undefined} {...sectionProps}>{handle}
       <div className={styles.heroContent}>
         {slot("content")}
         <div className={styles.heroActions}>{slot("actions")}</div>
@@ -173,6 +195,13 @@ export function SiteRenderer({ sections, pages, siteSlug, siteId, edit, fallback
     <div className={styles.site} data-editing={edit ? true : undefined}>
       <style>{css}</style>
       {sections.map(section => <SectionView key={section.id} section={section} ctx={ctx} edit={edit} fallback={fallback} />)}
+      {edit?.dragging && (
+        <div data-drop-end data-drop-target={edit.dropTarget === "__end" || undefined}
+          onDragOver={e => { e.preventDefault(); if (edit.dropTarget !== "__end") edit.onDragHover?.("__end"); }}
+          onDrop={e => { e.preventDefault(); const item = e.dataTransfer.getData(COMPONENT_MIME); if (item) edit.onDropComponent?.(item, null); else edit.onDropSection?.("__end"); }}>
+          Drop here to place at the end
+        </div>
+      )}
     </div>
   );
 }

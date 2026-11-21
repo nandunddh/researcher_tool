@@ -5,7 +5,7 @@ import { Icon } from "@/components/icon";
 import { componentCatalog, type LibraryComponent } from "./component-catalog";
 import { instantiateComponent } from "./component-instance";
 import type { Section } from "./document";
-import { contentSignature, removeSection, switchPage, dropSection, editorPayload, findElement, insertSection, prepareSite, updateElement, type EditorSite, type Selection } from "./editor-model";
+import { contentSignature, moveSection, removeSection, switchPage, dropSection, editorPayload, findElement, insertSection, prepareSite, updateElement, type EditorSite, type Selection } from "./editor-model";
 import { ComponentsPanel } from "./components-panel";
 import { PagesPanel } from "./pages-panel";
 import { ComponentLibrary } from "./component-library";
@@ -104,6 +104,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const [leftTab, setLeftTab] = useState<"add" | "layers" | "pages">("layers");
   const [inspectorOpen, setInspectorOpen] = useState(true);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [draggingItem, setDraggingItem] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
   const [announcement, announce] = useState("");
   const [confirmRequest, ask] = useState<ConfirmRequest | null>(null);
@@ -186,18 +187,26 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
     }
   }
 
-  function add(item: LibraryComponent | undefined) {
+  /** Adds a library design below the selected section, or before `beforeId` when dropped on the canvas (null = end). */
+  function add(item: LibraryComponent | undefined, beforeId?: string | null) {
     if (!site || readOnly || !item) return;
     const title = item.category === "Navigation" && !item.variant.startsWith("modern-") ? "Navigation bar" : item.variant === "hero" ? "Hero" : item.name;
     const section = { ...instantiateComponent(item, site.name), title } as Section;
-    change(s => insertSection(s, section, selection?.sectionId));
+    change(s => {
+      if (beforeId === undefined) return insertSection(s, section, selection?.sectionId);
+      const added = insertSection(s, section);
+      return beforeId ? dropSection(added, section.id, beforeId) : added;
+    });
     setSelection({ sectionId: section.id });
     announce(`${item.name} added`);
   }
   const addById = (id: string) => add(componentCatalog.find(c => c.id === id));
 
   function drop(target: string) {
-    if (dragging && !readOnly) { change(s => dropSection(s, dragging, target)); announce("Section order updated"); }
+    if (dragging && !readOnly) {
+      change(s => target === "__end" ? moveSection(s, dragging, s.schema_json.length - 1 - s.schema_json.findIndex(x => x.id === dragging)) : dropSection(s, dragging, target));
+      announce("Section order updated");
+    }
     setDragging(null);
     setDropTarget(null);
   }
@@ -311,7 +320,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
               <button type="button" role="tab" aria-selected={leftTab === "pages"} onClick={() => setLeftTab("pages")}><Icon name="doc" size={15} /> Pages</button>
             </div>
             <span role="status" className={styles.announce}>{announcement}</span>
-            {leftTab === "pages" ? <PagesPanel site={site} readOnly={readOnly} change={change} ask={ask} /> : leftTab === "add" ? <ComponentsPanel disabled={readOnly} onAdd={add} /> : (
+            {leftTab === "pages" ? <PagesPanel site={site} readOnly={readOnly} change={change} ask={ask} /> : leftTab === "add" ? <ComponentsPanel disabled={readOnly} onAdd={add} onDragItem={setDraggingItem} /> : (
               <>
                 <p className={styles.hint}>Drag a section onto another to place it above.</p>
                 <ul className={styles.layerList}>
@@ -370,7 +379,9 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                   </div>
                 )}
                 <SiteRenderer sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={renderPreserved} edit={{
-                  selection, readOnly, dragging,
+                  selection, readOnly, dragging: dragging ?? (draggingItem ? "__component__" : null), dropTarget,
+                  onDragSection: setDragging, onDragHover: setDropTarget,
+                  onDropComponent: (itemId, beforeId) => { add(componentCatalog.find(c => c.id === itemId), beforeId); setDraggingItem(null); setDropTarget(null); },
                   onSelect: sel => { setSelection(sel); setInspectorOpen(true); },
                   onText: (sectionId, elementId, text) => change(s => updateElement(s, sectionId, elementId, { text })),
                   onDropSection: drop,
