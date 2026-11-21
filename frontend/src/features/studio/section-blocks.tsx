@@ -4,6 +4,7 @@
  * Used by the editor canvas, the preview page and (later) the published site.
  */
 import { paletteMime, reorderMime } from "./form-palette";
+import { currentPeriod, priceIn } from "./registration-pricing";
 import { useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
 import { linkHref, safeImage, type LinkContext } from "./site-schema";
@@ -308,19 +309,13 @@ function Contact({ c }: { c: Ctx }) {
 type Order = { currency: string; lines: { label: string; amount: number }[]; subtotal: number; discount: number; total: number };
 const money = (currency: string, n: number) => `${currency} ${n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
-/** Which price applies today: early bird, standard, then late. Mirrors backend/forms.py current_period. */
-export function currentPeriod(d: Rec, today = new Date().toISOString().slice(0, 10)): { key: "early" | "standard" | "late"; label: string; ends: string } {
-  if (str(d.early_bird_ends) && today <= str(d.early_bird_ends)) return { key: "early", label: "Early bird", ends: str(d.early_bird_ends) };
-  if (str(d.standard_ends) && today <= str(d.standard_ends)) return { key: "standard", label: "Standard", ends: str(d.standard_ends) };
-  return { key: "late", label: "Late", ends: "" };
-}
-
 /** Registration: choose a type, add-ons and a discount code; the server prices it, then test payment. */
 function Registration({ c }: { c: Ctx }) {
   const d = c.section.data;
   const cats = list(d.categories), addons = list(d.addons), currency = str(d.currency) || "USD";
-  const period = currentPeriod(d);
-  const [category, setCategory] = useState(str(cats[0]?.id));
+  const period = currentPeriod(d), periodId = str(period?.id);
+  const offered = cats.filter(x => priceIn(x, periodId) !== null);
+  const [category, setCategory] = useState(str(offered[0]?.id));
   const [qty, setQty] = useState<Record<string, number>>({});
   const [code, setCode] = useState("");
   const [order, setOrder] = useState<Order | null>(null);
@@ -328,7 +323,7 @@ function Registration({ c }: { c: Ctx }) {
   const [pay, setPay] = useState<{ id: number; token: string; order: Order } | null>(null);
   const [done, setDone] = useState("");
   const chosen = cats.find(x => str(x.id) === category);
-  const estimate = (Number(chosen?.[period.key]) || 0) + addons.reduce((sum, a) => sum + (Number(a.price) || 0) * (qty[str(a.id)] ?? 0), 0);
+  const estimate = (priceIn(chosen, periodId) ?? 0) + addons.reduce((sum, a) => sum + (Number(a.price) || 0) * (qty[str(a.id)] ?? 0), 0);
   const base = `/api/public/forms/${encodeURIComponent(c.ctx.siteId ?? "")}/${encodeURIComponent(c.section.id)}`;
   const payload = () => ({ category, addons: qty, discount_code: code.trim() });
 
@@ -348,19 +343,26 @@ function Registration({ c }: { c: Ctx }) {
 
   const picker = (
     <div className={styles.regPicker}>
-      <p className={styles.regPeriod}>{period.label} prices{period.ends && <> · until {new Date(period.ends).toLocaleDateString()}</>}</p>
+      <p className={styles.regPeriod}>{period
+        ? <>{str(period.name) || "Current"} prices{str(period.ends) && <> · until {new Date(str(period.ends)).toLocaleDateString()}</>}</>
+        : "Add a price period in the panel on the right to show prices."}</p>
       <div className={styles.regTypes} role="radiogroup" aria-label="Registration type">
-        {cats.map((x, i) => (
-          <label key={i} className={styles.regType} data-active={str(x.id) === category || undefined}>
-            <input type="radio" name="_category" checked={str(x.id) === category} onChange={() => { setCategory(str(x.id)); setOrder(null); }} disabled={!!c.edit} />
-            <T c={c} path={["categories", i, "name"]} tag="strong" placeholder="type name" />
-            <span>{money(currency, Number(x[period.key]) || 0)}</span>
-          </label>
-        ))}
+        {cats.map((x, i) => {
+          const price = priceIn(x, periodId);
+          if (price === null && !c.edit) return null;
+          return (
+            <label key={str(x.id) || i} className={styles.regType} data-active={str(x.id) === category || undefined} style={price === null ? { opacity: .55 } : undefined}>
+              <input type="radio" name="_category" checked={str(x.id) === category} onChange={() => { setCategory(str(x.id)); setOrder(null); }} disabled={!!c.edit} />
+              <T c={c} path={["categories", i, "name"]} tag="strong" placeholder="type name" />
+              {str(x.description) && <small className={styles.muted}>{str(x.description)}</small>}
+              <span>{price === null ? "Not offered now" : money(currency, price)}</span>
+            </label>
+          );
+        })}
       </div>
       {addons.map((a, i) => (
-        <label key={i} className={styles.regAddon}>
-          <span><T c={c} path={["addons", i, "name"]} placeholder="add-on" /> <small>{money(currency, Number(a.price) || 0)} each</small></span>
+        <label key={str(a.id) || i} className={styles.regAddon}>
+          <span><T c={c} path={["addons", i, "name"]} placeholder="add-on" /> <small>{money(currency, Number(a.price) || 0)} each{str(a.description) && ` · ${str(a.description)}`}</small></span>
           <select value={qty[str(a.id)] ?? 0} disabled={!!c.edit} onChange={e => { setQty(q => ({ ...q, [str(a.id)]: Number(e.target.value) })); setOrder(null); }}>
             {Array.from({ length: (Number(a.max) || 5) + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -378,7 +380,8 @@ function Registration({ c }: { c: Ctx }) {
   return (
     <div className={`${styles.wrap} ${styles.narrow}`}>
       <Header c={c} />
-      {done ? <p role="status" className={`${styles.form} ${styles.formSuccess}`}>{done}</p> : pay ? (
+      {!c.edit && (!period || !offered.length) ? <p role="status" className={styles.form}>Registration is closed.</p>
+        : done ? <p role="status" className={`${styles.form} ${styles.formSuccess}`}>{done}</p> : pay ? (
         <div className={styles.form}>
           <h3>Payment <small className={styles.muted}>(test mode, no money is charged)</small></h3>
           {pay.order.lines.map((l, i) => <p key={i} className={styles.regLine}><span>{l.label}</span><span>{money(pay.order.currency, l.amount)}</span></p>)}

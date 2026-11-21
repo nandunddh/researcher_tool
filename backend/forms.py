@@ -120,26 +120,47 @@ def _money(v) -> float:
         return 0.0
 
 
-def current_period(data: dict, today: date) -> Tuple[str, str]:
-    """Early bird until its end date, then standard until its end date, then late."""
-    for key, label, end in (("early", "Early bird", data.get("early_bird_ends")), ("standard", "Standard", data.get("standard_ends"))):
+def _price(v) -> Optional[float]:
+    """A price cell: a number, or None when the type is not offered in that period (left blank)."""
+    if v is None or (isinstance(v, str) and not v.strip()):
+        return None
+    try:
+        return max(0.0, round(float(v), 2))
+    except (TypeError, ValueError):
+        return None
+
+
+def periods(data: dict) -> List[dict]:
+    """The owner's price periods in date order; a period without an end date runs until registration closes (last)."""
+    items = [p for p in data.get("periods") or [] if isinstance(p, dict) and p.get("id")]
+    return sorted(items, key=lambda p: (not p.get("ends"), str(p.get("ends") or "")))
+
+
+def current_period(data: dict, today: date) -> Optional[dict]:
+    """The first period that has not ended yet, or None when registration is closed."""
+    for period in periods(data):
         try:
-            if end and today <= date.fromisoformat(str(end)):
-                return key, label
+            if not period.get("ends") or today <= date.fromisoformat(str(period["ends"])):
+                return period
         except ValueError:
             continue
-    return "late", "Late"
+    return None
 
 
 def quote(section: dict, payload: dict, today: Optional[date] = None) -> Tuple[Optional[dict], Optional[str]]:
     """Server-side price for a registration. Prices and discount codes come only from the saved form."""
     data = section.get("data") or {}
-    period, period_label = current_period(data, today or date.today())
+    period = current_period(data, today or date.today())
+    if not period:
+        return None, "Registration is closed."
     category = next((c for c in data.get("categories") or [] if isinstance(c, dict) and c.get("id") == payload.get("category")), None)
     if not category:
         return None, "Please choose a registration type."
-    base = _money(category.get(period))
-    lines = [{"label": f"{category.get('name', 'Registration')} ({period_label})", "amount": base}]
+    prices = category.get("prices") if isinstance(category.get("prices"), dict) else {}
+    base = _price(prices.get(period["id"]))
+    if base is None:
+        return None, f"{category.get('name', 'This type')} is not available during {period.get('name', 'this period')}."
+    lines = [{"label": f"{category.get('name', 'Registration')} ({period.get('name', '')})", "amount": base}]
     quantities = payload.get("addons") if isinstance(payload.get("addons"), dict) else {}
     for addon in data.get("addons") or []:
         if not isinstance(addon, dict):
@@ -157,9 +178,11 @@ def quote(section: dict, payload: dict, today: Optional[date] = None) -> Tuple[O
         match = next((d for d in data.get("discount_codes") or [] if isinstance(d, dict) and str(d.get("code", "")).strip().upper() == code), None)
         if not match:
             return None, "This discount code is not valid."
-        discount = round(subtotal * min(100.0, _money(match.get("percent"))) / 100, 2)
+        # A fixed amount wins over a percentage when both are set.
+        fixed = _money(match.get("amount"))
+        discount = min(subtotal, fixed) if fixed else round(subtotal * min(100.0, _money(match.get("percent"))) / 100, 2)
     return {
-        "currency": str(data.get("currency") or "USD")[:3].upper(), "period": period, "lines": lines,
+        "currency": str(data.get("currency") or "USD")[:3].upper(), "period": period["id"], "lines": lines,
         "subtotal": subtotal, "discount": discount, "discount_code": code if discount else "", "total": round(subtotal - discount, 2),
     }, None
 

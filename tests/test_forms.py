@@ -46,14 +46,31 @@ if __name__ == "__main__":
 from datetime import date  # noqa: E402
 
 REG = {"id": "r1", "type": "registration", "data": {
-    "currency": "usd", "early_bird_ends": "2027-03-31", "standard_ends": "2027-05-31",
-    "categories": [{"id": "academic", "name": "Academic", "early": 699, "standard": 799, "late": 899}],
+    "currency": "usd",
+    # Deliberately out of order: the server sorts by end date, open-ended last.
+    "periods": [{"id": "late", "name": "Late", "ends": ""}, {"id": "std", "name": "Standard", "ends": "2027-05-31"},
+                {"id": "early", "name": "Early bird", "ends": "2027-03-31"}],
+    "categories": [{"id": "academic", "name": "Academic", "prices": {"early": 699, "std": 799, "late": 899}},
+                   {"id": "student", "name": "Student", "prices": {"early": 99.5, "std": "", "late": None}}],
     "addons": [{"id": "night", "name": "Night", "price": 190, "max": 3}],
     "discount_codes": [{"code": "EARLY10", "percent": 10}],
 }}
 
 
 class RegistrationPricingTests(unittest.TestCase):
+    def test_custom_periods_blank_prices_and_closing(self):
+        q = lambda d, cat="student": forms.quote(REG, {"category": cat}, d)
+        self.assertEqual(q(date(2027, 1, 1))[0]["total"], 99.5, "decimals allowed")
+        self.assertIn("not available during Standard", q(date(2027, 4, 1))[1])
+        closed = {**REG, "data": {**REG["data"], "periods": [{"id": "early", "name": "Early", "ends": "2027-03-31"}]}}
+        self.assertIn("closed", forms.quote(closed, {"category": "academic"}, date(2027, 4, 1))[1])
+        self.assertIn("closed", forms.quote({"data": {"categories": REG["data"]["categories"]}}, {"category": "academic"})[1])
+
+    def test_fixed_amount_discount(self):
+        data = {**REG["data"], "discount_codes": [{"code": "FIFTY", "amount": 50, "percent": 90}, {"code": "BIG", "amount": 5000}]}
+        self.assertEqual(forms.quote({"data": data}, {"category": "academic", "discount_code": "fifty"}, date(2027, 1, 1))[0]["total"], 649)
+        self.assertEqual(forms.quote({"data": data}, {"category": "academic", "discount_code": "BIG"}, date(2027, 1, 1))[0]["total"], 0)
+
     def test_price_follows_the_date(self):
         q = lambda d: forms.quote(REG, {"category": "academic"}, d)[0]["total"]
         self.assertEqual(q(date(2027, 3, 31)), 699)

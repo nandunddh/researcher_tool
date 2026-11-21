@@ -1,6 +1,6 @@
 "use client";
 import { editFormFields, fieldTypes, paletteMime } from "./form-palette";
-import { useEffect, useId, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useRef, useState } from "react";
 import {
   addMenuItem, findElement, moveMenuItem, moveSection, removeMenuItem, removeSection, resetElementStyle, sectionLayouts,
   setElementStyle, setLayout, setSectionStyle, updateElement, updateMenuItem,
@@ -13,6 +13,7 @@ import type { Section } from "./document";
 import { Field, FillField, NumberField, Segmented, WeightField, useMeasured, type Measured } from "./inspector-fields";
 import { cleanFieldValue, headerFields, sectionRegistry, type FieldDef } from "./section-registry";
 import { hasBlock } from "./section-blocks";
+import { PriceInput, RegistrationPrices } from "./registration-prices";
 import styles from "./react-editor.module.css";
 
 export type Change = (fn: (site: EditorSite) => EditorSite, coalesceKey?: string) => void;
@@ -292,6 +293,8 @@ function DataField({ site, section, def, path, readOnly, change, onError }: {
     );
     case "toggle": return <label className={styles.check}><input type="checkbox" checked={value === true} disabled={readOnly} onChange={e => set(e.target.checked, false)} />{def.label}</label>;
     case "number": return <Field label={def.label} hint={def.hint}><input inputMode="numeric" value={text} disabled={readOnly} onChange={e => set(e.target.value)} /></Field>;
+    case "date": return <Field label={def.label} hint={def.hint}><input type="date" value={text} disabled={readOnly} onChange={e => set(e.target.value, false)} /></Field>;
+    case "money": return <Field label={def.label} hint={def.hint}><PriceInput value={value} label={def.label} disabled={readOnly} allowBlank={false} onChange={v => set(v ?? 0)} /></Field>;
     case "image": return <ImageField site={site} value={safeImage(value)} disabled={readOnly} onError={onError} onChange={src => set(src, false)} />;
     case "link": {
       const ctx = linkContext(site);
@@ -350,7 +353,8 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
           );
         }
         return (
-          <section key={listDef.key} className={styles.group}>
+          <Fragment key={listDef.key}>
+          <section className={styles.group}>
             <h3>{listDef.label} ({items.length})</h3>
             {items.map((_, index) => (
               <details key={index} className={styles.menuItem} open={items.length <= 3}>
@@ -366,6 +370,8 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
             <button type="button" className={styles.addButton} disabled={readOnly || items.length >= listDef.max}
               onClick={() => change(s => addListItem(s, section.id, listDef.key, listDef.newItem(), listDef.max))}>+ Add {listDef.itemLabel.toLowerCase()}</button>
           </section>
+          {section.type === "registration" && listDef.key === "categories" && <RegistrationPrices {...common} />}
+          </Fragment>
         );
       })}
     </>
