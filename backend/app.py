@@ -248,7 +248,9 @@ def run_pipeline_worker(action: str, params: dict, script_name: str, stage_name:
                 text=True,
                 bufsize=1,
                 cwd=str(BASE_DIR),
-                universal_newlines=True,
+                encoding="utf-8",
+                errors="replace",
+                env={**os.environ, "PYTHONIOENCODING": "utf-8"},
             )
 
         for line in iter(current_process.stdout.readline, ""):
@@ -1625,7 +1627,7 @@ async def launch_installer():
 # -----------------------------------------------------------------------------
 # SciStudio Website Builder Module Endpoints (/api/builder)
 # -----------------------------------------------------------------------------
-from builder_manager import builder_engine, compile_website_html
+from builder_manager import builder_engine
 from conference_manager import conference_engine
 
 def _require_scistudio_access(user: dict):
@@ -1698,8 +1700,8 @@ async def builder_list_templates():
     return {"templates": builder_engine.list_templates()}
 
 
-@app.get("/api/builder/template-preview/{template_id}")
-async def builder_template_preview(template_id: str):
+@app.get("/api/builder/templates/{template_id}")
+async def builder_template_document(template_id: str):
     from builder_manager import build_template_components
     templates = builder_engine.list_templates()
     template = next((item for item in templates if item["id"] == template_id), None)
@@ -1709,8 +1711,7 @@ async def builder_template_preview(template_id: str):
     components, theme = build_template_components(template_id, name)
     if template_id == "blank":
         components = []
-    html, _ = compile_website_html({"name": name, "theme_config": theme, "schema_json": components})
-    return HTMLResponse(content=html)
+    return {"site_id": "", "name": name, "theme_config": theme, "schema_json": components}
 
 
 @app.get("/api/builder/conferences")
@@ -1840,24 +1841,6 @@ async def builder_get_site(site_id: str, request: Request):
     if not site:
         raise HTTPException(status_code=404, detail="Website not found.")
     return site
-
-
-@app.get("/api/builder/sites/{site_id}/preview")
-async def builder_preview_site(site_id: str, request: Request):
-    """Private preview of saved draft content, without publishing it."""
-    user = _require_authenticated_user(request)
-    _require_scistudio_access(user)
-    site = _require_owned_site(site_id, user)
-    page_param = request.query_params.get("page") if hasattr(request, "query_params") else (request.get("page") if isinstance(request, dict) else None)
-    if page_param:
-        html, _ = compile_website_html(site, page_param)
-    else:
-        html, _ = compile_website_html(site)
-    return HTMLResponse(content=html, headers={
-        "Cache-Control": "no-store",
-        "X-Robots-Tag": "noindex, nofollow",
-        "Content-Security-Policy": "sandbox allow-popups",
-    })
 
 
 @app.put("/api/builder/sites/{site_id}")
@@ -2177,16 +2160,9 @@ async def scistudio_site_preview_page(site_id: str, request: Request, namespace:
     if namespace and _page_namespace(user) != namespace:
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     _require_scistudio_access(user)
-    if not namespace:
-        query = f"?{request.url.query}" if request.url.query else ""
-        return _to_react(f"/{_page_namespace(user)}/scistudio/{site_id}/preview{query}")
-    site = _require_owned_site(site_id, user)
-    page_param = request.query_params.get("page") if hasattr(request, "query_params") else (request.get("page") if isinstance(request, dict) else None)
-    if page_param:
-        html, _ = compile_website_html(site, page_param)
-    else:
-        html, _ = compile_website_html(site)
-    return HTMLResponse(html)
+    _require_owned_site(site_id, user)
+    query = f"?{request.url.query}" if request.url.query else ""
+    return _to_react(f"/{_page_namespace(user)}/scistudio/{site_id}/preview{query}")
 
 
 # Role-owned page namespaces. Data APIs continue to enforce resource ownership.

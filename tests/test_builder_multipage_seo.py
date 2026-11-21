@@ -8,88 +8,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from backend.builder_manager import WebsiteBuilderEngine, compile_website_html
+from backend.builder_manager import WebsiteBuilderEngine
 
 
 @unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA", "").startswith("test_"), "Database test: set SCIPROSPECT_DB_SCHEMA=test_<name> to run against an isolated test schema (never the live data).")
 class TestBuilderMultiPageAndSeo(unittest.TestCase):
     def setUp(self):
         self.engine = WebsiteBuilderEngine()
-
-    def test_seo_meta_tags_compilation(self):
-        site_data = {
-            "name": "Global Genomics Summit 2026",
-            "meta_title": "Genomics Summit 2026 · Official Portal",
-            "meta_description": "Join international researchers in Cambridge for clinical genomics.",
-            "meta_keywords": "genomics, genetics, oncology, bioinformatics",
-            "og_image": "https://example.com/banner.jpg",
-            "meta_author": "SciProspect Editorial",
-            "canonical_url": "https://example.com/genomics2026",
-            "ga_tracking_id": "G-TEST123456",
-            "custom_head_code": '<link rel="author" href="https://example.com/author">',
-            "custom_body_code": '<script>console.log("analytics ping");</script>',
-            "schema_json": [
-                {
-                    "id": "nav_1",
-                    "type": "navbar",
-                    "data": {"brand_name": "Genomics Summit", "layout_variant": "business"}
-                }
-            ]
-        }
-        html, css = compile_website_html(site_data)
-
-        self.assertIn("<title>Genomics Summit 2026 · Official Portal</title>", html)
-        self.assertIn('name="description" content="Join international researchers in Cambridge for clinical genomics."', html)
-        self.assertIn('name="keywords" content="genomics, genetics, oncology, bioinformatics"', html)
-        self.assertIn('property="og:image" content="https://example.com/banner.jpg"', html)
-        self.assertIn('name="author" content="SciProspect Editorial"', html)
-        self.assertIn('rel="canonical" href="https://example.com/genomics2026"', html)
-        self.assertIn("https://www.googletagmanager.com/gtag/js?id=G-TEST123456", html)
-        self.assertIn("gtag('config', 'G-TEST123456');", html)
-        self.assertIn('<link rel="author" href="https://example.com/author">', html)
-        self.assertIn('<script>console.log("analytics ping");</script>', html)
-
-    def test_multipage_site_compilation_and_resolution(self):
-        site_data = {
-            "name": "BioTech World",
-            "pages": [
-                {
-                    "id": "page_home",
-                    "name": "Home",
-                    "slug": "/",
-                    "is_home": True,
-                    "meta_title": "Home · BioTech World",
-                    "schema_json": [
-                        {"id": "hero_1", "type": "hero", "data": {"headline": "Welcome to BioTech"}}
-                    ]
-                },
-                {
-                    "id": "page_speakers",
-                    "name": "Keynote Speakers",
-                    "slug": "/speakers",
-                    "is_home": False,
-                    "meta_title": "Speakers · BioTech World",
-                    "schema_json": [
-                        {"id": "speakers_1", "type": "speakers", "data": {"section_title": "Faculty Speakers"}}
-                    ]
-                }
-            ]
-        }
-
-        # 1. Compile home page by default
-        home_html, _ = compile_website_html(site_data)
-        self.assertIn("<title>Home · BioTech World</title>", home_html)
-        self.assertIn("Welcome to BioTech", home_html)
-
-        # 2. Compile speakers sub-page by ID
-        spk_html, _ = compile_website_html(site_data, page_id="page_speakers")
-        self.assertIn("<title>Speakers · BioTech World</title>", spk_html)
-        self.assertIn("Faculty Speakers", spk_html)
-
-        # 3. Compile speakers sub-page by slug
-        spk_slug_html, _ = compile_website_html(site_data, page_id="speakers")
-        self.assertIn("<title>Speakers · BioTech World</title>", spk_slug_html)
-        self.assertIn("Faculty Speakers", spk_slug_html)
 
     def test_multipage_zip_export(self):
         site = self.engine.create_site(
