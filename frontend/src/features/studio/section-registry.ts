@@ -17,7 +17,9 @@ export type FieldDef = {
   min?: number;
   max?: number;
 };
-export type ListDef = { key: string; label: string; itemLabel: string; fields: FieldDef[]; newItem: () => Record<string, Json>; max: number };
+export type ListDef = { key: string; label: string; itemLabel: string; fields: FieldDef[]; newItem: () => Record<string, Json>; max: number;
+  /** Used until the list is first customised (e.g. a form's built-in fields). */
+  defaults?: Record<string, Json>[] };
 export type SectionDef = { name: string; header: boolean; fields: FieldDef[]; lists: ListDef[] };
 
 const t = (key: string, label: string, extra: Partial<FieldDef> = {}): FieldDef => ({ key, label, kind: "text", ...extra });
@@ -80,8 +82,22 @@ export const sectionRegistry: Record<string, SectionDef> = {
   },
   contact: {
     name: "Contact", header: true,
-    fields: [t("email", "Email address"), t("phone", "Phone number"), t("address", "Address or venue"), t("btn_text", "Form button text")],
-    lists: [],
+    fields: [t("email", "Email address"), t("phone", "Phone number"), t("address", "Address or venue"), t("btn_text", "Form button text"),
+      t("success_message", "Thank-you message", { placeholder: "Thank you! Your message has been sent." })],
+    lists: [{
+      key: "form_fields", label: "Form fields", itemLabel: "Field", max: 20,
+      // Shown until the user customises them; must match backend/forms.py DEFAULT_CONTACT_FIELDS.
+      defaults: [
+        { id: "name", label: "Name", type: "text", required: true },
+        { id: "email", label: "Email", type: "email", required: true },
+        { id: "message", label: "Message", type: "textarea", required: true },
+      ],
+      fields: [t("label", "Label"),
+        { key: "type", label: "Type", kind: "select", options: [["text", "Short text"], ["email", "Email"], ["phone", "Phone"], ["textarea", "Long text"], ["select", "Dropdown"], ["checkbox", "Checkbox"]] },
+        { key: "required", label: "Required", kind: "toggle" },
+        { key: "options", label: "Dropdown options", kind: "lines", hint: "Only for dropdowns. One option per line." }],
+      newItem: () => ({ id: `f_${crypto.randomUUID().slice(0, 8)}`, label: "New field", type: "text", required: false }),
+    }],
   },
   footer: {
     name: "Footer", header: false,

@@ -82,3 +82,7 @@
   .nodes > * { grid-column: 1 / -1 !important; }
   .footer { flex-direction: column; padding: 36px 18px; }
 }
+.form select { width: 100%; padding: 11px 13px; border: 1px solid #dce1ed; border-radius: 9px; font: inherit; font-weight: 400; background: white; color: var(--ink); }
+.checkRow { display: flex !important; align-items: center; gap: 8px; font-weight: 500 !important; }
+.trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.formError { margin: 0; color: #b91c1c; font-size: 14px; }

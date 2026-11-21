@@ -158,9 +158,66 @@ function Faq({ c }: { c: Ctx }) {
   );
 }
 
+/** Fields a form shows; must match backend/forms.py DEFAULT_CONTACT_FIELDS. */
+export const defaultContactFields: Rec[] = [
+  { id: "name", label: "Name", type: "text", required: true },
+  { id: "email", label: "Email", type: "email", required: true },
+  { id: "message", label: "Message", type: "textarea", required: true },
+];
+const autoComplete: Record<string, string> = { email: "email", phone: "tel", name: "name" };
+
+/** Renders a form from its field list and sends it to the backend (saved in the database). */
+function WebsiteForm({ c, children }: { c: Ctx; children: ReactNode }) {
+  const d = c.section.data;
+  const fields = list(d.form_fields).length ? list(d.form_fields) : defaultContactFields;
+  const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (c.edit) return;
+    const form = new FormData(e.currentTarget);
+    const values: Record<string, unknown> = { _hp: form.get("_hp") ?? "" };
+    for (const f of fields) values[str(f.id)] = f.type === "checkbox" ? form.get(str(f.id)) === "on" : str(form.get(str(f.id)));
+    if (!c.ctx.siteId) { setState({ kind: "error", message: "This form can be sent from the preview or the live site." }); return; }
+    setState({ kind: "sending" });
+    try {
+      const res = await fetch(`/api/public/forms/${encodeURIComponent(c.ctx.siteId)}/${encodeURIComponent(c.section.id)}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(values),
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Your message could not be sent. Please try again.");
+      setState({ kind: "sent", message: body?.message ?? "Thank you! Your message has been sent." });
+      (e.target as HTMLFormElement).reset();
+    } catch (err) {
+      setState({ kind: "error", message: err instanceof Error ? err.message : "Your message could not be sent." });
+    }
+  }
+  if (state.kind === "sent") return <div className={styles.form} role="status"><strong>{state.message}</strong></div>;
+  return (
+    <form className={styles.form} onSubmit={submit} noValidate={!!c.edit}>
+      {fields.map(f => {
+        const id = str(f.id), label = str(f.label) || id, required = f.required === true, disabled = !!c.edit;
+        const mark = required ? " *" : "";
+        if (f.type === "textarea") return <label key={id}>{label}{mark}<textarea name={id} rows={4} required={required} disabled={disabled} /></label>;
+        if (f.type === "checkbox") return <label key={id} className={styles.checkRow}><input type="checkbox" name={id} required={required} disabled={disabled} />{label}{mark}</label>;
+        if (f.type === "select") return (
+          <label key={id}>{label}{mark}<select name={id} required={required} disabled={disabled} defaultValue="">
+            <option value="" disabled>Choose…</option>
+            {(Array.isArray(f.options) ? f.options : []).map((o, i) => <option key={i} value={str(o)}>{str(o)}</option>)}
+          </select></label>
+        );
+        return <label key={id}>{label}{mark}<input name={id} type={f.type === "email" ? "email" : f.type === "phone" ? "tel" : "text"}
+          autoComplete={autoComplete[str(f.type)] ?? autoComplete[id]} required={required} disabled={disabled} /></label>;
+      })}
+      {/* spam trap: hidden from people, bots fill it */}
+      <input name="_hp" tabIndex={-1} autoComplete="off" aria-hidden="true" className={styles.trap} />
+      <button type="submit" className={styles.button} data-primary disabled={state.kind === "sending"}>{state.kind === "sending" ? "Sending…" : children}</button>
+      {state.kind === "error" && <p role="alert" className={styles.formError}>{state.message}</p>}
+    </form>
+  );
+}
+
 function Contact({ c }: { c: Ctx }) {
   const d = c.section.data;
-  const [sent, setSent] = useState(false);
   const addressKey = str(d.address) || !str(d.location) ? "address" : "location";
   const buttonKey = str(d.btn_text) || !str(d.form_button_label) ? "btn_text" : "form_button_label";
   return (
@@ -173,16 +230,10 @@ function Contact({ c }: { c: Ctx }) {
           {(str(d[addressKey]) || c.edit) && <li><Icon name="grid" size={16} /><T c={c} path={[addressKey]} placeholder="address" /></li>}
         </ul>
       </div>
-      <form className={styles.form} onSubmit={e => { e.preventDefault(); if (!c.edit) setSent(true); }}>
-        <label>Name<input name="name" autoComplete="name" disabled={!!c.edit} /></label>
-        <label>Email<input name="email" type="email" autoComplete="email" disabled={!!c.edit} /></label>
-        <label>Message<textarea name="message" rows={4} disabled={!!c.edit} /></label>
-        <button type="submit" className={styles.button} data-primary>
-          <T c={c} path={[buttonKey]} placeholder="button text" />
-          {!str(d[buttonKey]) && !c.edit && "Send message"}
-        </button>
-        {sent && <p role="status" className={styles.muted}>Thank you. Form delivery is not connected yet.</p>}
-      </form>
+      <WebsiteForm c={c}>
+        <T c={c} path={[buttonKey]} placeholder="button text" />
+        {!str(d[buttonKey]) && !c.edit && "Send message"}
+      </WebsiteForm>
     </div>
   );
 }

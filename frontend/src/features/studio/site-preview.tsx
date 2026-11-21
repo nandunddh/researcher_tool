@@ -36,7 +36,7 @@ export function SitePreview({ siteId }: { siteId: string }) {
   if (!site.schema_json.length) return <p style={{ padding: 32, font: "15px system-ui" }}>This page is empty. Add sections in the editor and save.</p>;
   return (
     <div style={{ minHeight: "100vh", background: "white" }}>
-      <SiteRenderer sections={site.schema_json} pages={site.pages} siteSlug={site.slug} fallback={fallback} pagePath={pagePath} />
+      <SiteRenderer sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={fallback} pagePath={pagePath} />
     </div>
   );
 }

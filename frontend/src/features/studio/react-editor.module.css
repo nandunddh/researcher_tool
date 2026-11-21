@@ -366,3 +366,13 @@
 .editor :global(.confirm-dialog) button:hover:not(:disabled) { border-color: #c7cde0; background: #eceef5; color: #24324b; }
 .editor :global(.confirm-dialog) button:global(.confirm-destructive) { border-color: #dc2626; background: #dc2626; color: white; }
 .editor :global(.confirm-dialog) button:global(.confirm-destructive):hover:not(:disabled) { border-color: #b91c1c; background: #b91c1c; color: white; }
+
+/* ---------- submissions inbox */
+.inboxList { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.inboxList > li { border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); overflow: hidden; }
+.editor .inboxList > li > button { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: 0; background: transparent; text-align: left; justify-items: start; }
+.inboxList > li > button span { grid-column: 1; font-size: 12px; color: var(--muted); }
+.inboxList > li > button small { grid-column: 2; grid-row: 1 / span 2; align-self: center; font-size: 11.5px; color: var(--faint); }
+.inboxList dl { margin: 0; padding: 4px 12px 12px; display: grid; gap: 8px; }
+.inboxList dt { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--faint); }
+.inboxList dd { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }

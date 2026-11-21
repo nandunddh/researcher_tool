@@ -1982,6 +1982,39 @@ async def builder_upload_media(site_id: str, request: Request):
     return {"status": "ok", "url": f"/api/builder/media/{site_id}/{name}"}
 
 
+@app.post("/api/public/forms/{site_id}/{form_id}")
+async def submit_website_form(site_id: str, form_id: str, request: Request):
+    """Public: a visitor submits a form on a website. Values are checked against the form's own fields."""
+    import forms
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", form_id):
+        raise HTTPException(status_code=404, detail="Form not found.")
+    if int(request.headers.get("content-length") or 0) > 64_000:
+        raise HTTPException(status_code=413, detail="This message is too long.")
+    site = builder_engine.get_site(site_id)
+    section, page_id = forms.find_form(site or {}, form_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Form not found.")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid form data.")
+    values, problem = forms.clean_submission(section, payload)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    forms.save_submission(site_id, form_id, section["type"], page_id, values)
+    return {"status": "ok", "message": (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."}
+
+
+@app.get("/api/builder/sites/{site_id}/submissions")
+async def builder_list_submissions(site_id: str, request: Request):
+    """Owner only: all form submissions for one website, newest first."""
+    import forms
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    return {"submissions": forms.list_submissions(site_id)}
+
+
 @app.get("/api/builder/media/{site_id}/{name}")
 async def builder_serve_media(site_id: str, name: str):
     """Public: published pages embed these images. Names are random and unguessable."""

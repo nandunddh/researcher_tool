@@ -322,6 +322,18 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
       )}
       {def.lists.map(listDef => {
         const items = Array.isArray(section.data[listDef.key]) ? (section.data[listDef.key] as unknown[]) : [];
+        if (!items.length && listDef.defaults) {
+          return (
+            <section key={listDef.key} className={styles.group}>
+              <h3>{listDef.label}</h3>
+              <p className={styles.hint}>Using the standard fields: {listDef.defaults.map(f => String(f.label)).join(", ")}.</p>
+              <button type="button" className={styles.addButton} disabled={readOnly}
+                onClick={() => change(s => setSectionField(s, section.id, [listDef.key], structuredClone(listDef.defaults!)))}>
+                Customize fields
+              </button>
+            </section>
+          );
+        }
         return (
           <section key={listDef.key} className={styles.group}>
             <h3>{listDef.label} ({items.length})</h3>

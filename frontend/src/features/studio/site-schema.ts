@@ -54,7 +54,7 @@ export type SiteElement = {
   style: Responsive<Style>;
 };
 export type PageRef = { id: string; name?: string; slug?: string; is_home?: boolean };
-export type LinkContext = { sections: Section[]; pages?: PageRef[]; siteSlug?: string; pagePath?: (page: PageRef) => string };
+export type LinkContext = { sections: Section[]; pages?: PageRef[]; siteSlug?: string; siteId?: string; pagePath?: (page: PageRef) => string };
 
 export const elementSections = ["navbar", "hero"] as const;
 const MAX_TEXT = 5000;

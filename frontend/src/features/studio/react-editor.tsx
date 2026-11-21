@@ -10,6 +10,7 @@ import { ComponentsPanel } from "./components-panel";
 import { PagesPanel } from "./pages-panel";
 import { ComponentLibrary } from "./component-library";
 import { SiteSettings } from "./site-settings";
+import { SubmissionsInbox } from "./submissions-inbox";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Inspector, elementName, type Change, type ConfirmRequest } from "./inspector";
 import { libraryFallback } from "./library-fallback";
@@ -108,6 +109,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const [libraryOpen, setLibraryOpen] = useState(false);
   const leaving = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inboxOpen, setInboxOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   useEffect(() => {
     try { if (localStorage.getItem("scistudio-editor-theme") === "dark") setTheme("dark"); } catch { /* storage unavailable */ }
@@ -277,6 +279,9 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
           <button type="button" className={styles.iconButton} onClick={() => dispatch({ type: "redo" })} disabled={busy || !state.future.length} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Icon name="redo" size={16} /></button>
           <button type="button" className={styles.iconButton} aria-pressed={layersOpen} onClick={() => setLayersOpen(!layersOpen)} title="Left panel" aria-label="Left panel"><Icon name="panel" size={16} /></button>
           <button type="button" className={styles.iconButton} aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)} title="Inspector" aria-label="Inspector"><Icon name="layers" size={16} /></button>
+          <button type="button" className={styles.settingsButton} disabled={!site} onClick={() => setInboxOpen(true)} title="Messages and registrations sent from your forms">
+            <Icon name="doc" size={15} /> Inbox
+          </button>
           <button type="button" className={styles.settingsButton} disabled={!site} onClick={() => setSettingsOpen(true)}
             title="Search (SEO), social sharing and Google Analytics">
             <Icon name="settings" size={15} /> SEO &amp; settings
@@ -355,7 +360,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                     </div>
                   </div>
                 )}
-                <SiteRenderer sections={site.schema_json} pages={site.pages} siteSlug={site.slug} fallback={renderPreserved} edit={{
+                <SiteRenderer sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={renderPreserved} edit={{
                   selection, readOnly, dragging,
                   onSelect: sel => { setSelection(sel); setInspectorOpen(true); },
                   onText: (sectionId, elementId, text) => change(s => updateElement(s, sectionId, elementId, { text })),
@@ -370,6 +375,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
           </aside>
         </div>
       )}
+      {inboxOpen && site && <SubmissionsInbox site={site} onClose={() => setInboxOpen(false)} />}
       {settingsOpen && <SiteSettings siteId={siteId} onClose={() => setSettingsOpen(false)} onSaved={announce} />}
       {libraryOpen && (
         <ComponentLibrary onClose={() => setLibraryOpen(false)} onAdd={item => { add(item); setLibraryOpen(false); }} />
