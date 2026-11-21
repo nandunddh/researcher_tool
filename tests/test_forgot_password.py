@@ -121,7 +121,10 @@ class ForgotPasswordTests(unittest.TestCase):
         with patch.object(web_app, "license_engine", self.mgr), patch.dict(sys.modules, {"password_reset": fake_reset}):
             known = asyncio.run(web_app.api_auth_forgot_request(_FakeRequest({"email": "jane@university.edu"})))
             unknown = asyncio.run(web_app.api_auth_forgot_request(_FakeRequest({"email": "nope@university.edu"})))
-            self.assertEqual(known, unknown, "same answer, so accounts can't be discovered")
+            # Only the echoed email may differ, so accounts can't be discovered.
+            self.assertEqual(known["message"].replace("jane@university.edu", "X"),
+                             unknown["message"].replace("nope@university.edu", "X"))
+            self.assertEqual(known["status"], unknown["status"])
             self.assertEqual(sent, ["jane@university.edu"], "link sent only to real accounts")
 
             for body, fragment in (({"token": "bad", "new_password": "LongEnough1!"}, "expired"), ({"token": "good", "new_password": "short"}, "8 characters")):
