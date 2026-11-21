@@ -224,17 +224,62 @@ def save_registration(site_id: str, form_id: str, page_id: Optional[str], values
     with db.transaction() as cur:
         cur.execute(
             "INSERT INTO form_submissions (site_id, form_id, form_type, page_id, data, status) VALUES (%s, %s, 'registration', %s, %s, 'awaiting payment') RETURNING id",
-            (site_id, form_id, page_id, Json({**values, "_payment_token": token})),
+            (site_id, form_id, page_id, Json({**values, "_payment_token": token, "_payment_order": order})),
         )
         return cur.fetchone()[0], token
 
 
-def mark_test_payment(site_id: str, submission_id: int, token: str) -> bool:
-    """Test mode stand-in for Stripe: marks a registration as paid. shortcut: no real payment, replace with Stripe checkout + webhook."""
+def receipt_number(prefix, n: int) -> str:
+    clean = re.sub(r"[^A-Z0-9-]", "", str(prefix or "").upper())[:20] or "R-"
+    return f"{clean}{n:04d}"
+
+
+def mark_test_payment(site_id: str, submission_id: int, token: str, prefix: str = "") -> Optional[str]:
+    """Test mode stand-in for Stripe: marks a registration as paid and issues the next receipt number for the site.
+    Returns the receipt number, or None if the payment is not valid. shortcut: no real payment, replace with Stripe checkout + webhook."""
     with db.transaction() as cur:
         cur.execute(
             "UPDATE form_submissions SET status = 'paid (test)' WHERE id = %s AND site_id = %s AND form_type = 'registration' "
-            "AND status = 'awaiting payment' AND data->>'_payment_token' = %s",
+            "AND status = 'awaiting payment' AND data->>'_payment_token' = %s RETURNING id",
             (submission_id, site_id, token),
         )
-        return cur.rowcount == 1
+        if not cur.fetchone():
+            return None
+        cur.execute("INSERT INTO receipt_counters (site_id, last) VALUES (%s, 1) "
+                    "ON CONFLICT (site_id) DO UPDATE SET last = receipt_counters.last + 1 RETURNING last", (site_id,))
+        number = receipt_number(prefix, cur.fetchone()[0])
+        cur.execute("UPDATE form_submissions SET data = data || %s WHERE id = %s",
+                    (Json({"_receipt": {"label": "Receipt", "value": number}, "_payment_paid_at": date.today().isoformat()}), submission_id))
+    return number
+
+
+def receipt(site: dict, submission_id: int, token: str) -> Optional[dict]:
+    """Everything a receipt shows, for the person holding the payment link. None if not found or not paid."""
+    with db.transaction() as cur:
+        cur.execute("SELECT data, status FROM form_submissions WHERE id = %s AND site_id = %s AND form_type = 'registration'",
+                    (submission_id, site.get("site_id")))
+        row = cur.fetchone()
+    if not row:
+        return None
+    data, status = row
+    if not data.get("_receipt") or not secrets.compare_digest(str(data.get("_payment_token", "")), str(token or "")):
+        return None
+    event = site.get("event") if isinstance(site.get("event"), dict) else {}
+    basics = event.get("basics") if isinstance(event.get("basics"), dict) else {}
+    settings = event.get("receipts") if isinstance(event.get("receipts"), dict) else {}
+    order = data.get("_payment_order") or {}
+    try:
+        rate = max(0.0, min(100.0, float(settings.get("tax_rate") or 0)))
+    except (TypeError, ValueError):
+        rate = 0.0
+    total = float(order.get("total") or 0)
+    return {
+        "number": data["_receipt"]["value"], "paid_on": data.get("_payment_paid_at", ""), "status": status,
+        "event": {k: basics.get(k, "") for k in ("name", "starts", "ends", "venue", "organiser", "address", "tax_id", "email")} | {"name": basics.get("name") or site.get("name", "")},
+        "buyer": [v for k, v in data.items() if not k.startswith("_") and isinstance(v, dict) and v.get("value") not in ("", None, False)],
+        "order": order,
+        # Prices include tax: show the tax part of the total.
+        "tax": {"label": str(settings.get("tax_label") or "Tax")[:20], "rate": rate, "amount": round(total * rate / (100 + rate), 2)} if rate else None,
+        "note": str(settings.get("note") or "")[:2000],
+    }
+

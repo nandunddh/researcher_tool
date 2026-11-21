@@ -134,3 +134,33 @@ class RootEmailTests(unittest.TestCase):
         self.assertTrue(mgr.reset_password_by_email("me@example.com", "NewRoot123!")[0])
         self.assertTrue(mgr.authenticate("me@example.com", "NewRoot123!")[0])
         self.assertFalse(mgr.check_password_reset_email("root@sciprospect.internal")[0], "internal address still blocked")
+
+
+class ReceiptTests(unittest.TestCase):
+    def test_receipt_number(self):
+        self.assertEqual(forms.receipt_number("aiml-2027-", 7), "AIML-2027-0007")
+        self.assertEqual(forms.receipt_number("<x>", 12345), "X12345")
+        self.assertEqual(forms.receipt_number("", 1), "R-0001")
+
+    def test_receipt_needs_token_and_shows_tax_inside_total(self):
+        from contextlib import contextmanager
+        from unittest.mock import patch
+        stored = {"name": {"label": "Full name", "value": "Ada"}, "email": {"label": "Email", "value": "ada@uni.edu"},
+                  "_payment_token": "tok", "_receipt": {"label": "Receipt", "value": "R-0001"}, "_payment_paid_at": "2027-01-02",
+                  "_payment_order": {"currency": "USD", "lines": [{"label": "Academic", "amount": 118}], "subtotal": 118, "discount": 0, "total": 118}}
+
+        class Cur:
+            def execute(self, *a): pass
+            def fetchone(self): return (stored, "paid (test)")
+
+        @contextmanager
+        def tx():
+            yield Cur()
+
+        site = {"site_id": "site_00000001", "name": "Site", "event": {"basics": {"name": "AI 2027", "tax_id": "GST1"}, "receipts": {"tax_rate": 18, "tax_label": "GST"}}}
+        with patch.object(forms.db, "transaction", tx):
+            self.assertIsNone(forms.receipt(site, 1, "wrong"))
+            r = forms.receipt(site, 1, "tok")
+        self.assertEqual((r["number"], r["event"]["name"], r["event"]["tax_id"]), ("R-0001", "AI 2027", "GST1"))
+        self.assertEqual(r["tax"], {"label": "GST", "rate": 18.0, "amount": 18.0})
+        self.assertEqual([b["value"] for b in r["buyer"]], ["Ada", "ada@uni.edu"], "private fields stay out")

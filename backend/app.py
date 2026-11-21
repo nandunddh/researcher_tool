@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import threading
+from urllib.parse import quote
 import secrets
 import time
 from datetime import datetime
@@ -2194,10 +2195,51 @@ async def pay_registration_test(site_id: str, form_id: str, submission_id: int, 
         token = str((await request.json()).get("payment_token", ""))
     except Exception:
         token = ""
-    if not forms.mark_test_payment(site_id, submission_id, token):
+    site = builder_engine.get_site(site_id) or {}
+    settings = ((site.get("event") or {}).get("receipts") or {}) if isinstance(site.get("event"), dict) else {}
+    number = forms.mark_test_payment(site_id, submission_id, token, settings.get("prefix", ""))
+    if not number:
         raise HTTPException(status_code=400, detail="This payment could not be completed.")
     message = (section.get("data") or {}).get("success_message") or "Payment received (test mode). Your registration is confirmed."
-    return {"status": "ok", "message": message}
+    link = f"/receipt/{site_id}/{submission_id}?t={quote(token)}"
+    threading.Thread(target=_email_receipt, args=(site, submission_id, token, link), daemon=True).start()
+    return {"status": "ok", "message": message, "receipt": {"number": number, "url": link}}
+
+
+def _email_receipt(site: dict, submission_id: int, token: str, link: str) -> None:
+    """Emails the receipt link to the address the person registered with. Never fails the payment."""
+    import forms
+    from html import escape
+    try:
+        receipt = forms.receipt(site, submission_id, token)
+        to = next((str(v["value"]) for v in (receipt or {}).get("buyer", []) if forms.EMAIL.match(str(v.get("value") or ""))), "")
+        if not receipt or not to or not os.environ.get("SCIPROSPECT_SMTP_HOST"):
+            return
+        from mailer import send_mail
+        url = os.environ.get("SCIPROSPECT_APP_URL", "http://127.0.0.1:3000").rstrip("/") + link
+        order, event = receipt["order"], receipt["event"]
+        total = f"{order.get('currency', '')} {float(order.get('total') or 0):.2f}"
+        text = "\n".join([f"Thank you for registering for {event['name']}.", f"Receipt {receipt['number']}, total {total}.",
+                          f"View or download your receipt: {url}"])
+        html = (f"<p>Thank you for registering for <strong>{escape(event['name'])}</strong>.</p>"
+                f"<p>Receipt <strong>{escape(receipt['number'])}</strong> · Total <strong>{escape(total)}</strong></p>"
+                f"<p><a href=\"{escape(url, quote=True)}\" style=\"background:#5a45d6;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none\">View or download receipt</a></p>")
+        send_mail(to, f"Your receipt {receipt['number']} · {event['name']}", text, html)
+    except Exception as exc:  # the payment is already confirmed; a mail problem must not surface as a failure
+        print(f"[RECEIPT] Email not sent: {type(exc).__name__}")
+
+
+@app.get("/api/public/receipts/{site_id}/{submission_id}")
+async def public_receipt(site_id: str, submission_id: int, request: Request, t: str = ""):
+    """Public: a paid registration's receipt, for whoever holds the link from the confirmation screen or email."""
+    import forms
+    _limit_form_requests(request)
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id):
+        raise HTTPException(status_code=404, detail="Receipt not found.")
+    receipt = forms.receipt(builder_engine.get_site(site_id) or {}, submission_id, t)
+    if not receipt:
+        raise HTTPException(status_code=404, detail="Receipt not found. Check the link in your email.")
+    return receipt
 
 
 @app.get("/api/builder/sites/{site_id}/submissions")

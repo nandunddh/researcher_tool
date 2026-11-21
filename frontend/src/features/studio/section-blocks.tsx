@@ -329,6 +329,7 @@ function Registration({ c }: { c: Ctx }) {
   const [note, setNote] = useState("");
   const [pay, setPay] = useState<{ id: number; token: string; order: Order } | null>(null);
   const [done, setDone] = useState("");
+  const [receipt, setReceipt] = useState<{ number: string; url: string } | null>(null);
   const chosen = cats.find(x => str(x.id) === category);
   const estimate = (priceIn(chosen, periodId) ?? 0) + addons.reduce((sum, a) => sum + (Number(a.price) || 0) * (qty[str(a.id)] ?? 0), 0);
   const base = `/api/public/forms/${encodeURIComponent(c.ctx.siteId ?? "")}/${encodeURIComponent(c.section.id)}`;
@@ -345,7 +346,7 @@ function Registration({ c }: { c: Ctx }) {
     if (!pay) return;
     const res = await fetch(`${base}/pay-test/${pay.id}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ payment_token: pay.token }) });
     const body = await res.json().catch(() => null);
-    if (res.ok) setDone(body.message); else setNote(body?.detail ?? "Payment failed.");
+    if (res.ok) { setDone(body.message); setReceipt(body.receipt ?? null); } else setNote(body?.detail ?? "Payment failed.");
   }
 
   const picker = (
@@ -389,7 +390,15 @@ function Registration({ c }: { c: Ctx }) {
     <div className={`${styles.wrap} ${styles.narrow}`}>
       <Header c={c} />
       {!c.edit && (!period || !offered.length) ? <p role="status" className={styles.form}>Registration is closed.</p>
-        : done ? <p role="status" className={`${styles.form} ${styles.formSuccess}`}>{done}</p> : pay ? (
+        : done ? (
+          <div role="status" className={styles.form}>
+            <p className={styles.formSuccess}>{done}</p>
+            {receipt && <>
+              <p>Receipt <strong>{receipt.number}</strong>. If you gave an email address, a copy is on its way.</p>
+              <a className={styles.button} data-primary href={receipt.url} target="_blank" rel="noopener noreferrer">View or download receipt</a>
+            </>}
+          </div>
+        ) : pay ? (
         <div className={styles.form}>
           <h3>Payment <small className={styles.muted}>(test mode, no money is charged)</small></h3>
           {pay.order.lines.map((l, i) => <p key={i} className={styles.regLine}><span>{l.label}</span><span>{money(pay.order.currency, l.amount)}</span></p>)}

@@ -10,7 +10,7 @@ import styles from "./event-details.module.css";
 
 type Rec = Record<string, unknown>;
 type Change = (fn: (site: EditorSite) => EditorSite, coalesceKey?: string) => void;
-export type EventDetails = { basics?: Rec; periods?: Rec[]; tickets?: Rec[]; addons?: Rec[]; discounts?: Rec[]; speakers?: Rec[]; deadlines?: Rec[] };
+export type EventDetails = { basics?: Rec; receipts?: Rec; periods?: Rec[]; tickets?: Rec[]; addons?: Rec[]; discounts?: Rec[]; speakers?: Rec[]; deadlines?: Rec[] };
 type ListKey = "periods" | "tickets" | "addons" | "discounts" | "speakers" | "deadlines";
 
 /** Pickers in the inspector ask the editor to open Event details on a tab. */
@@ -94,7 +94,7 @@ function ItemList({ items, fields, itemLabel, max, newItem, disabled, siteId, on
   );
 }
 
-const TABS = [["basics", "Basics"], ["prices", "Dates & prices"], ["addons", "Add-ons"], ["discounts", "Discount codes"], ["speakers", "Speakers"]] as const;
+const TABS = [["basics", "Basics"], ["prices", "Dates & prices"], ["addons", "Add-ons"], ["discounts", "Discount codes"], ["speakers", "Speakers"], ["receipts", "Receipts"]] as const;
 
 /** One place for the event's facts. Registration forms and speaker sections pick from here. */
 export function EventDetailsDialog({ site, initialTab = "basics", readOnly, change, onError, onClose }: {
@@ -181,6 +181,21 @@ export function EventDetailsDialog({ site, initialTab = "basics", readOnly, chan
             fields={[{ key: "code", label: "Code", kind: "text", placeholder: "EARLY10" }, { key: "percent", label: "Discount %", kind: "number" },
               { key: "amount", label: `Or fixed amount off (${currency})`, kind: "money" }, { key: "expires", label: "Valid until (optional)", kind: "date" }]}
             newItem={() => ({ id: uid("dsc"), code: "NEWCODE", percent: 10, amount: 0, expires: "" })} />
+        </div>
+      )}
+
+      {tab === "receipts" && (
+        <div className={styles.block}>
+          <p className={styles.intro}>A receipt is issued when someone pays. It shows the organiser, address and tax number from Basics, and is emailed to the attendee.</p>
+          <div className={styles.grid}>
+            {([
+              { key: "prefix", label: "Receipt number prefix", kind: "text", placeholder: "AIML-2027-", hint: "Numbers follow: AIML-2027-0001, 0002…" },
+              { key: "tax_label", label: "Tax name", kind: "text", placeholder: "GST" },
+              { key: "tax_rate", label: "Tax included in prices (%)", kind: "number", hint: "0 = no tax line on the receipt." },
+              { key: "note", label: "Note at the bottom", kind: "textarea", wide: true, placeholder: "e.g. Cancellations before 1 May are refunded minus a 10% fee." },
+            ] as FieldSpec[]).map(f => <Input key={f.key} spec={f} value={(event.receipts ?? {})[f.key]} {...common}
+              onChange={v => update({ receipts: { ...(event.receipts ?? {}), [f.key]: f.key === "tax_rate" ? Math.min(100, Number(v) || 0) : v } }, `receipts:${f.key}`)} />)}
+          </div>
         </div>
       )}
 

@@ -1,0 +1,28 @@
+.page { min-height: 100vh; background: #f3f5fa; padding: 40px 16px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #1d2433; }
+.paper { max-width: 760px; margin: 0 auto; background: #fff; border-radius: 16px; box-shadow: 0 10px 40px rgba(16, 24, 40, .08); padding: 48px; }
+.top { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; padding-bottom: 24px; border-bottom: 2px solid #1d2433; }
+.top h1 { margin: 0 0 6px; font-size: 24px; }
+.muted { color: #667085; font-size: 13px; line-height: 1.6; white-space: pre-line; margin: 0; }
+.stamp { text-align: right; }
+.stamp strong { display: block; font-size: 28px; letter-spacing: .08em; color: #5a45d6; }
+.paid { display: inline-block; margin-top: 8px; padding: 3px 10px; border-radius: 999px; background: #e7f6ef; color: #0f7a4f; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 24px; padding: 24px 0; }
+.meta h2 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #667085; }
+.meta p { margin: 0; font-size: 14px; line-height: 1.6; }
+table.lines { width: 100%; border-collapse: collapse; font-size: 14px; }
+.lines th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #667085; padding: 10px 0; border-bottom: 1px solid #e4e7ec; }
+.lines td { padding: 12px 0; border-bottom: 1px solid #f0f2f5; }
+.lines td:last-child, .lines th:last-child { text-align: right; }
+.totals { margin-left: auto; width: min(320px, 100%); margin-top: 16px; font-size: 14px; }
+.totals div { display: flex; justify-content: space-between; padding: 6px 0; }
+.totals .grand { border-top: 2px solid #1d2433; margin-top: 6px; padding-top: 12px; font-size: 18px; font-weight: 800; }
+.note { margin-top: 32px; padding-top: 16px; border-top: 1px solid #e4e7ec; }
+.actions { max-width: 760px; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 10px; }
+.actions button { border: 0; border-radius: 10px; padding: 11px 20px; font-weight: 700; background: #5a45d6; color: #fff; cursor: pointer; }
+.state { max-width: 520px; margin: 80px auto; text-align: center; color: #667085; }
+@media (max-width: 600px) { .paper { padding: 24px; } .stamp { text-align: left; } }
+@media print {
+  .page { background: #fff; padding: 0; }
+  .paper { box-shadow: none; border-radius: 0; padding: 0; max-width: none; }
+  .actions { display: none; }
+}
