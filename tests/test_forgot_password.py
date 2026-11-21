@@ -1,3 +1,4 @@
+import os
 from types import SimpleNamespace
 import asyncio
 import json
@@ -115,9 +116,9 @@ class ForgotPasswordTests(unittest.TestCase):
         self.assertFalse(ok_mem)
         self.assertEqual(code_mem, 403)
 
-    def test_reset_by_emailed_link_only(self):
+    def test_reset_by_emailed_code_only(self):
         sent = []
-        fake_reset = SimpleNamespace(send_link=sent.append, use_token=lambda token: "jane@university.edu" if token == "good" else None)
+        fake_reset = SimpleNamespace(send_code=sent.append, use_code=lambda email, code: email if code == "123456" else None)
         with patch.object(web_app, "license_engine", self.mgr), patch.dict(sys.modules, {"password_reset": fake_reset}):
             known = asyncio.run(web_app.api_auth_forgot_request(_FakeRequest({"email": "jane@university.edu"})))
             unknown = asyncio.run(web_app.api_auth_forgot_request(_FakeRequest({"email": "nope@university.edu"})))
@@ -125,16 +126,33 @@ class ForgotPasswordTests(unittest.TestCase):
             self.assertEqual(known["message"].replace("jane@university.edu", "X"),
                              unknown["message"].replace("nope@university.edu", "X"))
             self.assertEqual(known["status"], unknown["status"])
-            self.assertEqual(sent, ["jane@university.edu"], "link sent only to real accounts")
+            self.assertEqual(sent, ["jane@university.edu"], "code sent only to real accounts")
 
-            for body, fragment in (({"token": "bad", "new_password": "LongEnough1!"}, "expired"), ({"token": "good", "new_password": "short"}, "8 characters")):
+            for body, fragment in (({"email": "jane@university.edu", "code": "000000", "new_password": "LongEnough1!"}, "expired"),
+                                 ({"email": "jane@university.edu", "code": "123456", "new_password": "short"}, "8 characters")):
                 with self.assertRaises(HTTPException) as err:
                     asyncio.run(web_app.api_auth_forgot_confirm(_FakeRequest(body)))
                 self.assertIn(fragment, err.exception.detail)
-            done = asyncio.run(web_app.api_auth_forgot_confirm(_FakeRequest({"token": "good", "new_password": "EndpointPass1!"})))
+            done = asyncio.run(web_app.api_auth_forgot_confirm(_FakeRequest({"email": "jane@university.edu", "code": "123456", "new_password": "EndpointPass1!"})))
             self.assertEqual(done["status"], "ok")
         self.assertTrue(self.mgr.authenticate("jane@university.edu", "EndpointPass1!")[0])
         self.assertFalse(hasattr(web_app, "api_auth_forgot_reset"), "email-only reset endpoint must stay removed")
+
+
+
+@unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA", "").startswith("test_"), "Database test: set SCIPROSPECT_DB_SCHEMA=test_<name> (never the live data).")
+class ResetCodeDbTests(unittest.TestCase):
+    def test_code_single_use_and_five_wrong_tries_kill_it(self):
+        import password_reset as pr
+        email = "codecheck@university.edu"
+        code = pr.create_code(email)
+        self.assertIsNone(pr.use_code(email, "x"))
+        self.assertEqual(pr.use_code(email, code), email)
+        self.assertIsNone(pr.use_code(email, code), "single use")
+        code = pr.create_code(email)
+        for _ in range(pr.MAX_ATTEMPTS):
+            self.assertIsNone(pr.use_code(email, "wrong!"))
+        self.assertIsNone(pr.use_code(email, code), "dead after 5 wrong tries")
 
 
 if __name__ == "__main__":

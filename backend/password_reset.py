@@ -1,38 +1,53 @@
-"""One-time password reset links (30 minutes, single use, stored as token hashes)."""
-import os
+"""One-time password reset codes: 6 digits, 10 minutes, single use, 5 tries, stored only as hashes."""
+import hmac
 import secrets
-from html import escape
 
 import db
 from mailer import send_mail
-from stores import session_key as token_hash
+from stores import session_key as _hash
 
-LIFETIME_MINUTES = 30
+LIFETIME_MINUTES = 10
+MAX_ATTEMPTS = 5
 
 
-def create_link(email: str) -> str:
-    token = secrets.token_urlsafe(32)
+def _code_hash(email: str, code: str) -> str:
+    # Hash with the email so equal codes for different people never collide.
+    return _hash(f"{email.strip().lower()}:{code.strip()}")
+
+
+def create_code(email: str) -> str:
+    code = f"{secrets.randbelow(10**6):06d}"
     with db.transaction() as cur:
-        # Older unused links for this email stop working once a new one is requested.
+        # Older unused codes for this email stop working once a new one is requested.
         cur.execute("UPDATE password_resets SET used_at = now() WHERE lower(email) = lower(%s) AND used_at IS NULL", (email,))
         cur.execute("INSERT INTO password_resets (token_hash, email, expires_at) VALUES (%s, %s, now() + make_interval(mins => %s))",
-                    (token_hash(token), email.strip().lower(), LIFETIME_MINUTES))
-    return f"{os.environ.get('SCIPROSPECT_APP_URL', 'http://127.0.0.1:3000').rstrip('/')}/reset-password?token={token}"
+                    (_code_hash(email, code), email.strip().lower(), LIFETIME_MINUTES))
+    return code
 
 
-def send_link(email: str) -> None:
-    link = create_link(email)
-    text = f"Use this link to set a new SciProspect password (valid for {LIFETIME_MINUTES} minutes):\n{link}\n\nIf you did not ask for this, ignore this email."
-    html = (f"<p>Use the button below to set a new SciProspect password. The link works once and expires in {LIFETIME_MINUTES} minutes.</p>"
-            f"<p><a href=\"{escape(link, quote=True)}\" style=\"background:#5a45d6;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none\">Set new password</a></p>"
-            "<p>If you did not ask for this, you can ignore this email.</p>")
-    send_mail(email, "Reset your SciProspect password", text, html)
+def send_code(email: str) -> None:
+    code = create_code(email)
+    text = (f"Your SciProspect password reset code is {code}\n\nIt expires in {LIFETIME_MINUTES} minutes. "
+            "If you did not ask for this, ignore this email.")
+    html = (f"<p>Your SciProspect password reset code is:</p>"
+            f"<p style=\"font-size:28px;font-weight:700;letter-spacing:6px;font-family:monospace\">{code}</p>"
+            f"<p>It works once and expires in {LIFETIME_MINUTES} minutes. If you did not ask for this, you can ignore this email.</p>")
+    send_mail(email, f"{code} is your SciProspect reset code", text, html)
 
 
-def use_token(token: str):
-    """Marks a valid token as used and returns its email, or None if invalid, expired or already used."""
+def use_code(email: str, code: str):
+    """Returns the email if the code is right (and marks it used), else None. Wrong tries count; 5 kill the code."""
+    email = (email or "").strip().lower()
     with db.transaction() as cur:
-        cur.execute("UPDATE password_resets SET used_at = now() WHERE token_hash = %s AND used_at IS NULL AND expires_at > now() RETURNING email",
-                    (token_hash(token or ""),))
+        cur.execute("SELECT token_hash, attempts FROM password_resets WHERE lower(email) = %s AND used_at IS NULL AND expires_at > now() "
+                    "ORDER BY created_at DESC LIMIT 1 FOR UPDATE", (email,))
         row = cur.fetchone()
-    return row[0] if row else None
+        if not row:
+            return None
+        stored, attempts = row
+        if hmac.compare_digest(stored, _code_hash(email, code or "")):
+            cur.execute("UPDATE password_resets SET used_at = now() WHERE token_hash = %s", (stored,))
+            return email
+        cur.execute("UPDATE password_resets SET attempts = attempts + 1, used_at = CASE WHEN attempts + 1 >= %s THEN now() END "
+                    "WHERE token_hash = %s", (MAX_ATTEMPTS, stored))
+    return None

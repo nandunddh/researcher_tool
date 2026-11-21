@@ -15,6 +15,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
 
   // Form input states
   const [email, setEmail] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -48,8 +49,32 @@ export function Login({ returnPath }: { returnPath: string | null }) {
         method: "POST", body: JSON.stringify({ email: email.trim() }),
       });
       setSuccess(result.message);
+      setCodeSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleNewPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    const code = String(data.get("code") ?? "").trim(), password = String(data.get("password") ?? ""), repeat = String(data.get("repeat") ?? "");
+    setError("");
+    if (!/^\d{6}$/.test(code)) { setError("Enter the 6-digit code from the email."); return; }
+    if (password.length < 8) { setError("Use at least 8 characters for your new password."); return; }
+    if (password !== repeat) { setError("The two passwords don't match."); return; }
+    setBusy(true);
+    try {
+      const result = await api<{ message: string }>("/api/auth/forgot-password/confirm", {
+        method: "POST", body: JSON.stringify({ email: email.trim(), code, new_password: password }),
+      });
+      setCodeSent(false);
+      setMode("login");
+      setSuccess(result.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "The password could not be updated.");
     } finally {
       setBusy(false);
     }
@@ -68,7 +93,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
           <p>
             {mode === "login"
               ? "Please enter your email and password."
-              : "Enter your account email and we'll send you a link to set a new password."}
+              : "Enter your account email and we'll email you a 6-digit code to set a new password."}
           </p>
         </div>
 
@@ -146,7 +171,31 @@ export function Login({ returnPath }: { returnPath: string | null }) {
           </form>
         )}
 
-        {mode === "forgot" && (
+        {mode === "forgot" && codeSent && (
+          <form onSubmit={handleNewPassword} noValidate>
+            <div className="form-group">
+              <label htmlFor="reset-code">6-digit code</label>
+              <div className="input-wrapper">
+                <input id="reset-code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required placeholder="123456" />
+              </div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="new-password">New password</label>
+              <div className="input-wrapper"><input id="new-password" name="password" type="password" autoComplete="new-password" required minLength={8} /></div>
+            </div>
+            <div className="form-group">
+              <label htmlFor="repeat-password">Repeat new password</label>
+              <div className="input-wrapper"><input id="repeat-password" name="repeat" type="password" autoComplete="new-password" required minLength={8} /></div>
+            </div>
+            <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Saving…" : "Save new password"}</button>
+            <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
+              onClick={() => { setError(""); setSuccess(""); setCodeSent(false); }}>
+              Didn't get it? Send a new code
+            </button>
+          </form>
+        )}
+
+        {mode === "forgot" && !codeSent && (
           <form onSubmit={handleForgot} noValidate>
             <div className="form-group">
               <label htmlFor="forgot-email">Email</label>
@@ -156,10 +205,10 @@ export function Login({ returnPath }: { returnPath: string | null }) {
               </div>
             </div>
             <button className="primary login-submit" type="submit" disabled={busy || !email.trim()}>
-              {busy ? "Sending…" : "Send reset link"}
+              {busy ? "Sending…" : "Send code"}
             </button>
             <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
-              onClick={() => { setError(""); setSuccess(""); setMode("login"); }}>
+              onClick={() => { setError(""); setSuccess(""); setCodeSent(false); setMode("login"); }}>
               ← Back to sign in
             </button>
           </form>

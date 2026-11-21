@@ -466,14 +466,15 @@ async def api_auth_login(request: Request):
 
 
 _reset_rate_limit = FormRateLimit(limit=5, seconds=900)
+_reset_confirm_limit = FormRateLimit(limit=10, seconds=900)
 # Same wording for every email, so nobody can find out which emails have accounts.
-RESET_SENT = ("Check your inbox. We've sent a password reset link to {email} if it belongs to a SciProspect account. "
+RESET_SENT = ("Check your inbox. We've sent a 6-digit code to {email} if it belongs to a SciProspect account. "
               "It can take a minute; please also check your spam folder.")
 
 
 @app.post("/api/auth/forgot-password/request")
 async def api_auth_forgot_request(request: Request):
-    """Emails a one-time reset link. Same answer whether or not the email exists, so accounts can't be discovered."""
+    """Emails a one-time reset code. Same answer whether or not the email exists, so accounts can't be discovered."""
     import password_reset
     client = getattr(request, "client", None)
     if not _reset_rate_limit.allow(client.host if client else "unknown"):
@@ -485,7 +486,7 @@ async def api_auth_forgot_request(request: Request):
     ok, _msg, _code = license_engine.check_password_reset_email(email)
     if ok:
         try:
-            password_reset.send_link(email)
+            password_reset.send_code(email)
         except Exception as exc:  # never reveal delivery problems for a specific address
             print(f"[RESET] Email delivery failed: {type(exc).__name__}")
     return {"status": "ok", "message": RESET_SENT.format(email=email)}
@@ -493,8 +494,11 @@ async def api_auth_forgot_request(request: Request):
 
 @app.post("/api/auth/forgot-password/confirm")
 async def api_auth_forgot_confirm(request: Request):
-    """Sets a new password with a valid one-time link; signs the account out everywhere."""
+    """Sets a new password with a valid one-time code; signs the account out everywhere."""
     import password_reset
+    client = getattr(request, "client", None)
+    if not _reset_confirm_limit.allow(client.host if client else "unknown"):
+        raise HTTPException(status_code=429, detail="Too many tries. Please wait a few minutes and request a new code.")
     try:
         body = await request.json()
     except Exception:
@@ -502,9 +506,9 @@ async def api_auth_forgot_confirm(request: Request):
     new_password = str(body.get("new_password") or "").strip()
     if len(new_password) < 8:
         raise HTTPException(status_code=400, detail="Use at least 8 characters for your new password.")
-    email = password_reset.use_token(str(body.get("token") or ""))
+    email = password_reset.use_code(str(body.get("email") or ""), str(body.get("code") or ""))
     if not email:
-        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired. Please request a new one.")
+        raise HTTPException(status_code=400, detail="That code is wrong or has expired. Check the email or request a new code.")
     ok, msg, code = license_engine.reset_password_by_email(email, new_password)
     if not ok:
         raise HTTPException(status_code=code, detail=msg)
