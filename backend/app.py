@@ -1791,7 +1791,7 @@ async def builder_delete_conference(conference_id: str, request: Request):
     _require_scistudio_access(user)
     _require_owned_conference(conference_id, user)
     email = user.get("client_email", "")
-    sites = builder_engine.list_sites(email, conference_id=conference_id)
+    sites = builder_engine.list_sites("admin" if user.get("is_admin") else email, conference_id=conference_id)
     for s in sites:
         builder_engine.update_site(s["site_id"], {"conference_id": None})
     ok, msg = conference_engine.delete_conference(conference_id)
@@ -1807,7 +1807,7 @@ async def builder_list_sites(request: Request, conference_id: Optional[str] = No
     if conference_id and conference_id != "all":
         _require_owned_conference(conference_id, user)
     email = user.get("client_email", "")
-    sites = builder_engine.list_sites(email, conference_id=conference_id)
+    sites = builder_engine.list_sites("admin" if user.get("is_admin") else email, conference_id=conference_id)
     return {"sites": sites}
 
 

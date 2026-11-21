@@ -82,3 +82,21 @@ class CredentialSplitTests(unittest.TestCase):
         self.assertEqual(creds, {("__root__", ""): "R", ("K", ""): "A", ("K", "m1"): "M"})
         self.assertEqual(merge_secrets(clean, creds), data)
         self.assertEqual(data["licenses"]["K"]["password_hash"], "A", "input not mutated")
+
+
+class RootEmailTests(unittest.TestCase):
+    def test_root_can_use_its_own_email_for_login_and_reset(self):
+        import license_manager as lm
+        mgr = lm.LicenseManager(Path(__file__).with_name("_root_email_test.json"))
+        data = mgr._load_db()
+        data["_metadata"]["root_password_hash"] = lm.hash_password("OldRoot123!")
+        data["licenses"].setdefault("SCIP-PRO-ROOT-MASTER", {"license_key": "SCIP-PRO-ROOT-MASTER"})["client_email"] = "Me@Example.com"
+        mgr._save_db(data)
+        ok, user, _ = mgr.authenticate("me@example.com", "OldRoot123!")
+        self.assertTrue(ok and user["is_admin"])
+        self.assertEqual(user["client_email"], "me@example.com")
+        self.assertTrue(mgr.authenticate("admin", "OldRoot123!")[0], "admin handle still works")
+        self.assertTrue(mgr.check_password_reset_email("me@example.com")[0])
+        self.assertTrue(mgr.reset_password_by_email("me@example.com", "NewRoot123!")[0])
+        self.assertTrue(mgr.authenticate("me@example.com", "NewRoot123!")[0])
+        self.assertFalse(mgr.check_password_reset_email("root@sciprospect.internal")[0], "internal address still blocked")

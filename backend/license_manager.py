@@ -55,6 +55,11 @@ def verify_password(password: str, stored_hash: str) -> bool:
 from stores import MemoryAccountStore, MemorySessionStore, PgAccountStore, PgSessionStore, session_key
 
 
+ROOT_KEY = "SCIP-PRO-ROOT-MASTER"
+DEFAULT_ROOT_EMAIL = "root@sciprospect.internal"
+ROOT_HANDLES = ("admin", "root", "sciprospect", DEFAULT_ROOT_EMAIL)
+
+
 def _generate_key(prefix: str = "SCIP", tier: str = "TR") -> str:
     """Generates a clean, 16-character license key like SCIP-TR-4A9B-8C2D."""
     chars = string.ascii_uppercase + string.digits
@@ -800,7 +805,10 @@ class LicenseManager:
         clean_email = (email or "").strip().lower()
         if not clean_email:
             return False, "Please enter your account email.", 400, None, None
-        if clean_email in ("admin", "root", "sciprospect", "root@sciprospect.internal"):
+        root_email = self.root_email()
+        if root_email != DEFAULT_ROOT_EMAIL and clean_email == root_email:
+            return True, "Account verified.", 200, db["licenses"].get(ROOT_KEY), None
+        if clean_email in ROOT_HANDLES:
             return False, "Root administrator password cannot be reset from this screen.", 403, None, None
         if "@" not in clean_email:
             return False, "Please enter a valid account email.", 400, None, None
@@ -819,6 +827,11 @@ class LicenseManager:
 
         return True, "Account verified. Enter your new password.", 200, found_acc, found_member
 
+    def root_email(self) -> str:
+        """Root's email is the one saved on the root account (change it there to use your own)."""
+        account = self._load_db().get("licenses", {}).get(ROOT_KEY) or {}
+        return str(account.get("client_email") or DEFAULT_ROOT_EMAIL).strip().lower()
+
     def check_password_reset_email(self, email: str) -> Tuple[bool, str, int]:
         """Checks whether an account email exists for forgot-password flow."""
         db = self._load_db()
@@ -836,8 +849,12 @@ class LicenseManager:
         if len(pwd) < 6:
             return False, "New password must be at least 6 characters long.", 400
 
-        target = found_member if found_member is not None else found_acc
-        target["password_hash"] = hash_password(pwd)
+        if found_acc is not None and found_acc is db["licenses"].get(ROOT_KEY):
+            db["_metadata"].pop("root_password", None)
+            db["_metadata"]["root_password_hash"] = hash_password(pwd)  # root signs in with the root password
+        else:
+            target = found_member if found_member is not None else found_acc
+            target["password_hash"] = hash_password(pwd)
         self._save_db(db)
 
         clean_email = email.strip().lower()
@@ -866,12 +883,13 @@ class LicenseManager:
             return False, {}, "Please enter your password."
 
         # 1. Root Admin Check (via email or admin handle)
-        if ident.lower() in ("admin", "root", "sciprospect", "root@sciprospect.internal"):
+        root_email = self.root_email()
+        if ident.lower() in ROOT_HANDLES or (root_email != DEFAULT_ROOT_EMAIL and ident.lower() == root_email):
             if self.verify_root_auth(pwd):
                 user_info = {
                     "license_key": "SCIP-PRO-ROOT-MASTER",
                     "client_name": "Root Administrator",
-                    "client_email": "root@sciprospect.internal",
+                    "client_email": root_email,
                     "tier": "pro",
                     "is_admin": True,
                     "scistudio_access": True,
