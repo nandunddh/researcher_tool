@@ -4,7 +4,11 @@ import { toast } from "react-toastify";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { api } from "@/lib/api";
 import type { ImportedDesign } from "@/features/studio/design-library";
+import { Icon } from "@/components/icon";
 import { AdminShell } from "./shell";
+import styles from "./design-library.module.css";
+
+const PLACEHOLDER = ["{", '  "format": "scistudio-design",', '  "kind": "section",', '  "name": "Speaker spotlight",', "  ...", "}"].join("\n");
 
 /** Root admin: import AI-made design files (sections and templates) and remove old ones. */
 export function DesignLibrary() {
@@ -13,6 +17,7 @@ export function DesignLibrary() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [removing, setRemoving] = useState<ImportedDesign | null>(null);
+  const [dragging, setDragging] = useState(false);
 
   const load = () => api<{ items: ImportedDesign[] }>("/api/library").then(r => setItems(r.items)).catch(e => setError(e instanceof Error ? e.message : "Could not load designs."));
   useEffect(() => { void load(); }, []);
@@ -50,36 +55,72 @@ export function DesignLibrary() {
     setRemoving(null);
   }
 
+  async function importFile(file?: File) {
+    if (file) await importText(await file.text());
+  }
+
   return (
     <AdminShell title="Design Library" path="/root/designs">
-      <section className="account-panel">
-        <h2>Import a design</h2>
-        <p>Paste a design file made with the prompt in <code>docs/DESIGN_PROMPT.md</code>, or choose a <code>.json</code> file. Sections appear in everyone&apos;s Components panel; templates appear in the template gallery.</p>
-        {error && <p className="alert" role="alert">{error}</p>}
-        <textarea aria-label="Design file" rows={10} value={text} onChange={e => setText(e.target.value)} placeholder='{"format": "scistudio-design", "kind": "section", ...}'
-          style={{ width: "100%", fontFamily: "monospace", fontSize: ".85rem" }} />
-        <div className="actions" style={{ marginTop: "0.75rem" }}>
-          <button className="primary" type="button" disabled={busy || !text.trim()} onClick={() => void importText(text)}>{busy ? "Importing…" : "Import"}</button>
-          <label className="button">
-            Choose file
-            <input type="file" accept=".json,application/json" hidden onChange={async e => { const file = e.target.files?.[0]; e.target.value = ""; if (file) await importText(await file.text()); }} />
-          </label>
-        </div>
-      </section>
+      <div className={styles.page}>
+        <section className={styles.card}>
+          <div className={styles.head}><h2>Import a design</h2></div>
+          <p className={styles.lead}>Sections appear in everyone&apos;s Components panel. Templates appear in the template gallery.</p>
+          <ol className={styles.steps}>
+            <li><b>1</b><span>Copy a prompt from <code>docs/DESIGN_PROMPT.md</code></span></li>
+            <li><b>2</b><span>Ask any AI and copy its JSON reply</span></li>
+            <li><b>3</b><span>Paste it below, or drop a <code>.json</code> file</span></li>
+          </ol>
+          <div className={styles.editor} data-drag={dragging || undefined}
+            onDragOver={e => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); setDragging(true); } }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={e => { e.preventDefault(); setDragging(false); void importFile(e.dataTransfer.files[0]); }}>
+            <textarea aria-label="Design file" spellCheck={false} value={text} onChange={e => setText(e.target.value)}
+              placeholder={PLACEHOLDER} />
+            {!text && <span className={styles.dropHint}>or drop a .json file here</span>}
+          </div>
+          {error && <p className={styles.error} role="alert">{error}</p>}
+          <div className={styles.actions}>
+            <button className={styles.primary} type="button" disabled={busy || !text.trim()} onClick={() => void importText(text)}>
+              <Icon name="plus" size={16} />{busy ? "Importing…" : "Import design"}
+            </button>
+            <label className={styles.secondary}>
+              <Icon name="doc" size={16} />Upload .json
+              <input type="file" accept=".json,application/json" onChange={e => { const file = e.target.files?.[0]; e.target.value = ""; void importFile(file); }} />
+            </label>
+          </div>
+        </section>
 
-      <section className="account-panel" style={{ marginTop: "1.5rem" }}>
-        <h2>Imported designs ({items.length})</h2>
-        {!items.length && <p>No imported designs yet.</p>}
-        <ul style={{ listStyle: "none", padding: 0, display: "grid", gap: ".5rem" }}>
-          {items.map(item => (
-            <li key={item.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "1rem", padding: ".75rem 1rem", border: "1px solid var(--line, #e5e7eb)", borderRadius: 10 }}>
-              <span><strong>{item.name}</strong> · {item.kind === "template" ? "Template" : "Section"} · {item.category} · {item.level}
-                <br /><small>{new Date(item.created_at).toLocaleDateString()} {item.description && `· ${item.description}`}</small></span>
-              <button type="button" className="danger" onClick={() => setRemoving(item)}>Remove</button>
-            </li>
-          ))}
-        </ul>
-      </section>
+        <section className={styles.card}>
+          <div className={styles.head}><h2>Imported designs</h2><span className={styles.count}>{items.length}</span></div>
+          {!items.length ? (
+            <div className={styles.empty}>
+              <span><Icon name="layers" size={22} /></span>
+              <strong>No imported designs yet</strong>
+              Your first import will show up here.
+            </div>
+          ) : (
+            <ul className={styles.list}>
+              {items.map(item => (
+                <li key={item.id} className={styles.item}>
+                  <span className={styles.thumb} data-kind={item.kind}><Icon name={item.kind === "template" ? "grid" : "layers"} size={18} /></span>
+                  <div className={styles.meta}>
+                    <strong title={item.description || item.name}>{item.name}</strong>
+                    <div className={styles.tags}>
+                      <span className={styles.tag}>{item.kind}</span>
+                      <span className={styles.tag}>{item.category}</span>
+                      <span className={styles.tag}>{item.level}</span>
+                      <span className={styles.tag}>{new Date(item.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <button type="button" className={styles.remove} aria-label={`Remove ${item.name}`} title="Remove" onClick={() => setRemoving(item)}>
+                    <Icon name="close" size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
       {removing && <ConfirmDialog title="Remove this design?" description={`“${removing.name}” disappears from the library. Websites that already use it keep their copy.`}
         label="Remove" busy={false} onCancel={() => setRemoving(null)} onConfirm={() => void remove(removing)} />}
     </AdminShell>
