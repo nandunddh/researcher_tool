@@ -2024,6 +2024,12 @@ async def serve_public_website(slug: str, page_slug=None):
 @app.get("/explorer")
 @app.get("/datasets")
 async def serve_spa_page(request: Request):
+    if request.url.path == "/scistudio":
+        user, redirect_resp = _require_page_user(request)
+        if redirect_resp:
+            return redirect_resp
+        _require_scistudio_access(user)
+        return _to_react(f"/{_page_namespace(user)}/scistudio")
     index_path = STATIC_DIR / "index.html"
     if index_path.exists():
         return FileResponse(index_path)
@@ -2035,6 +2041,19 @@ async def serve_spa_page(request: Request):
 async def redirect_legacy_builder_routes():
     """Redirect legacy website builder URLs to primary /scistudio route."""
     return RedirectResponse(url="/scistudio", status_code=307)
+
+
+# Pages that exist in the new React app are sent there, so the old UI never shows them.
+FRONTEND_ORIGIN = os.environ.get("SCIPROSPECT_FRONTEND_ORIGIN", "http://127.0.0.1:3000").rstrip("/")
+REACT_PAGES = {
+    "root": {"dashboard", "accounts", "add-account", "scistudio"},
+    "organization": {"dashboard", "scistudio"},
+    "client": {"dashboard", "scistudio"},
+}
+
+
+def _to_react(path: str) -> RedirectResponse:
+    return RedirectResponse(FRONTEND_ORIGIN + path, status_code=307)
 
 
 @app.get("/scistudio/{site_id}/edit")
@@ -2049,10 +2068,9 @@ async def scistudio_site_edit_page(site_id: str, request: Request, namespace: Op
     if namespace and _page_namespace(user) != namespace:
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     _require_scistudio_access(user)
-    return FileResponse(
-        STATIC_DIR / "index.html",
-        headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
-    )
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id):
+        raise HTTPException(status_code=404, detail="Website not found.")
+    return _to_react(f"/{namespace or _page_namespace(user)}/scistudio/{site_id}/react-edit")
 
 
 @app.get("/scistudio/{site_id}/preview")
@@ -2067,6 +2085,9 @@ async def scistudio_site_preview_page(site_id: str, request: Request, namespace:
     if namespace and _page_namespace(user) != namespace:
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     _require_scistudio_access(user)
+    if not namespace:
+        query = f"?{request.url.query}" if request.url.query else ""
+        return _to_react(f"/{_page_namespace(user)}/scistudio/{site_id}/preview{query}")
     site = _require_owned_site(site_id, user)
     page_param = request.query_params.get("page") if hasattr(request, "query_params") else (request.get("page") if isinstance(request, dict) else None)
     if page_param:
@@ -2105,6 +2126,10 @@ async def role_workspace_page(namespace: str, page: str, request: Request):
         raise HTTPException(status_code=403, detail="This workspace belongs to a different account role")
     if namespace == "root" and page == "licenses":
         return RedirectResponse("/root/accounts", status_code=307)
+    if page in REACT_PAGES.get(namespace, set()):
+        if page == "scistudio":
+            _require_scistudio_access(user)
+        return _to_react(f"/{namespace}/{page}")
     if namespace == "root" and page in ("dashboard", "accounts", "add-account"):
         return FileResponse(STATIC_DIR / "root-dashboard.html")
     if namespace == "conference":

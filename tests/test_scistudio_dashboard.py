@@ -28,7 +28,9 @@ class TestSciStudioDashboardRedesign(unittest.TestCase):
         self.assertIn("/scistudio", route_paths)
 
         # Call serve_spa_page directly
-        resp = asyncio.run(serve_spa_page(None))
+        # /scistudio now redirects to the React app; pages not yet in React still get index.html
+        from types import SimpleNamespace
+        resp = asyncio.run(serve_spa_page(SimpleNamespace(url=SimpleNamespace(path="/explorer"))))
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(Path(resp.path).exists())
         self.assertEqual(Path(resp.path).name, "index.html")
