@@ -67,3 +67,18 @@ class RegistrationPricingTests(unittest.TestCase):
         self.assertEqual(order["currency"], "USD")
         self.assertIn("not valid", forms.quote(REG, {"category": "academic", "discount_code": "FREE"})[1])
         self.assertIn("registration type", forms.quote(REG, {"category": "vip"})[1])
+
+
+class CredentialSplitTests(unittest.TestCase):
+    def test_hashes_leave_the_json_and_come_back(self):
+        from stores import merge_secrets, split_secrets
+        data = {"_metadata": {"root_password_hash": "R"}, "licenses": {"K": {"password_hash": "A", "members": [
+            {"member_id": "m1", "password_hash": "M"}, {"password_hash": "legacy-no-id"}]}}}
+        clean, creds = split_secrets(data)
+        self.assertNotIn("password_hash", str(clean.get("licenses", {}).get("K", {}).get("members", [{}])[0]))
+        self.assertNotIn("root_password_hash", clean["_metadata"])
+        self.assertNotIn("password_hash", clean["licenses"]["K"])
+        self.assertEqual(clean["licenses"]["K"]["members"][1]["password_hash"], "legacy-no-id", "members without id keep theirs")
+        self.assertEqual(creds, {("__root__", ""): "R", ("K", ""): "A", ("K", "m1"): "M"})
+        self.assertEqual(merge_secrets(clean, creds), data)
+        self.assertEqual(data["licenses"]["K"]["password_hash"], "A", "input not mutated")

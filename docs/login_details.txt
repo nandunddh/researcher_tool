@@ -1,3 +1,0 @@
-Administrator login: admin
-Set SCIPROSPECT_ROOT_PASS before starting the server. No default password is accepted.
-Database connection uses SCIPROSPECT_DB_* environment variables.

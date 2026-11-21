@@ -50,3 +50,5 @@ frontend/.env.local
 frontend/.env.*.local
 web/server-restart.*.log
 backend/licenses.json
+docs/login details.txt
+docs/login_details.txt

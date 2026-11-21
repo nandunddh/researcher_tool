@@ -33,6 +33,43 @@ def _expiry(session: dict) -> datetime:
         return datetime.fromtimestamp(0, tz=timezone.utc)
 
 
+ROOT_KEY = "__root__"
+
+
+def split_secrets(data: dict):
+    """Returns (data without password hashes, {(account_key, member_id): hash}).
+    Hashes live in the credentials table, never in the account JSON."""
+    clean = copy.deepcopy(data)
+    creds = {}
+    meta = clean.setdefault("_metadata", {})
+    if meta.get("root_password_hash"):
+        creds[(ROOT_KEY, "")] = meta.pop("root_password_hash")
+    meta.pop("root_password_hash", None)
+    for key, account in clean.get("licenses", {}).items():
+        if account.get("password_hash"):
+            creds[(key, "")] = account["password_hash"]
+        account.pop("password_hash", None)
+        for member in account.get("members") or []:
+            if isinstance(member, dict) and member.get("member_id"):
+                if member.get("password_hash"):
+                    creds[(key, member["member_id"])] = member["password_hash"]
+                member.pop("password_hash", None)
+    return clean, creds
+
+
+def merge_secrets(data: dict, creds: dict) -> dict:
+    """Puts hashes back into the in-memory account data used by the login code."""
+    if (ROOT_KEY, "") in creds:
+        data.setdefault("_metadata", {})["root_password_hash"] = creds[(ROOT_KEY, "")]
+    for key, account in data.get("licenses", {}).items():
+        if (key, "") in creds:
+            account["password_hash"] = creds[(key, "")]
+        for member in account.get("members") or []:
+            if isinstance(member, dict) and (key, member.get("member_id", "")) in creds and member.get("member_id"):
+                member["password_hash"] = creds[(key, member["member_id"])]
+    return data
+
+
 # ---------------------------------------------------------------- PostgreSQL
 class PgAccountStore:
     def is_empty(self) -> bool:
@@ -47,9 +84,12 @@ class PgAccountStore:
             metadata = row[0] if row else {}
             cur.execute("SELECT license_key, data FROM accounts")
             licenses = {key: data for key, data in cur.fetchall()}
-        return {"_metadata": metadata, "licenses": licenses}
+            cur.execute("SELECT account_key, member_id, password_hash FROM credentials")
+            creds = {(k, m): h for k, m, h in cur.fetchall()}
+        return merge_secrets({"_metadata": metadata, "licenses": licenses}, creds)
 
     def save(self, data: dict) -> None:
+        data, creds = split_secrets(data)
         licenses: Dict[str, dict] = data.get("licenses", {})
         with db.transaction() as cur:
             cur.execute(
@@ -65,6 +105,10 @@ class PgAccountStore:
                     (key, str(account.get("client_email", "")).strip().lower(), Json(account)),
                 )
             cur.execute("DELETE FROM accounts WHERE NOT (license_key = ANY(%s))", (list(licenses.keys()),))
+            # Replace all credentials in the same transaction (removed accounts/members lose theirs).
+            cur.execute("DELETE FROM credentials")
+            for (key, member_id), password_hash in creds.items():
+                cur.execute("INSERT INTO credentials (account_key, member_id, password_hash) VALUES (%s, %s, %s)", (key, member_id, password_hash))
 
 
 class PgSessionStore:
