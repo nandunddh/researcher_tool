@@ -24,7 +24,9 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Leads list, CSV export
 - [x] Merge and remove duplicates, clear all
 - [ ] Leads table in the web app: search, sort, filter, select
-- [ ] 💡 Email verification and enrichment
+- [x] Email discovery matched to the author's name (ORCID, Crossref, Europe PMC), format check
+- [ ] Email checker after the web rebuild: domain/mail-server check, role (info@) and disposable flags → fills `delivery_status` (today always "unknown")
+- [ ] 💡 Mailbox check (SMTP) via a paid API (ZeroBounce/NeverBounce), never from our mail server
 - [ ] 💡 Send selected researchers to SciStudio (invite as speakers, email a call for abstracts)
 
 ## A3. Desktop app (to retire)
