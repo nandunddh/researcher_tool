@@ -2365,6 +2365,10 @@ async def role_workspace_page(namespace: str, page: str, request: Request):
     )
 
 
+from collector_routes import collector_router
+app.include_router(collector_router(_require_authenticated_user, license_engine))
+
+
 # Mount static assets
 if STATIC_DIR.exists():
     app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

@@ -27,14 +27,7 @@ if hasattr(sys.stdout, "reconfigure"):
 import requests
 from requests.adapters import HTTPAdapter
 
-try:
-    from app_config import get_data_dir
-    DATA_DIR = get_data_dir()
-except Exception:
-    DATA_DIR = Path(__file__).resolve().parent / "data"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-CENTRAL_MASTER_FILE = DATA_DIR / "central_master_leads.csv"
 
 # Global Stop Request Flag for graceful UI stop button
 STOP_REQUESTED = False
@@ -445,30 +438,12 @@ def process_single_work(work: dict, keyword: str, min_score: int, existing_email
 # CORE WORKFLOW: FETCH CANDIDATES & RESOLVE LEADS WITH SCORE >= 50
 # ----------------------------------------------------------------------
 
-def run_unified_pipeline(
-    keyword: str = "cell biology",
-    target_leads: int = 1000,
-    min_score: int = 50,
-    from_date: str = "2025-01-01",
-    to_date: str = "2026-12-31"
-):
-    global STOP_REQUESTED
-    STOP_REQUESTED = False
-
-    from_date = normalize_date_str(from_date, "2025-01-01")
-    to_date = normalize_date_str(to_date, "2026-12-31")
-
-    print("=" * 74)
-    print("🚀 UNIFIED 1-CLICK SCIENTIFIC LEAD PIPELINE (TURBO MULTI-THREADED)")
-    print(f"• Keyword:             {keyword}")
-    print(f"• Target Leads:        {target_leads:,} Verified Contacts")
-    print(f"• Minimum Match Score: {min_score}+ / 100 (Strict Title + Name Verification)")
-    print(f"• Date Window:         {from_date} to {to_date}")
-    print("=" * 74)
-
-    # 1. Output Files Setup
+def _desktop_output(keyword):
+    from app_config import get_data_dir
+    data_dir = get_data_dir()
+    master = data_dir / "central_master_leads.csv"
     today_str = datetime.now().strftime("%Y-%m-%d")
-    today_dir = DATA_DIR / today_str
+    today_dir = data_dir / today_str
     today_dir.mkdir(parents=True, exist_ok=True)
     slug = re.sub(r"[^\w]+", "_", keyword.lower()).strip("_")
     run_now = datetime.now()
@@ -477,9 +452,9 @@ def run_unified_pipeline(
 
     # 2. Load existing emails to guarantee 0% duplicates
     existing_emails = set()
-    if CENTRAL_MASTER_FILE.exists():
+    if master.exists():
         try:
-            with open(CENTRAL_MASTER_FILE, "r", encoding="utf-8-sig", errors="replace") as mf:
+            with open(master, "r", encoding="utf-8-sig", errors="replace") as mf:
                 reader = csv.DictReader(mf)
                 for r in reader:
                     em = r.get("professional_email", "").strip().lower()
@@ -535,6 +510,38 @@ def run_unified_pipeline(
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 
+    return master, existing_emails, output_csv, fieldnames, db_conn
+
+
+def run_unified_pipeline(
+    keyword: str = "cell biology",
+    target_leads: int = 1000,
+    min_score: int = 50,
+    from_date: str = "2025-01-01",
+    to_date: str = "2026-12-31",
+    archive=None,
+):
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
+
+    from_date = normalize_date_str(from_date, "2025-01-01")
+    to_date = normalize_date_str(to_date, "2026-12-31")
+
+    print("=" * 74)
+    print("🚀 UNIFIED 1-CLICK SCIENTIFIC LEAD PIPELINE (TURBO MULTI-THREADED)")
+    print(f"• Keyword:             {keyword}")
+    print(f"• Target Leads:        {target_leads:,} Verified Contacts")
+    print(f"• Minimum Match Score: {min_score}+ / 100 (Strict Title + Name Verification)")
+    print(f"• Date Window:         {from_date} to {to_date}")
+    print("=" * 74)
+
+    # 1. Output Files Setup
+    if archive is None:
+        master, existing_emails, output_csv, fieldnames, db_conn = _desktop_output(keyword)
+    else:
+        master, existing_emails, output_csv, fieldnames = None, set(), None, []
+        db_conn = None
+
     collected_leads = 0
     scanned_works = 0
     page = 1
@@ -546,7 +553,7 @@ def run_unified_pipeline(
 
     consecutive_failures = 0
     try:
-        while collected_leads < target_leads and not STOP_REQUESTED:
+        while collected_leads < target_leads and not STOP_REQUESTED and not (archive and archive.cancelled.is_set()):
             print(f"\n[PAGE {page}] Querying OpenAlex publications for '{keyword}'...")
 
             url = "https://api.openalex.org/works"
@@ -599,7 +606,7 @@ def run_unified_pipeline(
             ]
 
             for future in as_completed(futures):
-                if STOP_REQUESTED or collected_leads >= target_leads:
+                if STOP_REQUESTED or (archive and archive.cancelled.is_set()) or collected_leads >= target_leads:
                     break
 
                 try:
@@ -617,13 +624,18 @@ def run_unified_pipeline(
                         collected_leads += 1
                         current_num = collected_leads
 
-                        # 1. Append to daily CSV
-                        with open(output_csv, "a", encoding="utf-8-sig", newline="") as f:
-                            w = csv.DictWriter(f, fieldnames=fieldnames)
-                            w.writerow(row)
+                        if archive is not None:
+                            if not archive.save(row):
+                                collected_leads -= 1
+                                continue
+                        else:
+                            # 1. Append to daily CSV
+                            with open(output_csv, "a", encoding="utf-8-sig", newline="") as f:
+                                w = csv.DictWriter(f, fieldnames=fieldnames)
+                                w.writerow(row)
 
-                        # 2. Append to Central Master CSV
-                        save_leads(CENTRAL_MASTER_FILE, [row])
+                            # 2. Append to Central Master CSV
+                            save_leads(master, [row])
 
                     # 3. Save directly to Oracle PostgreSQL
                     if db_conn:
@@ -682,7 +694,8 @@ def run_unified_pipeline(
     print(f"• Total Verified Leads (Score >= {min_score}): {collected_leads:,}")
     print(f"• Average Speed:        {rate_overall} leads/min")
     print(f"• Time Elapsed:         {elapsed} seconds (~{round(elapsed/60, 1)} minutes)")
-    print(f"• Output Dataset:       {output_csv.name}")
+    if output_csv:
+        print(f"• Output Dataset:       {output_csv.name}")
     print(f"• Cloud Sync:           Oracle PostgreSQL sciprospect_db (verified_leads)")
     print("=" * 74)
 
@@ -690,18 +703,18 @@ def run_unified_pipeline(
         "status": "completed",
         "collected_leads": collected_leads,
         "target_leads": target_leads,
-        "file": output_csv.name,
+        "file": output_csv.name if output_csv else None,
         "elapsed_seconds": elapsed,
     }
 
 
-def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31"):
+def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31", archive=None):
     return run_unified_pipeline(
         keyword=keyword,
         target_leads=int(target_leads),
         min_score=int(min_score),
         from_date=from_date,
-        to_date=to_date
+        to_date=to_date, archive=archive
     )
 
 

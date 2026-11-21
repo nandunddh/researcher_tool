@@ -1,0 +1,17 @@
+.page { max-width:1120px; margin:0 auto; padding:36px clamp(16px,4vw,48px); color:#192e41; }
+.page header { margin-bottom:24px; }
+.page h1 { margin:14px 0 0; font-size:clamp(30px,4vw,44px); }
+.page section { padding:clamp(18px,3vw,32px); margin-bottom:18px; border:1px solid #dce3e8; border-radius:14px; background:white; }
+.page fieldset,.filters { display:flex; align-items:end; gap:16px; flex-wrap:wrap; }
+.page fieldset { padding:0; margin:0; border:0; }
+.page fieldset > label:first-child { flex:1 1 240px; }
+.page details { width:100%; }
+.page summary { cursor:pointer; }
+.filters { margin-top:14px; }
+.page .primary { background:#185a53; color:white; }
+.progress,.actions { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:18px 0; }
+.scroll { overflow-x:auto; }
+.page table { border-collapse:collapse; width:100%; }
+.page th,.page td { text-align:left; border-bottom:1px solid #e2e8ec; padding:12px 8px; }
+.page th { color:#456173; font-size:13px; }
+.page [role=alert] { color:#923127; }

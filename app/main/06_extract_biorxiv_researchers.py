@@ -27,14 +27,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 import requests
 
-try:
-    from app_config import get_data_dir
-    DATA_DIR = get_data_dir()
-except Exception:
-    DATA_DIR = Path(__file__).resolve().parent / "data"
 
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-CENTRAL_MASTER_FILE = DATA_DIR / "central_master_leads.csv"
 
 # Global Stop Flag for UI interrupt
 STOP_REQUESTED = False
@@ -258,40 +251,21 @@ def fetch_email_from_crossref(doi: str) -> str:
     return ""
 
 
-def run_biorxiv_pipeline(
-    keyword: str = "cell biology",
-    target_leads: int = 1000,
-    min_score: int = 50,
-    from_date: str = "2025-01-01",
-    to_date: str = "2026-12-31"
-):
-    global STOP_REQUESTED
-    STOP_REQUESTED = False
-
-    from_date = normalize_date_str(from_date, "2025-01-01")
-    to_date = normalize_date_str(to_date, "2026-12-31")
-
-    print("=" * 72)
-    print("🧬 SOURCE 2: bioRxiv / medRxiv PREPRINT INTELLIGENCE ENGINE")
-    print("=" * 72)
-    print(f"• Target Category / Keyword: '{keyword}'")
-    print(f"• Target Verified Leads     : {target_leads:,}")
-    print(f"• Minimum Match Score       : {min_score} / 100")
-    print(f"• Preprint Window           : {from_date} to {to_date}")
-    print("• Filter Criteria           : High Title Match + Verified Email (Score >= 50)")
-    print("=" * 72 + "\n")
-
+def _desktop_output(keyword):
+    from app_config import get_data_dir
+    data_dir = get_data_dir()
+    master = data_dir / "central_master_leads.csv"
     today_str = datetime.now().strftime("%Y-%m-%d")
-    today_dir = DATA_DIR / today_str
+    today_dir = data_dir / today_str
     today_dir.mkdir(parents=True, exist_ok=True)
 
     slug = re.sub(r"[^\w\s-]", "", keyword).strip().replace(" ", "_")
     output_csv = today_dir / f"biorxiv_leads_{slug}_{today_str}.csv"
 
     existing_emails = set()
-    if CENTRAL_MASTER_FILE.exists():
+    if master.exists():
         try:
-            with open(CENTRAL_MASTER_FILE, "r", encoding="utf-8-sig", errors="replace") as f:
+            with open(master, "r", encoding="utf-8-sig", errors="replace") as f:
                 reader = csv.DictReader(f)
                 for r in reader:
                     em = r.get("professional_email", "").strip().lower()
@@ -328,6 +302,38 @@ def run_biorxiv_pipeline(
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             writer.writeheader()
 
+    return master, existing_emails, output_csv, fieldnames
+
+
+def run_biorxiv_pipeline(
+    keyword: str = "cell biology",
+    target_leads: int = 1000,
+    min_score: int = 50,
+    from_date: str = "2025-01-01",
+    to_date: str = "2026-12-31",
+    archive=None,
+):
+    global STOP_REQUESTED
+    STOP_REQUESTED = False
+
+    from_date = normalize_date_str(from_date, "2025-01-01")
+    to_date = normalize_date_str(to_date, "2026-12-31")
+
+    print("=" * 72)
+    print("🧬 SOURCE 2: bioRxiv / medRxiv PREPRINT INTELLIGENCE ENGINE")
+    print("=" * 72)
+    print(f"• Target Category / Keyword: '{keyword}'")
+    print(f"• Target Verified Leads     : {target_leads:,}")
+    print(f"• Minimum Match Score       : {min_score} / 100")
+    print(f"• Preprint Window           : {from_date} to {to_date}")
+    print("• Filter Criteria           : High Title Match + Verified Email (Score >= 50)")
+    print("=" * 72 + "\n")
+
+    if archive is None:
+        master, existing_emails, output_csv, fieldnames = _desktop_output(keyword)
+    else:
+        master, existing_emails, output_csv, fieldnames = None, set(), None, []
+
     collected_leads = 0
     scanned_preprints = 0
     cursor = 0
@@ -341,7 +347,7 @@ def run_biorxiv_pipeline(
     session = requests.Session()
 
     consecutive_failures = 0
-    while collected_leads < target_leads and not STOP_REQUESTED:
+    while collected_leads < target_leads and not STOP_REQUESTED and not (archive and archive.cancelled.is_set()):
         page_url = f"{base_url}/{cursor}"
         print(f"\n[CURSOR {cursor}] Querying bioRxiv preprints...")
 
@@ -473,7 +479,7 @@ def run_biorxiv_pipeline(
             }
 
             for future in as_completed(future_to_paper):
-                if collected_leads >= target_leads or STOP_REQUESTED:
+                if collected_leads >= target_leads or STOP_REQUESTED or (archive and archive.cancelled.is_set()):
                     break
                 try:
                     res_row = future.result()
@@ -487,13 +493,18 @@ def run_biorxiv_pipeline(
                         existing_emails.add(em)
                         collected_leads += 1
 
-                        # Append to daily output CSV
-                        with open(output_csv, "a", encoding="utf-8-sig", newline="") as f:
-                            writer = csv.DictWriter(f, fieldnames=fieldnames)
-                            writer.writerow(res_row)
+                        if archive is not None:
+                            if not archive.save(res_row):
+                                collected_leads -= 1
+                                continue
+                        else:
+                            # Append to daily output CSV
+                            with open(output_csv, "a", encoding="utf-8-sig", newline="") as f:
+                                writer = csv.DictWriter(f, fieldnames=fieldnames)
+                                writer.writerow(res_row)
 
-                        # Append to central master CSV
-                        save_leads(CENTRAL_MASTER_FILE, [res_row])
+                            # Append to central master CSV
+                            save_leads(master, [res_row])
 
                     pct = (collected_leads / target_leads) * 100
                     name = res_row["researcher_name"]
@@ -514,25 +525,26 @@ def run_biorxiv_pipeline(
     print(f"• Total Verified Leads (Score >= {min_score}): {collected_leads:,}")
     print(f"• Scanned Preprints: {scanned_preprints:,}")
     print(f"• Time Elapsed: {elapsed} seconds")
-    print(f"• Output Dataset: {output_csv.name}")
+    if output_csv:
+        print(f"• Output Dataset: {output_csv.name}")
     print("=" * 72)
 
     return {
         "status": "completed",
         "collected_leads": collected_leads,
         "target_leads": target_leads,
-        "file": output_csv.name,
+        "file": output_csv.name if output_csv else None,
         "elapsed_seconds": elapsed,
     }
 
 
-def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31"):
+def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31", archive=None):
     return run_biorxiv_pipeline(
         keyword=keyword,
         target_leads=int(target_leads),
         min_score=int(min_score),
         from_date=from_date,
-        to_date=to_date
+        to_date=to_date, archive=archive
     )
 
 
