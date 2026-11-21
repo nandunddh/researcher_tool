@@ -466,7 +466,9 @@ async def api_auth_login(request: Request):
 
 
 _reset_rate_limit = FormRateLimit(limit=5, seconds=900)
-RESET_SENT = "If an account exists for this email, we've sent a link to reset the password. Check your inbox."
+# Same wording for every email, so nobody can find out which emails have accounts.
+RESET_SENT = ("Check your inbox. We've sent a password reset link to {email} if it belongs to a SciProspect account. "
+              "It can take a minute; please also check your spam folder.")
 
 
 @app.post("/api/auth/forgot-password/request")
@@ -486,7 +488,7 @@ async def api_auth_forgot_request(request: Request):
             password_reset.send_link(email)
         except Exception as exc:  # never reveal delivery problems for a specific address
             print(f"[RESET] Email delivery failed: {type(exc).__name__}")
-    return {"status": "ok", "message": RESET_SENT}
+    return {"status": "ok", "message": RESET_SENT.format(email=email)}
 
 
 @app.post("/api/auth/forgot-password/confirm")
