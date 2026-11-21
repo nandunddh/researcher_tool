@@ -4,7 +4,7 @@ import { api } from "@/lib/api";
 import type { Session } from "@/lib/contracts";
 import { Icon } from "@/components/icon";
 
-type AuthMode = "login" | "forgot";
+type AuthMode = "login" | "forgot" | "mfa";
 
 export function Login({ returnPath }: { returnPath: string | null }) {
   const [mode, setMode] = useState<AuthMode>("login");
@@ -16,6 +16,12 @@ export function Login({ returnPath }: { returnPath: string | null }) {
   // Form input states
   const [email, setEmail] = useState("");
   const [codeSent, setCodeSent] = useState(false);
+  const [mfaToken, setMfaToken] = useState("");
+
+  async function finishSignIn() {
+    const current = await api<Session>("/api/auth/me");
+    window.location.assign(returnPath || `/${current.user.workspace_namespace}/dashboard`);
+  }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,15 +30,20 @@ export function Login({ returnPath }: { returnPath: string | null }) {
     setSuccess("");
     const data = new FormData(event.currentTarget);
     try {
-      await api("/api/auth/login", {
+      const result = await api<{ status: string; mfa_token?: string }>("/api/auth/login", {
         method: "POST",
         body: JSON.stringify({
           identifier: data.get("email"),
           password: data.get("password"),
         }),
       });
-      const current = await api<Session>("/api/auth/me");
-      window.location.assign(returnPath || `/${current.user.workspace_namespace}/dashboard`);
+      if (result.status === "mfa_required" && result.mfa_token) {
+        setMfaToken(result.mfa_token);
+        setMode("mfa");
+        setBusy(false);
+        return;
+      }
+      await finishSignIn();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sign in failed. Please verify your credentials.");
       setBusy(false);
@@ -53,6 +64,22 @@ export function Login({ returnPath }: { returnPath: string | null }) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
     } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMfa(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const code = String(new FormData(event.currentTarget).get("code") ?? "").trim();
+    setBusy(true);
+    setError("");
+    try {
+      await api("/api/auth/login/mfa", { method: "POST", body: JSON.stringify({ mfa_token: mfaToken, code }) });
+      await finishSignIn();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "That code didn't work.";
+      setError(message);
+      if (/expired|again/i.test(message) && !/try again/i.test(message)) { setMode("login"); setMfaToken(""); }
       setBusy(false);
     }
   }
@@ -167,6 +194,23 @@ export function Login({ returnPath }: { returnPath: string | null }) {
 
             <button className="primary login-submit" type="submit" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
+            </button>
+          </form>
+        )}
+
+        {mode === "mfa" && (
+          <form onSubmit={handleMfa} noValidate>
+            <p style={{ marginTop: "1rem" }}>Open your authenticator app and enter the 6-digit code for SciProspect. Lost your phone? Use one of your backup codes.</p>
+            <div className="form-group">
+              <label htmlFor="mfa-code">Code</label>
+              <div className="input-wrapper">
+                <input id="mfa-code" name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus placeholder="123456" />
+              </div>
+            </div>
+            <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Checking…" : "Verify and sign in"}</button>
+            <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
+              onClick={() => { setError(""); setMfaToken(""); setMode("login"); }}>
+              ← Back to sign in
             </button>
           </form>
         )}

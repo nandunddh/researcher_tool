@@ -13,6 +13,7 @@ import re
 import subprocess
 import sys
 import threading
+import secrets
 import time
 from datetime import datetime
 from pathlib import Path
@@ -442,6 +443,86 @@ async def api_auth_login(request: Request):
     if not ok:
         raise HTTPException(status_code=401, detail=msg)
 
+    import mfa
+    if mfa.is_enabled(_mfa_key(user)):
+        challenge = secrets.token_urlsafe(32)
+        _drop_old_challenges()
+        _mfa_challenges[challenge] = {"user": user, "msg": msg, "expires": time.time() + MFA_CHALLENGE_SECONDS, "tries": 0}
+        return {"status": "mfa_required", "mfa_token": challenge}
+    return _signed_in(request, user, msg)
+
+
+# shortcut: password-checked sign-ins waiting for their app code live in this worker's memory; move to the DB if running several workers.
+_mfa_challenges: dict = {}
+MFA_CHALLENGE_SECONDS = 300
+
+
+def _drop_old_challenges():
+    now = time.time()
+    for key in [k for k, c in _mfa_challenges.items() if c["expires"] < now]:
+        _mfa_challenges.pop(key, None)
+
+
+def _mfa_key(user: dict) -> str:
+    return "__root__" if user.get("is_admin") else f"{user.get('license_key', '')}:{user.get('member_id', '')}"
+
+
+@app.post("/api/auth/login/mfa")
+async def api_auth_login_mfa(request: Request):
+    """Second sign-in step: the 6-digit code from the authenticator app, or a backup code."""
+    import mfa
+    body = await request.json()
+    _drop_old_challenges()
+    challenge = _mfa_challenges.get(str(body.get("mfa_token") or ""))
+    if not challenge:
+        raise HTTPException(status_code=401, detail="This sign-in has expired. Please enter your email and password again.")
+    if not mfa.verify(_mfa_key(challenge["user"]), str(body.get("code") or "")):
+        challenge["tries"] += 1
+        if challenge["tries"] >= 5:
+            _mfa_challenges.pop(str(body.get("mfa_token")), None)
+            raise HTTPException(status_code=401, detail="Too many wrong codes. Please sign in again.")
+        raise HTTPException(status_code=400, detail="That code is not right. Check your authenticator app and try again.")
+    _mfa_challenges.pop(str(body.get("mfa_token")), None)
+    return _signed_in(request, challenge["user"], challenge["msg"])
+
+
+@app.get("/api/auth/mfa")
+async def api_auth_mfa_status(request: Request):
+    import mfa
+    return {"enabled": mfa.is_enabled(_mfa_key(_require_authenticated_user(request)))}
+
+
+@app.post("/api/auth/mfa/setup")
+async def api_auth_mfa_setup(request: Request):
+    """Starts setup: a new secret shown as a QR code. Nothing changes until it is confirmed with a code."""
+    import mfa
+    user = _require_authenticated_user(request)
+    setup = mfa.start_setup(_mfa_key(user), user.get("client_email") or "account")
+    if not setup:
+        raise HTTPException(status_code=409, detail="Two-step sign-in is already on.")
+    return setup
+
+
+@app.post("/api/auth/mfa/enable")
+async def api_auth_mfa_enable(request: Request):
+    import mfa
+    user = _require_authenticated_user(request)
+    codes = mfa.enable(_mfa_key(user), str((await request.json()).get("code") or ""))
+    if not codes:
+        raise HTTPException(status_code=400, detail="That code is not right. Enter the current 6-digit code from the app.")
+    return {"status": "ok", "backup_codes": codes}
+
+
+@app.post("/api/auth/mfa/disable")
+async def api_auth_mfa_disable(request: Request):
+    import mfa
+    user = _require_authenticated_user(request)
+    if not mfa.disable(_mfa_key(user), str((await request.json()).get("code") or "")):
+        raise HTTPException(status_code=400, detail="That code is not right. Enter a code from the app or a backup code.")
+    return {"status": "ok"}
+
+
+def _signed_in(request: Request, user: dict, msg: str) -> JSONResponse:
     token = license_engine.issue_session(user)
     if user.get("license_key"):
         set_current_license_key(user["license_key"])
