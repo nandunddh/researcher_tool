@@ -4,7 +4,7 @@
  * Used by the editor canvas, the preview page and (later) the published site.
  */
 import { paletteMime, reorderMime } from "./form-palette";
-import { currentPeriod, priceIn } from "./registration-pricing";
+import { currentPeriod, priceIn, registrationData } from "./registration-pricing";
 import { useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
 import { linkHref, safeImage, type LinkContext } from "./site-schema";
@@ -86,8 +86,14 @@ function Features({ c }: { c: Ctx }) {
   );
 }
 
-function Speakers({ c }: { c: Ctx }) {
-  const people = list(c.section.data.speakers);
+function Speakers({ c: own }: { c: Ctx }) {
+  // "From Event details": speakers are edited there, so the cards here are read-only.
+  const fromEvent = own.section.data.source === "event";
+  const chosen = own.section.data.speaker_ids;
+  const people = fromEvent
+    ? list(own.ctx.event?.speakers).filter(p => !Array.isArray(chosen) || chosen.includes(p.id))
+    : list(own.section.data.speakers);
+  const c = fromEvent ? { ...own, edit: undefined } : own;
   return (
     <div className={styles.wrap}>
       <Header c={c} />
@@ -312,7 +318,7 @@ const money = (currency: string, n: number) => `${currency} ${n.toLocaleString(u
 
 /** Registration: choose a type, add-ons and a discount code; the server prices it, then test payment. */
 function Registration({ c }: { c: Ctx }) {
-  const d = c.section.data;
+  const d = registrationData(c.section.data, c.ctx.event);
   const cats = list(d.categories), addons = list(d.addons), currency = str(d.currency) || "USD";
   const period = currentPeriod(d), periodId = str(period?.id);
   const offered = cats.filter(x => priceIn(x, periodId) !== null);
@@ -346,7 +352,8 @@ function Registration({ c }: { c: Ctx }) {
     <div className={styles.regPicker}>
       <p className={styles.regPeriod}>{period
         ? <>{str(period.name) || "Current"} prices{str(period.ends) && <> · until {new Date(str(period.ends)).toLocaleDateString()}</>}</>
-        : "Add a price period in the panel on the right to show prices."}</p>
+        : "Set up price periods in Event details to show prices."}</p>
+      {c.edit && !cats.length && <p className={styles.muted}>No ticket types yet. Open <strong>Event details</strong> in the top bar, or tick ticket types in the panel on the right.</p>}
       <div className={styles.regTypes} role="radiogroup" aria-label="Registration type">
         {cats.map((x, i) => {
           const price = priceIn(x, periodId);

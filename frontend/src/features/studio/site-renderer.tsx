@@ -186,13 +186,14 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
   );
 }
 
-export function SiteRenderer({ themeConfig, sections, pages, siteSlug, siteId, edit, fallback, pagePath }: {
-  themeConfig?: unknown; sections: Section[]; pages?: PageRef[]; siteSlug?: string; siteId?: string; edit?: EditHooks; fallback?: RenderFallback;
+export function SiteRenderer({ themeConfig, sections, pages, siteSlug, siteId, edit, fallback, pagePath, event }: {
+  themeConfig?: unknown; event?: unknown; sections: Section[]; pages?: PageRef[]; siteSlug?: string; siteId?: string; edit?: EditHooks; fallback?: RenderFallback;
   /** Where links to other pages point (the preview keeps them inside the preview). */
   pagePath?: (page: PageRef) => string;
 }) {
   const css = useMemo(() => buildSiteCss(sections), [sections]);
-  const ctx = useMemo(() => ({ sections, pages, siteSlug, siteId, pagePath }), [sections, pages, siteSlug, siteId, pagePath]);
+  const ctx = useMemo(() => ({ sections, pages, siteSlug, siteId, pagePath, event: event && typeof event === "object" ? event as Record<string, unknown> : undefined }),
+    [sections, pages, siteSlug, siteId, pagePath, event]);
   return (
     <div className={styles.site} style={themeVariables(themeConfig) as CSSProperties} data-editing={edit ? true : undefined}>
       <style>{css}</style>

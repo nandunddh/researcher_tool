@@ -541,7 +541,7 @@ class WebsiteBuilderEngine:
             site["conference_id"] = (raw_conf.strip() if isinstance(raw_conf, str) and raw_conf.strip() else None)
         for meta_k in ("meta_config", "meta_title", "meta_description", "meta_keywords",
                        "og_image", "ga_tracking_id", "custom_head_code", "custom_body_code",
-                       "pages", "active_page_id"):
+                       "pages", "active_page_id", "event"):
             if meta_k in payload:
                 site[meta_k] = payload[meta_k]
 

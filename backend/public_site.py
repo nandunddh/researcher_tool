@@ -12,6 +12,13 @@ def _public_content(value):
     return value
 
 
+def public_event(event):
+    """Event details visitors may see: never discount codes."""
+    if not isinstance(event, dict):
+        return {}
+    return _public_content({k: event[k] for k in ("basics", "periods", "tickets", "addons", "speakers", "deadlines") if k in event})
+
+
 def published_page(site, address=None):
     if not site or site.get("status") != "published":
         return None
@@ -42,6 +49,7 @@ def visitor_page(site, address=None, *, page_id=None):
         "schema_json": _public_content(page.get("schema_json", []) if pages else site.get("schema_json", [])),
         "pages": [{**{k: p.get(k) for k in ("id", "name", "slug")}, "is_home": p is home} for p in pages],
         "page_name": page.get("name") if page is not home else None,
+        "event": public_event(site.get("event")),
         "meta_config": {k: v for k, v in seo.items() if isinstance(v, str)},
         "theme_config": {"studio": {k: studio[k] for k in ("accent", "ink", "headingFont", "bodyFont", "radius")
                                     if isinstance(studio, dict) and isinstance(studio.get(k), (int, str))}},

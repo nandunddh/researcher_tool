@@ -13,6 +13,7 @@ import { ComponentLibrary } from "./component-library";
 import { ThemePanel } from "./theme-panel";
 import { updateTheme } from "./studio-theme";
 import { SiteSettings } from "./site-settings";
+import { EventDetailsDialog, OPEN_EVENT, eventOf, sampleEvent } from "./event-details";
 import { SubmissionsInbox } from "./submissions-inbox";
 import { QuickToolbar } from "./quick-toolbar";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -114,6 +115,12 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const [libraryOpen, setLibraryOpen] = useState(false);
   const leaving = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [eventTab, setEventTab] = useState<string | null>(null);
+  useEffect(() => {
+    const open = (e: Event) => setEventTab(typeof (e as CustomEvent).detail === "string" ? (e as CustomEvent).detail : "basics");
+    window.addEventListener(OPEN_EVENT, open);
+    return () => window.removeEventListener(OPEN_EVENT, open);
+  }, []);
   const [inboxOpen, setInboxOpen] = useState(false);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -196,8 +203,12 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
     const title = item.category === "Navigation" && !item.variant.startsWith("modern-") ? "Navigation bar" : item.variant === "hero" ? "Hero" : item.name;
     const section = { ...instantiateComponent(item, site.name), title } as Section;
     change(s => {
-      if (beforeId === undefined) return insertSection(s, section, selection?.sectionId);
-      const added = insertSection(s, section);
+      // The first registration form gets sample tickets and prices, so it works straight away.
+      const event = eventOf(s), sample = sampleEvent(s.name);
+      const ready = section.type === "registration" && !event.tickets?.length
+        ? { ...s, event: { ...sample, ...event, tickets: sample.tickets, periods: event.periods?.length ? event.periods : sample.periods } } : s;
+      if (beforeId === undefined) return insertSection(ready, section, selection?.sectionId);
+      const added = insertSection(ready, section);
       return beforeId ? dropSection(added, section.id, beforeId) : added;
     });
     setSelection({ sectionId: section.id });
@@ -293,6 +304,9 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
           <button type="button" className={styles.iconButton} onClick={() => dispatch({ type: "redo" })} disabled={busy || !state.future.length} title="Redo (Ctrl+Shift+Z)" aria-label="Redo"><Icon name="redo" size={16} /></button>
           <button type="button" className={styles.iconButton} aria-pressed={layersOpen} onClick={() => setLayersOpen(!layersOpen)} title="Left panel" aria-label="Left panel"><Icon name="panel" size={16} /></button>
           <button type="button" className={styles.iconButton} aria-pressed={inspectorOpen} onClick={() => setInspectorOpen(!inspectorOpen)} title="Inspector" aria-label="Inspector"><Icon name="layers" size={16} /></button>
+          <button type="button" className={styles.settingsButton} disabled={!site} onClick={() => setEventTab("basics")} title="Dates, tickets, prices, discount codes and speakers, in one place">
+            <Icon name="grid" size={15} /> Event details
+          </button>
           <button type="button" className={styles.settingsButton} disabled={!site} onClick={() => setInboxOpen(true)} title="Messages and registrations sent from your forms">
             <Icon name="doc" size={15} /> Inbox
           </button>
@@ -382,7 +396,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                     </div>
                   </div>
                 )}
-                <SiteRenderer themeConfig={site.theme_config} sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={renderPreserved} edit={{
+                <SiteRenderer themeConfig={site.theme_config} event={site.event} sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={renderPreserved} edit={{
                   selection, readOnly, dragging: dragging ?? (draggingItem ? "__component__" : null), dropTarget,
                   onDragSection: setDragging, onDragHover: setDropTarget,
                   onDropComponent: (itemId, beforeId) => { add(componentCatalog.find(c => c.id === itemId), beforeId); setDraggingItem(null); setDropTarget(null); },
@@ -401,6 +415,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
         </div>
       )}
       {inboxOpen && site && <SubmissionsInbox site={site} onClose={() => setInboxOpen(false)} />}
+      {eventTab && site && <EventDetailsDialog site={site} initialTab={eventTab} readOnly={readOnly} change={change} onError={showError} onClose={() => setEventTab(null)} />}
       {settingsOpen && <SiteSettings siteId={siteId} onClose={() => setSettingsOpen(false)} onSaved={announce} />}
       {libraryOpen && (
         <ComponentLibrary onClose={() => setLibraryOpen(false)} onAdd={item => { add(item); setLibraryOpen(false); }} />

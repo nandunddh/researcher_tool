@@ -13,7 +13,8 @@ import type { Section } from "./document";
 import { Field, FillField, NumberField, Segmented, WeightField, useMeasured, type Measured } from "./inspector-fields";
 import { cleanFieldValue, headerFields, sectionRegistry, type FieldDef } from "./section-registry";
 import { hasBlock } from "./section-blocks";
-import { PriceInput, RegistrationPrices } from "./registration-prices";
+import { PriceInput } from "./registration-prices";
+import { RegistrationPicker, SpeakersPicker } from "./event-details";
 import styles from "./react-editor.module.css";
 
 export type Change = (fn: (site: EditorSite) => EditorSite, coalesceKey?: string) => void;
@@ -324,6 +325,8 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
           {def.fields.map(f => <DataField key={f.key} {...common} def={f} path={[f.key]} />)}
         </section>
       )}
+      {section.type === "registration" && <RegistrationPicker {...common} />}
+      {section.type === "speakers" && <SpeakersPicker {...common} />}
       {def.lists.some(list => list.key === "form_fields") && (
         <section className={styles.group}>
           <h3>Add a field</h3>
@@ -338,7 +341,7 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
           </div>
         </section>
       )}
-      {def.lists.map(listDef => {
+      {def.lists.filter(l => !(section.type === "speakers" && section.data.source === "event" && l.key === "speakers")).map(listDef => {
         const items = Array.isArray(section.data[listDef.key]) ? (section.data[listDef.key] as unknown[]) : [];
         if (!items.length && listDef.defaults) {
           return (
@@ -370,7 +373,6 @@ function SectionContent({ site, section, readOnly, change, onError }: { site: Ed
             <button type="button" className={styles.addButton} disabled={readOnly || items.length >= listDef.max}
               onClick={() => change(s => addListItem(s, section.id, listDef.key, listDef.newItem(), listDef.max))}>+ Add {listDef.itemLabel.toLowerCase()}</button>
           </section>
-          {section.type === "registration" && listDef.key === "categories" && <RegistrationPrices {...common} />}
           </Fragment>
         );
       })}

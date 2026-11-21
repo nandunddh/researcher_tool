@@ -370,7 +370,7 @@ export function removePage(site: EditorSite, pageId: string): EditorSite {
 /** Content fingerprint of every page, ignoring which page is open. */
 export function contentSignature(site: EditorSite): string {
   const ready = ensurePages(site);
-  return JSON.stringify({ theme: site.theme_config, sections: ready.pages ? null : site.schema_json, pages: storeActive(ready).map(p => [p.id, p.name, p.slug, p.schema_json]) });
+  return JSON.stringify({ theme: site.theme_config, event: site.event, sections: ready.pages ? null : site.schema_json, pages: storeActive(ready).map(p => [p.id, p.name, p.slug, p.schema_json]) });
 }
 
 export function movePage(site: EditorSite, pageId: string, delta: number): EditorSite {
@@ -387,8 +387,9 @@ export function movePage(site: EditorSite, pageId: string, delta: number): Edito
 export function editorPayload(site: EditorSite) {
   const ctx = linkContext(site);
   const sections = readDocument(site.schema_json.map(s => syncLegacy(s, ctx))).sections;
-  const payload: { theme_config?: unknown; schema_json: Section[]; pages?: EditorSite["pages"]; active_page_id?: string } = { schema_json: sections };
+  const payload: { theme_config?: unknown; event?: unknown; schema_json: Section[]; pages?: EditorSite["pages"]; active_page_id?: string } = { schema_json: sections };
   if (site.theme_config != null) payload.theme_config = site.theme_config;
+  if (site.event != null) payload.event = site.event;
   if (site.pages?.length) {
     if (!site.active_page_id || !site.pages.some(p => p.id === site.active_page_id)) {
       throw new Error("This website's current page could not be found. Reload the editor and try again.");

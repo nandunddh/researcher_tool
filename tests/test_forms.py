@@ -66,6 +66,23 @@ class RegistrationPricingTests(unittest.TestCase):
         self.assertIn("closed", forms.quote(closed, {"category": "academic"}, date(2027, 4, 1))[1])
         self.assertIn("closed", forms.quote({"data": {"categories": REG["data"]["categories"]}}, {"category": "academic"})[1])
 
+    def test_event_details_drive_registration(self):
+        import public_site
+        event = {"basics": {"currency": "eur"}, "periods": REG["data"]["periods"],
+                 "tickets": REG["data"]["categories"] + [{"id": "vip", "name": "VIP", "prices": {"early": 5000}}],
+                 "addons": [{"id": "night", "name": "Night", "price": 100, "max": 2}, {"id": "dinner", "name": "Dinner", "price": 80}],
+                 "discounts": [{"id": "d1", "code": "OLD", "percent": 50, "expires": "2026-12-31"}, {"id": "d2", "code": "ALL", "percent": 10}]}
+        section = {"id": "r2", "type": "registration", "data": {"ticket_ids": ["academic"], "addon_ids": ["night"], "categories": [{"id": "own"}]}}
+        site = {"event": event, "pages": [{"id": "p", "schema_json": [section]}]}
+        found, _ = forms.find_form(site, "r2")
+        self.assertEqual([c["id"] for c in found["data"]["categories"]], ["academic"], "only ticked types")
+        self.assertEqual(forms.quote(found, {"category": "vip"}, date(2027, 1, 1))[1], "Please choose a registration type.")
+        order, _ = forms.quote(found, {"category": "academic", "addons": {"night": 1, "dinner": 1}, "discount_code": "all"}, date(2027, 1, 1))
+        self.assertEqual((order["currency"], order["total"]), ("EUR", round((699 + 100) * 0.9, 2)), "unticked add-on ignored, all codes when none ticked")
+        self.assertIn("expired", forms.quote(found, {"category": "academic", "discount_code": "OLD"}, date(2027, 1, 1))[1])
+        self.assertEqual(forms.find_form({"pages": [{"id": "p", "schema_json": [section]}]}, "r2")[0], section, "no event: form keeps its own data")
+        self.assertNotIn("discounts", public_site.public_event(event))
+
     def test_fixed_amount_discount(self):
         data = {**REG["data"], "discount_codes": [{"code": "FIFTY", "amount": 50, "percent": 90}, {"code": "BIG", "amount": 5000}]}
         self.assertEqual(forms.quote({"data": data}, {"category": "academic", "discount_code": "fifty"}, date(2027, 1, 1))[0]["total"], 649)

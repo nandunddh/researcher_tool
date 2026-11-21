@@ -1,13 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import type { Json } from "./document";
-import { setSectionField, type EditorSite } from "./editor-model";
-import type { Section } from "./document";
-import styles from "./react-editor.module.css";
 import { parsePrice } from "./registration-pricing";
 
 type Rec = Record<string, unknown>;
-const recs = (v: unknown): Rec[] => (Array.isArray(v) ? v.filter((x): x is Rec => !!x && typeof x === "object") : []);
 
 /** Text box that lets people type "99." on the way to "99.50" and only stores valid prices. */
 export function PriceInput({ value, disabled, label, onChange, allowBlank = true }: { value: unknown; disabled?: boolean; label: string; allowBlank?: boolean; onChange: (v: number | null) => void }) {
@@ -18,7 +13,7 @@ export function PriceInput({ value, disabled, label, onChange, allowBlank = true
   const parsed = parsePrice(text);
   return (
     <input aria-label={label} inputMode="decimal" value={text} disabled={disabled} placeholder={allowBlank ? "—" : "0"}
-      aria-invalid={parsed === undefined || undefined} style={{ width: "100%", minWidth: 70 }}
+      aria-invalid={parsed === undefined || undefined} style={{ width: "100%", minWidth: 80 }}
       onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
       onChange={e => {
         setText(e.target.value);
@@ -28,52 +23,37 @@ export function PriceInput({ value, disabled, label, onChange, allowBlank = true
   );
 }
 
-/** Price grid: one row per registration type, one column per price period. Blank = not offered then. */
-export function RegistrationPrices({ section, readOnly, change }: { site: EditorSite; section: Section; readOnly: boolean; change: (fn: (s: EditorSite) => EditorSite, key?: string) => void }) {
-  const periods = recs(section.data.periods), types = recs(section.data.categories);
-  const currency = String(section.data.currency || "USD");
-  const setPrice = (row: number, periodId: string, value: number | null) => change(s => {
-    const current = types[row].prices;
-    const prices = { ...(current && typeof current === "object" && !Array.isArray(current) ? current as Rec : {}), [periodId]: value } as Json;
-    return setSectionField(s, section.id, ["categories", row, "prices"], prices);
-  }, `${section.id}:price:${row}:${periodId}`);
-
+/** Price grid: one row per ticket type, one column per price period. Blank = not offered then. */
+export function PriceGrid({ periods, tickets, currency, disabled, onSet }: {
+  periods: Rec[]; tickets: Rec[]; currency: string; disabled?: boolean; onSet: (row: number, periodId: string, value: number | null) => void;
+}) {
+  if (!periods.length || !tickets.length) return <p style={{ color: "var(--muted, #6b7280)", fontSize: 13 }}>Add at least one price period and one ticket type to set prices.</p>;
   return (
-    <section className={styles.group}>
-      <h3>Prices ({currency})</h3>
-      {!periods.length || !types.length ? (
-        <p className={styles.hint}>Add at least one price period and one registration type above, then set the prices here.</p>
-      ) : (
-        <>
-          <p className={styles.hint}>Leave a box empty when a type is not offered in that period.</p>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12 }}>
-              <thead>
-                <tr>
-                  <th style={{ textAlign: "left", padding: "4px 6px" }}>Type</th>
-                  {periods.map(p => <th key={String(p.id)} style={{ textAlign: "left", padding: "4px 6px", whiteSpace: "nowrap" }}>{String(p.name || "Period")}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {types.map((type, row) => {
-                  const prices = type.prices && typeof type.prices === "object" ? type.prices as Rec : {};
-                  return (
-                    <tr key={String(type.id ?? row)}>
-                      <th scope="row" style={{ textAlign: "left", padding: "4px 6px", fontWeight: 600 }}>{String(type.name || `Type ${row + 1}`)}</th>
-                      {periods.map(p => (
-                        <td key={String(p.id)} style={{ padding: "3px 4px" }}>
-                          <PriceInput value={prices[String(p.id)]} disabled={readOnly} label={`${String(type.name)} price, ${String(p.name)}`}
-                            onChange={v => setPrice(row, String(p.id), v)} />
-                        </td>
-                      ))}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-    </section>
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", padding: "6px 8px" }}>Ticket type</th>
+            {periods.map(p => <th key={String(p.id)} style={{ textAlign: "left", padding: "6px 8px", whiteSpace: "nowrap" }}>{String(p.name || "Period")} ({currency})</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {tickets.map((type, row) => {
+            const prices = type.prices && typeof type.prices === "object" ? type.prices as Rec : {};
+            return (
+              <tr key={String(type.id ?? row)} style={{ borderTop: "1px solid var(--line, #e5e7eb)" }}>
+                <th scope="row" style={{ textAlign: "left", padding: "6px 8px", fontWeight: 600 }}>{String(type.name || `Type ${row + 1}`)}</th>
+                {periods.map(p => (
+                  <td key={String(p.id)} style={{ padding: "4px 6px" }}>
+                    <PriceInput value={prices[String(p.id)]} disabled={disabled} label={`${String(type.name)} price, ${String(p.name)}`}
+                      onChange={v => onSet(row, String(p.id), v)} />
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }

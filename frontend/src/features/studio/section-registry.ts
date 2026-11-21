@@ -147,24 +147,9 @@ export const sectionRegistry: Record<string, SectionDef> = {
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
 sectionRegistry.registration = {
   name: "Registration", header: true,
-  fields: [t("currency", "Currency", { placeholder: "USD", hint: "3-letter code, e.g. USD, EUR, INR." }),
-    t("btn_text", "Button text"), t("success_message", "Message after payment")],
+  // Tickets, prices, add-ons and codes live in Event details; the form ticks which ones it offers.
+  fields: [t("btn_text", "Button text"), t("success_message", "Message after payment")],
   lists: [
-    { key: "periods", label: "Price periods", itemLabel: "Period", max: 8,
-      fields: [t("name", "Name", { placeholder: "Early bird" }),
-        { key: "ends", label: "Last day", kind: "date", hint: "Leave empty for the final period (open until you close registration)." }],
-      newItem: () => ({ id: `per_${crypto.randomUUID().slice(0, 6)}`, name: "New period", ends: "" }) },
-    { key: "categories", label: "Registration types", itemLabel: "Type", max: 20,
-      fields: [t("name", "Name"), t("description", "Short note", { placeholder: "e.g. Valid student ID required" })],
-      newItem: () => ({ id: `cat_${crypto.randomUUID().slice(0, 6)}`, name: "New type", description: "", prices: {} }) },
-    { key: "addons", label: "Add-ons", itemLabel: "Add-on", max: 12,
-      fields: [t("name", "Name"), t("description", "Short note"), { key: "price", label: "Price each", kind: "money", max: 1000000 },
-        { key: "max", label: "Maximum quantity", kind: "number", min: 1, max: 20 }],
-      newItem: () => ({ id: `add_${crypto.randomUUID().slice(0, 6)}`, name: "New add-on", description: "", price: 0, max: 5 }) },
-    { key: "discount_codes", label: "Discount codes (hidden from visitors)", itemLabel: "Code", max: 50,
-      fields: [t("code", "Code"), { key: "percent", label: "Discount %", kind: "number", min: 0, max: 100 },
-        { key: "amount", label: "Or fixed amount off", kind: "money", max: 1000000, hint: "A fixed amount is used instead of the % when set." }],
-      newItem: () => ({ code: "EARLY10", percent: 10, amount: 0 }) },
     { ...sectionRegistry.contact.lists[0], defaults: [
       { id: "name", label: "Full name", type: "text", required: true }, { id: "email", label: "Email", type: "email", required: true },
       { id: "organization", label: "Organization", type: "text", required: true }, { id: "phone", label: "Phone", type: "phone", required: false },

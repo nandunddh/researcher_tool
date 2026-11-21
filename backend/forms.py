@@ -32,6 +32,25 @@ def form_fields(section: dict) -> List[dict]:
     return DEFAULT_REGISTRATION_FIELDS if section.get("type") == "registration" else DEFAULT_CONTACT_FIELDS
 
 
+def with_event(section: dict, event) -> dict:
+    """A registration form whose site has Event details uses them: periods, currency, and the
+    ticket types / add-ons / discount codes the form ticked (no list saved = all of them)."""
+    if section.get("type") != "registration" or not isinstance(event, dict) or not event.get("tickets"):
+        return section
+    data = dict(section.get("data") or {})
+
+    def pick(items, key):
+        items = [i for i in items or [] if isinstance(i, dict)]
+        chosen = data.get(key)
+        return items if not isinstance(chosen, list) else [i for i in items if i.get("id") in chosen]
+
+    basics = event.get("basics") if isinstance(event.get("basics"), dict) else {}
+    data.update(currency=basics.get("currency") or "USD", periods=event.get("periods") or [],
+                categories=pick(event["tickets"], "ticket_ids"), addons=pick(event.get("addons"), "addon_ids"),
+                discount_codes=pick(event.get("discounts"), "discount_ids"))
+    return {**section, "data": data}
+
+
 def find_form(site: dict, form_id: str) -> Tuple[Optional[dict], Optional[str]]:
     """Finds a form section by id on any page. Returns (section, page_id)."""
     pages = site.get("pages") or []
@@ -40,7 +59,7 @@ def find_form(site: dict, form_id: str) -> Tuple[Optional[dict], Optional[str]]:
     for sections, page_id in candidates:
         for section in sections:
             if isinstance(section, dict) and section.get("id") == form_id and section.get("type") in FORM_TYPES:
-                return section, page_id
+                return with_event(section, site.get("event")), page_id
     return None, None
 
 
@@ -178,6 +197,11 @@ def quote(section: dict, payload: dict, today: Optional[date] = None) -> Tuple[O
         match = next((d for d in data.get("discount_codes") or [] if isinstance(d, dict) and str(d.get("code", "")).strip().upper() == code), None)
         if not match:
             return None, "This discount code is not valid."
+        try:
+            if match.get("expires") and (today or date.today()) > date.fromisoformat(str(match["expires"])):
+                return None, "This discount code has expired."
+        except ValueError:
+            pass
         # A fixed amount wins over a percentage when both are set.
         fixed = _money(match.get("amount"))
         discount = min(subtotal, fixed) if fixed else round(subtotal * min(100.0, _money(match.get("percent"))) / 100, 2)

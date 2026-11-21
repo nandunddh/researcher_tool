@@ -25,3 +25,16 @@ export function parsePrice(text: string): number | null | undefined {
   if (!/^\d{1,7}(\.\d{0,2})?$/.test(t)) return undefined;
   return Math.round(Number(t) * 100) / 100;
 }
+
+/** A registration form on a site with Event details uses them: periods, currency, and the ticked
+ *  ticket types / add-ons / discount codes (no saved list = all). Mirrors backend/forms.py with_event. */
+export function registrationData(data: Rec, event?: Rec): Rec {
+  if (!event || !recs(event.tickets).length) return data;
+  const pick = (items: unknown, key: string) => {
+    const chosen = data[key];
+    return Array.isArray(chosen) ? recs(items).filter(i => chosen.includes(i.id)) : recs(items);
+  };
+  const basics = event.basics && typeof event.basics === "object" ? event.basics as Rec : {};
+  return { ...data, currency: str(basics.currency) || "USD", periods: recs(event.periods),
+    categories: pick(event.tickets, "ticket_ids"), addons: pick(event.addons, "addon_ids"), discount_codes: pick(event.discounts, "discount_ids") };
+}

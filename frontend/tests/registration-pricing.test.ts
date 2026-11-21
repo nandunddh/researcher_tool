@@ -24,3 +24,17 @@ test("blank price means not offered; prices keep decimals", () => {
   assert.equal(parsePrice("1.234"), undefined);
   assert.equal(parsePrice("-5"), undefined);
 });
+
+import { registrationData } from "../src/features/studio/registration-pricing";
+
+test("a form uses Event details and only the ticked items", () => {
+  const event = { basics: { currency: "EUR" }, periods: data.periods,
+    tickets: [{ id: "a", name: "A" }, { id: "b", name: "B" }], addons: [{ id: "x" }, { id: "y" }], discounts: [{ id: "d" }] };
+  const form = registrationData({ ticket_ids: ["b"], btn_text: "Go" }, event);
+  assert.deepEqual((form.categories as { id: string }[]).map(t => t.id), ["b"]);
+  assert.equal((form.addons as unknown[]).length, 2, "nothing ticked yet = all");
+  assert.equal(form.currency, "EUR");
+  assert.equal(form.btn_text, "Go");
+  const own = { categories: [{ id: "own" }] };
+  assert.equal(registrationData(own, {}), own, "no tickets in Event details: form keeps its own data");
+});

@@ -37,7 +37,7 @@ export function SitePreview({ siteId, pageSlug }: { siteId: string; pageSlug?: s
   if (!site.schema_json.length) return <p style={{ padding: 32, font: "15px system-ui" }}>This page is empty. Add sections in the editor and save.</p>;
   return (
     <div style={{ minHeight: "100vh", background: "white" }}>
-      <SiteRenderer themeConfig={site.theme_config} sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={fallback} pagePath={pagePath} />
+      <SiteRenderer themeConfig={site.theme_config} event={site.event} sections={site.schema_json} pages={site.pages} siteSlug={site.slug} siteId={site.site_id} fallback={fallback} pagePath={pagePath} />
     </div>
   );
 }
