@@ -74,3 +74,16 @@ test("individual texts in content sections can be styled per screen size", async
   assert.match(css, /@container sci-site \(max-width: 640px\)\{\[data-section="spk"\] \[data-tp="speakers\.0\.name"\]\{color:#112233;font-size:22px\}\}/);
   assert.throws(() => setTextStyle(site, "spk", 'x"]{}*{', "desktop", { color: "#000000" }));
 });
+
+test("text styles stay on their item when items move or are deleted", async () => {
+  const m = await import("../src/features/studio/editor-model");
+  const { getTextStyles } = await import("../src/features/studio/site-schema");
+  let s = m.addListItem(site, "spk", "speakers", { name: "C" });
+  s = m.setTextStyle(s, "spk", "speakers.0.name", "desktop", { color: "#ff0000" });
+  s = m.moveListItem(s, "spk", "speakers", 0, 2);
+  assert.deepEqual(Object.keys(getTextStyles(s.schema_json[0])), ["speakers.2.name"]);
+  s = m.removeListItem(s, "spk", "speakers", 0);
+  assert.deepEqual(Object.keys(getTextStyles(s.schema_json[0])), ["speakers.1.name"]);
+  s = m.removeListItem(s, "spk", "speakers", 1);
+  assert.deepEqual(getTextStyles(s.schema_json[0]), {}, "deleted item's styles removed");
+});

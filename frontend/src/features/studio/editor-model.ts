@@ -260,17 +260,31 @@ function mapList(site: EditorSite, sectionId: string, key: string, fn: (list: Js
 export function addListItem(site: EditorSite, sectionId: string, key: string, item: Record<string, Json>, max = 50): EditorSite {
   return mapList(site, sectionId, key, list => (list.length >= max ? list : [...list, structuredClone(item)]));
 }
+/** Text styles are keyed by list position ("speakers.0.name"); keep them on the same item when it moves. */
+function remapTextStyles(site: EditorSite, sectionId: string, key: string, newIndex: (old: number) => number | null): EditorSite {
+  return mapSection(site, sectionId, section => {
+    const styles = getTextStyles(section), out: Record<string, unknown> = {};
+    for (const [path, style] of Object.entries(styles)) {
+      const prefix = `${key}.`;
+      const rest = path.startsWith(prefix) ? path.slice(prefix.length) : "";
+      const m = rest.match(/^(\d+)(\..*)?$/);
+      if (!m) { out[path] = style; continue; }
+      const to = newIndex(Number(m[1]));
+      if (to !== null) out[`${key}.${to}${m[2] ?? ""}`] = style;
+    }
+    return { ...section, text_styles: out as Json };
+  });
+}
 export function removeListItem(site: EditorSite, sectionId: string, key: string, index: number): EditorSite {
-  return mapList(site, sectionId, key, list => list.filter((_, i) => i !== index));
+  const next = mapList(site, sectionId, key, list => list.filter((_, i) => i !== index));
+  return remapTextStyles(next, sectionId, key, i => (i === index ? null : i > index ? i - 1 : i));
 }
 export function moveListItem(site: EditorSite, sectionId: string, key: string, index: number, delta: number): EditorSite {
-  return mapList(site, sectionId, key, list => {
-    const target = index + delta;
-    if (index < 0 || index >= list.length || target < 0 || target >= list.length) return list;
-    const [item] = list.splice(index, 1);
-    list.splice(target, 0, item);
-    return list;
-  });
+  const target = index + delta;
+  const length = (site.schema_json.find(x => x.id === sectionId)?.data[key] as Json[] | undefined)?.length ?? 0;
+  if (index < 0 || index >= length || target < 0 || target >= length) return site;
+  const next = mapList(site, sectionId, key, list => { const [item] = list.splice(index, 1); list.splice(target, 0, item); return list; });
+  return remapTextStyles(next, sectionId, key, i => (i === index ? target : delta > 0 && i > index && i <= target ? i - 1 : delta < 0 && i >= target && i < index ? i + 1 : i));
 }
 
 // ---------------------------------------------------------------- pages
