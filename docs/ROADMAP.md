@@ -1,11 +1,39 @@
-# SciStudio roadmap
+# SciProspect platform roadmap
 
-One list of everything: what is done, what is next, and ideas for later.
+One list for the whole platform: **SciProspect** (research data collector), **SciStudio** (website builder) and the shared accounts.
+What is done, what is next, and ideas for later.
 Add a line anywhere: `- [ ]` for to do, `- [x]` when done. Keep each line short.
 
 Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the browser yet
 
 ---
+
+# Part A: SciProspect (research data collector)
+
+## A1. Data collection
+- [x] Pipeline: run / stop with live progress (OpenAlex)
+- [x] NIH data source page
+- [x] Datasets and explorer views
+- [ ] 🔜 Rebuild the collector in the Next.js web app (Codex, branch `codex/scistudio-design`)
+- [ ] Search filters in the web app: topic, country, institution, years
+- [ ] Store collected data in PostgreSQL (check: today it uses a data folder on disk)
+- [ ] 💡 Saved searches and scheduled runs
+- [ ] 💡 More sources (e.g. PubMed, Crossref)
+
+## A2. Leads
+- [x] Leads list, CSV export
+- [x] Merge and remove duplicates, clear all
+- [ ] Leads table in the web app: search, sort, filter, select
+- [ ] 💡 Email verification and enrichment
+- [ ] 💡 Send selected researchers to SciStudio (invite as speakers, email a call for abstracts)
+
+## A3. Desktop app (to retire)
+- [x] Desktop app with auto-update (check, download, install)
+- [ ] After the web rebuild: delete `app/`, the `.bat` files and `backend/static/app.js`
+
+---
+
+# Part B: SciStudio (website builder)
 
 ## 1. Editor and design
 - [x] Visual editor: canvas, Add / Layers / Pages sidebar, inspector, quick toolbar
@@ -69,20 +97,23 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [ ] 🔜 Publish / Unpublish buttons, Draft / Live status, "not available" page
 - [ ] Custom domains (DNS instructions and checks)
 
+---
+
+# Part C: Platform (shared by SciProspect and SciStudio)
+
 ## 8. Accounts and security
 - [x] Passwords in a separate credentials table
 - [x] Password reset with an emailed 6-digit code (Brevo)
 - [x] Two-step sign-in with Google Authenticator
+- [x] Root dashboard, organization dashboard, client overview
+- [x] Licenses: create, extend, stop / resume, upgrade, trial, daily limits
+- [x] Organization team members, SciStudio access per member
 - [ ] 🔜 "Change password" in the profile menu
 - [ ] Admin button: reset two-step sign-in for a client
 - [ ] One-click client creation (organization + admin user)
 - [ ] Plans with limits (websites, pages, members, storage, submissions), usage dashboard
 
-## 9. SciProspect data collector
-- [ ] Move the collector into the web app (Codex is working on this in its own branch)
-- [ ] Then delete the desktop app (`app/`) and the `.bat` files
-
-## 10. Housekeeping
+## 9. Housekeeping
 - [ ] Update `docs/HANDOFF_NEXT_TASKS.md` (out of date)
 - [ ] Merge the Codex branch `codex/scistudio-design` when ready (check conflicts, run tests)
 - [ ] Clean up files attached to submission forms that were never submitted
