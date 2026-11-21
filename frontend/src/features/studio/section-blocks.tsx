@@ -256,7 +256,8 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
           autoComplete={autoComplete[str(f.type)] ?? autoComplete[id]} required={required} disabled={disabled} /></label>;
       })}
       {/* spam trap: hidden from people, bots fill it */}
-      <input name="_hp" tabIndex={-1} autoComplete="off" aria-hidden="true" className={styles.trap} />
+      {/* readOnly: browser autofill skips it (it ignores autoComplete="off"); bots posting raw data still fill it */}
+      <input name="_hp" tabIndex={-1} autoComplete="off" readOnly aria-hidden="true" className={styles.trap} />
       <button type="submit" className={styles.button} data-primary disabled={state.kind === "sending"}>{state.kind === "sending" ? "Sending…" : children}</button>
       {state.kind === "sent" && <p role="status" className={styles.formSuccess}>{state.message}</p>}
       {state.kind === "error" && <p role="alert" className={styles.formError}>{state.message}</p>}
