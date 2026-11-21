@@ -86,3 +86,4 @@
 .checkRow { display: flex !important; align-items: center; gap: 8px; font-weight: 500 !important; }
 .trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .formError { margin: 0; color: #b91c1c; font-size: 14px; }
+.formSuccess { margin: 0; color: #047857; font-size: 14px; font-weight: 600; }

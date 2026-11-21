@@ -191,7 +191,6 @@ function WebsiteForm({ c, children }: { c: Ctx; children: ReactNode }) {
       setState({ kind: "error", message: err instanceof Error ? err.message : "Your message could not be sent." });
     }
   }
-  if (state.kind === "sent") return <div className={styles.form} role="status"><strong>{state.message}</strong></div>;
   return (
     <form className={styles.form} onSubmit={submit} noValidate={!!c.edit}>
       {fields.map(f => {
@@ -211,6 +210,7 @@ function WebsiteForm({ c, children }: { c: Ctx; children: ReactNode }) {
       {/* spam trap: hidden from people, bots fill it */}
       <input name="_hp" tabIndex={-1} autoComplete="off" aria-hidden="true" className={styles.trap} />
       <button type="submit" className={styles.button} data-primary disabled={state.kind === "sending"}>{state.kind === "sending" ? "Sending…" : children}</button>
+      {state.kind === "sent" && <p role="status" className={styles.formSuccess}>{state.message}</p>}
       {state.kind === "error" && <p role="alert" className={styles.formError}>{state.message}</p>}
     </form>
   );
