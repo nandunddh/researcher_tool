@@ -2041,14 +2041,15 @@ async def quote_registration(site_id: str, form_id: str, request: Request):
 async def pay_registration_test(site_id: str, form_id: str, submission_id: int, request: Request):
     """Public: test-mode payment for a registration (stand-in until Stripe is connected)."""
     import forms
-    await _public_form(site_id, form_id)
+    section = await _public_form(site_id, form_id)
     try:
         token = str((await request.json()).get("payment_token", ""))
     except Exception:
         token = ""
     if not forms.mark_test_payment(site_id, submission_id, token):
         raise HTTPException(status_code=400, detail="This payment could not be completed.")
-    return {"status": "ok", "message": "Payment received (test mode). Your registration is confirmed."}
+    message = (section.get("data") or {}).get("success_message") or "Payment received (test mode). Your registration is confirmed."
+    return {"status": "ok", "message": message}
 
 
 @app.get("/api/builder/sites/{site_id}/submissions")
