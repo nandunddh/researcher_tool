@@ -229,6 +229,18 @@ const legacyAnchors: Record<string, string> = {
   contact: "contact", about: "about", agenda: "agenda", sponsors: "sponsors",
 };
 /** The anchor visitors jump to for "Section on this page" links. */
+/** Styles for individual texts in content sections, keyed by the text's data path ("items.0.title"). */
+export const TEXT_PATH = /^[A-Za-z0-9_]{1,40}(\.[A-Za-z0-9_]{1,40}){0,4}$/;
+export function getTextStyles(section: Section): Record<string, Responsive<Style>> {
+  const raw = section.text_styles;
+  if (!isRecord(raw)) return {};
+  const out: Record<string, Responsive<Style>> = {};
+  for (const [path, style] of Object.entries(raw).slice(0, 300)) {
+    if (TEXT_PATH.test(path)) out[path] = cleanResponsive(style, cleanStyle);
+  }
+  return out;
+}
+
 export function sectionAnchor(section: Section): string {
   if (typeof section.anchor === "string" && ID.test(section.anchor)) return section.anchor;
   return legacyAnchors[section.type] ?? (ID.test(section.id) ? section.id : "top");
@@ -387,6 +399,12 @@ export function buildSiteCss(sections: Section[]): string {
       for (const vp of viewports) {
         const decls = sectionDecls((vp === "desktop" ? ss.desktop : ss[vp]) ?? {});
         if (decls.length) layers[vp].push(`[data-section="${section.id}"]{${decls.join(";")}}`);
+      }
+    }
+    for (const [path, style] of Object.entries(getTextStyles(section))) {
+      for (const vp of viewports) {
+        const decls = elementDecls((vp === "desktop" ? style.desktop : style[vp]) ?? {}, "text");
+        if (decls.length && ID.test(section.id)) layers[vp].push(`[data-section="${section.id}"] [data-tp="${path}"]{${decls.join(";")}}`);
       }
     }
     for (const e of getElements(section) ?? []) {

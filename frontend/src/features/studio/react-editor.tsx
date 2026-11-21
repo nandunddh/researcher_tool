@@ -5,7 +5,7 @@ import { Icon } from "@/components/icon";
 import { componentCatalog, type LibraryComponent } from "./component-catalog";
 import { instantiateComponent } from "./component-instance";
 import type { Section } from "./document";
-import { contentSignature, switchPage, dropSection, editorPayload, findElement, insertSection, prepareSite, updateElement, type EditorSite, type Selection } from "./editor-model";
+import { contentSignature, removeSection, switchPage, dropSection, editorPayload, findElement, insertSection, prepareSite, updateElement, type EditorSite, type Selection } from "./editor-model";
 import { ComponentsPanel } from "./components-panel";
 import { PagesPanel } from "./pages-panel";
 import { ComponentLibrary } from "./component-library";
@@ -331,6 +331,11 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
                           <span>{s.title || s.type}</span>
                           {s.hidden === true ? <small>hidden</small> : !elements && !hasBlock(s.type) && <small>preview</small>}
                         </button>
+                        <button type="button" className={styles.layerDelete} disabled={readOnly} aria-label={`Delete ${s.title || s.type}`} title="Delete section"
+                          onClick={() => ask({
+                            title: `Delete “${s.title || s.type}”?`, description: "You can bring it back with Undo until you leave the editor.",
+                            label: "Delete section", run: () => { change(x => removeSection(x, s.id)); if (selection?.sectionId === s.id) setSelection(null); },
+                          })}><Icon name="close" size={13} /></button>
                         {open && elements && (
                           <ul>
                             {elements.map(e => (

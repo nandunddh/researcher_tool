@@ -391,3 +391,6 @@
 .swatch input { width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: none; cursor: pointer; }
 .swatch input::-webkit-color-swatch-wrapper { padding: 0; }
 .swatch input::-webkit-color-swatch { border: 0; border-radius: 50%; }
+.layerList > li { position: relative; }
+.editor .layerList > li > .layerDelete { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; margin: 0; padding: 0; justify-content: center; color: var(--danger); opacity: 0; }
+.layerList > li:hover > .layerDelete, .layerList > li > button[aria-pressed=true] ~ .layerDelete, .layerList > li > .layerDelete:focus-visible { opacity: 1; }

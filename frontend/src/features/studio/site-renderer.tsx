@@ -14,7 +14,7 @@ import {
 } from "./site-schema";
 import styles from "./site-renderer.module.css";
 
-export type CanvasSelection = { sectionId: string; elementId?: string };
+export type CanvasSelection = { sectionId: string; elementId?: string; path?: string };
 export type EditHooks = {
   selection: CanvasSelection | null;
   readOnly: boolean;

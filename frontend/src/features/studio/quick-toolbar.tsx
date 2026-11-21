@@ -3,12 +3,12 @@
 import { useLayoutEffect, useState, type RefObject } from "react";
 import { Icon } from "@/components/icon";
 import {
-  duplicateSection, findElement, moveSection, removeSection, setElementStyle, setSectionStyle,
+  duplicateSection, findElement, moveSection, removeSection, setElementStyle, setSectionStyle, setTextStyle,
   type EditorSite, type Selection,
 } from "./editor-model";
 import type { Change, ConfirmRequest } from "./inspector";
 import { useMeasured, toHex } from "./inspector-fields";
-import { FONT_STACKS, getSectionStyle, resolveStyle, type Style, type Viewport } from "./site-schema";
+import { FONT_STACKS, getSectionStyle, getTextStyles, resolveStyle, type Style, type Viewport } from "./site-schema";
 import styles from "./react-editor.module.css";
 
 const fontNames: Record<string, string> = { modern: "Modern", classic: "Classic", elegant: "Elegant", friendly: "Friendly", technical: "Technical" };
@@ -21,7 +21,8 @@ type Props = {
 
 export function QuickToolbar({ site, selection, viewport, readOnly, canvas, change, ask, onSelect, onMore }: Props) {
   const { section, element } = findElement(site, selection);
-  const selector = element ? `[data-el="${element.id}"]` : section ? `[data-section="${section.id}"]` : null;
+  const textPath = !element && selection?.path ? selection.path : null;
+  const selector = element ? `[data-el="${element.id}"]` : section && textPath ? `[data-section="${section.id}"] [data-tp="${textPath}"]` : section ? `[data-section="${section.id}"]` : null;
   const measured = useMeasured(selector, [site, viewport]);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
@@ -54,16 +55,18 @@ export function QuickToolbar({ site, selection, viewport, readOnly, canvas, chan
     </div>
   );
 
-  if (element) {
-    const style = resolveStyle(element.style, viewport);
-    const set = (patch: Partial<Record<keyof Style, unknown>>) =>
-      change(s => setElementStyle(s, section.id, element.id, viewport, patch), `${element.id}:quick:${viewport}:${Object.keys(patch).join()}`);
-    const isImage = element.kind === "image" || (element.kind === "logo" && element.mode === "image");
+  if (element || textPath) {
+    const style = element ? resolveStyle(element.style, viewport) : resolveStyle(getTextStyles(section)[textPath!] ?? { desktop: {} }, viewport);
+    const set = (patch: Partial<Record<keyof Style, unknown>>) => element
+      ? change(s => setElementStyle(s, section.id, element.id, viewport, patch), `${element.id}:quick:${viewport}:${Object.keys(patch).join()}`)
+      : change(s => setTextStyle(s, section.id, textPath!, viewport, patch), `${section.id}:${textPath}:quick:${viewport}:${Object.keys(patch).join()}`);
+    const kind = element?.kind ?? "text";
+    const isImage = !!element && (element.kind === "image" || (element.kind === "logo" && element.mode === "image"));
     if (isImage) {
       const width = style.width ?? measured.width ?? 300, radius = style.radius ?? measured.radius ?? 0;
       return bar(<>
         <Stepper label="Width" value={width} step={20} onChange={v => set({ width: v })} />
-        {element.kind === "image" && <Stepper label="Corners" value={radius} step={4} onChange={v => set({ radius: v })} />}
+        {kind === "image" && <Stepper label="Corners" value={radius} step={4} onChange={v => set({ radius: v })} />}
       </>);
     }
     const size = style.fontSize ?? measured.fontSize ?? 16;
@@ -78,8 +81,8 @@ export function QuickToolbar({ site, selection, viewport, readOnly, canvas, chan
       <button type="button" aria-pressed={!!style.italic} title="Italic" onClick={() => set({ italic: style.italic ? null : true })}><i>I</i></button>
       <button type="button" aria-pressed={!!style.underline} title="Underline" onClick={() => set({ underline: style.underline ? null : true })}><u>U</u></button>
       <Swatch label="Text color" value={style.color ?? measured.color} onChange={v => set({ color: v })} />
-      {element.kind === "button" && <Swatch label="Button color" value={style.background ?? measured.background} onChange={v => set({ background: v, gradient: null })} />}
-      {(element.kind === "heading" || element.kind === "text") && (["left", "center", "right"] as const).map(a => (
+      {kind === "button" && <Swatch label="Button color" value={style.background ?? measured.background} onChange={v => set({ background: v, gradient: null })} />}
+      {(kind === "heading" || kind === "text") && (["left", "center", "right"] as const).map(a => (
         <button key={a} type="button" aria-pressed={style.textAlign === a} title={`Align ${a}`} onClick={() => set({ textAlign: a })}>{a === "left" ? "⫷" : a === "center" ? "≡" : "⫸"}</button>
       ))}
     </>);

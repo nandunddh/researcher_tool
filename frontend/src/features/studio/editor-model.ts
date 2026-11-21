@@ -1,6 +1,6 @@
 import { readDocument, type Json, type Section } from "./document";
 import {
-  cleanLink, cleanSectionStyle, cleanStyle, getElements, getSectionStyle, newId, safeImage, syncLegacy,
+  cleanLink, cleanSectionStyle, cleanStyle, getElements, getTextStyles, TEXT_PATH, getSectionStyle, newId, safeImage, syncLegacy,
   upgradeSection, withElements, withSectionStyle,
   type Link, type LinkContext, type MenuItem, type PageRef, type SectionStyle, type SiteElement, type Style, type Viewport,
 } from "./site-schema";
@@ -15,7 +15,8 @@ export type EditorSite = {
   active_page_id?: string;
   [key: string]: unknown;
 };
-export type Selection = { sectionId: string; elementId?: string };
+/** `path` selects one text inside a content section ("items.0.title"). */
+export type Selection = { sectionId: string; elementId?: string; path?: string };
 
 export const sectionLayouts: Record<string, Record<string, string>> = {
   navbar: { business: "Business", portfolio: "Portfolio", services: "Services", product: "Product", editorial: "Editorial" },
@@ -162,6 +163,21 @@ export function setElementStyle(site: EditorSite, sectionId: string, elementId: 
       else merged[key] = value;
     }
     return { ...e, style: { ...e.style, [viewport]: cleanStyle(merged) } };
+  });
+}
+
+/** Style for one text in a content section, for one screen size. Empty values fall back. */
+export function setTextStyle(site: EditorSite, sectionId: string, path: string, viewport: Viewport, patch: Partial<Record<keyof Style, unknown>>): EditorSite {
+  if (!TEXT_PATH.test(path)) throw new Error("This text can’t be styled.");
+  return mapSection(site, sectionId, section => {
+    const all = getTextStyles(section);
+    const current = all[path] ?? { desktop: {} };
+    const merged: Record<string, unknown> = { ...(current[viewport] ?? {}) };
+    for (const [key, value] of Object.entries(patch)) {
+      if (value === undefined || value === null || value === "") delete merged[key];
+      else merged[key] = value;
+    }
+    return { ...section, text_styles: { ...all, [path]: { ...current, [viewport]: cleanStyle(merged) } } as unknown as Json };
   });
 }
 

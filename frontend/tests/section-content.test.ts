@@ -66,3 +66,11 @@ test("duplicate places a copy with new ids right below", async () => {
   assert.notEqual(next.schema_json[1].id, "spk");
   assert.deepEqual(next.schema_json[1].data, site.schema_json[0].data);
 });
+
+test("individual texts in content sections can be styled per screen size", async () => {
+  const { setTextStyle } = await import("../src/features/studio/editor-model");
+  const next = setTextStyle(site, "spk", "speakers.0.name", "mobile", { fontSize: 22, color: "#112233" });
+  const css = buildSiteCss(next.schema_json);
+  assert.match(css, /@container sci-site \(max-width: 640px\)\{\[data-section="spk"\] \[data-tp="speakers\.0\.name"\]\{color:#112233;font-size:22px\}\}/);
+  assert.throws(() => setTextStyle(site, "spk", 'x"]{}*{', "desktop", { color: "#000000" }));
+});

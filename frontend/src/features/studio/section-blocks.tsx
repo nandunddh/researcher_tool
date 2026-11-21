@@ -27,9 +27,15 @@ function T({ c, path, tag = "span", className, placeholder, multiline }: {
   for (const step of path) value = Array.isArray(value) ? value[step as number] : isRec(value) ? value[step as string] : undefined;
   const text = str(value);
   if (!text && !c.edit) return null;
+  const tp = path.join(".");
+  const selectable = c.edit ? {
+    "data-editable": true,
+    "data-selected": (c.edit.selection?.sectionId === c.section.id && c.edit.selection.path === tp) || undefined,
+    onClick: (e: React.MouseEvent) => { e.preventDefault(); e.stopPropagation(); c.edit?.onSelect({ sectionId: c.section.id, path: tp }); },
+  } : {};
   return (
-    <EditableText key={`${path.join(".")}:${text}`} tag={tag} className={className} value={text} edit={c.edit}
-      placeholder={placeholder} multiline={multiline}
+    <EditableText key={`${tp}:${text}`} tag={tag} className={className} value={text} edit={c.edit}
+      placeholder={placeholder} multiline={multiline} data-tp={tp} {...selectable}
       onCommit={next => c.edit?.onField?.(c.section.id, path, next)} />
   );
 }
