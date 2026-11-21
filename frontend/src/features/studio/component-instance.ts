@@ -14,7 +14,8 @@ export function instantiateComponent(item:LibraryComponent,name="Your brand"):Co
  else if(type==="team"){type="speakers";data={...title,section_title:"Meet the people",speakers:[1,2,3].map(n=>({name:`Team member ${n}`,role:"Role / expertise",affiliation:"",photo:"",bio:"Add a short biography."}))}}
  else if(type==="pricing")data={...title,section_title:"Choose your plan",tiers:["Starter","Growth","Scale"].map((name,n)=>({name,price:`$${[19,49,99][n]}`,period:"/ month",description:"Sample pricing - edit before publishing",features:["Feature one","Feature two"],featured:n===1,btn_label:"Choose plan",btn_url:"#contact"}))};
  else if(type==="faq")data={...title,section_title:"Frequently asked questions",faqs:[{q:"How does it work?",a:"Add your answer here."},{q:"How can I get in touch?",a:"Use our contact details below."}]};
- else if(type==="contact")data={...title,section_title:"Start a conversation",email:"hello@example.com",phone:"",location:"",btn_text:"Send message"};
+ else if(type==="contact"||type.startsWith("contact-")){const layout=type.split("-")[1]||"split";type="contact";data={...title,section_title:"Start a conversation",email:"hello@example.com",phone:"",location:"",btn_text:"Send message",form_layout:layout}}
+ else if(type==="form-button"){type="form_button";data={section_title:"",btn_label:"Contact us",popup_title:"Send us a message",popup_text:"We usually reply within two working days.",submit_label:"Send"}}
  else if(type==="footer")data={brand_name:name,tagline:"A short introduction to your business.",copyright:"Your copyright text",links:[{label:"Privacy",url:"#privacy"},{label:"Terms",url:"#terms"}]};
  else if(type==="image")data={image_url:"",caption:"Your image"};
  else if(type==="cta"){type="hero";data={headline:"Ready for your next step?",subheadline:"Give visitors one clear action.",layout_variant:"text_only",primary_btn_text:"Get started",primary_btn_url:"#contact",secondary_btn_text:"",hero_image:""}}

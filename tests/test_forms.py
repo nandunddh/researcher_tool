@@ -35,6 +35,8 @@ class FormTests(unittest.TestCase):
         site = {"schema_json": [], "pages": [{"id": "p2", "schema_json": [bare, {"id": "h", "type": "hero"}]}]}
         self.assertEqual(forms.find_form(site, "c2"), (bare, "p2"))
         self.assertEqual(forms.find_form(site, "h"), (None, None), "only form sections accept submissions")
+        popup = {"id": "b1", "type": "form_button", "data": {}}
+        self.assertEqual(forms.find_form({"schema_json": [popup]}, "b1")[0], popup, "button forms accept submissions")
 
 
 if __name__ == "__main__":

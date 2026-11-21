@@ -83,7 +83,9 @@ export const sectionRegistry: Record<string, SectionDef> = {
   contact: {
     name: "Contact", header: true,
     fields: [t("email", "Email address"), t("phone", "Phone number"), t("address", "Address or venue"), t("btn_text", "Form button text"),
-      t("success_message", "Thank-you message", { placeholder: "Thank you! Your message has been sent." })],
+      t("success_message", "Thank-you message", { placeholder: "Thank you! Your message has been sent." }),
+      { key: "form_layout", label: "Design", kind: "select", options: [["split", "Details beside form"], ["centered", "Centered card"], ["inline", "Compact row"], ["image", "With image"], ["dark", "Dark band"]] },
+      { key: "image", label: "Image (for “With image”)", kind: "image" }],
     lists: [{
       key: "form_fields", label: "Form fields", itemLabel: "Field", max: 20,
       // Shown until the user customises them; must match backend/forms.py DEFAULT_CONTACT_FIELDS.
@@ -107,6 +109,13 @@ export const sectionRegistry: Record<string, SectionDef> = {
       fields: [t("label", "Text"), { key: "url", label: "Link", kind: "link" }],
       newItem: () => ({ label: "New link", url: "#" }),
     }],
+  },
+  form_button: {
+    name: "Button form", header: false,
+    fields: [t("section_title", "Heading above the button (optional)"), t("btn_label", "Button text"),
+      t("popup_title", "Popup title"), area("popup_text", "Popup intro text"), t("submit_label", "Send button text"),
+      t("success_message", "Thank-you message", { placeholder: "Thank you! Your message has been sent." })],
+    lists: [],
   },
   about: cardsSection("About", "Story"),
   stats: cardsSection("Statistics", "Figure"),
@@ -134,6 +143,8 @@ export const sectionRegistry: Record<string, SectionDef> = {
     }],
   },
 };
+
+sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
 
 export const headerFields: FieldDef[] = [
   t("section_tag", "Small label", { placeholder: "KEY FOCUS" }),

@@ -2,6 +2,10 @@
 import { modernPreset } from "./modern-presets";
 import { Icon } from "@/components/icon";
 import { NavigationPreview } from "./navigation-preview";
+import { instantiateComponent } from "./component-instance";
+import { SectionBlock } from "./section-blocks";
+import type { Section } from "./document";
+import siteStyles from "./site-renderer.module.css";
 import type { LibraryComponent,NavigationVariant } from "./component-catalog";
 export function SectionPreview({item,brand,accent,logo,interactive=true}:{item:LibraryComponent;brand?:string;accent?:string;logo?:string;interactive?:boolean}){
  if(item.variant.startsWith("modern-")) {
@@ -11,6 +15,11 @@ export function SectionPreview({item,brand,accent,logo,interactive=true}:{item:L
     {node.kind==="menu"?<details><summary style={{cursor:"pointer"}}>{node.text}</summary><nav style={{display:"grid",gap:12,padding:16}}>{(node.links||"").split("\n").map((line,j)=><a key={j} href={line.split("|")[1]?.trim()||"#"} onClick={e=>e.preventDefault()}>{line.split("|")[0]}</a>)}</nav></details>:node.kind==="heading"?<h2>{node.text}</h2>:node.kind==="button"?<button type="button" style={{padding:"12px 24px",border:0,borderRadius:8,background:accent||"linear-gradient(115deg, #17365b, #195c68)",color:"white",font:"inherit"}}>{node.text}</button>:<p>{node.text}</p>}
    </div>)}
   </section>;
+ }
+ if(item.variant.startsWith("contact")||item.variant==="form-button"){
+  // Form designs preview with the real section, so the thumbnail matches what users get.
+  const section=instantiateComponent(item,brand) as unknown as Section;
+  return <div className={siteStyles.site} style={{background:"white"}} aria-label={`${item.name} preview`}><SectionBlock section={section} ctx={{sections:[section]}}/></div>;
  }
  if(item.category==="Navigation")return <NavigationPreview variant={item.variant as NavigationVariant} brand={brand} accent={accent} logo={logo} interactive={interactive}/>;
  const heading=brand||"Make something meaningful.";

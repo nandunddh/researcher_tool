@@ -12,7 +12,7 @@ from psycopg2.extras import Json
 
 import db
 
-FORM_TYPES = ("contact",)
+FORM_TYPES = ("contact", "form_button")
 FIELD_TYPES = ("text", "email", "phone", "textarea", "select", "checkbox")
 MAX_VALUE = 5000
 EMAIL = re.compile(r"^[^\s@<>\"']{1,64}@[^\s@<>\"']{1,190}\.[A-Za-z]{2,}$")

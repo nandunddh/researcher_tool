@@ -5,12 +5,13 @@ import { ComponentThumbnail } from "./component-library";
 import { componentCatalog, filterComponents, type LibraryComponent, type LibraryGroup } from "./component-catalog";
 import { instantiateComponent } from "./component-instance";
 import { elementSections } from "./site-schema";
+import { hasBlock } from "./section-blocks";
 import styles from "./react-editor.module.css";
 
 /** True when the new editor can edit this design item by item. */
 export const editableIds = new Set(
   componentCatalog
-    .filter(item => (elementSections as readonly string[]).includes(instantiateComponent(item).type))
+    .filter(item => { const type = instantiateComponent(item).type; return (elementSections as readonly string[]).includes(type) || hasBlock(type); })
     .map(item => item.id),
 );
 

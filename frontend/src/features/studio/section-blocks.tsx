@@ -167,7 +167,7 @@ export const defaultContactFields: Rec[] = [
 const autoComplete: Record<string, string> = { email: "email", phone: "tel", name: "name" };
 
 /** Renders a form from its field list and sends it to the backend (saved in the database). */
-function WebsiteForm({ c, children }: { c: Ctx; children: ReactNode }) {
+function WebsiteForm({ c, children, inline }: { c: Ctx; children: ReactNode; inline?: boolean }) {
   const d = c.section.data;
   const fields = list(d.form_fields).length ? list(d.form_fields) : defaultContactFields;
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
@@ -192,7 +192,7 @@ function WebsiteForm({ c, children }: { c: Ctx; children: ReactNode }) {
     }
   }
   return (
-    <form className={styles.form} onSubmit={submit} noValidate={!!c.edit}>
+    <form className={`${styles.form} ${inline ? styles.formInline : ""}`} onSubmit={submit} noValidate={!!c.edit}>
       {fields.map(f => {
         const id = str(f.id), label = str(f.label) || id, required = f.required === true, disabled = !!c.edit;
         const mark = required ? " *" : "";
@@ -220,20 +220,66 @@ function Contact({ c }: { c: Ctx }) {
   const d = c.section.data;
   const addressKey = str(d.address) || !str(d.location) ? "address" : "location";
   const buttonKey = str(d.btn_text) || !str(d.form_button_label) ? "btn_text" : "form_button_label";
-  return (
+  const layout = ["split", "centered", "inline", "image", "dark"].includes(str(d.form_layout)) ? str(d.form_layout) : "split";
+  const details = (
+    <ul className={styles.contactList} data-row={layout === "centered" || layout === "inline" || undefined}>
+      {(str(d.email) || c.edit) && <li><Icon name="doc" size={16} /><T c={c} path={["email"]} placeholder="email address" /></li>}
+      {(str(d.phone) || c.edit) && <li><Icon name="mobile" size={16} /><T c={c} path={["phone"]} placeholder="phone number" /></li>}
+      {(str(d[addressKey]) || c.edit) && <li><Icon name="grid" size={16} /><T c={c} path={[addressKey]} placeholder="address" /></li>}
+    </ul>
+  );
+  const form = (
+    <WebsiteForm c={c} inline={layout === "inline"}>
+      <T c={c} path={[buttonKey]} placeholder="button text" />
+      {!str(d[buttonKey]) && !c.edit && "Send message"}
+    </WebsiteForm>
+  );
+  if (layout === "centered" || layout === "inline") return (
+    <div className={`${styles.wrap} ${styles.narrow}`} data-layout={layout}>
+      <Header c={c} />
+      {form}
+      {details}
+    </div>
+  );
+  if (layout === "image") return (
     <div className={`${styles.wrap} ${styles.split}`}>
-      <div>
-        <Header c={c} center={false} />
-        <ul className={styles.contactList}>
-          {(str(d.email) || c.edit) && <li><Icon name="doc" size={16} /><T c={c} path={["email"]} placeholder="email address" /></li>}
-          {(str(d.phone) || c.edit) && <li><Icon name="mobile" size={16} /><T c={c} path={["phone"]} placeholder="phone number" /></li>}
-          {(str(d[addressKey]) || c.edit) && <li><Icon name="grid" size={16} /><T c={c} path={[addressKey]} placeholder="address" /></li>}
-        </ul>
+      {safeImage(d.image) ? <Img className={styles.formImage} src={d.image} alt={str(d.section_title)} />
+        : c.edit ? <div className={styles.photoEmpty}>Add an image</div> : <div />}
+      <div><Header c={c} center={false} />{form}{details}</div>
+    </div>
+  );
+  return (
+    <div className={layout === "dark" ? styles.darkBand : undefined}>
+      <div className={`${styles.wrap} ${styles.split}`}>
+        <div><Header c={c} center={false} />{details}</div>
+        {form}
       </div>
-      <WebsiteForm c={c}>
-        <T c={c} path={[buttonKey]} placeholder="button text" />
-        {!str(d[buttonKey]) && !c.edit && "Send message"}
-      </WebsiteForm>
+    </div>
+  );
+}
+
+/** A button anywhere on the page that opens a form in a popup. */
+function FormButton({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={`${styles.wrap} ${styles.buttonForm}`}>
+      <T c={c} path={["section_title"]} tag="h2" className={styles.title} placeholder="heading (optional)" />
+      <button type="button" className={styles.button} data-primary onClick={() => { if (!c.edit) setOpen(true); }}>
+        <T c={c} path={["btn_label"]} placeholder="button text" />
+        {!str(d.btn_label) && !c.edit && "Contact us"}
+      </button>
+      {open && (
+        <div className={styles.popup} role="dialog" aria-modal="true" aria-label={str(d.popup_title) || "Form"}
+          onClick={e => { if (e.target === e.currentTarget) setOpen(false); }} onKeyDown={e => { if (e.key === "Escape") setOpen(false); }}>
+          <div className={styles.popupCard}>
+            <button type="button" className={styles.popupClose} onClick={() => setOpen(false)} aria-label="Close"><Icon name="close" size={16} /></button>
+            {str(d.popup_title) && <h3>{str(d.popup_title)}</h3>}
+            {str(d.popup_text) && <p className={styles.muted}>{str(d.popup_text)}</p>}
+            <WebsiteForm c={c}>{str(d.submit_label) || "Send"}</WebsiteForm>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -342,7 +388,7 @@ function Content({ c }: { c: Ctx }) {
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
-  image: ImageBlock, custom: Custom, content: Content,
+  image: ImageBlock, custom: Custom, content: Content, form_button: FormButton,
 };
 
 export function hasBlock(type: string) {

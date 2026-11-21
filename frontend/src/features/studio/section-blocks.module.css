@@ -87,3 +87,21 @@
 .trap { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
 .formError { margin: 0; color: #b91c1c; font-size: 14px; }
 .formSuccess { margin: 0; color: #047857; font-size: 14px; font-weight: 600; }
+
+/* contact layouts and button form */
+.formInline { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); align-items: end; }
+.formInline textarea { min-height: 46px; height: 46px; }
+.formInline > button, .formInline > p { grid-column: 1 / -1; justify-self: start; }
+[data-layout] > .form { margin-top: 4px; }
+.contactList[data-row] { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; margin-top: 26px; }
+.formImage { width: 100%; height: 100%; min-height: 320px; object-fit: cover; border-radius: 18px; }
+.darkBand { background: #17263c; color: #e7ecf5; --ink: #f1f5fb; --muted: #b5c2d6; }
+.darkBand .form { color: var(--ink); background: #1f3150; border-color: #2c4266; box-shadow: none; }
+.darkBand .form input, .darkBand .form textarea, .darkBand .form select { background: #172741; border-color: #34507c; color: #f1f5fb; }
+.buttonForm { display: flex; flex-direction: column; align-items: center; gap: 18px; padding-block: 48px; text-align: center; }
+.popup { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 16px; background: #0e152380; }
+.popupCard { position: relative; width: min(520px, 100%); max-height: 90vh; overflow: auto; padding: 28px; border-radius: 18px; background: white; color: var(--ink); text-align: left; box-shadow: 0 30px 80px #0006; }
+.popupCard h3 { margin: 0 0 6px; font-size: 22px; }
+.popupCard > p { margin: 0 0 16px; }
+.popupCard .form { padding: 0; border: 0; box-shadow: none; }
+.popupClose { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 32px; height: 32px; border: 0; border-radius: 8px; background: #f1f2f8; color: var(--ink); cursor: pointer; }
