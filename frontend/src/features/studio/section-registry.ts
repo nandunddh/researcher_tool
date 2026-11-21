@@ -145,6 +145,15 @@ export const sectionRegistry: Record<string, SectionDef> = {
 };
 
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
+sectionRegistry.submission = {
+  name: "Abstract submission", header: true,
+  fields: [{ key: "word_limit", label: "Word limit for the abstract", kind: "number", max: 5000, hint: "0 = no limit." },
+    { key: "closes", label: "Last day to submit", kind: "date", hint: "Empty = open until you remove the form." },
+    { key: "file_mode", label: "File upload", kind: "select", options: [["optional", "Optional"], ["required", "Required"], ["off", "No file"]] },
+    t("id_prefix", "Submission ID prefix", { placeholder: "ABS-", hint: "IDs follow: ABS-0001, ABS-0002…" }),
+    t("btn_text", "Button text"), t("success_message", "Message after submitting")],
+  lists: [{ ...sectionRegistry.contact.lists[0], defaults: [{ id: "email", label: "Your email (for the confirmation)", type: "email", required: true }] }],
+};
 sectionRegistry.key_dates = {
   name: "Key dates", header: true,
   fields: [{ key: "show_prices", label: "Show when each price period ends", kind: "toggle" }, { key: "show_event", label: "Show the event's first and last day", kind: "toggle" }],

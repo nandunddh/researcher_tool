@@ -10,8 +10,8 @@ import styles from "./event-details.module.css";
 
 type Rec = Record<string, unknown>;
 type Change = (fn: (site: EditorSite) => EditorSite, coalesceKey?: string) => void;
-export type EventDetails = { basics?: Rec; receipts?: Rec; periods?: Rec[]; tickets?: Rec[]; addons?: Rec[]; discounts?: Rec[]; speakers?: Rec[]; deadlines?: Rec[] };
-type ListKey = "periods" | "tickets" | "addons" | "discounts" | "speakers" | "deadlines";
+export type EventDetails = { basics?: Rec; receipts?: Rec; tracks?: Rec[]; periods?: Rec[]; tickets?: Rec[]; addons?: Rec[]; discounts?: Rec[]; speakers?: Rec[]; deadlines?: Rec[] };
+type ListKey = "periods" | "tickets" | "addons" | "discounts" | "speakers" | "deadlines" | "tracks";
 
 /** Pickers in the inspector ask the editor to open Event details on a tab. */
 export const OPEN_EVENT = "scistudio:open-event";
@@ -132,6 +132,11 @@ export function EventDetailsDialog({ site, initialTab = "basics", readOnly, chan
             ] as FieldSpec[]).map(f => <Input key={f.key} spec={f} value={basics[f.key]} {...common}
               onChange={v => update({ basics: { ...basics, [f.key]: f.key === "currency" ? str(v).toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) : v } }, `basics:${f.key}`)} />)}
           </div>
+          <h3 style={{ marginTop: 24 }}>Tracks / topics</h3>
+          <p className={styles.intro}>Abstract submission forms ask authors to choose one.</p>
+          <ItemList items={list("tracks")} itemLabel="Track" max={40} {...common} onChange={setList("tracks")}
+            fields={[{ key: "name", label: "Name", kind: "text", placeholder: "Machine learning" }]}
+            newItem={() => ({ id: uid("trk"), name: "New track" })} />
         </div>
       )}
 

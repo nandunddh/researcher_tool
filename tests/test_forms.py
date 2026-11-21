@@ -164,3 +164,42 @@ class ReceiptTests(unittest.TestCase):
         self.assertEqual((r["number"], r["event"]["name"], r["event"]["tax_id"]), ("R-0001", "AI 2027", "GST1"))
         self.assertEqual(r["tax"], {"label": "GST", "rate": 18.0, "amount": 18.0})
         self.assertEqual([b["value"] for b in r["buyer"]], ["Ada", "ada@uni.edu"], "private fields stay out")
+
+
+class SubmissionFormTests(unittest.TestCase):
+    SECTION = {"id": "s1", "type": "submission", "data": {"word_limit": 5, "closes": "2027-03-01", "file_mode": "required"}}
+    EVENT = {"tracks": [{"id": "t1", "name": "Machine learning"}]}
+    GOOD = {"title": "Deep nets", "abstract": "one two three four five", "track": "Machine learning",
+            "authors": [{"name": "Ada", "affiliation": "Uni", "email": "ada@uni.edu", "presenting": True}, {"name": "Alan"}],
+            "file_id": "a" * 32 + ".pdf", "file_name": "paper<script>.pdf"}
+
+    def check(self, change=None, today=date(2027, 2, 1), section=None):
+        return forms.clean_paper(section or self.SECTION, {**self.GOOD, **(change or {})}, self.EVENT, today)
+
+    def test_good_submission(self):
+        values, problem = self.check()
+        self.assertIsNone(problem)
+        self.assertEqual(values["authors"]["value"], "Ada (Uni) <ada@uni.edu> · presenting; Alan")
+        self.assertEqual(values["_file"]["value"], "paperscript.pdf", "file name cleaned")
+        self.assertEqual(values["abstract"]["label"], "Abstract (5 words)")
+
+    def test_rules(self):
+        self.assertIn("6 words; the limit is 5", self.check({"abstract": "one two three four five six"})[1])
+        self.assertIn("closed", self.check(today=date(2027, 3, 2))[1])
+        self.assertIn("track", self.check({"track": "Other"})[1])
+        self.assertIn("title", self.check({"title": " "})[1])
+        self.assertIn("between 1 and 20", self.check({"authors": []})[1])
+        self.assertIn("author 2", self.check({"authors": [{"name": "A"}, {"name": ""}]})[1])
+        self.assertIn("valid email for author 1", self.check({"authors": [{"name": "A", "email": "nope"}]})[1])
+        self.assertIn("attach your file", self.check({"file_id": ""})[1])
+        self.assertIn("not valid", self.check({"file_id": "../../etc/passwd"})[1])
+        optional = {**self.SECTION, "data": {**self.SECTION["data"], "file_mode": "optional"}}
+        self.assertIsNone(self.check({"file_id": ""}, section=optional)[1])
+
+    def test_file_types_and_statuses(self):
+        self.assertEqual(forms.sniff_document(b"%PDF-1.7"), "pdf")
+        self.assertEqual(forms.sniff_document(b"PK\x03\x04xxxx"), "docx")
+        self.assertEqual(forms.sniff_document(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"), "doc")
+        self.assertIsNone(forms.sniff_document(b"MZ\x90\x00"), "executables refused")
+        self.assertFalse(forms.set_status("site_00000001", 1, "hacked"))
+        self.assertEqual(forms.form_fields({"type": "submission", "data": {}})[0]["type"], "email")

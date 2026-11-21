@@ -7,6 +7,8 @@ import styles from "./react-editor.module.css";
 
 import { show, toCsv, type Submission } from "./submissions";
 
+const PAPER_STATUSES = ["received", "under review", "accepted", "rejected", "withdrawn"];
+
 /** All form submissions for this website (saved in the database), newest first. */
 export function SubmissionsInbox({ site, onClose }: { site: EditorSite; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -28,6 +30,12 @@ export function SubmissionsInbox({ site, onClose }: { site: EditorSite; onClose:
     }
     return r.form_type;
   };
+  async function setStatus(row: Submission, status: string) {
+    try {
+      await api(`/api/builder/sites/${encodeURIComponent(site.site_id)}/submissions/${row.id}`, { method: "PATCH", body: JSON.stringify({ status }) });
+      setRows(all => all?.map(x => x.id === row.id ? { ...x, status } : x) ?? null);
+    } catch (e) { setError(e instanceof Error ? e.message : "The status could not be changed."); }
+  }
   function download() {
     if (!rows?.length) return;
     const url = URL.createObjectURL(new Blob(["﻿" + toCsv(rows)], { type: "text/csv;charset=utf-8" }));
@@ -58,9 +66,23 @@ export function SubmissionsInbox({ site, onClose }: { site: EditorSite; onClose:
                 <small>{new Date(r.created_at).toLocaleString()}</small>
               </button>
               {open === r.id && (
-                <dl>
-                  {Object.entries(r.data).map(([k, f]) => <div key={k}><dt>{f.label}</dt><dd>{show(f.value) || "—"}</dd></div>)}
-                </dl>
+                <>
+                  <dl>
+                    {Object.entries(r.data).map(([k, f]) => <div key={k}><dt>{f.label}</dt><dd>{show(f.value) || "—"}</dd></div>)}
+                  </dl>
+                  {(r.form_type === "submission" || r.data._file) && (
+                    <div className={styles.buttonRow} style={{ padding: "0 12px 12px", alignItems: "center" }}>
+                      {r.form_type === "submission" && (
+                        <label style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 8 }}>Status
+                          <select value={r.status} onChange={e => void setStatus(r, e.target.value)}>
+                            {PAPER_STATUSES.map(s => <option key={s} value={s}>{s[0].toUpperCase() + s.slice(1)}</option>)}
+                          </select>
+                        </label>
+                      )}
+                      {r.data._file && <a className="button" href={`/api/builder/sites/${encodeURIComponent(site.site_id)}/submissions/${r.id}/file`}>Download file</a>}
+                    </div>
+                  )}
+                </>
               )}
             </li>
           ))}

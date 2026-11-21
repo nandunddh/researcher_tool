@@ -12,7 +12,7 @@ from psycopg2.extras import Json
 
 import db
 
-FORM_TYPES = ("contact", "form_button", "registration")
+FORM_TYPES = ("contact", "form_button", "registration", "submission")
 FIELD_TYPES = ("text", "email", "phone", "textarea", "select", "checkbox")
 MAX_VALUE = 5000
 EMAIL = re.compile(r"^[^\s@<>\"']{1,64}@[^\s@<>\"']{1,190}\.[A-Za-z]{2,}$")
@@ -25,10 +25,16 @@ DEFAULT_CONTACT_FIELDS = [
 ]
 
 
+# Authors are entered separately; this is who we write back to.
+DEFAULT_SUBMISSION_FIELDS = [{"id": "email", "label": "Your email (for the confirmation)", "type": "email", "required": True}]
+
+
 def form_fields(section: dict) -> List[dict]:
     fields = (section.get("data") or {}).get("form_fields")
     if isinstance(fields, list) and fields:
         return [f for f in fields if isinstance(f, dict) and isinstance(f.get("id"), str)]
+    if section.get("type") == "submission":
+        return DEFAULT_SUBMISSION_FIELDS
     return DEFAULT_REGISTRATION_FIELDS if section.get("type") == "registration" else DEFAULT_CONTACT_FIELDS
 
 
@@ -283,3 +289,96 @@ def receipt(site: dict, submission_id: int, token: str) -> Optional[dict]:
         "note": str(settings.get("note") or "")[:2000],
     }
 
+
+
+# ---------------------------------------------------------------- abstract / paper submissions
+SUBMISSION_STATUSES = ("received", "under review", "accepted", "rejected", "withdrawn")
+OWNER_STATUSES = SUBMISSION_STATUSES + ("new", "read", "replied", "awaiting payment", "paid (test)", "paid", "cancelled")
+FILE_ID = re.compile(r"^[a-f0-9]{32}\.(pdf|docx|doc)$")
+
+
+def sniff_document(head: bytes) -> Optional[str]:
+    """File type from its content (the visitor's file name is not trusted): pdf, docx or doc."""
+    if head.startswith(b"%PDF-"):
+        return "pdf"
+    if head.startswith(b"PK\x03\x04"):  # docx is a zip; the name check in the endpoint narrows it to .docx
+        return "docx"
+    if head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        return "doc"
+    return None
+
+
+def clean_paper(section: dict, payload: dict, event, today: Optional[date] = None) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+    """Checks the abstract part of a submission (title, abstract, track, authors, file). Returns (values, None) or (None, message)."""
+    data = section.get("data") or {}
+    try:
+        if data.get("closes") and (today or date.today()) > date.fromisoformat(str(data["closes"])):
+            return None, "Submissions are closed."
+    except ValueError:
+        pass
+    title = str(payload.get("title") or "").strip()[:300]
+    abstract = str(payload.get("abstract") or "").strip()[:20000]
+    if not title:
+        return None, "Please enter the title."
+    if not abstract:
+        return None, "Please enter your abstract."
+    limit = int(data.get("word_limit") or 0)
+    words = len(abstract.split())
+    if limit and words > limit:
+        return None, f"Your abstract has {words} words; the limit is {limit}."
+    tracks = [str(t.get("name")) for t in (event or {}).get("tracks") or [] if isinstance(t, dict) and t.get("name")]
+    track = str(payload.get("track") or "").strip()
+    if tracks and track not in tracks:
+        return None, "Please choose a track."
+    raw = payload.get("authors") if isinstance(payload.get("authors"), list) else []
+    if not 1 <= len(raw) <= 20:
+        return None, "Please add between 1 and 20 authors."
+    authors = []
+    for n, a in enumerate(raw, 1):
+        a = a if isinstance(a, dict) else {}
+        name, aff, mail = (str(a.get(k) or "").strip()[:200] for k in ("name", "affiliation", "email"))
+        if not name:
+            return None, f"Please enter the name of author {n}."
+        if mail and not EMAIL.match(mail):
+            return None, f"Please enter a valid email for author {n}."
+        authors.append(f"{name}{f' ({aff})' if aff else ''}{f' <{mail}>' if mail else ''}{' · presenting' if a.get('presenting') is True else ''}")
+    file_id = str(payload.get("file_id") or "")
+    if file_id and not FILE_ID.match(file_id):
+        return None, "The attached file is not valid. Please attach it again."
+    if not file_id and data.get("file_mode", "optional") == "required":
+        return None, "Please attach your file."
+    values: Dict[str, object] = {"title": {"label": "Title", "value": title}}
+    if tracks:
+        values["track"] = {"label": "Track", "value": track}
+    values["authors"] = {"label": "Authors", "value": "; ".join(authors)}
+    values["abstract"] = {"label": f"Abstract ({words} words)", "value": abstract}
+    if file_id:
+        name = re.sub(r"[^\w .()-]", "", str(payload.get("file_name") or ""))[:120] or file_id
+        values["_file"] = {"label": "File", "value": name, "id": file_id}
+    return values, None
+
+
+def save_paper(site_id: str, form_id: str, page_id: Optional[str], values: dict, prefix: str = "") -> str:
+    """Saves a submission with the site's next submission number (ABS-0001…). Returns the number."""
+    with db.transaction() as cur:
+        cur.execute("INSERT INTO site_counters (site_id, name, last) VALUES (%s, 'submission', 1) "
+                    "ON CONFLICT (site_id, name) DO UPDATE SET last = site_counters.last + 1 RETURNING last", (site_id,))
+        number = receipt_number(prefix or "ABS-", cur.fetchone()[0])
+        cur.execute("INSERT INTO form_submissions (site_id, form_id, form_type, page_id, data, status) VALUES (%s, %s, 'submission', %s, %s, 'received')",
+                    (site_id, form_id, page_id, Json({"_submission": {"label": "Submission ID", "value": number}, **values})))
+    return number
+
+
+def set_status(site_id: str, submission_id: int, status: str) -> bool:
+    if status not in OWNER_STATUSES:
+        return False
+    with db.transaction() as cur:
+        cur.execute("UPDATE form_submissions SET status = %s WHERE id = %s AND site_id = %s", (status, submission_id, site_id))
+        return cur.rowcount == 1
+
+
+def submission_file(site_id: str, submission_id: int) -> Optional[dict]:
+    with db.transaction() as cur:
+        cur.execute("SELECT data->'_file' FROM form_submissions WHERE id = %s AND site_id = %s", (submission_id, site_id))
+        row = cur.fetchone()
+    return row[0] if row and isinstance(row[0], dict) and FILE_ID.match(str(row[0].get("id", ""))) else None

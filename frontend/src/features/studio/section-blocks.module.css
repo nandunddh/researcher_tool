@@ -138,3 +138,10 @@
 .dates span { font-size: 1.05em; }
 .dates li[data-passed] { opacity: .5; }
 .dates li[data-passed]::before { background: var(--muted, #94a3b8); box-shadow: none; }
+
+/* Abstract submission: author rows */
+.authors { border: 1px solid var(--line, #e5e7eb); border-radius: 12px; padding: 12px 14px; display: grid; gap: 10px; margin: 0; }
+.authors legend { padding: 0 6px; font-weight: 600; }
+.authorRow { display: grid; grid-template-columns: 1.2fr 1.2fr 1.2fr auto auto; gap: 8px; align-items: center; }
+.linkButton { background: none; border: 0; color: var(--accent, #5a45d6); font-weight: 600; cursor: pointer; padding: 4px 0; justify-self: start; }
+@container (max-width: 640px) { .authorRow { grid-template-columns: 1fr; } }

@@ -13,7 +13,8 @@ import re
 import subprocess
 import sys
 import threading
-from urllib.parse import quote
+from urllib.parse import quote, unquote
+from html import escape as html_escape
 import secrets
 import time
 from datetime import datetime
@@ -2149,6 +2150,21 @@ async def submit_website_form(site_id: str, form_id: str, request: Request):
     if problem:
         raise HTTPException(status_code=400, detail=problem)
     message = (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."
+    if section["type"] == "submission":
+        paper, problem = forms.clean_paper(section, payload, (site or {}).get("event"))
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
+        if "_file" in paper and not (_uploads_dir(site_id) / paper["_file"]["id"]).is_file():
+            raise HTTPException(status_code=400, detail="The attached file could not be found. Please attach it again.")
+        number = forms.save_paper(site_id, form_id, page_id, {**paper, **values}, (section.get("data") or {}).get("id_prefix", ""))
+        done = (section.get("data") or {}).get("success_message") or "Thank you! Your submission has been received."
+        to = next((str(v["value"]) for v in values.values() if isinstance(v, dict) and forms.EMAIL.match(str(v.get("value") or ""))), "")
+        if to:
+            title = paper["title"]["value"]
+            threading.Thread(target=_send_quietly, daemon=True, args=(to, f"Submission received: {number}",
+                f"We received your submission \"{title}\". Your submission ID is {number}. Please keep it for your records.",
+                f"<p>We received your submission <strong>{html_escape(title)}</strong>.</p><p>Your submission ID is <strong>{number}</strong>. Please keep it for your records.</p>")).start()
+        return {"status": "ok", "message": f"{done} Your submission ID is {number}.", "submission_number": number}
     if section["type"] == "registration":
         order, problem = forms.quote(section, payload)
         if problem:
@@ -2206,6 +2222,60 @@ async def pay_registration_test(site_id: str, form_id: str, submission_id: int, 
     return {"status": "ok", "message": message, "receipt": {"number": number, "url": link}}
 
 
+def _send_quietly(to: str, subject: str, text: str, html: str) -> None:
+    """Background email that never breaks the request that triggered it."""
+    if not os.environ.get("SCIPROSPECT_SMTP_HOST"):
+        return
+    try:
+        from mailer import send_mail
+        send_mail(to, subject, text, html)
+    except Exception as exc:
+        print(f"[MAIL] Not sent: {type(exc).__name__}")
+
+
+UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+
+
+def _uploads_dir(site_id: str) -> Path:
+    """Visitor files (abstracts). Private: only the site owner can download them."""
+    from builder_manager import get_websites_dir
+    return get_websites_dir() / "uploads" / site_id
+
+
+@app.post("/api/public/forms/{site_id}/{form_id}/file")
+async def upload_form_file(site_id: str, form_id: str, request: Request):
+    """Public: attach a PDF, DOCX or DOC (max 20 MB) to a submission form. Returns an id the form sends with the submission."""
+    import forms
+    import uuid
+    _limit_form_requests(request)
+    if not re.fullmatch(r"site_[a-f0-9]{8}", site_id) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", form_id):
+        raise HTTPException(status_code=404, detail="Form not found.")
+    section, _ = forms.find_form(builder_engine.get_site(site_id) or {}, form_id)
+    if not section or section.get("type") != "submission" or (section.get("data") or {}).get("file_mode") == "off":
+        raise HTTPException(status_code=404, detail="Form not found.")
+    too_big = HTTPException(status_code=413, detail="This file is larger than 20 MB.")
+    try:
+        if int(request.headers.get("content-length") or 0) > UPLOAD_MAX_BYTES:
+            raise too_big
+    except ValueError:
+        pass
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > UPLOAD_MAX_BYTES:
+            raise too_big
+    name = re.sub(r"[^\w .()-]", "", unquote(request.headers.get("x-file-name", "")))[:120]  # sent URL-encoded
+    kind = forms.sniff_document(bytes(data[:8]))
+    if not data or not kind or (kind == "docx" and not name.lower().endswith(".docx")):
+        raise HTTPException(status_code=415, detail="Attach a PDF or Word file (.pdf, .docx or .doc).")
+    # shortcut: files attached but never submitted stay on disk; add a nightly cleanup if storage grows.
+    file_id = f"{uuid.uuid4().hex}.{kind}"
+    folder = _uploads_dir(site_id)
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / file_id).write_bytes(bytes(data))
+    return {"file_id": file_id, "name": name or file_id}
+
+
 def _email_receipt(site: dict, submission_id: int, token: str, link: str) -> None:
     """Emails the receipt link to the address the person registered with. Never fails the payment."""
     import forms
@@ -2240,6 +2310,33 @@ async def public_receipt(site_id: str, submission_id: int, request: Request, t: 
     if not receipt:
         raise HTTPException(status_code=404, detail="Receipt not found. Check the link in your email.")
     return receipt
+
+
+@app.patch("/api/builder/sites/{site_id}/submissions/{submission_id}")
+async def builder_set_submission_status(site_id: str, submission_id: int, request: Request):
+    """Owner only: move a submission along, e.g. received → under review → accepted."""
+    import forms
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    status = str((await request.json()).get("status") or "")
+    if not forms.set_status(site_id, submission_id, status):
+        raise HTTPException(status_code=400, detail="That status can't be used.")
+    return {"status": "ok"}
+
+
+@app.get("/api/builder/sites/{site_id}/submissions/{submission_id}/file")
+async def builder_submission_file(site_id: str, submission_id: int, request: Request):
+    """Owner only: download the file attached to a submission."""
+    import forms
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    meta = forms.submission_file(site_id, submission_id)
+    path = _uploads_dir(site_id) / meta["id"] if meta else None
+    if not path or not path.is_file():
+        raise HTTPException(status_code=404, detail="File not found.")
+    return FileResponse(path, filename=meta.get("value") or meta["id"])
 
 
 @app.get("/api/builder/sites/{site_id}/submissions")

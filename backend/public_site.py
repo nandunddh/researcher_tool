@@ -16,7 +16,7 @@ def public_event(event):
     """Event details visitors may see: never discount codes."""
     if not isinstance(event, dict):
         return {}
-    return _public_content({k: event[k] for k in ("basics", "periods", "tickets", "addons", "speakers", "deadlines") if k in event})
+    return _public_content({k: event[k] for k in ("basics", "periods", "tickets", "addons", "speakers", "deadlines", "tracks") if k in event})
 
 
 def published_page(site, address=None):

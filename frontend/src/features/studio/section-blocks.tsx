@@ -183,6 +183,7 @@ export const defaultContactFields: Rec[] = [
   { id: "email", label: "Email", type: "email", required: true },
   { id: "message", label: "Message", type: "textarea", required: true },
 ];
+export const defaultSubmissionFields: Rec[] = [{ id: "email", label: "Your email (for the confirmation)", type: "email", required: true }];
 export const defaultRegistrationFields: Rec[] = [
   { id: "name", label: "Full name", type: "text", required: true },
   { id: "email", label: "Email", type: "email", required: true },
@@ -201,7 +202,7 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
   onResult?: (body: Record<string, unknown>) => boolean;
 }) {
   const d = c.section.data;
-  const fields = list(d.form_fields).length ? list(d.form_fields) : c.section.type === "registration" ? defaultRegistrationFields : defaultContactFields;
+  const fields = list(d.form_fields).length ? list(d.form_fields) : c.section.type === "registration" ? defaultRegistrationFields : c.section.type === "submission" ? defaultSubmissionFields : defaultContactFields;
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
   const editable = !!c.edit?.onFormFields && !c.edit.readOnly;
   const orderType = reorderMime + "-" + c.section.id.toLowerCase();
@@ -567,7 +568,82 @@ function KeyDates({ c }: { c: Ctx }) {
   );
 }
 
+type Author = { name: string; affiliation: string; email: string; presenting: boolean };
+
+/** Abstract / paper submission: title, track, authors, abstract with a word limit, and a file. */
+function Submission({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  const tracks = list(c.ctx.event?.tracks).map(t => str(t.name)).filter(Boolean);
+  const limit = Number(d.word_limit) || 0, fileMode = str(d.file_mode) || "optional", off = !!c.edit;
+  const [title, setTitle] = useState(""), [abstract, setAbstract] = useState(""), [track, setTrack] = useState("");
+  const [authors, setAuthors] = useState<Author[]>([{ name: "", affiliation: "", email: "", presenting: true }]);
+  const [file, setFile] = useState<{ id: string; name: string } | null>(null);
+  const [upload, setUpload] = useState("");
+  const words = abstract.trim() ? abstract.trim().split(/\s+/).length : 0;
+  const closed = !c.edit && !!str(d.closes) && new Date().toISOString().slice(0, 10) > str(d.closes);
+  const setAuthor = (i: number, patch: Partial<Author>) => setAuthors(all => all.map((a, j) => j === i ? { ...a, ...patch } : patch.presenting ? { ...a, presenting: false } : a));
+
+  async function attach(f?: File) {
+    if (!f || off || !c.ctx.siteId) return;
+    if (f.size > 20 * 1024 * 1024) { setUpload("This file is larger than 20 MB."); return; }
+    setUpload("Uploading…");
+    try {
+      const res = await fetch(`/api/public/forms/${encodeURIComponent(c.ctx.siteId)}/${encodeURIComponent(c.section.id)}/file`, {
+        method: "POST", headers: { "X-File-Name": encodeURIComponent(f.name) }, body: f,
+      });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.detail ?? "The file could not be uploaded.");
+      setFile({ id: body.file_id, name: body.name });
+      setUpload("");
+    } catch (e) { setFile(null); setUpload(e instanceof Error ? e.message : "The file could not be uploaded."); }
+  }
+
+  if (closed) return <div className={`${styles.wrap} ${styles.narrow}`}><Header c={c} /><p role="status" className={styles.form}>Submissions are closed.</p></div>;
+  const top = (
+    <>
+      <label>Title *<input value={title} disabled={off} maxLength={300} onChange={e => setTitle(e.target.value)} /></label>
+      {tracks.length > 0 && (
+        <label>Track *<select value={track} disabled={off} onChange={e => setTrack(e.target.value)}>
+          <option value="" disabled>Choose a track…</option>{tracks.map(t => <option key={t} value={t}>{t}</option>)}
+        </select></label>
+      )}
+      <fieldset className={styles.authors} disabled={off}>
+        <legend>Authors *</legend>
+        {authors.map((a, i) => (
+          <div key={i} className={styles.authorRow}>
+            <input aria-label={`Author ${i + 1} name`} placeholder="Full name" value={a.name} onChange={e => setAuthor(i, { name: e.target.value })} />
+            <input aria-label={`Author ${i + 1} organization`} placeholder="Organization" value={a.affiliation} onChange={e => setAuthor(i, { affiliation: e.target.value })} />
+            <input aria-label={`Author ${i + 1} email`} type="email" placeholder="Email (optional)" value={a.email} onChange={e => setAuthor(i, { email: e.target.value })} />
+            <label className={styles.checkRow}><input type="radio" name={`${c.section.id}-presenting`} checked={a.presenting} onChange={() => setAuthor(i, { presenting: true })} />Presenting</label>
+            {authors.length > 1 && <button type="button" className={styles.linkButton} onClick={() => setAuthors(all => all.filter((_, j) => j !== i))}>Remove</button>}
+          </div>
+        ))}
+        {authors.length < 20 && <button type="button" className={styles.linkButton} onClick={() => setAuthors(all => [...all, { name: "", affiliation: "", email: "", presenting: false }])}>+ Add author</button>}
+      </fieldset>
+      <label>Abstract *<textarea rows={8} value={abstract} disabled={off} onChange={e => setAbstract(e.target.value)} />
+        <small className={limit && words > limit ? styles.formError : styles.muted}>{words}{limit ? ` / ${limit}` : ""} words</small></label>
+      {fileMode !== "off" && (
+        <label>{fileMode === "required" ? "File *" : "File (optional)"} <small className={styles.muted}>PDF or Word, up to 20 MB</small>
+          <input type="file" accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" disabled={off}
+            onChange={e => void attach(e.target.files?.[0])} />
+          {file && <small className={styles.formSuccess}>Attached: {file.name}</small>}
+          {upload && <small className={upload === "Uploading…" ? styles.muted : styles.formError}>{upload}</small>}
+        </label>
+      )}
+    </>
+  );
+  return (
+    <div className={`${styles.wrap} ${styles.narrow}`}>
+      <Header c={c} />
+      <WebsiteForm c={c} top={top} extra={() => ({ title, abstract, track, authors, file_id: file?.id ?? "", file_name: file?.name ?? "" })}>
+        <T c={c} path={["btn_text"]} placeholder="button text" />
+      </WebsiteForm>
+    </div>
+  );
+}
+
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
+  submission: Submission,
   key_dates: KeyDates,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
