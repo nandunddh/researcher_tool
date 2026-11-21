@@ -20,9 +20,6 @@ class RootAccountTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / "tests")
         self.addCleanup(self.temp.cleanup)
-        self.cloud = patch.dict(lm.PG_CONFIG, {"host": ""})
-        self.cloud.start()
-        self.addCleanup(self.cloud.stop)
         self.output = contextlib.redirect_stdout(io.StringIO())
         self.output.__enter__()
         self.addCleanup(self.output.__exit__, None, None, None)
@@ -152,9 +149,6 @@ class RealEndpointWorkflowTests(unittest.TestCase):
         self.async_run = asyncio.run
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / "tests")
         self.addCleanup(self.temp.cleanup)
-        self.cloud = patch.dict(lm.PG_CONFIG, {"host": ""})
-        self.cloud.start()
-        self.addCleanup(self.cloud.stop)
         self.output = contextlib.redirect_stdout(io.StringIO())
         self.output.__enter__()
         self.addCleanup(self.output.__exit__, None, None, None)

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Optional
+from types import SimpleNamespace
 
 from fastapi import HTTPException
 from fastapi.responses import FileResponse
@@ -36,6 +37,7 @@ class StudioMediaTests(unittest.TestCase):
             elif isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id.startswith("MEDIA_") for t in n.targets):
                 nodes.append(n)
         self.owned = []
+        self.recorded = []
         self.scope = {
             "re": re, "Path": Path, "Optional": Optional, "HTTPException": HTTPException, "FileResponse": FileResponse,
             "Request": object,
@@ -43,6 +45,7 @@ class StudioMediaTests(unittest.TestCase):
             "_require_scistudio_access": lambda user: None,
             "_require_owned_site": lambda sid, user: self.owned.append(sid),
             "_media_dir": lambda sid: root / sid,
+            "builder_engine": SimpleNamespace(record_media=lambda *args: self.recorded.append(args)),
         }
         exec(compile(ast.Module(body=nodes, type_ignores=[]), "<media-tests>", "exec"), self.scope)
 
@@ -55,6 +58,7 @@ class StudioMediaTests(unittest.TestCase):
     def test_png_upload_is_stored_and_served(self):
         result = self.upload(PNG)
         self.assertEqual(self.owned, ["site_1234abcd"])
+        self.assertEqual(self.recorded[0][0], "site_1234abcd", "upload is recorded in the media table")
         self.assertRegex(result["url"], r"^/api/builder/media/site_1234abcd/[a-f0-9]{32}\.png$")
         name = result["url"].rsplit("/", 1)[1]
         response = asyncio.run(self.scope["builder_serve_media"]("site_1234abcd", name))

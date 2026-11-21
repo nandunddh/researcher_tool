@@ -49,3 +49,4 @@ frontend/*.tsbuildinfo
 frontend/.env.local
 frontend/.env.*.local
 web/server-restart.*.log
+backend/licenses.json

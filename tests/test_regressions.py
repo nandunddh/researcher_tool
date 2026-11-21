@@ -1,3 +1,4 @@
+import sys
 import ast
 import os
 from pathlib import Path
@@ -6,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "backend"))  # license_manager imports stores/db from here
 
 class RegressionTests(unittest.TestCase):
     def test_authentication(self):
@@ -23,19 +25,19 @@ class RegressionTests(unittest.TestCase):
             self.assertTrue(manager.update_root_password("test-secret", "replacement-secret")[0])
             self.assertFalse(manager.verify_root_auth("test-secret"))
             self.assertTrue(manager.verify_root_auth("replacement-secret"))
-        with tempfile.TemporaryDirectory(dir=ROOT / "tests") as folder:
-            import json
-            path = Path(folder) / "licenses.json"
-            path.write_text(json.dumps({"_metadata": {"root_password": "existing-password"}, "licenses": {}}))
-            scope["DEFAULT_ROOT_PASSWORD"] = ""
-            manager = scope["LicenseManager"](path)
-            self.assertFalse(manager.verify_root_auth("wrong"))
-            self.assertTrue(manager.verify_root_auth("existing-password"))
-            migrated = json.loads(path.read_text())["_metadata"]
-            self.assertNotIn("root_password", migrated)
-            self.assertTrue(migrated["root_password_hash"].startswith("pbkdf2_sha256$"))
-            self.assertTrue(manager.verify_root_auth("existing-password"))
-            self.assertFalse(manager.verify_root_auth("SCIP-PRO-ROOT-MASTER"))
+        # An older install's plain-text root password is accepted once and replaced by a hash.
+        from stores import MemoryAccountStore, MemorySessionStore
+        accounts = MemoryAccountStore("legacy-root-test")
+        accounts.save({"_metadata": {"root_password": "existing-password"}, "licenses": {"SCIP-PRO-ROOT-MASTER": {"license_key": "SCIP-PRO-ROOT-MASTER"}}})
+        scope["DEFAULT_ROOT_PASSWORD"] = ""
+        manager = scope["LicenseManager"](account_store=accounts, session_store=MemorySessionStore("legacy-root-test"))
+        self.assertFalse(manager.verify_root_auth("wrong"))
+        self.assertTrue(manager.verify_root_auth("existing-password"))
+        migrated = accounts.load()["_metadata"]
+        self.assertNotIn("root_password", migrated)
+        self.assertTrue(migrated["root_password_hash"].startswith("pbkdf2_sha256$"))
+        self.assertTrue(manager.verify_root_auth("existing-password"))
+        self.assertFalse(manager.verify_root_auth("SCIP-PRO-ROOT-MASTER"))
         hashed = scope["hash_password"]("example")
         self.assertTrue(scope["verify_password"]("example", hashed))
         self.assertFalse(scope["verify_password"]("wrong", hashed))

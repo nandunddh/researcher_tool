@@ -27,6 +27,7 @@ from conference_manager import ConferenceManager
 from builder_manager import WebsiteBuilderEngine
 
 
+@unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA", "").startswith("test_"), "Database test: set SCIPROSPECT_DB_SCHEMA=test_<name> to run against an isolated test schema (never the live data).")
 class ConferenceWorkspaceFlowTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

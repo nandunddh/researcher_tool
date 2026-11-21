@@ -22,17 +22,14 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 import psycopg2
+import psycopg2.errors
+from psycopg2.extras import Json
+
+import db
 from app_config import get_data_dir
 
 # Oracle PostgreSQL Cloud Config
-PG_CONFIG = {
-    "host": os.environ.get("SCIPROSPECT_DB_HOST", ""),
-    "port": int(os.environ.get("SCIPROSPECT_DB_PORT", "5432")),
-    "dbname": os.environ.get("SCIPROSPECT_DB_NAME", "sciprospect_db"),
-    "user": os.environ.get("SCIPROSPECT_DB_USER", ""),
-    "password": os.environ.get("SCIPROSPECT_DB_PASSWORD", ""),
-    "connect_timeout": 3,
-}
+# PostgreSQL access lives in db.py (settings from environment / backend/.env).
 
 def get_websites_dir() -> Path:
     d = get_data_dir() / "websites"
@@ -1647,106 +1644,60 @@ textarea.form-input {{
 # -----------------------------------------------------------------------------
 
 class WebsiteBuilderEngine:
-    """Manages full lifecycle of dynamic websites across PostgreSQL and local storage."""
+    """Manages websites. PostgreSQL (`websites` table) is the only store: one row
+    per site, with pages, sections, theme and SEO kept in the `document` column."""
 
-    def __init__(self):
-        self._ensure_storage()
+    ROW_FIELDS = ("site_id", "user_email", "slug", "custom_domain", "status", "conference_id", "compiled_html")
+    ADMIN_EMAILS = ("root@sciprospect.internal", "admin")
+    VERSIONS_KEPT = 50
 
-    def _ensure_storage(self):
-        get_websites_dir()
-        try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        CREATE TABLE IF NOT EXISTS user_websites (
-                            site_id VARCHAR(64) PRIMARY KEY,
-                            conference_id VARCHAR(64),
-                            user_email VARCHAR(255) NOT NULL,
-                            name VARCHAR(255) NOT NULL,
-                            slug VARCHAR(255) UNIQUE NOT NULL,
-                            custom_domain VARCHAR(255),
-                            status VARCHAR(32) DEFAULT 'draft',
-                            theme_config JSONB NOT NULL DEFAULT '{}'::jsonb,
-                            schema_json JSONB NOT NULL DEFAULT '[]'::jsonb,
-                            compiled_html TEXT,
-                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                        );
-                    """)
-                    cur.execute("ALTER TABLE user_websites ADD COLUMN IF NOT EXISTS conference_id VARCHAR(64);")
-                    conn.commit()
-        except Exception as e:
-            print(f"[BUILDER] PostgreSQL connection warning: {e}")
+    @staticmethod
+    def _document(site: dict) -> dict:
+        """The stored JSON document: everything except columns and derived values."""
+        return {k: v for k, v in site.items() if k not in ("compiled_html", "url")}
+
+    @staticmethod
+    def _from_row(row) -> dict:
+        site_id, owner, slug, domain, status, conference_id, document, compiled_html, created_at, updated_at = row
+        site = dict(document or {})
+        site.update({
+            "site_id": site_id, "user_email": owner, "slug": slug, "custom_domain": domain or "",
+            "status": status or "draft", "conference_id": conference_id or None, "compiled_html": compiled_html or "",
+            "created_at": created_at.isoformat() if created_at else site.get("created_at", ""),
+            "updated_at": updated_at.isoformat() if updated_at else site.get("updated_at", ""),
+            "url": f"/sites/{slug}",
+        })
+        site.setdefault("client_brief", {})
+        return site
+
+    _SELECT = ("SELECT site_id, owner_email, slug, custom_domain, status, conference_id, document, compiled_html, "
+               "created_at, updated_at FROM websites")
 
     def list_templates(self) -> List[dict]:
-        """Returns the full 15 curated starter templates."""
+        """Returns the curated starter templates."""
         return TEMPLATES_CATALOG
 
     def list_sites(self, user_email: str, conference_id: Optional[str] = None) -> List[dict]:
-        """Lists all websites belonging to the user, optionally filtered by conference_id."""
-        sites = []
-        user_email_clean = (user_email or "").strip().lower()
-        conf_filter = (conference_id or "").strip()
-
-        # 1. Try PostgreSQL
-        try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    if user_email_clean in ("root@sciprospect.internal", "admin"):
-                        cur.execute("SELECT site_id, user_email, name, slug, custom_domain, status, created_at, updated_at, conference_id FROM user_websites ORDER BY updated_at DESC;")
-                    else:
-                        cur.execute("SELECT site_id, user_email, name, slug, custom_domain, status, created_at, updated_at, conference_id FROM user_websites WHERE LOWER(user_email) = %s ORDER BY updated_at DESC;", (user_email_clean,))
-                    rows = cur.fetchall()
-                    for r in rows:
-                        site_item = {
-                            "site_id": r[0],
-                            "user_email": r[1],
-                            "name": r[2],
-                            "slug": r[3],
-                            "custom_domain": r[4] or "",
-                            "status": r[5] or "draft",
-                            "created_at": str(r[6]),
-                            "updated_at": str(r[7]),
-                            "conference_id": r[8] or None,
-                            "url": f"/sites/{r[3]}"
-                        }
-                        if not conf_filter or conf_filter == "all" or site_item["conference_id"] == conf_filter:
-                            sites.append(site_item)
-                    return sites
-        except Exception as e:
-            pass
-
-        # 2. Local Fallback
-        base_dir = get_websites_dir()
-        for s_dir in base_dir.glob("site_*"):
-            if s_dir.is_dir():
-                cfg_file = s_dir / "site_config.json"
-                if cfg_file.exists():
-                    try:
-                        cfg = json.loads(cfg_file.read_text(encoding="utf-8"))
-                        if user_email_clean in ("root@sciprospect.internal", "admin") or cfg.get("user_email", "").lower() == user_email_clean:
-                            site_conf = cfg.get("conference_id")
-                            if not conf_filter or conf_filter == "all" or site_conf == conf_filter:
-                                sites.append({
-                                    "site_id": cfg.get("site_id"),
-                                    "user_email": cfg.get("user_email"),
-                                    "name": cfg.get("name"),
-                                    "slug": cfg.get("slug"),
-                                    "custom_domain": cfg.get("custom_domain", ""),
-                                    "status": cfg.get("status", "draft"),
-                                    "conference_id": site_conf or None,
-                                    "created_at": cfg.get("created_at", ""),
-                                    "updated_at": cfg.get("updated_at", ""),
-                                    "url": f"/sites/{cfg.get('slug')}"
-                                })
-                    except Exception:
-                        pass
-        sites.sort(key=lambda s: s.get("updated_at", ""), reverse=True)
-        return sites
+        """Lists the user's websites (all websites for the root admin), newest first."""
+        email = (user_email or "").strip().lower()
+        conf = (conference_id or "").strip()
+        where, params = [], []
+        if email not in self.ADMIN_EMAILS:
+            where.append("lower(owner_email) = %s")
+            params.append(email)
+        if conf and conf != "all":
+            where.append("conference_id = %s")
+            params.append(conf)
+        sql = ("SELECT site_id, owner_email, document->>'name', slug, custom_domain, status, created_at, updated_at, conference_id "
+               "FROM websites" + (" WHERE " + " AND ".join(where) if where else "") + " ORDER BY updated_at DESC")
+        with db.transaction() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+        return [{
+            "site_id": r[0], "user_email": r[1], "name": r[2] or "", "slug": r[3], "custom_domain": r[4] or "",
+            "status": r[5] or "draft", "created_at": r[6].isoformat() if r[6] else "", "updated_at": r[7].isoformat() if r[7] else "",
+            "conference_id": r[8] or None, "url": f"/sites/{r[3]}",
+        } for r in rows]
 
     def create_site(
         self,
@@ -1759,32 +1710,18 @@ class WebsiteBuilderEngine:
         conference_id: Optional[str] = None,
         initial_components: Optional[list] = None
     ) -> dict:
-        """Creates a brand new website configured with the chosen template and wizard options."""
+        """Creates a new website from the chosen template and wizard options."""
         clean_name = (name or "My Website").strip()
         site_id = f"site_{uuid.uuid4().hex[:8]}"
-
-        # Format slug
-        if not slug:
-            slug = re.sub(r'[^a-z0-9]+', '-', clean_name.lower()).strip('-')
-        else:
-            slug = re.sub(r'[^a-z0-9]+', '-', slug.lower()).strip('-')
-
-        if not slug:
-            slug = f"site-{int(time.time())}"
-
-        # Ensure slug uniqueness
-        slug = f"{slug}-{uuid.uuid4().hex[:4]}"
+        base_slug = re.sub(r'[^a-z0-9]+', '-', (slug or clean_name).lower()).strip('-') or f"site-{int(time.time())}"
+        new_slug = f"{base_slug}-{uuid.uuid4().hex[:4]}"
 
         now_str = datetime.now().isoformat()
         components, t_theme = build_template_components(template_id or "genomics", clean_name, custom_options)
-        
         if template_id == "blank":
             components = []
-
         if initial_components is not None:
             components = initial_components
-
-        # Merge theme
         if theme_config:
             t_theme.update(theme_config)
 
@@ -1793,7 +1730,7 @@ class WebsiteBuilderEngine:
             "conference_id": (conference_id.strip() if isinstance(conference_id, str) and conference_id.strip() else None),
             "user_email": user_email.strip().lower(),
             "name": clean_name,
-            "slug": slug,
+            "slug": new_slug,
             "custom_domain": "",
             "status": "draft",
             "template_id": template_id,
@@ -1801,102 +1738,40 @@ class WebsiteBuilderEngine:
             "schema_json": components,
             "created_at": now_str,
             "updated_at": now_str,
-            "client_brief": (custom_options.get("client_brief") or {}) if custom_options else {}
+            "client_brief": (custom_options.get("client_brief") or {}) if custom_options else {},
         }
-
-        compiled_html, compiled_css = compile_website_html(site_data)
+        compiled_html, _ = compile_website_html(site_data)
         site_data["compiled_html"] = compiled_html
 
-        # 1. Save Locally
-        s_dir = get_websites_dir() / site_id
-        s_dir.mkdir(parents=True, exist_ok=True)
-        (s_dir / "site_config.json").write_text(json.dumps(site_data, indent=2), encoding="utf-8")
-        (s_dir / "index.html").write_text(compiled_html, encoding="utf-8")
-        (s_dir / "style.css").write_text(compiled_css, encoding="utf-8")
-
-        # 2. Save in PostgreSQL
-        try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        INSERT INTO user_websites (site_id, conference_id, user_email, name, slug, custom_domain, status, theme_config, schema_json, compiled_html, created_at, updated_at)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
-                        ON CONFLICT (site_id) DO UPDATE SET
-                            conference_id = EXCLUDED.conference_id,
-                            name = EXCLUDED.name,
-                            slug = EXCLUDED.slug,
-                            theme_config = EXCLUDED.theme_config,
-                            schema_json = EXCLUDED.schema_json,
-                            compiled_html = EXCLUDED.compiled_html,
-                            updated_at = NOW();
-                    """, (site_id, site_data["conference_id"], user_email.lower(), clean_name, slug, "", "draft", json.dumps(t_theme), json.dumps(components), compiled_html))
-                    conn.commit()
-        except Exception as e:
-            pass
-
-        site_data["url"] = f"/sites/{slug}"
+        with db.transaction() as cur:
+            cur.execute(
+                "INSERT INTO websites (site_id, owner_email, slug, custom_domain, status, conference_id, document, compiled_html) "
+                "VALUES (%s, %s, %s, '', 'draft', %s, %s, %s)",
+                (site_id, site_data["user_email"], new_slug, site_data["conference_id"], Json(self._document(site_data)), compiled_html),
+            )
+        site_data["url"] = f"/sites/{new_slug}"
         return site_data
 
     def get_site(self, site_id: str) -> Optional[dict]:
-        """Gets full site schema and metadata by site_id."""
-        clean_id = site_id.strip()
-
-        # 1. Try PostgreSQL
-        try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT site_id, user_email, name, slug, custom_domain, status, theme_config, schema_json, compiled_html, created_at, updated_at, conference_id
-                        FROM user_websites WHERE site_id = %s;
-                    """, (clean_id,))
-                    row = cur.fetchone()
-                    if row:
-                        return {
-                            "site_id": row[0],
-                            "user_email": row[1],
-                            "name": row[2],
-                            "slug": row[3],
-                            "custom_domain": row[4] or "",
-                            "status": row[5] or "draft",
-                            "theme_config": row[6] if isinstance(row[6], dict) else json.loads(row[6] or "{}"),
-                            "schema_json": row[7] if isinstance(row[7], list) else json.loads(row[7] or "[]"),
-                            "compiled_html": row[8] or "",
-                            "created_at": str(row[9]),
-                            "updated_at": str(row[10]),
-                            "conference_id": row[11] or None,
-                            "url": f"/sites/{row[3]}"
-                        }
-        except Exception as e:
-            pass
-
-        # 2. Local Fallback
-        cfg_file = get_websites_dir() / clean_id / "site_config.json"
-        if cfg_file.exists():
-            try:
-                data = json.loads(cfg_file.read_text(encoding="utf-8"))
-                data.setdefault("conference_id", None)
-                data.setdefault("client_brief", {})
-                return data
-            except Exception:
-                pass
-        return None
+        """Gets a website (all pages, sections and settings) by id."""
+        with db.transaction() as cur:
+            cur.execute(self._SELECT + " WHERE site_id = %s", ((site_id or "").strip(),))
+            row = cur.fetchone()
+        return self._from_row(row) if row else None
 
     def update_site(self, site_id: str, payload: dict) -> Tuple[bool, str, Optional[dict]]:
-        """Updates site components, name, theme, and re-compiles standalone HTML."""
+        """Updates a website, keeps the previous version, and recompiles its HTML."""
         site = self.get_site(site_id)
         if not site:
             return False, "Site not found", None
+        previous = self._document(site)
 
         if "name" in payload and payload["name"]:
             site["name"] = payload["name"].strip()
         if "slug" in payload and payload["slug"]:
             site["slug"] = re.sub(r'[^a-z0-9\-]+', '-', payload["slug"].lower().strip()).strip('-')
         if "custom_domain" in payload:
-            site["custom_domain"] = payload["custom_domain"].strip().lower()
+            site["custom_domain"] = (payload["custom_domain"] or "").strip().lower()
         if "status" in payload:
             site["status"] = payload["status"]
         if "theme_config" in payload:
@@ -1906,7 +1781,6 @@ class WebsiteBuilderEngine:
         if "conference_id" in payload:
             raw_conf = payload["conference_id"]
             site["conference_id"] = (raw_conf.strip() if isinstance(raw_conf, str) and raw_conf.strip() else None)
-
         for meta_k in ("meta_config", "meta_title", "meta_description", "meta_keywords",
                        "og_image", "ga_tracking_id", "custom_head_code", "custom_body_code",
                        "pages", "active_page_id"):
@@ -1914,108 +1788,54 @@ class WebsiteBuilderEngine:
                 site[meta_k] = payload[meta_k]
 
         site["updated_at"] = datetime.now().isoformat()
-        compiled_html, compiled_css = compile_website_html(site)
+        compiled_html, _ = compile_website_html(site)
         site["compiled_html"] = compiled_html
 
-        # Save locally
-        s_dir = get_websites_dir() / site_id
-        s_dir.mkdir(parents=True, exist_ok=True)
-        (s_dir / "site_config.json").write_text(json.dumps(site, indent=2), encoding="utf-8")
-        (s_dir / "index.html").write_text(compiled_html, encoding="utf-8")
-        (s_dir / "style.css").write_text(compiled_css, encoding="utf-8")
-
-        # Save to PostgreSQL
         try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        UPDATE user_websites
-                        SET conference_id = %s,
-                            name = %s,
-                            slug = %s,
-                            custom_domain = %s,
-                            status = %s,
-                            theme_config = %s,
-                            schema_json = %s,
-                            compiled_html = %s,
-                            updated_at = NOW()
-                        WHERE site_id = %s;
-                    """, (
-                        site.get("conference_id"),
-                        site["name"],
-                        site["slug"],
-                        site.get("custom_domain", ""),
-                        site.get("status", "draft"),
-                        json.dumps(site.get("theme_config", {})),
-                        json.dumps(site.get("schema_json", [])),
-                        compiled_html,
-                        site_id
-                    ))
-                    conn.commit()
-        except Exception as e:
-            pass
+            with db.transaction() as cur:
+                cur.execute("INSERT INTO website_versions (site_id, document) VALUES (%s, %s)", (site_id, Json(previous)))
+                cur.execute(
+                    "DELETE FROM website_versions WHERE site_id = %s AND id NOT IN "
+                    "(SELECT id FROM website_versions WHERE site_id = %s ORDER BY id DESC LIMIT %s)",
+                    (site_id, site_id, self.VERSIONS_KEPT),
+                )
+                cur.execute(
+                    "UPDATE websites SET slug = %s, custom_domain = %s, status = %s, conference_id = %s, "
+                    "document = %s, compiled_html = %s, updated_at = now() WHERE site_id = %s",
+                    (site["slug"], site.get("custom_domain", ""), site.get("status", "draft"), site.get("conference_id"),
+                     Json(self._document(site)), compiled_html, site_id),
+                )
+        except psycopg2.errors.UniqueViolation:
+            return False, "That web address or domain is already used by another website.", None
 
         site["url"] = f"/sites/{site['slug']}"
         return True, "Site saved successfully.", site
 
     def delete_site(self, site_id: str) -> Tuple[bool, str]:
-        """Deletes a website record locally and from PostgreSQL."""
-        clean_id = site_id.strip()
-
-        try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM user_websites WHERE site_id = %s;", (clean_id,))
-                    conn.commit()
-        except Exception as e:
-            print(f"[BUILDER] PostgreSQL delete error: {e}")
-
-        s_dir = get_websites_dir() / clean_id
-        if s_dir.exists():
+        """Deletes a website, its versions and its media records (uploaded files too)."""
+        clean_id = (site_id or "").strip()
+        with db.transaction() as cur:
+            cur.execute("DELETE FROM websites WHERE site_id = %s", (clean_id,))
+        media_dir = get_websites_dir() / "media" / clean_id
+        if re.fullmatch(r"site_[a-f0-9]{8}", clean_id) and media_dir.is_dir():
             import shutil
-            shutil.rmtree(s_dir, ignore_errors=True)
-
+            shutil.rmtree(media_dir, ignore_errors=True)
         return True, f"Website {clean_id} deleted."
 
     def get_site_by_slug(self, slug: str) -> Optional[dict]:
-        """Fetches published website by slug for public delivery."""
-        clean_slug = slug.strip().lower()
+        """Fetches a website by its public address."""
+        with db.transaction() as cur:
+            cur.execute(self._SELECT + " WHERE lower(slug) = %s", ((slug or "").strip().lower(),))
+            row = cur.fetchone()
+        return self._from_row(row) if row else None
 
-        try:
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT site_id, name, slug, compiled_html, status
-                        FROM user_websites WHERE LOWER(slug) = %s;
-                    """, (clean_slug,))
-                    row = cur.fetchone()
-                    if row:
-                        return {
-                            "site_id": row[0],
-                            "name": row[1],
-                            "slug": row[2],
-                            "compiled_html": row[3],
-                            "status": row[4]
-                        }
-        except Exception as e:
-            print(f"[BUILDER] PostgreSQL slug lookup error: {e}")
-
-        for s_dir in get_websites_dir().glob("site_*"):
-            cfg = s_dir / "site_config.json"
-            if cfg.exists():
-                try:
-                    data = json.loads(cfg.read_text(encoding="utf-8"))
-                    if data.get("slug", "").lower() == clean_slug:
-                        return data
-                except Exception:
-                    pass
-        return None
+    def record_media(self, site_id: str, media_id: str, mime: str, size_bytes: int) -> None:
+        """Records an uploaded image (the file itself stays in server storage)."""
+        with db.transaction() as cur:
+            cur.execute(
+                "INSERT INTO media (id, site_id, mime, size_bytes) VALUES (%s, %s, %s, %s) ON CONFLICT (id) DO NOTHING",
+                (media_id, site_id, mime, size_bytes),
+            )
 
     def export_site_zip(self, site_id: str) -> Tuple[Optional[bytes], str]:
         """Bundles standalone compiled site into a downloadable ZIP archive, supporting multi-page exports."""
@@ -2067,4 +1887,15 @@ Enjoy your website!
         return buf.getvalue(), f"{slug}_website.zip"
 
 
-builder_engine = WebsiteBuilderEngine()
+class _LazyEngine:
+    """Creates the engine on first use so importing this module never connects to the database."""
+    def __init__(self, factory):
+        self._factory, self._instance = factory, None
+
+    def __getattr__(self, name):
+        if self._instance is None:
+            self._instance = self._factory()
+        return getattr(self._instance, name)
+
+
+builder_engine = _LazyEngine(WebsiteBuilderEngine)

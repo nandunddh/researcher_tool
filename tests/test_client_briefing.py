@@ -26,17 +26,14 @@ from builder_manager import (
     builder_engine,
     get_websites_dir
 )
-from conference_manager import (
-    conference_engine,
-    get_conferences_dir
-)
+from conference_manager import conference_engine
 
 
+@unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA", "").startswith("test_"), "Database test: set SCIPROSPECT_DB_SCHEMA=test_<name> to run against an isolated test schema (never the live data).")
 class TestClientBriefingFlow(unittest.TestCase):
 
     def test_01_empty_workspace_state(self):
         """Empty workspace with 0 conferences and 0 websites operates without error."""
-        conf_dir = get_conferences_dir()
         sites_dir = get_websites_dir()
 
         # List all conferences

@@ -52,19 +52,7 @@ def verify_password(password: str, stored_hash: str) -> bool:
         return False
 
 
-BASE_DIR = Path(__file__).resolve().parent
-LICENSES_FILE = BASE_DIR / "licenses.json"
-
-# Cloud Database Configuration (Oracle Cloud PostgreSQL)
-PG_CONFIG = {
-    "host": os.environ.get("SCIPROSPECT_DB_HOST", ""),
-    "port": int(os.environ.get("SCIPROSPECT_DB_PORT", "5432")),
-    "dbname": os.environ.get("SCIPROSPECT_DB_NAME", "sciprospect_db"),
-    "user": os.environ.get("SCIPROSPECT_DB_USER", ""),
-    "password": os.environ.get("SCIPROSPECT_DB_PASSWORD", ""),
-    "connect_timeout": 3,
-}
-
+from stores import MemoryAccountStore, MemorySessionStore, PgAccountStore, PgSessionStore, session_key
 
 
 def _generate_key(prefix: str = "SCIP", tier: str = "TR") -> str:
@@ -104,65 +92,47 @@ def sanitize_account(account: dict) -> dict:
 
 
 class LicenseManager:
-    def __init__(self, db_path: Path = LICENSES_FILE, sessions_path: Optional[Path] = None):
-        self.db_path = Path(db_path)
-        if sessions_path:
-            self.sessions_path = Path(sessions_path)
-        elif self.db_path.name == "licenses.json":
-            self.sessions_path = self.db_path.parent / "sessions.json"
+    def __init__(self, db_path: Optional[Path] = None, sessions_path: Optional[Path] = None, *,
+                 account_store=None, session_store=None):
+        """Accounts and sessions live in PostgreSQL. Passing `db_path` (tests only)
+        uses in-memory stores named after the path, so tests run without a database
+        and a second manager with the same path behaves like a restarted server."""
+        if account_store is not None or session_store is not None:
+            self.account_store = account_store or PgAccountStore()
+            self.session_store = session_store or PgSessionStore()
+        elif db_path is not None:
+            name = str(db_path)
+            self.account_store = MemoryAccountStore(name)
+            self.session_store = MemorySessionStore(str(sessions_path) if sessions_path else name)
         else:
-            self.sessions_path = self.db_path.parent / f"{self.db_path.stem}_sessions.json"
-        self._last_sessions_mtime = 0.0
+            self.account_store = PgAccountStore()
+            self.session_store = PgSessionStore()
+        self.db_path = db_path
+        self.sessions_path = sessions_path
         self._sessions = self._load_sessions()
         self._ensure_db()
 
     def _load_sessions(self) -> dict:
-        """Loads sessions from the persisted sessions file."""
-        if not self.sessions_path.exists():
-            return {}
-        try:
-            self._last_sessions_mtime = self.sessions_path.stat().st_mtime
-            with open(self.sessions_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                raw_sessions = data.get("sessions", {}) if isinstance(data, dict) and "sessions" in data else (data if isinstance(data, dict) else {})
-                return {k: v for k, v in raw_sessions.items() if isinstance(v, dict)}
-        except Exception as e:
-            print(f"[LICENSE] Warning: Failed to load sessions from {self.sessions_path}: {e}")
-            return {}
+        """Loads all unexpired sessions, keyed by token hash."""
+        return {k: v for k, v in self.session_store.load_all().items() if isinstance(v, dict)}
 
     def _save_sessions(self):
-        """Persists sessions to disk atomically so sessions survive server reloads/updates."""
-        try:
-            self.sessions_path.parent.mkdir(parents=True, exist_ok=True)
-            payload = {
-                "_metadata": {
-                    "version": "1.0",
-                    "updated_at": datetime.utcnow().isoformat()
-                },
-                "sessions": self._sessions
-            }
-            temp_file = self.sessions_path.with_suffix(".tmp")
-            with open(temp_file, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-            try:
-                temp_file.replace(self.sessions_path)
-            except Exception:
-                with open(self.sessions_path, "w", encoding="utf-8") as f:
-                    json.dump(payload, f, indent=2)
-                try:
-                    temp_file.unlink(missing_ok=True)
-                except Exception:
-                    pass
-            try:
-                self._last_sessions_mtime = self.sessions_path.stat().st_mtime
-            except Exception:
-                pass
-        except Exception as e:
-            print(f"[LICENSE] Warning: Failed to persist sessions to {self.sessions_path}: {e}")
+        self.session_store.save_all(self._sessions)
+
+    def _fresh_session(self, token: str) -> Tuple[str, Optional[dict]]:
+        """Reads a session from the store every time, so logouts and suspensions
+        made by any server process apply immediately."""
+        key = session_key(token)
+        session = self.session_store.get(key)
+        if session:
+            self._sessions[key] = session
+        else:
+            self._sessions.pop(key, None)
+        return key, session
 
     def _ensure_db(self):
-        """Initializes licenses.json with default root config and sample active keys if missing."""
-        if not self.db_path.exists():
+        """Creates the root administrator account on first run (empty database)."""
+        if self.account_store.is_empty():
             default_data = {
                 "_metadata": {
                     "version": "1.0",
@@ -189,112 +159,14 @@ class LicenseManager:
             self._save_db(default_data)
 
     def _load_db(self) -> dict:
-        data = {"_metadata": {}, "licenses": {}}
-        try:
-            if self.db_path.exists():
-                with open(self.db_path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-        except Exception as e:
-            print(f"[LICENSE] Error reading local file: {e}")
-
-        # Cloud Sync: Load from Oracle Cloud PostgreSQL (Authoritative Source of Truth)
-        try:
-            import psycopg2
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT license_key, client_name, client_email, tier, status, 
-                               daily_limit, used_today, expires_at, created_at, 
-                               last_active_date, total_extracted, notes, password_hash 
-                        FROM admin_licenses;
-                    """)
-                    rows = cur.fetchall()
-                    if rows:
-                        cloud_licenses = {}
-                        for r in rows:
-                            cloud_licenses[r[0]] = {
-                                "license_key": r[0],
-                                "client_name": r[1] or "",
-                                "client_email": r[2] or "",
-                                "tier": r[3] or "pro",
-                                "status": r[4] or "active",
-                                "daily_limit": r[5] if r[5] is not None else 1000,
-                                "used_today": r[6] or 0,
-                                "expires_at": str(r[7] or "never"),
-                                "created_at": str(r[8] or ""),
-                                "last_active_date": str(r[9] or ""),
-                                "total_extracted": r[10] or 0,
-                                "notes": r[11] or "",
-                                "password_hash": r[12] or ""
-                            }
-                        # Overwrite in-memory licenses with authoritative cloud set
-                        data["licenses"] = cloud_licenses
-                        # Sync local file to match cloud database
-                        try:
-                            temp_f = self.db_path.with_suffix(".tmp")
-                            with open(temp_f, "w", encoding="utf-8") as sf:
-                                json.dump(data, sf, indent=2)
-                            temp_f.replace(self.db_path)
-                        except Exception:
-                            pass
-        except Exception as e:
-            pass
+        data = self.account_store.load()
+        data.setdefault("_metadata", {})
+        data.setdefault("licenses", {})
         return data
 
     def _save_db(self, data: dict):
-        data["_metadata"]["updated_at"] = datetime.utcnow().isoformat()
-        temp_file = self.db_path.with_suffix(".tmp")
-        with open(temp_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
-        temp_file.replace(self.db_path)
-
-        # Cloud Sync: Save to Oracle Cloud PostgreSQL
-        try:
-            import psycopg2
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    for lk, lic in data.get("licenses", {}).items():
-                        cur.execute("""
-                            INSERT INTO admin_licenses 
-                            (license_key, client_name, client_email, tier, status, daily_limit, used_today, expires_at, notes, total_extracted, password_hash)
-                            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                            ON CONFLICT (license_key) DO UPDATE SET
-                                client_name = EXCLUDED.client_name,
-                                client_email = EXCLUDED.client_email,
-                                tier = EXCLUDED.tier,
-                                status = EXCLUDED.status,
-                                daily_limit = EXCLUDED.daily_limit,
-                                used_today = EXCLUDED.used_today,
-                                expires_at = EXCLUDED.expires_at,
-                                notes = EXCLUDED.notes,
-                                total_extracted = EXCLUDED.total_extracted,
-                                password_hash = COALESCE(EXCLUDED.password_hash, admin_licenses.password_hash);
-                        """, (
-                            lk,
-                            lic.get("client_name", ""),
-                            lic.get("client_email", ""),
-                            lic.get("tier", "pro"),
-                            lic.get("status", "active"),
-                            lic.get("daily_limit", 1000),
-                            lic.get("used_today", 0),
-                            str(lic.get("expires_at", "never")),
-                            lic.get("notes", ""),
-                            lic.get("total_extracted", 0),
-                            lic.get("password_hash", "")
-                        ))
-
-                    # Remove any deleted licenses from PostgreSQL that are no longer in data["licenses"]
-                    if data.get("licenses"):
-                        valid_keys = tuple(data["licenses"].keys())
-                        cur.execute("DELETE FROM admin_licenses WHERE license_key NOT IN %s;", (valid_keys,))
-
-                    conn.commit()
-        except Exception:
-            pass
+        data.setdefault("_metadata", {})["updated_at"] = datetime.utcnow().isoformat()
+        self.account_store.save(data)
 
     def verify_root_auth(self, password_or_key: str) -> bool:
         """Verifies root credentials."""
@@ -545,7 +417,7 @@ class LicenseManager:
         return True, f"SciStudio access successfully {status_text} for {acc.get('client_name')}.", sanitize_account(acc)
 
     def delete_account(self, license_key: str) -> Tuple[bool, str]:
-        """Permanently deletes an account record locally and from PostgreSQL cloud database."""
+        """Permanently deletes an account and revokes its sessions."""
         key_clean = (license_key or "").strip().upper()
         if key_clean == "SCIP-PRO-ROOT-MASTER":
             return False, "Cannot delete master root key."
@@ -558,20 +430,6 @@ class LicenseManager:
             if k.strip().upper() == key_clean:
                 del db["licenses"][k]
                 found = True
-
-        # 2. Cloud Sync: Delete from Oracle Cloud PostgreSQL
-        try:
-            import psycopg2
-            if not PG_CONFIG["host"]:
-                raise RuntimeError("Cloud database is not configured")
-            with psycopg2.connect(**PG_CONFIG) as conn:
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM admin_licenses WHERE UPPER(license_key) = %s;", (key_clean,))
-                    if cur.rowcount > 0:
-                        found = True
-                    conn.commit()
-        except Exception as e:
-            print(f"[LICENSE] Error deleting {key_clean} from PostgreSQL: {e}")
 
         if found:
             self._save_db(db)
@@ -1091,7 +949,7 @@ class LicenseManager:
         """Issues a secure session token valid for 7 days."""
         token = secrets.token_urlsafe(32)
         now = time.time()
-        self._sessions[token] = {
+        self._sessions[session_key(token)] = {
             "user": user_info,
             "created_at": now,
             "expires_at": now + (86400 * 7)
@@ -1104,16 +962,8 @@ class LicenseManager:
         if not token:
             return None, "Not authenticated"
 
-        # Check if disk has newer sessions (e.g. issued by another worker or reloaded after restart)
-        if token not in self._sessions and self.sessions_path.exists():
-            try:
-                mtime = self.sessions_path.stat().st_mtime
-                if mtime > getattr(self, "_last_sessions_mtime", 0.0):
-                    self._sessions = self._load_sessions()
-            except Exception:
-                pass
+        token, session = self._fresh_session(token)
 
-        session = self._sessions.get(token)
         if not session:
             return None, "Not authenticated"
         if time.time() > session.get("expires_at", 0):
@@ -1171,13 +1021,7 @@ class LicenseManager:
         """Revokes a session token."""
         if not token:
             return False
-        if token not in self._sessions and self.sessions_path.exists():
-            try:
-                mtime = self.sessions_path.stat().st_mtime
-                if mtime > getattr(self, "_last_sessions_mtime", 0.0):
-                    self._sessions = self._load_sessions()
-            except Exception:
-                pass
+        token, _ = self._fresh_session(token)
         if token in self._sessions:
             del self._sessions[token]
             self._save_sessions()
@@ -1185,4 +1029,16 @@ class LicenseManager:
         return False
 
 
-license_engine = LicenseManager()
+class _LazyEngine:
+    """Creates the shared manager on first use, so importing this module never
+    connects to the database (tests import it freely)."""
+    def __init__(self, factory):
+        self._factory, self._instance = factory, None
+
+    def __getattr__(self, name):
+        if self._instance is None:
+            self._instance = self._factory()
+        return getattr(self._instance, name)
+
+
+license_engine = _LazyEngine(LicenseManager)

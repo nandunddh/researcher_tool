@@ -1978,6 +1978,7 @@ async def builder_upload_media(site_id: str, request: Request):
     folder = _media_dir(site_id)
     folder.mkdir(parents=True, exist_ok=True)
     (folder / name).write_bytes(bytes(data))
+    builder_engine.record_media(site_id, name, mime, len(data))
     return {"status": "ok", "url": f"/api/builder/media/{site_id}/{name}"}
 
 

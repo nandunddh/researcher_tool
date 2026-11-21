@@ -11,6 +11,7 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT_DIR / "backend"))
 
 from license_manager import LicenseManager, hash_password
+from stores import session_key
 
 class SessionPersistenceTests(unittest.TestCase):
     def setUp(self):
@@ -48,14 +49,12 @@ class SessionPersistenceTests(unittest.TestCase):
         token = self.mgr.issue_session(user_info)
         self.assertTrue(bool(token))
 
-        # Verify sessions.json exists on disk
-        self.assertTrue(self.sessions_path.exists())
-        with open(self.sessions_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        self.assertIn("sessions", data)
-        self.assertIn(token, data["sessions"])
-        saved_session = data["sessions"][token]
+        # The session is stored, keyed by a hash of the token (never the raw token)
+        stored = self.mgr.session_store.load_all()
+        self.assertNotIn(token, stored)
+        self.assertNotIn(token, json.dumps(stored))
+        self.assertIn(session_key(token), stored)
+        saved_session = stored[session_key(token)]
 
         # 7-day duration validation: expires_at must be approx now + 7 days (86400 * 7)
         now = time.time()
@@ -95,12 +94,10 @@ class SessionPersistenceTests(unittest.TestCase):
         ok, user_info, _ = self.mgr.authenticate("jane.doe@university.edu", "ValidPassword123!")
         token = self.mgr.issue_session(user_info)
 
-        # Manually backdate the session's expires_at to simulate expiry
-        with open(self.sessions_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        data["sessions"][token]["expires_at"] = time.time() - 100
-        with open(self.sessions_path, "w", encoding="utf-8") as f:
-            json.dump(data, f)
+        # Manually backdate the stored session's expires_at to simulate expiry
+        stored = self.mgr.session_store.load_all()
+        stored[session_key(token)]["expires_at"] = time.time() - 100
+        self.mgr.session_store.save_all(stored)
 
         # Re-load or check with manager
         restarted_mgr = LicenseManager(db_path=self.db_path, sessions_path=self.sessions_path)
@@ -108,10 +105,8 @@ class SessionPersistenceTests(unittest.TestCase):
         self.assertIsNone(user)
         self.assertEqual(err, "Session expired")
 
-        # Verify token was pruned from file
-        with open(self.sessions_path, "r", encoding="utf-8") as f:
-            updated_data = json.load(f)
-        self.assertNotIn(token, updated_data.get("sessions", {}))
+        # Verify the session was pruned from storage
+        self.assertNotIn(session_key(token), restarted_mgr.session_store.load_all())
 
     def test_04_sign_out_revocation(self):
         """Sign-out must revoke the session token and remove it from server storage."""
@@ -152,10 +147,8 @@ class SessionPersistenceTests(unittest.TestCase):
         self.assertIsNone(user, "Suspended account must not have access")
         self.assertIn("SUSPENDED", err)
 
-        # Verify sessions are wiped from disk
-        with open(self.sessions_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self.assertNotIn(token, data.get("sessions", {}))
+        # Verify sessions are wiped from storage
+        self.assertNotIn(session_key(token), self.mgr.session_store.load_all())
 
         # Even across a server restart, access remains blocked
         restarted_mgr = LicenseManager(db_path=self.db_path, sessions_path=self.sessions_path)
@@ -178,6 +171,7 @@ class SessionPersistenceTests(unittest.TestCase):
         self.assertEqual(user["client_name"], "Root Administrator")
 
 
+@unittest.skipUnless(os.environ.get("SCIPROSPECT_LIVE_TESTS") == "1", "Live-server test: set SCIPROSPECT_LIVE_TESTS=1 to run against a local server and its database.")
 class LiveServerSessionPersistenceTests(unittest.TestCase):
     """End-to-end integration tests against running local server on http://127.0.0.1:8000."""
     BASE_URL = "http://127.0.0.1:8000"
@@ -189,7 +183,7 @@ class LiveServerSessionPersistenceTests(unittest.TestCase):
         self.opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(self.cookie_jar))
 
     def test_live_login_and_cookie_duration(self):
-        """Verify login sets a 7-day cookie and server persists session to disk."""
+        """Verify login sets a session cookie, /me works, and logout revokes it."""
         import urllib.request
         login_data = json.dumps({"identifier": "admin", "password": "admin2026"}).encode("utf-8")
         req = urllib.request.Request(
@@ -208,13 +202,6 @@ class LiveServerSessionPersistenceTests(unittest.TestCase):
         scip_cookie = next((c for c in self.cookie_jar if c.name == "scip_token"), None)
         self.assertIsNotNone(scip_cookie, "scip_token cookie must be set by server")
 
-        # Verify disk persistence in web/sessions.json
-        sessions_file = ROOT_DIR / "backend" / "sessions.json"
-        self.assertTrue(sessions_file.exists())
-        with open(sessions_file, "r", encoding="utf-8") as f:
-            disk_data = json.load(f)
-        self.assertIn(token, disk_data.get("sessions", {}))
-
         # Verify /api/auth/me with cookie succeeds
         me_req = urllib.request.Request(f"{self.BASE_URL}/api/auth/me")
         me_resp = self.opener.open(me_req)
@@ -231,11 +218,6 @@ class LiveServerSessionPersistenceTests(unittest.TestCase):
         )
         logout_resp = self.opener.open(logout_req)
         self.assertEqual(logout_resp.status, 200)
-
-        # After logout, session should no longer be active on disk
-        with open(sessions_file, "r", encoding="utf-8") as f:
-            updated_disk = json.load(f)
-        self.assertNotIn(token, updated_disk.get("sessions", {}))
 
         # Subsequent /api/auth/me must return 401
         try:

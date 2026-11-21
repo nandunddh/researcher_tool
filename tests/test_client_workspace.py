@@ -30,9 +30,6 @@ class ClientWorkspaceTests(unittest.TestCase):
         self.async_run = asyncio.run
         self.temp = tempfile.TemporaryDirectory(dir=ROOT / "tests")
         self.addCleanup(self.temp.cleanup)
-        self.cloud = patch.dict(lm.PG_CONFIG, {"host": ""})
-        self.cloud.start()
-        self.addCleanup(self.cloud.stop)
         self.output = contextlib.redirect_stdout(io.StringIO())
         self.output.__enter__()
         self.addCleanup(self.output.__exit__, None, None, None)
@@ -44,6 +41,13 @@ class ClientWorkspaceTests(unittest.TestCase):
         self.engine_patch = patch.object(web_app, "license_engine", self.manager)
         self.engine_patch.start()
         self.addCleanup(self.engine_patch.stop)
+        # Websites and conferences live in PostgreSQL; these tests use empty stand-ins.
+        from types import SimpleNamespace
+        for name, fake in (("builder_engine", SimpleNamespace(list_sites=lambda *a, **k: [])),
+                           ("conference_engine", SimpleNamespace(list_conferences=lambda *a, **k: []))):
+            p = patch.object(web_app, name, fake)
+            p.start()
+            self.addCleanup(p.stop)
 
         self.client_a = self.manager.create_account(
             name="Dr. Individual A",

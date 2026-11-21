@@ -171,6 +171,7 @@ class SubaccountAuthTests(unittest.TestCase):
         self.assertEqual(restarted_user["parent_license_key"], self.org_key)
         self.assertEqual(restarted_user["org_name"], "Black Mesa Research")
 
+    @unittest.skipUnless(os.environ.get("SCIPROSPECT_LIVE_TESTS") == "1", "Live-server test: writes test accounts to the running server's database. Set SCIPROSPECT_LIVE_TESTS=1 to run.")
     def test_06_blocked_member_access_to_conference_and_website_endpoints(self):
         """End-to-end HTTP API check: Subaccounts are blocked (HTTP 403) from conference and website endpoints."""
         BASE_URL = "http://127.0.0.1:8000"
@@ -181,7 +182,6 @@ class SubaccountAuthTests(unittest.TestCase):
         
         # We need the running server's license_engine to know about these accounts
         # We add them to license_engine in web/app.py for the live server test
-        app.license_engine.db_path.parent.mkdir(parents=True, exist_ok=True)
         live_db = app.license_engine._load_db()
         live_db["licenses"][self.org_key] = self.mgr.get_account(self.org_key)
         app.license_engine._save_db(live_db)

@@ -1,3 +1,4 @@
+import os
 import unittest
 import io
 import sys
@@ -10,6 +11,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 from backend.builder_manager import WebsiteBuilderEngine, compile_website_html
 
 
+@unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA", "").startswith("test_"), "Database test: set SCIPROSPECT_DB_SCHEMA=test_<name> to run against an isolated test schema (never the live data).")
 class TestBuilderMultiPageAndSeo(unittest.TestCase):
     def setUp(self):
         self.engine = WebsiteBuilderEngine()

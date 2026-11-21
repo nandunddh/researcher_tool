@@ -1,3 +1,4 @@
+import os
 import unittest
 import urllib.request
 import urllib.parse
@@ -8,6 +9,7 @@ from pathlib import Path
 
 BASE_URL = "http://127.0.0.1:8000"
 
+@unittest.skipUnless(os.environ.get("SCIPROSPECT_LIVE_TESTS") == "1", "Live-server test: set SCIPROSPECT_LIVE_TESTS=1 to run against a local server.")
 class StartupFlowTests(unittest.TestCase):
     def setUp(self):
         self.cookie_jar = http.cookiejar.CookieJar()
