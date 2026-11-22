@@ -1,11 +1,11 @@
 import type { CSSProperties } from "react";
-import { MotionEffects, RotatingWords } from "./motion";
-import styles from "./landing.module.css";
+import { MotionEffects, NetworkCanvas, RotatingWords, ScrollStory } from "./motion";
+import s from "./landing.module.css";
 
 export type PublicPlan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> };
 
 const fmt = (n: unknown) => (typeof n === "number" && n < 0 ? "Unlimited" : Number(n).toLocaleString());
-const delay = (s: number) => ({ "--d": `${s}s` }) as CSSProperties;
+const delay = (sec: number) => ({ "--d": `${sec}s` }) as CSSProperties;
 const SOURCES = ["OpenAlex", "ORCID", "Crossref", "Europe PMC", "NIH RePORTER"];
 
 function planLines(p: PublicPlan): { text: string; off?: boolean }[] {
@@ -22,164 +22,206 @@ function planLines(p: PublicPlan): { text: string; off?: boolean }[] {
   ];
 }
 
-/** Public home page: what the tools do, live pricing, sign up / log in. */
+/* ---------- product screens (drawn in HTML so they stay sharp and light) ---------- */
+function Chrome({ url, children }: { url: string; children: React.ReactNode }) {
+  return (
+    <div className={s.app}>
+      <div className={s.appBar}><i /><i /><i /><span>{url}</span></div>
+      <div className={s.appBody}>{children}</div>
+    </div>
+  );
+}
+
+const LEADS = [["Dr. Aisha Rao", "Single-cell genomics", "Univ. of Toronto", true], ["Prof. Lin Chen", "Machine learning", "Tsinghua Univ.", true],
+  ["Dr. Marco Rossi", "Neuroimaging", "Univ. of Milan", false], ["Dr. Sara Müller", "Climate modelling", "ETH Zürich", true], ["Dr. Kofi Mensah", "Epidemiology", "Univ. of Ghana", true]] as const;
+
+function CollectScreen() {
+  return (
+    <Chrome url="app.sciprospect.com/collector">
+      <div className={s.search}><span>🔎</span>single-cell genomics<b>Searching OpenAlex…</b></div>
+      <div className={s.progress}><i /></div>
+      <div className={s.leads}>
+        {LEADS.map(([name, field, org, ok], i) => (
+          <div key={name} className={s.leadRow} style={delay(i * .12)}>
+            <span className={s.avatar}>{name.split(" ").slice(-1)[0][0]}</span>
+            <div><b>{name}</b><small>{field} · {org}</small></div>
+            <em data-ok={ok || undefined}>{ok ? "✓ Email matched" : "Needs review"}</em>
+          </div>
+        ))}
+      </div>
+    </Chrome>
+  );
+}
+
+function BuildScreen() {
+  return (
+    <Chrome url="app.sciprospect.com/studio">
+      <div className={s.editor}>
+        <aside><b>Add</b><span>Hero</span><span className={s.dragging}>Registration ✥</span><span>Speakers</span><span>Key dates</span><span>Abstracts</span></aside>
+        <div className={s.canvas}>
+          <div className={s.siteHero}><small>AI &amp; ML SUMMIT 2027 · LISBON</small><strong>Where ideas meet</strong><span>Register now</span></div>
+          <div className={s.dropZone}>Drop here to place the section</div>
+          <div className={s.speakers}><i /><i /><i /><i /></div>
+        </div>
+      </div>
+    </Chrome>
+  );
+}
+
+function PayScreen() {
+  return (
+    <Chrome url="ai-ml-summit.sciprospect.site/register">
+      <div className={s.pay}>
+        <div className={s.ticketList}>
+          <div data-on><b>Academic</b><span>Early bird</span><strong>$699</strong></div>
+          <div><b>Student</b><span>Early bird</span><strong>$499</strong></div>
+          <div><b>Gala dinner</b><span>Add-on</span><strong>$80</strong></div>
+        </div>
+        <div className={s.receipt}>
+          <span className={s.paidStamp}>PAID</span>
+          <small>RECEIPT</small><strong>AIML-2027-0042</strong>
+          <p><span>Academic (Early bird)</span><span>$699</span></p>
+          <p><span>Discount EARLY10</span><span>−$69.90</span></p>
+          <p className={s.total}><span>Total</span><span>$629.10</span></p>
+          <em>✉ Emailed to the attendee</em>
+        </div>
+      </div>
+    </Chrome>
+  );
+}
+
+/** Public home page. */
 export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedInHref: string | null }) {
   const popular = plans.length > 2 ? plans[1].id : plans.find(p => p.price_month > 0)?.id;
   const start = signedInHref ?? "/signup";
   return (
-    <div className={styles.page}>
+    <div className={s.page}>
       <MotionEffects />
-      <header className={styles.nav}>
-        <div className={`${styles.wrap} ${styles.navInner}`}>
-          <a className={styles.brand} href="/"><img src="/branding/sciprospect-a-icon.png" alt="" />SciProspect</a>
-          <nav className={styles.links} aria-label="Main">
-            <a href="#tools">Tools</a><a href="#how">How it works</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a>
-          </nav>
-          <div className={styles.actions}>
-            {signedInHref ? <a className={styles.btn} href={signedInHref}>Open workspace <span className={styles.arrow}>→</span></a> : <>
-              <a className={styles.btnGhost} href="/login">Log in</a>
-              <a className={styles.btn} href="/signup">Start free <span className={styles.arrow}>→</span></a>
+      <div className={s.spotlight} aria-hidden="true" />
+
+      <header className={s.nav}>
+        <div className={`${s.wrap} ${s.navInner}`}>
+          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon.png" alt="" />SciProspect</a>
+          <nav className={s.links} aria-label="Main"><a href="#story">Product</a><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
+          <div className={s.actions}>
+            {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>
+              <a className={s.btnGhost} href="/login">Log in</a>
+              <a className={s.btn} href="/signup">Start free <span className={s.arrow}>→</span></a>
             </>}
           </div>
         </div>
       </header>
 
       <main>
-        <section className={styles.hero}>
-          <div className={styles.blobs} aria-hidden="true"><i /><i /><i /></div>
-          <div className={styles.grid} aria-hidden="true" />
-          <div className={`${styles.wrap} ${styles.heroGrid}`}>
-            <div>
-              <span className={styles.eyebrow}><b>NEW</b> Registration, payments and receipts built in</span>
-              <h1>
-                Find the right researchers.<br />
-                Launch your <RotatingWords className={`${styles.gradientText} ${styles.word}`} words={["conference website", "registration desk", "abstract portal", "speaker line-up"]} />
-              </h1>
-              <p className={styles.lead}>SciProspect collects verified researcher contacts from scholarly sources, and SciStudio turns your event into a complete website with registration, payments and abstract submissions. No code needed.</p>
-              <div className={styles.heroCtas}>
-                <a className={styles.btn} href={start}>{signedInHref ? "Open workspace" : "Start free"} <span className={styles.arrow}>→</span></a>
-                <a className={styles.btnGhost} href="#pricing">See pricing</a>
-              </div>
-              <div className={styles.trust}><span>Free plan, no card</span><span>Set up in minutes</span><span>Your data stays yours</span></div>
+        {/* ---------- Hero ---------- */}
+        <section className={s.hero}>
+          <NetworkCanvas className={s.network} />
+          <div className={s.aurora} aria-hidden="true"><i /><i /><i /></div>
+          <div className={`${s.wrap} ${s.heroInner}`}>
+            <a className={s.pill} href="#story"><b>NEW</b> Registration, payments and receipts are built in <span>→</span></a>
+            <h1>Find the minds.<br /><span className={s.gradient}>Build the event.</span></h1>
+            <p className={s.lead}>
+              SciProspect finds the researchers your event needs, then gives you a{" "}
+              <RotatingWords className={s.rotate} words={["conference website", "registration desk", "abstract portal", "speaker line-up"]} />
+              {" "}in minutes. No code.
+            </p>
+            <div className={s.ctas}>
+              <a className={s.btn} href={start}>{signedInHref ? "Open workspace" : "Start free"} <span className={s.arrow}>→</span></a>
+              <a className={s.btnGhost} href="#story">See how it works</a>
             </div>
-            <div className={styles.visual} aria-hidden="true">
-              <div className={styles.card1}>
-                <div className={styles.cardHead}><strong>Researcher leads</strong><span className={styles.live}>Collecting</span></div>
-                {[["Dr. A. Rao", "Genomics", "Verified"], ["Prof. L. Chen", "Machine learning", "Verified"], ["Dr. M. Okafor", "Neuroscience", "Review"], ["Dr. S. Müller", "Climate science", "Verified"]].map(([n, f, s]) => (
-                  <div className={styles.row} key={n}><b>{n}</b><span>{f}</span><span className={s === "Verified" ? styles.ok : styles.chip}>{s}</span></div>
-                ))}
-              </div>
-              <div className={styles.card2}>
-                <div className={styles.site}><small>AI &amp; ML Summit 2027</small><strong>Registration is open</strong><small>Early bird ends 31 March</small></div>
-                <div className={styles.tickets}><div>Academic<b>$699</b></div><div>Student<b>$499</b></div></div>
-              </div>
-              <div className={styles.card3}><i>✓</i><span>Payment received<small>Receipt R-0042 emailed</small></span></div>
-            </div>
+            <p className={s.fine}>Free plan · no card needed</p>
+          </div>
+          <div className={`${s.wrap} ${s.heroScreen}`}>
+            <div className={s.tilt}><PayScreen /></div>
           </div>
         </section>
 
-        <section className={styles.sources} aria-label="Researcher data sources">
+        <section className={s.sources} aria-label="Researcher data sources">
           <p>Researcher data from trusted scholarly sources</p>
-          <div className={styles.marquee}>
-            <div className={styles.track}>{[...SOURCES, ...SOURCES, ...SOURCES, ...SOURCES].map((s, i) => <span key={i} aria-hidden={i >= SOURCES.length || undefined}>{s}</span>)}</div>
+          <div className={s.marquee}><div className={s.track}>{[...SOURCES, ...SOURCES, ...SOURCES, ...SOURCES].map((x, i) => <span key={i} aria-hidden={i >= SOURCES.length || undefined}>{x}</span>)}</div></div>
+        </section>
+
+        {/* ---------- Scroll story ---------- */}
+        <section id="story" className={s.section}>
+          <div className={s.wrap}>
+            <div className={s.head} data-reveal=""><span className={s.kicker}>One flow, start to finish</span><h2>From a blank page to a sold-out conference</h2></div>
+            <ScrollStory
+              classes={{ wrap: s.story, sticky: s.storySticky, screen: s.storyScreen, steps: s.storySteps, step: s.storyStep, dots: s.storyDots }}
+              screens={[<CollectScreen key="c" />, <BuildScreen key="b" />, <PayScreen key="p" />]}
+              steps={[
+                { kicker: "01 · SciProspect", title: "Collect the right researchers", text: "Search publications by topic. SciProspect gathers the authors and keeps an email only when it matches the person, using ORCID, Crossref and Europe PMC. Remove duplicates and export in one click." },
+                { kicker: "02 · SciStudio", title: "Build your event website", text: "Start from a template or a blank canvas. Drag in sections such as registration, speakers, key dates and abstract submission, then edit everything right on the page." },
+                { kicker: "03 · Registration", title: "Get registered and get paid", text: "Ticket types, price periods, add-ons and discount codes come from one Event details page. Attendees pay online and get a numbered receipt by email." },
+              ]}
+            />
           </div>
         </section>
 
-        <section id="tools" className={`${styles.section} ${styles.alt}`}>
-          <div className={styles.wrap}>
-            <div className={styles.head} data-reveal="">
-              <span className={styles.kicker}>Two tools, one account</span>
-              <h2>Everything from finding speakers to welcoming attendees</h2>
-              <p>Use them together or on their own. One sign-in, one team, one plan.</p>
-            </div>
-            <div className={styles.tools}>
-              <article className={styles.tool} data-reveal="">
-                <div className={styles.toolIcon}>🔎</div>
-                <h3>SciProspect<small>Research data collector</small></h3>
-                <p>Find active researchers in your field and their professional contacts.</p>
-                <ul>
-                  <li>Search publications by topic, then collect the authors</li>
-                  <li>Contacts matched to the author from ORCID, Crossref and Europe PMC</li>
-                  <li>NIH-funded researcher search</li>
-                  <li>Remove duplicates and export to CSV</li>
-                </ul>
-              </article>
-              <article className={styles.tool} data-reveal="" style={delay(.12)}>
-                <div className={styles.toolIcon}>🎨</div>
-                <h3>SciStudio<small>No-code website builder</small></h3>
-                <p>Made for conferences, and great for any website.</p>
-                <ul>
-                  <li>Drag-and-drop editor, templates and a growing design library</li>
-                  <li>Registration with ticket types, price periods, add-ons and discount codes</li>
-                  <li>Online payments and automatic, numbered receipts</li>
-                  <li>Abstract submission with files, authors and review status</li>
-                  <li>Speakers, key dates and event details kept in one place</li>
-                </ul>
-              </article>
+        {/* ---------- Bento ---------- */}
+        <section id="features" className={s.section}>
+          <div className={s.wrap}>
+            <div className={s.head} data-reveal=""><span className={s.kicker}>Everything in one place</span><h2>Built for people who run research events</h2></div>
+            <div className={s.bento}>
+              <article className={`${s.tile} ${s.tileWide}`} data-reveal=""><span className={s.tileIcon}>🧬</span><h3>Verified researcher contacts</h3><p>Emails are matched to the author before they are kept, and each lead shows its source and review status.</p><div className={s.miniChart} aria-hidden="true">{[38, 62, 48, 80, 66, 92, 74].map((v, i) => <i key={i} style={{ height: `${v}%`, ...delay(i * .08) }} />)}</div></article>
+              <article className={s.tile} data-reveal="" style={delay(.08)}><span className={s.tileIcon}>🗓️</span><h3>Event details, once</h3><p>Dates, tickets, prices, codes and speakers in one place. Every page updates.</p></article>
+              <article className={s.tile} data-reveal="" style={delay(.16)}><span className={s.tileIcon}>📄</span><h3>Abstract submission</h3><p>Authors, tracks, word limits, PDF uploads and IDs like ABS-0001, with review status.</p></article>
+              <article className={s.tile} data-reveal="" style={delay(.08)}><span className={s.tileIcon}>🧾</span><h3>Receipts that send themselves</h3><p>Numbered, with your tax details, ready to print as PDF.</p></article>
+              <article className={`${s.tile} ${s.tileWide}`} data-reveal="" style={delay(.16)}><span className={s.tileIcon}>🎨</span><h3>A design library that grows every day</h3><p>New sections and multi-page templates are added all the time. Use them with one click and make them yours.</p><div className={s.swatches} aria-hidden="true"><i /><i /><i /><i /><i /></div></article>
+              <article className={s.tile} data-reveal=""><span className={s.tileIcon}>🔐</span><h3>Secure by default</h3><p>Two-step sign-in, private uploads and server-side prices.</p></article>
             </div>
           </div>
         </section>
 
-        <section id="how" className={styles.section}>
-          <div className={styles.wrap}>
-            <div className={styles.head} data-reveal=""><span className={styles.kicker}>How it works</span><h2>Up and running in three steps</h2></div>
-            <div className={styles.steps}>
-              <div className={styles.step} data-reveal=""><h3>Create your account</h3><p>Sign up with your email and pick a plan. The Free plan needs no card.</p></div>
-              <div className={styles.step} data-reveal="" style={delay(.12)}><h3>Build or collect</h3><p>Start a website from a template, or run a search to collect researcher contacts.</p></div>
-              <div className={styles.step} data-reveal="" style={delay(.24)}><h3>Publish and grow</h3><p>Publish your site, open registration and invite the right people.</p></div>
-            </div>
-          </div>
-        </section>
-
-        <section id="pricing" className={`${styles.section} ${styles.alt}`}>
-          <div className={styles.wrap}>
-            <div className={styles.head} data-reveal=""><span className={styles.kicker}>Pricing</span><h2>Simple plans that grow with you</h2><p>Start free. Upgrade, downgrade or cancel at any time.</p></div>
+        {/* ---------- Pricing ---------- */}
+        <section id="pricing" className={s.section}>
+          <div className={s.wrap}>
+            <div className={s.head} data-reveal=""><span className={s.kicker}>Pricing</span><h2>Simple plans that grow with you</h2><p>Start free. Upgrade, downgrade or cancel at any time.</p></div>
             {plans.length ? (
-              <div className={styles.plans}>
+              <div className={s.plans}>
                 {plans.map((p, i) => (
-                  <article key={p.id} className={styles.plan} data-popular={p.id === popular || undefined} data-reveal="" style={delay(i * .1)}>
-                    {p.id === popular && <span className={styles.popular}>Most popular</span>}
+                  <article key={p.id} className={s.plan} data-popular={p.id === popular || undefined} data-reveal="" style={delay(i * .1)}>
+                    {p.id === popular && <span className={s.popular}>Most popular</span>}
                     <h3>{p.name}</h3>
-                    <div className={styles.price}>{p.price_month > 0 ? `$${p.price_month.toLocaleString()}` : "Free"}{p.price_month > 0 && <small> / month</small>}</div>
+                    <div className={s.price}>{p.price_month > 0 ? `$${p.price_month.toLocaleString()}` : "Free"}{p.price_month > 0 && <small> / month</small>}</div>
                     <ul>{planLines(p).map(line => <li key={line.text} data-off={line.off || undefined}>{line.text}</li>)}</ul>
-                    <a className={p.id === popular ? styles.btn : styles.btnGhost} href={`/signup?plan=${encodeURIComponent(p.id)}`}>
-                      {p.price_month > 0 ? `Choose ${p.name}` : "Start free"}
-                    </a>
+                    <a className={p.id === popular ? s.btn : s.btnGhost} href={`/signup?plan=${encodeURIComponent(p.id)}`}>{p.price_month > 0 ? `Choose ${p.name}` : "Start free"}</a>
                   </article>
                 ))}
               </div>
-            ) : <p className={styles.note}>Plans are being updated. Please check back soon.</p>}
-            <p className={styles.note}>Prices in USD. Need more? <a href="mailto:hello@sciprospect.com">Talk to us</a> about larger events.</p>
+            ) : <p className={s.note}>Plans are being updated. Please check back soon.</p>}
+            <p className={s.note}>Prices in USD. Running something bigger? <a href="mailto:hello@sciprospect.com">Talk to us</a>.</p>
           </div>
         </section>
 
-        <section id="faq" className={styles.section}>
-          <div className={styles.wrap}>
-            <div className={styles.head} data-reveal=""><span className={styles.kicker}>FAQ</span><h2>Questions, answered</h2></div>
-            <div className={styles.faq} data-reveal="">
-              <details><summary>Do I need to know how to code?</summary><p>No. Everything is point and click: choose a template, edit text and images on the page, and publish.</p></details>
-              <details><summary>Can I take payments for registrations?</summary><p>Yes. Set ticket types, price periods, add-ons and discount codes once, and attendees pay online. Each payment gets a numbered receipt by email.</p></details>
-              <details><summary>Can I change or cancel my plan?</summary><p>Yes, at any time from Billing in your workspace. Changes apply straight away.</p></details>
-              <details><summary>Where do researcher contacts come from?</summary><p>From public scholarly sources such as OpenAlex, ORCID, Crossref, Europe PMC and NIH. An email is kept only when it matches the author.</p></details>
-              <details><summary>Can my team work with me?</summary><p>Yes. Invite team members to your organization; the number of seats depends on your plan.</p></details>
+        {/* ---------- FAQ ---------- */}
+        <section id="faq" className={s.section}>
+          <div className={s.wrap}>
+            <div className={s.head} data-reveal=""><span className={s.kicker}>FAQ</span><h2>Questions, answered</h2></div>
+            <div className={s.faq} data-reveal="">
+              <details><summary>Do I need to know how to code?</summary><p>No. Choose a template, edit text and images right on the page, and publish.</p></details>
+              <details><summary>Can I take payments for registrations?</summary><p>Yes. Set tickets, price periods, add-ons and codes once; attendees pay online and get a numbered receipt by email.</p></details>
+              <details><summary>Can I change or cancel my plan?</summary><p>Yes, at any time from Billing in your workspace.</p></details>
+              <details><summary>Where do researcher contacts come from?</summary><p>From public scholarly sources such as OpenAlex, ORCID, Crossref, Europe PMC and NIH RePORTER. An email is kept only when it matches the author.</p></details>
+              <details><summary>Can my team work with me?</summary><p>Yes. Invite team members to your organization; seats depend on your plan.</p></details>
             </div>
           </div>
         </section>
 
-        <section className={styles.cta}>
-          <div className={styles.wrap}>
-            <div className={styles.ctaBox} data-reveal="">
-              <h2>Ready to plan your next event?</h2>
-              <p>Create your free account in a minute. No card needed.</p>
-              <a className={styles.btnLight} href={start}>{signedInHref ? "Open workspace" : "Create free account"} <span className={styles.arrow}>→</span></a>
+        <section className={s.cta}>
+          <div className={s.wrap}>
+            <div className={s.ctaBox} data-reveal="">
+              <div className={s.aurora} aria-hidden="true"><i /><i /><i /></div>
+              <h2>Your next event starts here.</h2>
+              <p>Create a free account in a minute. No card needed.</p>
+              <a className={s.btnLight} href={start}>{signedInHref ? "Open workspace" : "Create free account"} <span className={s.arrow}>→</span></a>
             </div>
           </div>
         </section>
       </main>
 
-      <footer className={styles.footer}>
-        <div className={styles.wrap}>
-          <span>© {new Date().getFullYear()} SciProspect. All rights reserved.</span>
+      <footer className={s.footer}>
+        <div className={s.wrap}>
+          <span>© {new Date().getFullYear()} SciProspect</span>
           <span><a href="#pricing">Pricing</a><a href="/login">Log in</a><a href="/signup">Sign up</a></span>
         </div>
       </footer>
