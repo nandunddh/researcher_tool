@@ -34,7 +34,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 
 ## A3. Desktop app (to retire)
 - [x] Desktop app with auto-update (check, download, install)
-- [ ] After the web rebuild: delete `app/`, the `.bat` files and `backend/static/app.js`
+- [x] After the web rebuild: delete `app/`, the `.bat` files and `backend/static/app.js`
 
 ---
 
