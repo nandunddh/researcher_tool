@@ -389,7 +389,8 @@ def _signed_in(request: Request, user: dict, msg: str, extra: Optional[dict] = N
         "message": msg,
         **(extra or {}),
     })
-    secure_cookie = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    # Nginx sets https; Next.js appends its own hop ("https,http"), so the first value is the visitor's.
+    secure_cookie = request.url.scheme == "https" or request.headers.get("x-forwarded-proto", "").split(",")[0].strip() == "https"
     res.set_cookie(
         key="scip_token",
         value=token,
