@@ -11,8 +11,8 @@ UNLIMITED = -1
 
 def list_plans() -> list:
     with db.transaction() as cur:
-        cur.execute("SELECT id, name, price_month, limits, stripe_price_id FROM plans ORDER BY sort, id")
-        return [{"id": i, "name": n, "price_month": float(p), "limits": l, "stripe_price_id": sp} for i, n, p, l, sp in cur.fetchall()]
+        cur.execute("SELECT id, name, price_month, limits, stripe_price_id, featured FROM plans ORDER BY sort, id")
+        return [{"id": i, "name": n, "price_month": float(p), "limits": l, "stripe_price_id": sp, "featured": f} for i, n, p, l, sp, f in cur.fetchall()]
 
 
 def clean_plan(body: dict) -> dict:
@@ -36,16 +36,18 @@ def clean_plan(body: dict) -> dict:
     stripe_price = str(body.get("stripe_price_id") or "").strip()
     if stripe_price and not stripe_price.startswith("price_"):
         raise ValueError("A Stripe price id starts with “price_”.")
-    return {"name": name, "price_month": price, "limits": limits, "stripe_price_id": stripe_price[:100]}
+    return {"name": name, "price_month": price, "limits": limits, "stripe_price_id": stripe_price[:100], "featured": body.get("featured") is True}
 
 
 def save_plan(plan_id: str, body: dict) -> dict:
     plan = clean_plan(body)
     with db.transaction() as cur:
-        cur.execute("UPDATE plans SET name = %s, price_month = %s, limits = %s, stripe_price_id = %s, updated_at = now() WHERE id = %s",
-                    (plan["name"], plan["price_month"], Json(plan["limits"]), plan["stripe_price_id"], plan_id))
+        cur.execute("UPDATE plans SET name = %s, price_month = %s, limits = %s, stripe_price_id = %s, featured = %s, updated_at = now() WHERE id = %s",
+                    (plan["name"], plan["price_month"], Json(plan["limits"]), plan["stripe_price_id"], plan["featured"], plan_id))
         if cur.rowcount != 1:
             raise ValueError("Plan not found.")
+        if plan["featured"]:  # only one plan carries the "Most popular" badge
+            cur.execute("UPDATE plans SET featured = false WHERE id <> %s", (plan_id,))
     return {"id": plan_id, **plan}
 
 

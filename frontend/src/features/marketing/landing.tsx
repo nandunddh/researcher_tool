@@ -3,7 +3,7 @@ import { MotionEffects, RotatingWords, ScrollStory } from "./motion";
 import { HeroDemo } from "./hero-demo";
 import s from "./landing.module.css";
 
-export type PublicPlan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> };
+export type PublicPlan = { id: string; name: string; price_month: number; featured?: boolean; limits: Record<string, number | boolean> };
 
 const fmt = (n: unknown) => (typeof n === "number" && n < 0 ? "Unlimited" : Number(n).toLocaleString());
 const delay = (sec: number) => ({ "--d": `${sec}s` }) as CSSProperties;
@@ -93,7 +93,8 @@ function PayScreen() {
 
 /** Public home page. */
 export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedInHref: string | null }) {
-  const popular = plans.length > 2 ? plans[1].id : plans.find(p => p.price_month > 0)?.id;
+  // Root picks the highlighted plan on the Plans page ("Highlight as Most popular").
+  const popular = plans.find(p => p.featured)?.id ?? plans.find(p => p.price_month > 0)?.id;
   const start = signedInHref ?? "/signup";
   return (
     <div className={s.page}>

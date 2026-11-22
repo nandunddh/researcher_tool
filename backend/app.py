@@ -977,7 +977,7 @@ async def admin_usage(request: Request):
 async def public_plans():
     """Public: the plans shown on the pricing page (read live from the Plans page)."""
     import plans
-    return {"plans": [{k: p[k] for k in ("id", "name", "price_month", "limits")} for p in plans.list_plans()]}
+    return {"plans": [{k: p[k] for k in ("id", "name", "price_month", "limits", "featured")} for p in plans.list_plans()]}
 
 
 # -----------------------------------------------------------------------------
@@ -1031,7 +1031,7 @@ async def billing_overview(request: Request):
         billing.sync_test(key, _billing_hooks())
         account = license_engine.get_account(key) or account
     return {"provider": billing.provider(), "plan": plans.plan_for(account), "subscription": billing.subscription(key),
-            "invoices": billing.invoices(key), "plans": [{k: p[k] for k in ("id", "name", "price_month", "limits")} for p in plans.list_plans()]}
+            "invoices": billing.invoices(key), "plans": [{k: p[k] for k in ("id", "name", "price_month", "limits", "featured")} for p in plans.list_plans()]}
 
 
 @app.post("/api/billing/checkout")

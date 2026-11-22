@@ -62,6 +62,9 @@ export function PlansAdmin() {
               </label>
             )}
             <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" checked={p.featured === true} onChange={e => update(p.id, { featured: e.target.checked })} />Highlight as “Most popular”
+            </label>
+            <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <input type="checkbox" checked={p.limits.custom_domain === true} onChange={e => setLimit(p, "custom_domain", e.target.checked)} />Custom domain
             </label>
             <button type="button" className="primary" disabled={saving === p.id} onClick={() => void save(p)}>{saving === p.id ? "Saving…" : `Save ${p.name}`}</button>

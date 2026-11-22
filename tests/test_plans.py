@@ -42,6 +42,8 @@ class PlanRulesTests(unittest.TestCase):
         self.assertEqual(clean["limits"]["pages"], -1, "negative = unlimited")
         self.assertEqual(clean["limits"]["members"], -1, "missing = unlimited")
         self.assertFalse(clean["limits"]["custom_domain"], "only true counts")
+        self.assertFalse(clean["featured"])
+        self.assertTrue(plans.clean_plan({"name": "B", "featured": True})["featured"])
         for bad in ({"name": ""}, {"name": "X", "price_month": "free"}, {"name": "X", "limits": {"websites": "many"}}):
             with self.assertRaises(ValueError):
                 plans.clean_plan(bad)

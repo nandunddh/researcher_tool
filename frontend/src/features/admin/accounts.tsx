@@ -35,7 +35,7 @@ type Account = {
 type Usage = { websites: number; pages: number; storage_mb: number; submissions_month: number };
 type UsageEntry = { plan_id: string; usage: Usage; self_signup?: boolean;
   subscription?: { status: string; current_period_end: string | null; cancel_at_period_end: boolean; provider: string } | null };
-export type Plan = { id: string; name: string; price_month: number; stripe_price_id?: string; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
+export type Plan = { id: string; name: string; price_month: number; stripe_price_id?: string; featured?: boolean; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
 
 export function ManageAccounts() {
   const [confirmation, setConfirmation] = useState<{
