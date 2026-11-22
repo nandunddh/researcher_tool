@@ -117,11 +117,14 @@ export function Login({ returnPath }: { returnPath: string | null }) {
             <img src="/branding/sciprospect-a-icon.png" alt="" width="56" height="56" />
             <span>SciProspect</span>
           </div>
-          <h1>{mode === "login" ? "Welcome back" : "Reset Password"}</h1>
+          {/* One title per step: sign in, two-step code, password reset. */}
+          <h1>{mode === "login" ? "Welcome back" : mode === "mfa" ? "Two-step sign-in" : "Reset password"}</h1>
           <p>
             {mode === "login"
               ? "Please enter your email and password."
-              : "Enter your account email and we'll email you a 6-digit code to set a new password."}
+              : mode === "mfa"
+                ? "Your password is correct. Now enter the 6-digit code from your authenticator app."
+                : "Enter your account email and we'll email you a 6-digit code to set a new password."}
           </p>
         </div>
 
