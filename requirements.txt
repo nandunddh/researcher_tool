@@ -6,3 +6,4 @@ pydantic>=2.0.0
 aiofiles>=23.2.1
 python-multipart>=0.0.9
 segno>=1.6
+# stripe  # install when switching payments to Stripe: pip install stripe

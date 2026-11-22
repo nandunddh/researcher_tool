@@ -975,7 +975,147 @@ async def admin_usage(request: Request):
 async def public_plans():
     """Public: the plans shown on the pricing page (read live from the Plans page)."""
     import plans
-    return {"plans": plans.list_plans()}
+    return {"plans": [{k: p[k] for k in ("id", "name", "price_month", "limits")} for p in plans.list_plans()]}
+
+
+# -----------------------------------------------------------------------------
+# Billing (test provider now, Stripe later: see backend/billing.py)
+# -----------------------------------------------------------------------------
+def _plan_by_id(plan_id: str) -> Optional[dict]:
+    import plans
+    return next((p for p in plans.list_plans() if p["id"] == plan_id), None)
+
+
+def _billing_hooks() -> dict:
+    """What a payment event does to the account: website plan, team seats and the collector license."""
+    def on_paid(key, plan_id):
+        plan = _plan_by_id(plan_id)
+        license_engine.set_plan(key, plan_id, int((plan or {}).get("limits", {}).get("members", -1)))
+
+    def on_renewed(key):
+        account = license_engine.get_account(key) or {}
+        if account.get("tier") != "pro":
+            license_engine.upgrade_account(key, "pro", -1)  # first payment: Pro collector license for 30 days
+        else:
+            license_engine.extend_account(key, 30)
+
+    def on_ended(key):
+        free = _plan_by_id("free") or {"limits": {"members": 0}}
+        license_engine.set_plan(key, "free", int(free["limits"].get("members", 0)))
+        license_engine.upgrade_account(key, "trial", 100)
+        license_engine.extend_account(key, 365)  # keep signing in on the Free plan
+    return {"on_paid": on_paid, "on_renewed": on_renewed, "on_ended": on_ended}
+
+
+def _billing_owner(request: Request):
+    user = _require_authenticated_user(request)
+    if user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="The root account has no billing.")
+    if user.get("is_member"):
+        raise HTTPException(status_code=403, detail="Only the account owner can manage billing.")
+    account = license_engine.get_account(user.get("license_key"))
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    return user, account
+
+
+@app.get("/api/billing")
+async def billing_overview(request: Request):
+    import billing
+    import plans
+    _user, account = _billing_owner(request)
+    key = account["license_key"]
+    if billing.provider() == "test":
+        billing.sync_test(key, _billing_hooks())
+        account = license_engine.get_account(key) or account
+    return {"provider": billing.provider(), "plan": plans.plan_for(account), "subscription": billing.subscription(key),
+            "invoices": billing.invoices(key), "plans": [{k: p[k] for k in ("id", "name", "price_month", "limits")} for p in plans.list_plans()]}
+
+
+@app.post("/api/billing/checkout")
+async def billing_checkout(request: Request):
+    """Start paying for a plan (or switch between paid plans while subscribed)."""
+    import billing
+    user, account = _billing_owner(request)
+    plan = _plan_by_id(str((await request.json()).get("plan_id") or ""))
+    if not plan or plan["price_month"] <= 0:
+        raise HTTPException(status_code=400, detail="Choose a paid plan.")
+    key = account["license_key"]
+    sub = billing.subscription(key)
+    if sub and sub["status"] == "active":
+        if sub["plan_id"] == plan["id"]:
+            raise HTTPException(status_code=400, detail="You are already on this plan.")
+        billing.switch_plan(key, sub, plan)
+        _billing_hooks()["on_paid"](key, plan["id"])
+        return {"changed": True, "message": f"You are now on {plan['name']}."}
+    try:
+        url = billing.create_checkout(key, user.get("client_email", ""), plan, os.environ.get("SCIPROSPECT_APP_URL", "http://127.0.0.1:3000").rstrip("/"))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return {"url": url}
+
+
+@app.get("/api/billing/checkout/{session_id}")
+async def billing_checkout_session(session_id: str, request: Request):
+    import billing
+    _user, account = _billing_owner(request)
+    found = billing.checkout(session_id, account["license_key"])
+    if not found:
+        raise HTTPException(status_code=404, detail="This checkout was not found.")
+    plan = _plan_by_id(found["plan_id"]) or {}
+    return {**found, "plan_name": plan.get("name", found["plan_id"]), "email": account.get("client_email", "")}
+
+
+@app.post("/api/billing/checkout/{session_id}/pay")
+async def billing_test_pay(session_id: str, request: Request):
+    """Test provider: the checkout page's Pay button. Behaves like Stripe's test cards (4000 0000 0000 0002 is declined)."""
+    import billing
+    _user, account = _billing_owner(request)
+    if billing.provider() != "test":
+        raise HTTPException(status_code=404, detail="Not found.")
+    problem = billing.check_test_card(await request.json())
+    if problem:
+        raise HTTPException(status_code=402 if "declined" in problem else 400, detail=problem)
+    if not billing.pay_test_checkout(session_id, account["license_key"], _billing_hooks()):
+        raise HTTPException(status_code=400, detail="This checkout is no longer open.")
+    return {"status": "ok"}
+
+
+@app.post("/api/billing/cancel")
+async def billing_cancel(request: Request):
+    """Cancel at the end of the paid period ({"resume": true} undoes it)."""
+    import billing
+    _user, account = _billing_owner(request)
+    resume = bool((await request.json()).get("resume"))
+    if not billing.set_cancel(account["license_key"], not resume, _billing_hooks()):
+        raise HTTPException(status_code=400, detail="There is no active subscription.")
+    return {"status": "ok"}
+
+
+@app.get("/api/billing/invoices/{invoice_id}")
+async def billing_invoice(invoice_id: int, request: Request):
+    import billing
+    _user, account = _billing_owner(request)
+    found = billing.invoice(account["license_key"], invoice_id)
+    if not found:
+        raise HTTPException(status_code=404, detail="Invoice not found.")
+    plan = _plan_by_id(found["plan_id"]) or {}
+    return {**found, "plan_name": plan.get("name", found["plan_id"]), "customer": {
+        "name": account.get("client_name", ""), "organization": account.get("org_name", ""), "email": account.get("client_email", "")}}
+
+
+@app.post("/api/billing/webhook")
+async def billing_webhook(request: Request):
+    """Stripe calls this after payments, renewals and cancellations. The signature is checked."""
+    import billing
+    if billing.provider() != "stripe":
+        raise HTTPException(status_code=404, detail="Not found.")
+    try:
+        event = billing.verify_webhook(await request.body(), request.headers.get("stripe-signature", ""))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid signature.")
+    billing.handle_event(event, _billing_hooks())
+    return {"received": True}
 
 
 @app.get("/api/plan")
