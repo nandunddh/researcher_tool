@@ -135,7 +135,8 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
     try { localStorage.setItem("scistudio-editor-theme", next); } catch { /* storage unavailable */ }
   }
   const endpoint = `/api/builder/sites/${encodeURIComponent(siteId)}`;
-  const readOnly = busy || site?.status === "published";
+  const readOnly = busy;
+  const live = site?.status === "published";
 
   const change: Change = useCallback((fn, key) => { if (!readOnly) dispatch({ type: "apply", fn, key }); }, [readOnly]);
   const showError = useCallback((message: string) => dispatch({ type: "error", message }), []);
@@ -233,6 +234,21 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   const openPage = site?.pages?.find(pg => pg.id === site.active_page_id);
   const openSlug = openPage && !openPage.is_home ? (openPage.slug || "").replace(/^\/+|\/+$/g, "") : "";
   const previewUrl = `/${namespace}/scistudio/${encodeURIComponent(siteId)}/preview${openSlug ? `/${encodeURIComponent(openSlug)}` : ""}`;
+  async function setLive(on: boolean) {
+    if (!site) return;
+    if (on && dirty && !(await save())) return;
+    setBusy(true);
+    try {
+      await api(`${endpoint}/${on ? "publish" : "unpublish"}`, { method: "POST" });
+      dispatch({ type: "load", site: prepareSite(await api<EditorSite>(endpoint)) });
+      announce(on ? "Your website is live" : "Your website is offline");
+    } catch (e) {
+      showError(e instanceof Error ? e.message : "The website status could not be changed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openPreview() {
     if (!dirty) { window.open(previewUrl, "_blank", "noopener"); return; }
     ask({
@@ -321,6 +337,20 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
             aria-label={theme === "light" ? "Switch to dark appearance" : "Switch to light appearance"}>
             <Icon name={theme === "light" ? "moon" : "sun"} size={16} />
           </button>
+          {site && (live ? <>
+            <a className={styles.settingsButton} href={`/sites/${encodeURIComponent(site.slug ?? "")}`} target="_blank" rel="noopener noreferrer" title="Open your live website">
+              <span aria-hidden="true" style={{ color: "#12b76a" }}>●</span> Live
+            </a>
+            <button type="button" className={styles.settingsButton} disabled={busy} onClick={() => ask({
+              title: "Take your website offline?", label: "Unpublish",
+              description: "Visitors will see a “not available” page until you publish again. Your content is kept.",
+              run: () => void setLive(false),
+            })}>Unpublish</button>
+          </> : (
+            <button type="button" className={styles.settingsButton} disabled={busy} onClick={() => void setLive(true)} title="Make your website visible to everyone">
+              <Icon name="external" size={15} /> Publish
+            </button>
+          ))}
           <button type="button" className={styles.save} disabled={!site || readOnly || !dirty} onClick={() => void save()}>
             {busy ? "Saving…" : "Save"}
           </button>
@@ -328,7 +358,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
       </header>
 
       {error && <p role="alert" className={styles.alert}>{error}<button type="button" onClick={() => showError("")} aria-label="Dismiss message"><Icon name="close" size={14} /></button></p>}
-      {site?.status === "published" && <p className={styles.notice}>This website is published, so editing is locked.</p>}
+      {live && <p className={styles.notice}>Your website is live. Saved changes appear on it right away.</p>}
 
       {!site ? (!error && <p role="status" className={styles.loading}>Opening website…</p>) : (
         <div className={styles.workspace} data-layers={layersOpen} data-inspector={inspectorOpen}>

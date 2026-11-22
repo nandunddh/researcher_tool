@@ -2049,6 +2049,18 @@ async def builder_publish_site(site_id: str, request: Request):
     return {"status": "ok", "message": "Website successfully published!", "url": site.get("url")}
 
 
+@app.post("/api/builder/sites/{site_id}/unpublish")
+async def builder_unpublish_site(site_id: str, request: Request):
+    """Takes a website offline; visitors see a "not available" page. Content is kept."""
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    ok, msg, _site = builder_engine.update_site(site_id, {"status": "draft"})
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": "Your website is offline."}
+
+
 @app.get("/api/builder/sites/{site_id}/export")
 def builder_export_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
