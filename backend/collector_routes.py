@@ -75,12 +75,15 @@ def collector_router(require_user, licenses):
         return {"status": "stopped"}
 
     @router.get("/runs/{run_id}/results")
-    def rows(run_id: UUID, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100),
-             delivery_status: str | None = None, key: str = Depends(owner)):
+    def rows(run_id: UUID, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=251),
+             delivery_status: str | None = None, q: str = Query("", max_length=200),
+             sort: str = "email", order: str = "asc", key: str = Depends(owner)):
         if delivery_status is not None and delivery_status not in STATUSES:
             raise HTTPException(400, "Unknown delivery status.")
+        if sort not in archive.SORTS or order not in ("asc", "desc"):
+            raise HTTPException(400, "Unknown sort.")
         try:
-            return archive.results(key, str(run_id), limit, offset, delivery_status)
+            return archive.results(key, str(run_id), limit, offset, delivery_status, q, sort, order)
         except KeyError:
             raise HTTPException(404, "Collection not found.")
 

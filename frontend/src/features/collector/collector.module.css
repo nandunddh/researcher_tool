@@ -152,3 +152,24 @@
   .monTop, .monStats { padding-left: 16px; padding-right: 16px; }
   .terminal { height: 240px; }
 }
+
+/* Leads Explorer */
+.toolbar { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.toolbar select { height: 42px; }
+.search { flex: 1 1 280px; display: flex !important; flex-direction: row !important; align-items: center; gap: 8px; padding: 0 12px; border: 1px solid #d6deeb; border-radius: 12px; background: #fff; color: #64748b; }
+.search:focus-within { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .15); }
+.card .search input { flex: 1; height: 40px; border: 0; padding: 0; box-shadow: none; }
+.selection { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: #f6f8fd; font-size: 14px; color: #475569; }
+.selection[data-on] { background: #eaf1ff; color: #1d4ed8; font-weight: 600; }
+.selection em { font-style: normal; color: #067647; font-weight: 600; }
+.linkBtn { border: 0; background: none; color: #2563eb; cursor: pointer; font-size: 13.5px; padding: 0; }
+.pick { width: 36px; }
+.pick input { width: 16px; height: 16px; cursor: pointer; }
+.sortBtn { display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; white-space: nowrap; }
+.sortBtn span { font-size: 10px; color: #94a3b8; }
+th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn span { color: #2563eb; }
+.card tbody tr:hover td { background: #f8fafc; }
+.card tbody tr[data-picked] td { background: #eef4ff; }
+.mail { color: #1d4ed8; text-decoration: none; }
+.mail:hover { text-decoration: underline; }
+.empty { text-align: center; color: #64748b; padding: 28px 8px !important; }

@@ -54,11 +54,20 @@ def stats(owner):
     return {"total": int(total), "today": int(today), "datasets": int(datasets)}
 
 
-def results(owner, run_id, limit=None, offset=0, delivery_status=None):
+# Leads Explorer sorting: column name -> SQL expression (never user text in SQL).
+SORTS = {"name": "r.record->>'researcher_name'", "email": "r.email", "affiliation": "r.record->>'affiliation'",
+         "source": "r.record->>'data_source'", "confidence": "r.record->>'email_confidence'",
+         "status": "COALESCE(c.record->>'delivery_status','unknown')"}
+
+
+def results(owner, run_id, limit=None, offset=0, delivery_status=None, q="", sort="email", order="asc"):
     with db.transaction() as cur:
         cur.execute("SELECT 1 FROM collector_runs WHERE owner_key=%s AND id=%s", (owner,run_id))
         if not cur.fetchone():
             raise KeyError(run_id)
+        q = (q or "").strip()[:200]
+        # Search text is matched literally: "!" escapes LIKE wildcards typed by the user.
+        pattern = "%" + q.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
         # Keep the collected snapshot, with the latest delivery check from the archive.
         cur.execute("""SELECT r.record || jsonb_strip_nulls(jsonb_build_object(
                                 'delivery_status', COALESCE(c.record->>'delivery_status','unknown'),
@@ -66,8 +75,11 @@ def results(owner, run_id, limit=None, offset=0, delivery_status=None):
                        FROM collector_results r JOIN collector_contacts c USING (owner_key,email)
                        WHERE r.owner_key=%s AND r.run_id=%s
                          AND (%s IS NULL OR COALESCE(c.record->>'delivery_status','unknown')=%s)
-                       ORDER BY r.email LIMIT %s OFFSET %s""",
-                    (owner,run_id,delivery_status,delivery_status,limit,offset))
+                         AND (%s = '' OR r.record->>'researcher_name' ILIKE %s ESCAPE '!' OR r.email ILIKE %s ESCAPE '!'
+                              OR r.record->>'affiliation' ILIKE %s ESCAPE '!')
+                       ORDER BY """ + SORTS.get(sort, "r.email") + (" DESC" if order == "desc" else " ASC") + """ NULLS LAST, r.email
+                       LIMIT %s OFFSET %s""",
+                    (owner,run_id,delivery_status,delivery_status,q,pattern,pattern,pattern,limit,offset))
         return [row[0] for row in cur]
 
 

@@ -129,3 +129,47 @@ class EmailCheckTests(unittest.TestCase):
         self.assertEqual(len(archive.results(other, other_run, delivery_status="unknown")), 2)
         exported = csv.DictReader(io.StringIO(archive.csv_export(owner, run).decode("utf-8-sig")))
         self.assertEqual([r["delivery_status"] for r in exported], ["deliverable_domain", "role"])
+
+
+class LeadsExplorerTests(unittest.TestCase):
+    """Search, sort and page size for the Leads Explorer."""
+    def get(self, query):
+        app = FastAPI()
+        app.include_router(collector_router(lambda request: {"client_email": "a@lab.test"}, None))
+        messages = []
+
+        async def receive():
+            return {"type": "http.request", "body": b""}
+
+        async def send(message):
+            messages.append(message)
+        scope = {"type": "http", "method": "GET", "path": "/api/collector/runs/7f8b0c6e-2c4a-4d1e-9b1a-0f5e6d7c8b9a/results",
+                 "query_string": query.encode(), "headers": []}
+        asyncio.run(app(scope, receive, send))
+        return messages[0]["status"]
+
+    def test_search_sort_and_page_size_reach_the_archive(self):
+        with patch.object(archive, "results", return_value=[]) as found:
+            self.assertEqual(self.get("q=lab_50%25&sort=affiliation&order=desc&limit=251"), 200)
+        args = found.call_args.args
+        self.assertEqual(args[5:], ("lab_50%", "affiliation", "desc"))
+        self.assertEqual(args[2], 251)
+
+    def test_bad_sort_or_size_is_refused(self):
+        with patch.object(archive, "results", return_value=[]) as found:
+            for query in ("sort=drop%20table", "order=up", "limit=1000"):
+                self.assertIn(self.get(query), (400, 422))
+            found.assert_not_called()
+
+    @unittest.skipUnless(os.getenv("SCIPROSPECT_DB_SCHEMA", "").startswith("test_") and os.getenv("SCIPROSPECT_DB_HOST"),
+                         "requires an isolated PostgreSQL test schema")
+    def test_search_is_literal_and_sort_orders_rows(self):
+        owner = "owner:" + uuid.uuid4().hex + "@fixture.test"
+        run = archive.create(owner, "fixture", 3, 10, "2025-01-01", "2025-02-01")
+        writer = archive.Archive(owner, run)
+        with patch("email_check.default_resolver", return_value=FixtureResolver(MX=dns.exception.Timeout())):
+            for name, address in (("Ada", "ada@lab.test"), ("Zed", "zed@lab.test"), ("50% Bob", "bob@lab.test")):
+                writer.save({"email": address, "researcher_name": name})
+        self.assertEqual([r["professional_email"] for r in archive.results(owner, run, q="50%")], ["bob@lab.test"], "% is literal")
+        names = [r["researcher_name"] for r in archive.results(owner, run, sort="name", order="desc")]
+        self.assertEqual(names, sorted(names, reverse=True))

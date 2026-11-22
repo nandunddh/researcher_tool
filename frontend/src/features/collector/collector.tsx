@@ -14,7 +14,10 @@ type CheckBatch = {checked:number; next_after:string | null};
 type Stats = { total:number; today:number; datasets:number };
 type LogLine = { at:string; text:string; level:"info"|"ok"|"warn"|"error" };
 const endpoint = "/api/collector/runs";
-const pageSize = 50;
+const PAGE_SIZES = [50, 100, 250];
+const COLUMNS: [keyof Contact | "status", string, string][] = [["researcher_name","Researcher","name"],["professional_email","Public email","email"],
+  ["affiliation","Affiliation","affiliation"],["data_source","Source","source"],["email_confidence","Email confidence","confidence"],["status","Delivery status","status"]];
+const csvCell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 const message = (error: unknown) => error instanceof Error ? error.message : "Please try again.";
 const clock = (d = new Date()) => d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false });
 const mmss = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
@@ -67,6 +70,12 @@ export function Collector() {
   const [checking, setChecking] = useState(false);
   const [checkNote, setCheckNote] = useState("");
   const [target, setTarget] = useState(100);
+  const [pageSize, setPageSize] = useState(50);
+  const [search, setSearch] = useState("");
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<{ key:string; order:"asc"|"desc" }>({ key:"name", order:"asc" });
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [copied, setCopied] = useState("");
   const [stats, setStats] = useState<Stats | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -76,6 +85,7 @@ export function Collector() {
   const logBox = useRef<HTMLDivElement>(null);
   useEffect(() => () => checkRequest.current?.abort(), []);
   const current = runs.find(run => run.id === selected) ?? runs[0];
+  const id = current?.id;
   const active = runs.find(run => run.status === "running");
   const watched = active ?? (selected ? runs.find(r => r.id === selected) : undefined);
   const today = new Date().toISOString().slice(0,10);
@@ -121,20 +131,22 @@ export function Collector() {
     if (add.length) setLog(lines => [...lines, ...add].slice(-500));
   }, [watched?.id, watched?.status, watched?.source, watched?.collected, watched?.source_errors.length]);
 
+  useEffect(() => { const t = setTimeout(() => { setQuery(search.trim()); setOffset(0); }, 300); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { setPicked(new Set()); }, [id, query, deliveryFilter]);
   useEffect(() => { if (autoScroll && logBox.current) logBox.current.scrollTop = logBox.current.scrollHeight; }, [log, autoScroll]);
   useEffect(() => { if (!active) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [active?.id]);
 
-  const id = current?.id;
   const count = current?.collected;
   useEffect(() => {
     const controller = new AbortController();
-    const query = new URLSearchParams({offset:String(offset), limit:String(pageSize+1)});
-    if (deliveryFilter) query.set("delivery_status", deliveryFilter);
-    if (id) api<Contact[]>(endpoint + "/" + id + "/results?" + query,{signal:controller.signal})
+    const params = new URLSearchParams({offset:String(offset), limit:String(pageSize+1), sort:sort.key, order:sort.order});
+    if (deliveryFilter) params.set("delivery_status", deliveryFilter);
+    if (query) params.set("q", query);
+    if (id) api<Contact[]>(endpoint + "/" + id + "/results?" + params,{signal:controller.signal})
       .then(value => { if (!controller.signal.aborted) setRows(value); })
       .catch(e => { if (!controller.signal.aborted) setError(message(e)); });
     return () => controller.abort();
-  }, [id,count,offset,deliveryFilter,revision]);
+  }, [id,count,offset,deliveryFilter,revision,query,sort,pageSize]);
 
   async function checkEmails() {
     if (checkRequest.current) return;
@@ -184,6 +196,27 @@ export function Collector() {
     setBusy(true); setError("");
     try { await api(endpoint + "/" + active.id + "/stop",{method:"POST"}); refresh(v => v+1); }
     catch(e) {setError(message(e));} finally {setBusy(false);}
+  }
+
+  // Leads Explorer helpers
+  const pageRows = rows.slice(0, pageSize);
+  const allPicked = pageRows.length > 0 && pageRows.every(r => picked.has(r.professional_email));
+  const togglePick = (email: string) => setPicked(old => { const next = new Set(old); if (next.has(email)) next.delete(email); else next.add(email); return next; });
+  const togglePage = () => setPicked(old => { const next = new Set(old); pageRows.forEach(r => allPicked ? next.delete(r.professional_email) : next.add(r.professional_email)); return next; });
+  const chosenRows = () => (picked.size ? rows.filter(r => picked.has(r.professional_email)) : pageRows);
+  const sortBy = (key: string) => { setSort(old => ({ key, order: old.key === key && old.order === "asc" ? "desc" : "asc" })); setOffset(0); };
+  async function copyEmails() {
+    const emails = chosenRows().map(r => r.professional_email).join("\n");
+    try { await navigator.clipboard.writeText(emails); setCopied(`Copied ${chosenRows().length} emails`); } catch { setCopied("Copy is blocked by the browser"); }
+    setTimeout(() => setCopied(""), 2500);
+  }
+  function exportSelected() {
+    const list = chosenRows();
+    const lines = [["Researcher","Public email","Affiliation","Source","Email confidence","Delivery status"].map(csvCell).join(","),
+      ...list.map(r => [r.researcher_name, r.professional_email, r.affiliation, r.data_source, r.email_confidence, statusLabels[r.delivery_status ?? "unknown"]].map(csvCell).join(","))];
+    const url = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
+    Object.assign(document.createElement("a"), { href: url, download: `${(current?.topic || "leads").replace(/[^\w-]+/g, "-")}-selected.csv` }).click();
+    URL.revokeObjectURL(url);
   }
 
   // Monitor numbers
@@ -272,20 +305,42 @@ export function Collector() {
 
     {current && <section className={styles.card} id="leads">
       <div className={styles.cardTop}><h3 className={styles.h3}>Leads Explorer</h3>
-        <div className={styles.leadTools}>
-          <label className={styles.field}>Delivery status<select value={deliveryFilter} onChange={e=>{setDeliveryFilter(e.target.value);setOffset(0);}}>
-            <option value="">All statuses</option>
-            {Object.entries(statusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}
-          </select></label>
-          <button type="button" className={styles.ghost} onClick={() => void checkEmails()} disabled={checking} title="Checks mail domains across all your datasets">{checking ? "Checking…" : "Check emails"}</button>
-        </div>
+        <button type="button" className={styles.ghost} onClick={() => void checkEmails()} disabled={checking} title="Checks mail domains across all your datasets">{checking ? "Checking…" : "Check emails"}</button>
+      </div>
+      <div className={styles.toolbar}>
+        <label className={styles.search}><Icon name="search" size={16} /><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, email or affiliation" aria-label="Search leads" /></label>
+        <select value={deliveryFilter} onChange={e=>{setDeliveryFilter(e.target.value);setOffset(0);}} aria-label="Delivery status">
+          <option value="">All statuses</option>
+          {Object.entries(statusLabels).map(([value,label])=><option key={value} value={value}>{label}</option>)}
+        </select>
+        <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setOffset(0); }} aria-label="Rows per page">
+          {PAGE_SIZES.map(n => <option key={n} value={n}>{n} per page</option>)}
+        </select>
       </div>
       {checkNote && <p className={styles.muted} role="status">{checkNote}</p>}
-      <div className={styles.scroll}><table><thead><tr>{["Researcher","Public email","Affiliation","Source","Email confidence","Delivery status"].map(h=><th key={h}>{h}</th>)}</tr></thead>
-        <tbody>{rows.slice(0,pageSize).map(row=><tr key={row.professional_email}><td>{row.researcher_name}</td><td>{row.professional_email}</td><td>{row.affiliation}</td><td>{row.data_source}</td><td>{row.email_confidence.replaceAll("_"," ")}</td>
+      <div className={styles.selection} data-on={picked.size > 0 || undefined}>
+        <span>{picked.size ? `${picked.size} selected` : `${pageRows.length} on this page`}</span>
+        <button type="button" className={styles.ghost} onClick={() => void copyEmails()} disabled={!pageRows.length}>Copy emails</button>
+        <button type="button" className={styles.ghost} onClick={exportSelected} disabled={!pageRows.length}>{picked.size ? "Export selected" : "Export this page"}</button>
+        {picked.size > 0 && <button type="button" className={styles.linkBtn} onClick={() => setPicked(new Set())}>Clear selection</button>}
+        {copied && <em role="status">{copied}</em>}
+      </div>
+      <div className={styles.scroll}><table><thead><tr>
+        <th className={styles.pick}><input type="checkbox" checked={allPicked} onChange={togglePage} aria-label="Select all on this page" /></th>
+        {COLUMNS.map(([, label, key]) => (
+          <th key={key} aria-sort={sort.key === key ? (sort.order === "asc" ? "ascending" : "descending") : "none"}>
+            <button type="button" className={styles.sortBtn} onClick={() => sortBy(key)}>{label}<span>{sort.key === key ? (sort.order === "asc" ? "▲" : "▼") : "↕"}</span></button>
+          </th>
+        ))}
+      </tr></thead>
+        <tbody>{pageRows.map(row=><tr key={row.professional_email} data-picked={picked.has(row.professional_email) || undefined}>
+          <td className={styles.pick}><input type="checkbox" checked={picked.has(row.professional_email)} onChange={() => togglePick(row.professional_email)} aria-label={`Select ${row.researcher_name}`} /></td>
+          <td>{row.researcher_name}</td>
+          <td><a href={`mailto:${row.professional_email}`} className={styles.mail}>{row.professional_email}</a></td>
+          <td>{row.affiliation}</td><td>{row.data_source}</td><td>{row.email_confidence.replaceAll("_"," ")}</td>
           <td><span className={styles.badge} data-status={row.delivery_status}>{statusLabels[row.delivery_status ?? "unknown"] ?? "Unknown"}</span></td></tr>)}
-          {rows.length===0 && <tr><td colSpan={6}>No contacts to show.</td></tr>}</tbody></table></div>
-      {(offset>0 || rows.length>pageSize) && <div className={styles.pager}><button className={styles.ghost} disabled={!offset} onClick={()=>setOffset(v=>v-pageSize)}>Previous</button><span>Page {offset/pageSize+1}</span><button className={styles.ghost} disabled={rows.length<=pageSize} onClick={()=>setOffset(v=>v+pageSize)}>Next</button></div>}
+          {pageRows.length===0 && <tr><td colSpan={7} className={styles.empty}>{query || deliveryFilter ? "No leads match your search or filter." : "No contacts to show."}</td></tr>}</tbody></table></div>
+      {(offset>0 || rows.length>pageSize) && <div className={styles.pager}><button className={styles.ghost} disabled={!offset} onClick={()=>setOffset(v=>Math.max(0, v-pageSize))}>← Previous</button><span>Page {Math.floor(offset/pageSize)+1}</span><button className={styles.ghost} disabled={rows.length<=pageSize} onClick={()=>setOffset(v=>v+pageSize)}>Next →</button></div>}
     </section>}
   </div>;
 }
