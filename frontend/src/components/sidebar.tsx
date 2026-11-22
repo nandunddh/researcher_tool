@@ -17,11 +17,13 @@ const ROOT_LINKS: NavItem[] = [
 
 const ORG_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/organization/dashboard", icon: "bolt" },
+  { label: "Billing & plan", url: "/billing", icon: "doc" },
   { label: "Open Data Collector", url: "/organization/collector", icon: "bolt" },
 ];
 
 const CLIENT_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/client/dashboard", icon: "bolt" },
+  { label: "Billing & plan", url: "/billing", icon: "doc" },
   { label: "Open Data Collector", url: "/client/collector", icon: "bolt" },
 ];
 

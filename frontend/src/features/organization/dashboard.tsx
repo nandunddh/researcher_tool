@@ -43,6 +43,8 @@ type OrgData = {
 
 export function OrgDashboard() {
   const [data, setData] = useState<OrgData | null>(null);
+  const [plan, setPlan] = useState<{ plan: { name: string; limits: Record<string, number | boolean> } | null; usage: { websites: number } | null } | null>(null);
+  useEffect(() => { api<NonNullable<typeof plan>>("/api/plan").then(setPlan).catch(() => undefined); }, []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -206,13 +208,22 @@ export function OrgDashboard() {
           {/* KPI Summary Cards */}
           <section className="stats-grid" aria-label="Organization Summary">
             <article className="stat-card">
+              <span className="stat-label">Plan</span>
+              <strong className="stat-value">{plan?.plan?.name ?? "—"}</strong>
+              <small>
+                {plan?.plan && plan.usage
+                  ? `${plan.usage.websites} of ${Number(plan.plan.limits.websites) < 0 ? "unlimited" : plan.plan.limits.websites} websites used · `
+                  : ""}
+                <a href="/billing">Billing &amp; plan →</a>
+              </small>
+            </article>
+
+            <article className="stat-card">
               <span className="stat-label">Organization</span>
               <strong className="stat-value">{data.org_name}</strong>
               <small>
-                Plan: <span className="badge">{data.tier.toUpperCase()}</span> •{" "}
-                <span className={data.status === "stopped" ? "badge status-stopped" : "badge"}>
-                  {data.status}
-                </span>
+                <span className={data.status === "stopped" ? "badge status-stopped" : "badge status-active"}>{data.status}</span>
+                {" "}Collector license: {data.tier === "pro" ? "Pro" : "Trial"}
               </small>
             </article>
 
@@ -229,7 +240,7 @@ export function OrgDashboard() {
             </article>
 
             <article className="stat-card">
-              <span className="stat-label">Daily Quota</span>
+              <span className="stat-label">Collector daily limit</span>
               <strong className="stat-value">
                 {data.daily_limit < 0 ? "Unlimited" : data.daily_limit.toLocaleString()}
               </strong>
@@ -237,7 +248,7 @@ export function OrgDashboard() {
             </article>
 
             <article className="stat-card">
-              <span className="stat-label">Subscription Remaining</span>
+              <span className="stat-label">License valid for</span>
               <strong className="stat-value">{data.days_left}</strong>
               <small>SciStudio: {data.scistudio_access ? "Active" : "Disabled"}</small>
             </article>
