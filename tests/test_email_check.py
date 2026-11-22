@@ -173,3 +173,52 @@ class LeadsExplorerTests(unittest.TestCase):
         self.assertEqual([r["professional_email"] for r in archive.results(owner, run, q="50%")], ["bob@lab.test"], "% is literal")
         names = [r["researcher_name"] for r in archive.results(owner, run, sort="name", order="desc")]
         self.assertEqual(names, sorted(names, reverse=True))
+
+
+class DailyLimitTests(unittest.TestCase):
+    """Collections respect the license's contacts-per-day limit."""
+    def call(self, method, path, body=None, limit=100, admin=False):
+        recorded = []
+        licenses = SimpleNamespace(validate_license=lambda key: {"valid": True, "daily_limit": limit}, record_usage=lambda k, n: recorded.append((k, n)))
+        app = FastAPI()
+        app.include_router(collector_router(lambda request: {"client_email": "a@lab.test", "license_key": "KEY", "is_admin": admin}, licenses))
+        messages = []
+
+        async def receive():
+            return {"type": "http.request", "body": json.dumps(body or {}).encode()}
+
+        async def send(message):
+            messages.append(message)
+        scope = {"type": "http", "method": method, "path": path, "query_string": b"", "headers": [(b"content-type", b"application/json")]}
+        asyncio.run(app(scope, receive, send))
+        return messages[0]["status"], json.loads(messages[-1]["body"] or b"{}"), recorded
+
+    def start(self, target, used_today, **kw):
+        body = {"topic": "cell biology", "target": target, "min_score": 50, "from_date": "2026-01-01", "to_date": "2026-11-01"}
+        with patch.object(archive, "stats", return_value={"total": 0, "today": used_today, "datasets": 0}), \
+                patch.object(archive, "create", return_value="run-1") as create, patch.object(archive, "execute"), \
+                patch.object(archive, "history", return_value=[{"id": "run-1", "collected": target}]):
+            status, data, recorded = self.call("POST", "/api/collector/runs", body, **kw)
+        return status, data, create, recorded
+
+    def test_limit_blocks_and_explains(self):
+        status, data, create, _ = self.start(50, 80)
+        self.assertEqual((status, create.called), (400, False))
+        self.assertIn("20 more contacts today", data["detail"])
+        status, data, create, _ = self.start(10, 100)
+        self.assertEqual(status, 429)
+        self.assertIn("today's limit of 100", data["detail"])
+
+    def test_within_limit_runs_and_counts_usage(self):
+        status, _, create, recorded = self.start(20, 80)
+        self.assertEqual(status, 202)
+        self.assertEqual(recorded, [("KEY", 20)], "usage recorded on the license after the run")
+
+    def test_unlimited_for_pro_and_root(self):
+        self.assertEqual(self.start(5000, 9999, limit=-1)[0], 202)
+        self.assertEqual(self.start(5000, 9999, admin=True)[0], 202)
+
+    def test_stats_show_what_is_left(self):
+        with patch.object(archive, "stats", return_value={"total": 5, "today": 30, "datasets": 1}):
+            status, data, _ = self.call("GET", "/api/collector/stats")
+        self.assertEqual((status, data["daily_limit"], data["remaining_today"]), (200, 100, 70))

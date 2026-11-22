@@ -45,9 +45,19 @@ def collector_router(require_user, licenses):
                 raise HTTPException(429, "Email check limit reached. Try again in a minute.", headers={"Retry-After": "60"})
         return archive.recheck_contacts(key, body.after)
 
+    def daily_limit(request: Request):
+        """The license's contacts-per-day limit, or None when unlimited (root, Pro)."""
+        user = require_user(request)
+        if user.get("is_admin"):
+            return None
+        limit = licenses.validate_license(user.get("license_key") or "").get("daily_limit")
+        return limit if isinstance(limit, int) and limit >= 0 else None
+
     @router.get("/stats")
-    def stats(key: str = Depends(owner)):
-        return archive.stats(key)
+    def stats(request: Request, key: str = Depends(owner)):
+        counts = archive.stats(key)
+        limit = daily_limit(request)
+        return {**counts, "daily_limit": limit, "remaining_today": None if limit is None else max(0, limit - counts["today"])}
 
     @router.get("/runs")
     def runs(key: str = Depends(owner)):
@@ -61,12 +71,26 @@ def collector_router(require_user, licenses):
             raise HTTPException(403, "An active license is required.")
         if not body.topic.strip() or body.from_date > body.to_date:
             raise HTTPException(400, "Enter a topic and a valid date range.")
+        limit = daily_limit(request)
+        if limit is not None:
+            remaining = max(0, limit - archive.stats(key)["today"])
+            if remaining == 0:
+                raise HTTPException(429, f"You've reached today's limit of {limit} contacts. It resets at midnight (UTC); upgrade your plan for unlimited collection.")
+            if body.target > remaining:
+                raise HTTPException(400, f"You can collect {remaining} more contacts today (your limit is {limit} a day).")
         try:
             run_id = archive.create(key, body.topic.strip(), body.target, body.min_score, body.from_date, body.to_date)
         except UniqueViolation:
             raise HTTPException(409, "A collection is already running in this workspace.")
-        tasks.add_task(archive.execute, key, run_id)
+        tasks.add_task(run_and_record, key, run_id, user.get("license_key") or "")
         return {"id": run_id}
+
+    def run_and_record(key, run_id, license_key):
+        """Runs the collection, then counts it on the license (the dashboards show "extracted today")."""
+        archive.execute(key, run_id)
+        collected = next((r["collected"] for r in archive.history(key) if str(r["id"]) == str(run_id)), 0)
+        if license_key and collected:
+            licenses.record_usage(license_key, int(collected))
 
     @router.post("/runs/{run_id}/stop")
     def stop(run_id: UUID, key: str = Depends(owner)):

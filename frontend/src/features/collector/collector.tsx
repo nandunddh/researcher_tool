@@ -11,7 +11,7 @@ const statusLabels = {
 };
 type Contact = { researcher_name:string; professional_email:string; affiliation:string; data_source:string; email_confidence:string; delivery_status?:keyof typeof statusLabels };
 type CheckBatch = {checked:number; next_after:string | null};
-type Stats = { total:number; today:number; datasets:number };
+type Stats = { total:number; today:number; datasets:number; daily_limit:number | null; remaining_today:number | null };
 type LogLine = { at:string; text:string; level:"info"|"ok"|"warn"|"error" };
 const endpoint = "/api/collector/runs";
 const PAGE_SIZES = [50, 100, 250];
@@ -222,6 +222,10 @@ export function Collector() {
     URL.revokeObjectURL(url);
   }
 
+  // Daily limit from the license (null = unlimited)
+  const left = stats?.remaining_today ?? null;
+  const overLimit = left !== null && target > left;
+
   // Monitor numbers
   const m = watched;
   const started = m ? new Date(m.started_at).getTime() : 0;
@@ -235,7 +239,7 @@ export function Collector() {
   return <div className={styles.page}>
     <section className={styles.kpis} aria-label="Collector summary">
       <article><header><span>Collected master leads</span><i><Icon name="user" size={18} /></i></header><strong>{stats?.total.toLocaleString() ?? "–"}</strong><p><b>Central archive</b> Lifetime deduplicated contacts</p></article>
-      <article><header><span>Today&apos;s collected leads</span><i><Icon name="check" size={18} /></i></header><strong>{stats?.today.toLocaleString() ?? "–"}</strong><p><b>{today}</b> Contacts found in today&apos;s collections</p></article>
+      <article><header><span>Today&apos;s collected leads</span><i><Icon name="check" size={18} /></i></header><strong>{stats?.today.toLocaleString() ?? "–"}{stats?.daily_limit != null && <small className={styles.of}> / {stats.daily_limit}</small>}</strong><p><b>{today}</b> {stats?.daily_limit != null ? `Daily limit ${stats.daily_limit} contacts` : "Unlimited daily collection"}</p></article>
       <article><header><span>Datasets</span><i><Icon name="layers" size={18} /></i></header><strong>{stats?.datasets.toLocaleString() ?? "–"}</strong><p><b>Collections</b> Each one is a downloadable CSV</p></article>
     </section>
 
@@ -252,7 +256,8 @@ export function Collector() {
             <label>Research topic<input name="topic" placeholder="e.g. cell biology or physical chemistry" maxLength={200} required /></label>
             <label>Contacts to collect<input type="number" min={1} max={50000} value={target} onChange={e => setTarget(Math.max(1, Math.min(50000, Number(e.target.value) || 1)))} required /></label>
           </div>
-          <div className={styles.quick}><span>Quick select</span>{[50, 100, 250, 500].map(n => <button key={n} type="button" data-on={target === n || undefined} onClick={() => setTarget(n)}>{n}</button>)}</div>
+          <div className={styles.quick}><span>Quick select</span>{[50, 100, 250, 500].map(n => <button key={n} type="button" data-on={target === n || undefined} disabled={left !== null && n > left} onClick={() => setTarget(n)}>{n}</button>)}
+            {left !== null && <em className={styles.left} data-empty={left === 0 || undefined}>{left === 0 ? "Today's limit reached" : `${left.toLocaleString()} left today`}</em>}</div>
           <details className={styles.settings}>
             <summary><span>Collection settings</span><small>Score 50+ · Automatic sources</small></summary>
             <div className={styles.filters}>
@@ -261,7 +266,9 @@ export function Collector() {
               <label>Minimum score / 100<input name="score" type="number" min="0" max="100" defaultValue="50" required /></label>
             </div>
           </details>
-          {!active && <button type="submit" className={styles.go}>{busy ? "Starting…" : `Collect ${target.toLocaleString()} contacts`}</button>}
+          {!active && <button type="submit" className={styles.go} disabled={left === 0 || overLimit}>{busy ? "Starting…" : left === 0 ? "Daily limit reached" : `Collect ${target.toLocaleString()} contacts`}</button>}
+          {!active && overLimit && left !== 0 && <p className={styles.limitNote}>You can collect {left} more contacts today. <button type="button" className={styles.linkBtn} onClick={() => setTarget(left!)}>Use {left}</button></p>}
+          {!active && left === 0 && <p className={styles.limitNote}>It resets at midnight (UTC). <a href="/billing">Upgrade your plan</a> for unlimited collection.</p>}
         </fieldset>
         {active && <button type="button" className={styles.stop} onClick={() => void stop()} disabled={busy}>Stop collection</button>}
         <p className={styles.note}>One click. One clean CSV. Any shortfall is clearly reported.</p>
