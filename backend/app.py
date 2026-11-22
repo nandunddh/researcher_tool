@@ -920,6 +920,13 @@ async def admin_usage(request: Request):
     return {"accounts": out}
 
 
+@app.get("/api/public/plans")
+async def public_plans():
+    """Public: the plans shown on the pricing page (read live from the Plans page)."""
+    import plans
+    return {"plans": plans.list_plans()}
+
+
 @app.get("/api/plan")
 async def my_plan(request: Request):
     """The signed-in account's website plan and usage (for the dashboard)."""

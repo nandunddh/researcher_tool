@@ -40,7 +40,7 @@ export function StudioDashboard({ namespace, user }: { namespace: Namespace; use
       setTemplates([{ id: "blank", name: "Start from scratch", category: "Blank canvas", description: "Add your own sections in SciStudio." }, ...templateData.templates.filter(t => t.id !== "blank")]);
     } catch (error) {
       if (signal?.aborted) return;
-      if (error instanceof ApiError && error.status === 401) { window.location.assign("/"); return; }
+      if (error instanceof ApiError && error.status === 401) { window.location.assign("/login"); return; }
       setError(error instanceof Error ? error.message : "Unable to load your websites.");
     } finally { if (!signal?.aborted) setLoading(false); }
   }, []);
