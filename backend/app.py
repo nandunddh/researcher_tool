@@ -874,6 +874,63 @@ async def admin_toggle_scistudio(request: Request):
     return {"status": "ok", "message": msg, "account": acc}
 
 
+@app.get("/api/admin/plans")
+async def admin_list_plans(request: Request):
+    import plans
+    _verify_admin_auth(request)
+    return {"plans": plans.list_plans()}
+
+
+@app.put("/api/admin/plans/{plan_id}")
+async def admin_save_plan(plan_id: str, request: Request):
+    """Root: edit a plan's name, price and limits. Applies to every account on that plan at once."""
+    import plans
+    _verify_admin_auth(request)
+    try:
+        return {"plan": plans.save_plan(plan_id, await request.json())}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/admin/licenses/plan")
+async def admin_set_plan(request: Request):
+    """Root: put an account on a website plan."""
+    import plans
+    _verify_admin_auth(request)
+    body = await request.json()
+    plan = next((p for p in plans.list_plans() if p["id"] == body.get("plan_id")), None)
+    if not plan:
+        raise HTTPException(status_code=400, detail="Choose a plan.")
+    ok, msg = license_engine.set_plan(str(body.get("license_key") or ""), plan["id"], int(plan["limits"].get("members", -1)))
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": f"Plan changed to {plan['name']}."}
+
+
+@app.get("/api/admin/usage")
+async def admin_usage(request: Request):
+    """Root: each account's website plan and what it uses now."""
+    import plans
+    _verify_admin_auth(request)
+    out = {}
+    for account in license_engine.list_accounts():
+        key = account.get("license_key")
+        if key and key != "SCIP-PRO-ROOT-MASTER":
+            out[key] = {"plan_id": plans.default_plan_id(account), "usage": plans.usage(account.get("client_email", ""))}
+    return {"accounts": out}
+
+
+@app.get("/api/plan")
+async def my_plan(request: Request):
+    """The signed-in account's website plan and usage (for the dashboard)."""
+    import plans
+    user = _require_authenticated_user(request)
+    plan = _user_plan(user)
+    if not plan:
+        return {"plan": None, "usage": None}
+    return {"plan": plan, "usage": plans.usage(user.get("client_email", ""))}
+
+
 @app.get("/api/admin/mfa")
 async def admin_mfa_status(request: Request):
     """Root: which accounts and members have two-step sign-in on (keys "<license_key>:<member_id>")."""
@@ -1999,10 +2056,34 @@ async def builder_list_sites(request: Request, conference_id: Optional[str] = No
     return {"sites": sites}
 
 
+def _plan_of_account(account: Optional[dict]) -> Optional[dict]:
+    """The website plan for an account; None (no limits) for root, or when the database is not configured (tests)."""
+    import db as database
+    if not account or account.get("license_key") == "SCIP-PRO-ROOT-MASTER" or not database.is_configured():
+        return None
+    import plans
+    return plans.plan_for(account)
+
+
+def _enforce_plan(plan: Optional[dict], key: str, new_total: float) -> None:
+    import plans
+    message = plans.over_limit(plan, key, new_total)
+    if message:
+        raise HTTPException(status_code=403, detail=message)
+
+
+def _user_plan(user: dict) -> Optional[dict]:
+    return None if user.get("is_admin") else _plan_of_account(license_engine.get_account(user.get("license_key")))
+
+
 @app.post("/api/builder/sites")
 async def builder_create_site(request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    plan = _user_plan(user)
+    if plan:
+        import plans
+        _enforce_plan(plan, "websites", plans.usage(user.get("client_email", ""))["websites"] + 1)
     body = await request.json()
     name = (body.get("name") or "New Website").strip()
     slug = (body.get("slug") or "").strip() or None
@@ -2060,6 +2141,8 @@ async def builder_update_site(site_id: str, request: Request):
     body = await request.json()
     if "conference_id" in body and body["conference_id"]:
         _require_owned_conference(body["conference_id"], user)
+    if isinstance(body.get("pages"), list):
+        _enforce_plan(_user_plan(user), "pages", len(body["pages"]))
     ok, msg, site = builder_engine.update_site(site_id, body)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -2177,6 +2260,10 @@ async def builder_upload_media(site_id: str, request: Request):
     mime = _sniff_image(bytes(data[:16]))
     if not mime:
         raise HTTPException(status_code=415, detail="Choose a PNG, JPG, WebP or GIF image.")
+    plan = _user_plan(user)
+    if plan:
+        import plans
+        _enforce_plan(plan, "storage_mb", plans.usage(user.get("client_email", ""))["storage_mb"] + len(data) / 1_048_576)
     import uuid
     name = f"{uuid.uuid4().hex}.{MEDIA_TYPES[mime]}"
     folder = _media_dir(site_id)
@@ -2215,6 +2302,11 @@ async def submit_website_form(site_id: str, form_id: str, request: Request):
     values, problem = forms.clean_submission(section, payload)
     if problem:
         raise HTTPException(status_code=400, detail=problem)
+    owner = (site or {}).get("user_email", "")
+    plan = _plan_of_account(license_engine.account_for_email(owner)) if owner else None
+    if plan:
+        import plans
+        _enforce_plan(plan, "submissions_month", plans.usage(owner)["submissions_month"] + 1)
     message = (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."
     if section["type"] == "submission":
         paper, problem = forms.clean_paper(section, payload, (site or {}).get("event"))

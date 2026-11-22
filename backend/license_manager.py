@@ -292,6 +292,26 @@ class LicenseManager:
         print(f"[LICENSE] Created {acct_type.upper()} ({tier_clean.upper()}) account for {name} ({key})")
         return sanitize_account(account)
 
+    def account_for_email(self, email: str) -> Optional[dict]:
+        """The account that owns this email (an owner's own account, or the organization of a team member)."""
+        db = self._load_db()
+        _key, found_acc, found_member, _parent_key, parent_acc = self._find_user_record(db, (email or "").strip().lower())
+        return parent_acc if found_member is not None else found_acc
+
+    def set_plan(self, license_key: str, plan_id: str, members: int) -> Tuple[bool, str]:
+        """Assigns a website plan. The plan's team size becomes the account's seat limit (-1 = unlimited)."""
+        key_clean = (license_key or "").strip().upper()
+        if key_clean == "SCIP-PRO-ROOT-MASTER":
+            return False, "The root account has no plan limits."
+        db = self._load_db()
+        account = db["licenses"].get(key_clean)
+        if not account:
+            return False, "Account not found."
+        account["plan_id"] = plan_id
+        account["seat_limit"] = 1000 if members < 0 else members
+        self._save_db(db)
+        return True, "Plan updated."
+
     def get_account(self, license_key: str) -> Optional[dict]:
         """Returns the raw account record by key."""
         db = self._load_db()

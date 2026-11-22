@@ -32,6 +32,9 @@ type Account = {
   notes?: string;
 };
 
+type Usage = { websites: number; pages: number; storage_mb: number; submissions_month: number };
+export type Plan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
+
 export function ManageAccounts() {
   const [confirmation, setConfirmation] = useState<{
     title: string;
@@ -49,11 +52,37 @@ export function ManageAccounts() {
   const [selected, setSelected] = useState<string | null>(null);
 
   const [mfaOn, setMfaOn] = useState<Set<string>>(new Set());
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [usage, setUsage] = useState<Record<string, { plan_id: string; usage: Usage }>>({});
+
+  function loadPlans() {
+    // Plans and usage are extra information; the page works without them.
+    api<{ plans: Plan[] }>("/api/admin/plans").then(r => setPlans(r.plans)).catch(() => undefined);
+    api<{ accounts: Record<string, { plan_id: string; usage: Usage }> }>("/api/admin/usage").then(r => setUsage(r.accounts)).catch(() => undefined);
+  }
+
+  function usageText(key: string) {
+    const entry = usage[key], limits = plans.find(p => p.id === entry?.plan_id)?.limits;
+    if (!entry) return "";
+    const of = (used: number, limit?: number) => `${used}${limit !== undefined && limit >= 0 ? `/${limit}` : ""}`;
+    return `${of(entry.usage.websites, limits?.websites)} sites · ${of(entry.usage.submissions_month, limits?.submissions_month)} submissions this month · ${entry.usage.storage_mb} MB`;
+  }
+
+  async function changePlan(account: Account, planId: string) {
+    try {
+      const result = await api<{ message: string }>("/api/admin/licenses/plan", { method: "POST", body: JSON.stringify({ license_key: account.license_key, plan_id: planId }) });
+      toast.success(result.message);
+      await reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "The plan could not be changed.");
+    }
+  }
 
   async function reload() {
     setAccounts(await api<Account[]>("/api/admin/licenses"));
     // Two-step status is extra information; the page works without it.
     api<{ enabled: string[] }>("/api/admin/mfa").then(r => setMfaOn(new Set(r.enabled))).catch(() => undefined);
+    loadPlans();
   }
 
   function resetTwoStep(account: Account, name: string, memberId = "") {
@@ -174,7 +203,8 @@ export function ManageAccounts() {
                   {[
                     "Client / organization",
                     "Team",
-                    "Plan",
+                    "License",
+                    "Website plan",
                     "Status",
                     "SciStudio",
                     "Remaining",
@@ -218,7 +248,18 @@ export function ManageAccounts() {
                           "Solo"
                         )}
                       </td>
-                      <td data-label="Plan">{a.tier}</td>
+                      <td data-label="License">{a.tier}</td>
+                      <td data-label="Website plan">
+                        {root ? "No limits" : (
+                          <>
+                            <select aria-label={`Website plan for ${a.client_name}`} disabled={busy || !plans.length}
+                              value={usage[a.license_key]?.plan_id ?? ""} onChange={e => void changePlan(a, e.target.value)}>
+                              {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                            </select>
+                            {usage[a.license_key] && <small style={{ display: "block", marginTop: 4 }}>{usageText(a.license_key)}</small>}
+                          </>
+                        )}
+                      </td>
                       <td data-label="Status">
                         <span
                           className={
@@ -329,7 +370,7 @@ export function ManageAccounts() {
                 })}
                 {!visible.length && (
                   <tr>
-                    <td colSpan={8}>No matching accounts.</td>
+                    <td colSpan={9}>No matching accounts.</td>
                   </tr>
                 )}
               </tbody>

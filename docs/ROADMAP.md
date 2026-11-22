@@ -113,7 +113,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] 🧪 "Change password" in the profile menu
 - [x] 🧪 Admin button: reset two-step sign-in for a client
 - [ ] One-click client creation (organization + admin user)
-- [ ] Plans with limits (websites, pages, members, storage, submissions), usage dashboard
+- [x] 🧪 Plans with limits (websites, pages, members, storage, submissions), usage in Manage Accounts, root Plans page
 
 ## 9. Housekeeping
 - [ ] Update `docs/HANDOFF_NEXT_TASKS.md` (out of date)
