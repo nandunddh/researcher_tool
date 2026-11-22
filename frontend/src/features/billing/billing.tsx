@@ -190,7 +190,7 @@ export function InvoiceView({ id }: { id: string }) {
       {inv && (
         <article className={styles.paper}>
           <header className={styles.paperTop}>
-            <div><h1>SciProspect</h1><p className={styles.muted}>Research data and event websites</p></div>
+            <div className={styles.paperBrand}><img src="/branding/sciprospect-a-icon.png" alt="SciProspect" width={48} height={48} /><div><h1>SciProspect</h1><p className={styles.muted}>Research data and event websites</p></div></div>
             <div className={styles.paperNumber}><span className={styles.muted}>INVOICE</span><strong>{inv.number}</strong><span className={styles.badge}>Paid</span></div>
           </header>
           <section className={styles.paperMeta}>
@@ -202,6 +202,7 @@ export function InvoiceView({ id }: { id: string }) {
             <tbody><tr><td>SciProspect {inv.plan_name} plan, 1 month</td><td style={{ textAlign: "right" }}>{money(inv.amount, inv.currency)}</td></tr></tbody>
           </table>
           <p className={styles.paperTotal}>Total paid {money(inv.amount, inv.currency)}</p>
+          <p className={styles.paperNote}>This invoice was generated automatically by SciProspect and is valid without a signature. Questions? Reply to the invoice email or contact us from your workspace.</p>
         </article>
       )}
     </Shell>

@@ -56,6 +56,28 @@ class HookTests(unittest.TestCase):
             self.assertTrue(self.mgr.validate_license(self.key)["valid"], "still signs in on Free")
 
 
+class InvoiceEmailTests(HookTests):
+    def test_invoice_is_emailed_to_the_owner(self):
+        from datetime import datetime, timezone
+        sent = []
+
+        class NowThread:
+            def __init__(self, target, args, daemon):
+                self.run = lambda: target(*args)
+
+            def start(self):
+                self.run()
+        with patch.object(web_app, "license_engine", self.mgr), patch.object(web_app, "_plan_by_id", lambda p: {"name": "Pro"}),                 patch.object(web_app, "_send_quietly", lambda *a: sent.append(a)), patch.object(web_app.threading, "Thread", NowThread):
+            now = datetime(2026, 11, 22, tzinfo=timezone.utc)
+            web_app._billing_hooks()["on_invoice"](self.key, {"id": 7, "number": "INV-000007", "plan_id": "pro", "amount": 29.0, "currency": "USD",
+                                                              "period_start": now, "period_end": now})
+        to, subject, text, html = sent[0]
+        self.assertEqual(to, "ada@uni.edu")
+        self.assertIn("INV-000007", subject)
+        self.assertIn("/billing/invoices/7", html)
+        self.assertIn("generated automatically", text)
+
+
 @unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA", "").startswith("test_"), "Database test: set SCIPROSPECT_DB_SCHEMA=test_<name> (never the live data).")
 class BillingDbTests(unittest.TestCase):
     def test_checkout_pay_renew_cancel(self):

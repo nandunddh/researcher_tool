@@ -1006,7 +1006,27 @@ def _billing_hooks() -> dict:
         license_engine.set_plan(key, "free", int(free["limits"].get("members", 0)))
         license_engine.upgrade_account(key, "trial", 100)
         license_engine.extend_account(key, 365)  # keep signing in on the Free plan
-    return {"on_paid": on_paid, "on_renewed": on_renewed, "on_ended": on_ended}
+    def on_invoice(key, inv):
+        account = license_engine.get_account(key) or {}
+        to = account.get("client_email", "")
+        if not to:
+            return
+        plan = (_plan_by_id(inv["plan_id"]) or {}).get("name", inv["plan_id"])
+        url = os.environ.get("SCIPROSPECT_APP_URL", "http://127.0.0.1:3000").rstrip("/") + f"/billing/invoices/{inv['id']}"
+        amount = f"{inv['currency']} {inv['amount']:.2f}"
+        period = f"{inv['period_start']:%d %b %Y} – {inv['period_end']:%d %b %Y}"
+        text = "\n".join([f"Thank you! Your payment for the SciProspect {plan} plan was received.", f"Invoice {inv['number']} · {amount} · {period}",
+                           f"View or download your invoice: {url}", "", "This email and invoice were generated automatically by SciProspect."])
+        logo = os.environ.get("SCIPROSPECT_APP_URL", "http://127.0.0.1:3000").rstrip("/") + "/branding/sciprospect-a-icon.png"
+        html = (f"<p><img src=\"{html_escape(logo, quote=True)}\" alt=\"SciProspect\" width=\"40\" height=\"40\" style=\"vertical-align:middle\"> "
+                f"<strong style=\"font-size:18px;vertical-align:middle\">SciProspect</strong></p>"
+                f"<p>Thank you! Your payment for the <strong>SciProspect {html_escape(plan)}</strong> plan was received.</p>"
+                f"<p>Invoice <strong>{inv['number']}</strong> · <strong>{html_escape(amount)}</strong><br>Period: {html_escape(period)}</p>"
+                f"<p><a href=\"{html_escape(url, quote=True)}\" style=\"background:#c8ff4d;color:#0a0a0a;padding:12px 22px;border-radius:999px;text-decoration:none;font-weight:700\">View invoice</a></p>"
+                f"<p style=\"color:#71717a;font-size:13px\">Manage your plan any time from Billing in your workspace.</p>"
+                f"<p style=\"color:#a1a1aa;font-size:12px\">This email and invoice were generated automatically by SciProspect.</p>")
+        threading.Thread(target=_send_quietly, args=(to, f"Your SciProspect invoice {inv['number']}", text, html), daemon=True).start()
+    return {"on_paid": on_paid, "on_renewed": on_renewed, "on_ended": on_ended, "on_invoice": on_invoice}
 
 
 def _billing_owner(request: Request):

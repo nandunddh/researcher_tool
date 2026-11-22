@@ -21,7 +21,9 @@
 .badge { display: inline-block; margin-left: 10px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; vertical-align: middle; background: rgba(52, 211, 153, .14); color: #34d399; border: 1px solid rgba(52, 211, 153, .35); }
 .badge[data-tone="warn"] { background: rgba(251, 191, 36, .12); color: #fbbf24; border-color: rgba(251, 191, 36, .35); }
 .test { padding: 12px 16px; border-radius: 14px; background: rgba(251, 191, 36, .08); border: 1px solid rgba(251, 191, 36, .3); color: #fcd34d; font-size: 14px; margin: 0; }
-.plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+.plans { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1100px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .plans { grid-template-columns: 1fr; } }
 .plan { border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: grid; gap: 8px; align-content: start; background: rgba(255, 255, 255, .03); transition: transform .25s, border-color .25s; }
 .plan:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, .2); }
 .plan[data-current] { border: 1.5px solid #c8ff4d; }
@@ -39,8 +41,8 @@
 .danger { background: rgba(248, 113, 113, .08); border-color: rgba(248, 113, 113, .35); color: #fca5a5; }
 .danger:hover { background: rgba(248, 113, 113, .15); }
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
-.table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 8px 0; border-bottom: 1px solid var(--line); }
-.table td { padding: 13px 0; border-bottom: 1px solid rgba(255, 255, 255, .05); color: var(--ink); }
+.table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 8px 12px 8px 0; border-bottom: 1px solid var(--line); background: transparent; }  /* global th has a light background */
+.table td { padding: 13px 12px 13px 0; border-bottom: 1px solid rgba(255, 255, 255, .05); color: var(--ink); background: transparent; }
 .table a { color: #c8ff4d; font-weight: 600; text-decoration: none; }
 .table a:hover { text-decoration: underline; }
 .alert { padding: 12px 16px; border-radius: 14px; background: rgba(248, 113, 113, .08); border: 1px solid rgba(248, 113, 113, .35); color: #fca5a5; font-size: 14px; margin: 0; }
@@ -82,6 +84,9 @@
 .paperMeta { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 22px; padding: 22px 0; font-size: 14px; }
 .paperMeta h2 { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #5b6478; }
 .paperMeta p { margin: 0; line-height: 1.6; color: #10142b; }
+.paperBrand { display: flex; align-items: center; gap: 14px; }
+.paperBrand img { width: 48px; height: 48px; flex: none; }
+.paperNote { margin: 36px 0 0; padding-top: 16px; border-top: 1px solid #e4e7ec; font-size: 12.5px; line-height: 1.6; color: #6b7280; }
 .paperTotal { text-align: right; font-size: 18px; font-weight: 800; margin-top: 16px; color: #10142b; }
 .printBar { max-width: 760px; margin: 28px auto 16px; display: flex; justify-content: space-between; align-items: center; }
 .noPrint { display: contents; }

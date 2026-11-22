@@ -134,11 +134,16 @@ def handle_event(event: dict, hooks: Dict[str, Callable]) -> None:
                 return  # Stripe may send the same event twice
             cur.execute("SELECT nextval('invoice_numbers')")
             number = f"INV-{cur.fetchone()[0]:06d}"
+            amount, currency = (obj.get("amount_paid") or 0) / 100, str(obj.get("currency") or "usd").upper()
             cur.execute("INSERT INTO invoices (number, account_key, plan_id, amount, currency, period_start, period_end, provider, provider_invoice_id) "
-                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-                        (number, account_key, plan_id, (obj.get("amount_paid") or 0) / 100, str(obj.get("currency") or "usd").upper(), start, end, prov, str(obj.get("id") or "")))
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+                        (number, account_key, plan_id, amount, currency, start, end, prov, str(obj.get("id") or "")))
+            invoice_id = cur.fetchone()[0]
             cur.execute("UPDATE subscriptions SET status = 'active', current_period_end = %s, updated_at = now() WHERE account_key = %s", (end, account_key))
         hooks["on_renewed"](account_key)
+        if "on_invoice" in hooks:
+            hooks["on_invoice"](account_key, {"id": invoice_id, "number": number, "plan_id": plan_id, "amount": amount, "currency": currency,
+                                              "period_start": start, "period_end": end})
     elif kind == "customer.subscription.updated":
         with db.transaction() as cur:
             cur.execute("UPDATE subscriptions SET cancel_at_period_end = %s, updated_at = now() WHERE provider_subscription_id = %s",
