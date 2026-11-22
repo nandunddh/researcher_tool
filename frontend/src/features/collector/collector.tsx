@@ -114,7 +114,10 @@ export function Collector() {
     const add: LogLine[] = [];
     const at = clock();
     if (!prev) {
-      if (watched.status === "running") add.push({ at, level:"info", text:`Starting collection: "${watched.topic}" · target ${watched.target} contacts` });
+      if (watched.status === "running") {
+        add.push({ at, level:"info", text:`Starting collection: "${watched.topic}" · target ${watched.target} contacts` });
+        if (watched.source) add.push({ at, level:"info", text:`Searching ${watched.source}…` });
+      }
     } else {
       if (watched.source && watched.source !== prev.source) add.push({ at, level:"info", text:`Searching ${watched.source}…` });
       if (watched.collected > prev.collected) add.push({ at, level:"ok", text:`+${watched.collected - prev.collected} contacts · ${watched.collected} / ${watched.target}` });
@@ -337,7 +340,7 @@ export function Collector() {
           <td className={styles.pick}><input type="checkbox" checked={picked.has(row.professional_email)} onChange={() => togglePick(row.professional_email)} aria-label={`Select ${row.researcher_name}`} /></td>
           <td>{row.researcher_name}</td>
           <td><a href={`mailto:${row.professional_email}`} className={styles.mail}>{row.professional_email}</a></td>
-          <td>{row.affiliation}</td><td>{row.data_source}</td><td>{row.email_confidence.replaceAll("_"," ")}</td>
+          <td><span className={styles.clamp} title={row.affiliation}>{row.affiliation}</span></td><td>{row.data_source}</td><td>{row.email_confidence.replaceAll("_"," ")}</td>
           <td><span className={styles.badge} data-status={row.delivery_status}>{statusLabels[row.delivery_status ?? "unknown"] ?? "Unknown"}</span></td></tr>)}
           {pageRows.length===0 && <tr><td colSpan={7} className={styles.empty}>{query || deliveryFilter ? "No leads match your search or filter." : "No contacts to show."}</td></tr>}</tbody></table></div>
       {(offset>0 || rows.length>pageSize) && <div className={styles.pager}><button className={styles.ghost} disabled={!offset} onClick={()=>setOffset(v=>Math.max(0, v-pageSize))}>← Previous</button><span>Page {Math.floor(offset/pageSize)+1}</span><button className={styles.ghost} disabled={rows.length<=pageSize} onClick={()=>setOffset(v=>v+pageSize)}>Next →</button></div>}
