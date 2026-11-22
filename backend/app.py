@@ -488,6 +488,37 @@ async def api_auth_login_mfa(request: Request):
     return _signed_in(request, challenge["user"], challenge["msg"])
 
 
+@app.post("/api/auth/change-password")
+async def api_auth_change_password(request: Request):
+    """Signed-in users change their own password after confirming the current one. Other sessions are signed out."""
+    user = _require_authenticated_user(request)
+    client = getattr(request, "client", None)
+    if not _reset_confirm_limit.allow(client.host if client else "unknown"):
+        raise HTTPException(status_code=429, detail="Too many tries. Please wait a few minutes.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request.")
+    current, new = str(body.get("current_password") or ""), str(body.get("new_password") or "").strip()
+    if len(new) < 8:
+        raise HTTPException(status_code=400, detail="Use at least 8 characters for your new password.")
+    if new == current:
+        raise HTTPException(status_code=400, detail="Choose a password that is different from your current one.")
+    email = str(user.get("client_email") or "")
+    ok, _info, _msg = license_engine.authenticate("admin" if user.get("is_admin") else email, current)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Your current password is not right.")
+    if user.get("is_admin"):
+        ok, msg = license_engine.update_root_password(current, new)
+        if not ok:
+            raise HTTPException(status_code=400, detail=msg)
+        return {"status": "ok", "message": "Your password has been changed.", "signed_out": False}
+    ok, msg, code = license_engine.reset_password_by_email(email, new)
+    if not ok:
+        raise HTTPException(status_code=code, detail=msg)
+    return {"status": "ok", "message": "Your password has been changed. Please sign in again with the new password.", "signed_out": True}
+
+
 @app.get("/api/auth/mfa")
 async def api_auth_mfa_status(request: Request):
     import mfa

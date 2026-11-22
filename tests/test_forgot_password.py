@@ -158,3 +158,31 @@ class ResetCodeDbTests(unittest.TestCase):
 if __name__ == "__main__":
     unittest.main()
 
+
+
+class ChangePasswordTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.mgr = LicenseManager(db_path=Path(self.tmp.name) / "l.json", sessions_path=Path(self.tmp.name) / "s.json")
+        self.mgr.create_account(name="Jane", email="jane@university.edu", account_type="org", org_name="Lab", tier="pro", seat_limit=5, password="OldPassword1!")
+        web_app._reset_confirm_limit = web_app.FormRateLimit(limit=100, seconds=900)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def change(self, body):
+        _, user, _ = self.mgr.authenticate("jane@university.edu", "OldPassword1!") if body.get("_fresh", True) else (None, None, None)
+        with patch.object(web_app, "license_engine", self.mgr), patch.object(web_app, "_require_authenticated_user", lambda r: user):
+            return asyncio.run(web_app.api_auth_change_password(_FakeRequest(body)))
+
+    def test_change_password(self):
+        for body, fragment in (({"current_password": "wrong", "new_password": "NewPassword1!"}, "not right"),
+                               ({"current_password": "OldPassword1!", "new_password": "short"}, "8 characters"),
+                               ({"current_password": "OldPassword1!", "new_password": "OldPassword1!"}, "different")):
+            with self.assertRaises(HTTPException) as err:
+                self.change(body)
+            self.assertIn(fragment, err.exception.detail)
+        done = self.change({"current_password": "OldPassword1!", "new_password": "NewPassword1!"})
+        self.assertTrue(done["signed_out"])
+        self.assertFalse(self.mgr.authenticate("jane@university.edu", "OldPassword1!")[0])
+        self.assertTrue(self.mgr.authenticate("jane@university.edu", "NewPassword1!")[0])
