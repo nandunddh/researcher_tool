@@ -2,9 +2,10 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Icon } from "@/components/icon";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import styles from "./collector.module.css";
 
-type Run = { id:string; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
+type Run = { id:string; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
 const statusLabels = {
   deliverable_domain: "Mail domain ready", role: "Role address", disposable: "Disposable",
   invalid_format: "Invalid format", no_domain: "Domain missing", no_mail_server: "No mail server", unknown: "Unknown",
@@ -76,6 +77,9 @@ export function Collector() {
   const [sort, setSort] = useState<{ key:string; order:"asc"|"desc" }>({ key:"name", order:"asc" });
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [copied, setCopied] = useState("");
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<Run | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [log, setLog] = useState<LogLine[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -203,6 +207,27 @@ export function Collector() {
     catch(e) {setError(message(e));} finally {setBusy(false);}
   }
 
+  // Managing datasets
+  function runAgain(run: Run) {
+    const form = formRef.current;
+    if (!form) return;
+    const set = (name: string, value: unknown) => { const el = form.elements.namedItem(name) as HTMLInputElement | null; if (el && value !== undefined && value !== null) el.value = String(value); };
+    set("topic", run.topic); set("score", run.min_score); set("from", run.from_date); set("to", run.to_date);
+    setTarget(run.target);
+    form.scrollIntoView({ behavior: "smooth", block: "start" });
+    (form.elements.namedItem("topic") as HTMLInputElement | null)?.focus();
+  }
+  async function saveName(run: Run) {
+    const topic = (renaming ?? "").trim();
+    if (!topic || topic === run.topic) { setRenaming(null); return; }
+    try { await api(`${endpoint}/${run.id}`, { method:"PATCH", body:JSON.stringify({ topic }) }); setRenaming(null); refresh(v => v+1); }
+    catch (e) { setError(message(e)); }
+  }
+  async function removeRun(run: Run) {
+    try { await api(`${endpoint}/${run.id}`, { method:"DELETE" }); select(""); setRows([]); setDeleting(null); refresh(v => v+1); }
+    catch (e) { setError(message(e)); setDeleting(null); }
+  }
+
   // Leads Explorer helpers
   const pageRows = rows.slice(0, pageSize);
   const allPicked = pageRows.length > 0 && pageRows.every(r => picked.has(r.professional_email));
@@ -249,7 +274,7 @@ export function Collector() {
     {error && <p className={styles.alert} role="alert">{error}</p>}
 
     <div className={styles.grid}>
-      <form className={styles.card} onSubmit={start}>
+      <form className={styles.card} onSubmit={start} ref={formRef}>
         <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>OpenAlex + bioRxiv</span></div>
         <h3>Who are you looking for?</h3>
         <p className={styles.muted}>Find research contacts by topic. We take care of discovery, enrichment and duplicates.</p>
@@ -313,7 +338,22 @@ export function Collector() {
       </select></label>}
       {allMode ? <p className={styles.muted}>Every contact from all your collections, without duplicates. Search, filter and export them below.</p>
         : current ? <>
-        <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts</p>
+        {renaming !== null ? (
+          <div className={styles.rename}>
+            <input value={renaming} maxLength={200} autoFocus aria-label="Collection name" onChange={e => setRenaming(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") void saveName(current); if (e.key === "Escape") setRenaming(null); }} />
+            <button type="button" className={styles.ghost} onClick={() => void saveName(current)}>Save</button>
+            <button type="button" className={styles.linkBtn} onClick={() => setRenaming(null)}>Cancel</button>
+          </div>
+        ) : null}
+        <div className={styles.runBar}>
+          <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts · score {current.min_score ?? 50}+</p>
+          <div className={styles.runActions}>
+            <button type="button" className={styles.ghost} onClick={() => setRenaming(current.topic)}>Rename</button>
+            <button type="button" className={styles.ghost} onClick={() => runAgain(current)} disabled={!!active}>Run again</button>
+            <button type="button" className={styles.danger} onClick={() => setDeleting(current)} disabled={current.status === "running"}>Delete</button>
+          </div>
+        </div>
         {current.status==="partial" && <p className={styles.muted}>{current.shortfall} fewer contacts than requested met the collection criteria.</p>}
         {current.source_errors.map(e=><p key={e.source} className={styles.alert}>{e.source} · {e.message}</p>)}
       </> : <p className={styles.muted}>{loading ? "Loading collections…" : "Your collections will appear here."}</p>}
@@ -358,5 +398,8 @@ export function Collector() {
           {pageRows.length===0 && <tr><td colSpan={7} className={styles.empty}>{query || deliveryFilter ? "No leads match your search or filter." : "No contacts to show."}</td></tr>}</tbody></table></div>
       {(offset>0 || rows.length>pageSize) && <div className={styles.pager}><button className={styles.ghost} disabled={!offset} onClick={()=>setOffset(v=>Math.max(0, v-pageSize))}>← Previous</button><span>Page {Math.floor(offset/pageSize)+1}</span><button className={styles.ghost} disabled={rows.length<=pageSize} onClick={()=>setOffset(v=>v+pageSize)}>Next →</button></div>}
     </section>}
+    {deleting && <ConfirmDialog title="Delete this collection?" label="Delete collection" busy={false}
+      description={`“${deleting.topic}” will be removed from Datasets. Its ${deleting.collected} contacts stay in All contacts.`}
+      onCancel={() => setDeleting(null)} onConfirm={() => void removeRun(deleting)} />}
   </div>;
 }

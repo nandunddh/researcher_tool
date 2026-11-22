@@ -10,5 +10,6 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     const message = typeof body?.detail === "string" ? body.detail : `Request failed (${response.status}). Please try again.`;
     throw new ApiError(response.status, message);
   }
+  if (response.status === 204) return undefined as T;  // e.g. DELETE: success with no body
   return response.json() as Promise<T>;
 }

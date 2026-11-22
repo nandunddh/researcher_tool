@@ -18,6 +18,10 @@ class CollectionRequest(BaseModel):
     to_date: date
 
 
+class RenameRequest(BaseModel):
+    topic: str = Field(min_length=1, max_length=200)
+
+
 class CheckRequest(BaseModel):
     after: str = Field(default="", max_length=320)
 
@@ -106,6 +110,26 @@ def collector_router(require_user, licenses):
         collected = next((r["collected"] for r in archive.history(key) if str(r["id"]) == str(run_id)), 0)
         if license_key and collected:
             licenses.record_usage(license_key, int(collected))
+
+    @router.delete("/runs/{run_id}", status_code=204)
+    def delete_run(run_id: UUID, key: str = Depends(owner)):
+        try:
+            archive.delete_run(key, str(run_id))
+        except KeyError:
+            raise HTTPException(404, "Collection not found.")
+        except ValueError as exc:
+            raise HTTPException(409, str(exc))
+        return Response(status_code=204)
+
+    @router.patch("/runs/{run_id}")
+    def rename_run(run_id: UUID, body: RenameRequest, key: str = Depends(owner)):
+        if not body.topic.strip():
+            raise HTTPException(400, "Enter a name.")
+        try:
+            archive.rename_run(key, str(run_id), body.topic.strip())
+        except KeyError:
+            raise HTTPException(404, "Collection not found.")
+        return {"status": "ok"}
 
     @router.post("/runs/{run_id}/stop")
     def stop(run_id: UUID, key: str = Depends(owner)):

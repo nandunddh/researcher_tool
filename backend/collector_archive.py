@@ -237,6 +237,26 @@ def execute(owner, run_id, sources=SOURCES, loader=load_source):
             cur.execute("UPDATE collector_runs SET status='failed',updated_at=now() WHERE owner_key=%s AND id=%s AND status='running'", archive.key)
 
 
+def delete_run(owner, run_id):
+    """Removes a finished collection. Its contacts stay in the central archive (they may be in other collections)."""
+    with db.transaction() as cur:
+        cur.execute("SELECT status FROM collector_runs WHERE owner_key=%s AND id=%s FOR UPDATE", (owner, run_id))
+        row = cur.fetchone()
+        if not row:
+            raise KeyError(run_id)
+        if row[0] == "running":
+            raise ValueError("Stop the collection before deleting it.")
+        cur.execute("DELETE FROM collector_results WHERE owner_key=%s AND run_id=%s", (owner, run_id))
+        cur.execute("DELETE FROM collector_runs WHERE owner_key=%s AND id=%s", (owner, run_id))
+
+
+def rename_run(owner, run_id, topic):
+    with db.transaction() as cur:
+        cur.execute("UPDATE collector_runs SET topic=%s WHERE owner_key=%s AND id=%s", (topic, owner, run_id))
+        if cur.rowcount != 1:
+            raise KeyError(run_id)
+
+
 def stop(owner, run_id):
     with db.transaction() as cur:
         cur.execute("""UPDATE collector_runs SET status='stopped',updated_at=now() WHERE owner_key=%s AND id=%s AND status='running'""",

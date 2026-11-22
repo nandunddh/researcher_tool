@@ -246,3 +246,21 @@ class AllContactsTests(DailyLimitTests):
         headers = dict(messages[0]["headers"])
         self.assertEqual(messages[0]["status"], 200)
         self.assertIn(b"all-contacts.csv", headers[b"content-disposition"])
+
+
+class ManageDatasetsTests(DailyLimitTests):
+    RUN = "/api/collector/runs/7f8b0c6e-2c4a-4d1e-9b1a-0f5e6d7c8b9a"
+
+    def test_delete_and_rename(self):
+        with patch.object(archive, "delete_run") as delete:
+            self.assertEqual(self.call("DELETE", self.RUN)[0], 204)
+        self.assertEqual(delete.call_args.args[0], "owner:a@lab.test")
+        with patch.object(archive, "delete_run", side_effect=ValueError("Stop the collection before deleting it.")):
+            status, data, _ = self.call("DELETE", self.RUN)
+        self.assertEqual((status, data["detail"]), (409, "Stop the collection before deleting it."))
+        with patch.object(archive, "delete_run", side_effect=KeyError("x")):
+            self.assertEqual(self.call("DELETE", self.RUN)[0], 404, "someone else's collection")
+        with patch.object(archive, "rename_run") as rename:
+            self.assertEqual(self.call("PATCH", self.RUN, {"topic": "  Neuro 2027 "})[0], 200)
+        self.assertEqual(rename.call_args.args[2], "Neuro 2027")
+        self.assertIn(self.call("PATCH", self.RUN, {"topic": ""})[0], (400, 422))

@@ -18,3 +18,10 @@ test("permission failures preserve status and safe user-facing error", async () 
   try { await assert.rejects(api("/api/test"), error => error instanceof ApiError && error.status === 403 && error.message === "Access denied"); }
   finally { globalThis.fetch = original; }
 });
+
+test("an empty 204 response is a success, not an error", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(null, { status: 204 })) as typeof fetch;
+  try { assert.equal(await api("/x", { method: "DELETE" }), undefined); }
+  finally { globalThis.fetch = original; }
+});

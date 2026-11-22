@@ -186,3 +186,16 @@ th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn spa
 .limitNote a { color: #1d4ed8; font-weight: 600; }
 
 .scope { font-size: 14px; font-weight: 500; color: #64748b; }
+
+/* Managing datasets */
+.runBar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 10px; }
+.runBar .muted { margin: 0; }
+.runActions { display: flex; gap: 8px; flex-wrap: wrap; }
+.danger { height: 32px; padding: 0 12px; border: 1px solid #fecaca; border-radius: 8px; background: #fff; color: #b42318; cursor: pointer; font-size: 13.5px; }
+.danger:hover:not(:disabled) { background: #fef2f2; }
+.danger:disabled, .ghost:disabled { opacity: .45; cursor: not-allowed; }
+.rename { display: flex; gap: 8px; align-items: center; margin-top: 12px; max-width: 620px; }
+.rename input { flex: 1; height: 40px; }
+
+/* Grid children must not grow to their content (the wide leads table scrolls inside its card instead). */
+.page > *, .grid > *, .main { min-width: 0; }
