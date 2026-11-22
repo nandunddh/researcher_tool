@@ -95,3 +95,22 @@ def over_limit(plan: Optional[dict], key: str, new_total: float) -> Optional[str
     if not isinstance(limit, (int, float)) or limit < 0 or new_total <= limit:
         return None
     return MESSAGES[key].format(limit=int(limit))
+
+
+def usage_all() -> Dict[str, dict]:
+    """Usage for every owner email at once (a few grouped queries instead of several per account)."""
+    out: Dict[str, dict] = {}
+    blank = lambda: {"websites": 0, "pages": 0, "storage_mb": 0.0, "submissions_month": 0}
+    with db.transaction() as cur:
+        cur.execute("SELECT lower(owner_email), count(*), coalesce(max(greatest(jsonb_array_length(coalesce(document->'pages', '[]'::jsonb)), 1)), 0) "
+                    "FROM websites GROUP BY lower(owner_email)")
+        for email, sites, pages in cur.fetchall():
+            out.setdefault(email, blank()).update(websites=int(sites), pages=int(pages))
+        cur.execute("SELECT lower(w.owner_email), coalesce(sum(m.size_bytes), 0) FROM media m JOIN websites w ON w.site_id = m.site_id GROUP BY lower(w.owner_email)")
+        for email, size in cur.fetchall():
+            out.setdefault(email, blank())["storage_mb"] = round(int(size) / 1_048_576, 1)
+        cur.execute("SELECT lower(w.owner_email), count(*) FROM form_submissions s JOIN websites w ON w.site_id = s.site_id "
+                    "WHERE s.created_at >= date_trunc('month', now()) GROUP BY lower(w.owner_email)")
+        for email, count in cur.fetchall():
+            out.setdefault(email, blank())["submissions_month"] = int(count)
+    return out

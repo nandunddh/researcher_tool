@@ -216,3 +216,11 @@ def switch_plan(account_key: str, sub: dict, plan: dict) -> None:
     with db.transaction() as cur:
         cur.execute("UPDATE subscriptions SET plan_id = %s, cancel_at_period_end = false, updated_at = now() WHERE account_key = %s",
                     (plan["id"], account_key))
+
+
+def all_subscriptions() -> Dict[str, dict]:
+    """Every subscription in one query (for root's Manage Accounts)."""
+    with db.transaction() as cur:
+        cur.execute("SELECT account_key, plan_id, status, current_period_end, cancel_at_period_end, provider FROM subscriptions")
+        return {r[0]: {"plan_id": r[1], "status": r[2], "current_period_end": r[3].isoformat() if r[3] else None,
+                       "cancel_at_period_end": r[4], "provider": r[5]} for r in cur.fetchall()}

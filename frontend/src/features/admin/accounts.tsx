@@ -28,9 +28,14 @@ type Account = {
   daily_limit: number;
   seat_limit: number;
   scistudio_access: boolean;
+  plan_id?: string;
   members: Member[];
   notes?: string;
 };
+
+/** Same rule as backend plans.default_plan_id, so the plan shows before usage has loaded. */
+const defaultPlan = (a: { plan_id?: string; account_type: string; tier: string }) =>
+  a.plan_id || (a.account_type === "org" ? "organization" : a.tier === "pro" ? "pro" : "free");
 
 type Usage = { websites: number; pages: number; storage_mb: number; submissions_month: number };
 type UsageEntry = { plan_id: string; usage: Usage; self_signup?: boolean;
@@ -259,8 +264,9 @@ export function ManageAccounts() {
                         {root ? "No limits" : (
                           <>
                             <select aria-label={`Website plan for ${a.client_name}`} disabled={busy || !plans.length}
-                              value={usage[a.license_key]?.plan_id ?? ""} onChange={e => void changePlan(a, e.target.value)}>
-                              {plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                              value={usage[a.license_key]?.plan_id ?? defaultPlan(a)} onChange={e => void changePlan(a, e.target.value)}>
+                              {plans.length ? plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                                : <option value={usage[a.license_key]?.plan_id ?? defaultPlan(a)}>{(usage[a.license_key]?.plan_id ?? defaultPlan(a)).replace(/^./, c => c.toUpperCase())}</option>}
                             </select>
                             {usage[a.license_key] && <small style={{ display: "block", marginTop: 4 }}>{usageText(a.license_key)}</small>}
                           </>

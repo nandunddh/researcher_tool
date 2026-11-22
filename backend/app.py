@@ -980,13 +980,14 @@ async def admin_usage(request: Request):
     """Root: each account's website plan and what it uses now."""
     import plans
     _verify_admin_auth(request)
+    import billing
+    usage, subs, empty = plans.usage_all(), billing.all_subscriptions(), {"websites": 0, "pages": 0, "storage_mb": 0.0, "submissions_month": 0}
     out = {}
     for account in license_engine.list_accounts():
         key = account.get("license_key")
         if key and key != "SCIP-PRO-ROOT-MASTER":
-            import billing
-            out[key] = {"plan_id": plans.default_plan_id(account), "usage": plans.usage(account.get("client_email", "")),
-                        "subscription": billing.subscription(key), "self_signup": account.get("notes") == "Self sign-up"}
+            out[key] = {"plan_id": plans.default_plan_id(account), "usage": usage.get(str(account.get("client_email", "")).strip().lower(), empty),
+                        "subscription": subs.get(key), "self_signup": account.get("notes") == "Self sign-up"}
     return {"accounts": out}
 
 

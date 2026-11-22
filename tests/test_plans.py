@@ -73,6 +73,17 @@ class PlanAccountsTests(unittest.TestCase):
         self.assertEqual(self.mgr.account_for_email("SAM@uni.edu")["license_key"], self.acc["license_key"], "member → their organization")
         self.assertFalse(self.mgr.set_plan("SCIP-PRO-ROOT-MASTER", "free", 0)[0])
 
+    def test_usage_for_all_accounts_in_one_go(self):
+        calls = []
+        fake_plans = SimpleNamespace(usage_all=lambda: calls.append("usage") or {"jane@uni.edu": {"websites": 2, "pages": 3, "storage_mb": 1.0, "submissions_month": 9}},
+                                     default_plan_id=plans.default_plan_id)
+        fake_billing = SimpleNamespace(all_subscriptions=lambda: calls.append("subs") or {})
+        with patch.object(web_app, "license_engine", self.mgr), patch.object(web_app, "_verify_admin_auth", lambda r: None),                 patch.dict(sys.modules, {"plans": fake_plans, "billing": fake_billing}):
+            out = asyncio.run(web_app.admin_usage(_Req()))["accounts"]
+        self.assertEqual(calls, ["usage", "subs"], "one batch each, not per account")
+        self.assertEqual(out[self.acc["license_key"]]["usage"]["websites"], 2)
+        self.assertNotIn("SCIP-PRO-ROOT-MASTER", out)
+
     def test_website_limit_blocks_creation(self):
         user = {"license_key": self.acc["license_key"], "client_email": "jane@uni.edu", "scistudio_access": True}
         fake = SimpleNamespace(usage=lambda email: {"websites": 2}, over_limit=plans.over_limit)
