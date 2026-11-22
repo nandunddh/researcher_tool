@@ -24,7 +24,7 @@ from app import (
 class TestSciStudioDashboardRedesign(unittest.TestCase):
     def test_routes_scistudio_primary(self):
         """Verify /scistudio is registered in FastAPI routes and serves index.html."""
-        route_paths = [r.path for r in app.routes]
+        route_paths = [r.path for r in app.routes if hasattr(r, "path")]  # included routers (collector) have no single path
         self.assertIn("/scistudio", route_paths)
 
         # Call serve_spa_page directly
@@ -37,7 +37,7 @@ class TestSciStudioDashboardRedesign(unittest.TestCase):
 
     def test_routes_legacy_redirects(self):
         """Verify /websitebuilder and /builder redirect to /scistudio via HTTP 307."""
-        route_paths = [r.path for r in app.routes]
+        route_paths = [r.path for r in app.routes if hasattr(r, "path")]  # included routers (collector) have no single path
         self.assertIn("/websitebuilder", route_paths)
         self.assertIn("/builder", route_paths)
 
@@ -66,7 +66,7 @@ class TestSciStudioDashboardRedesign(unittest.TestCase):
 
     def test_scistudio_clean_edit_and_preview_routes(self):
         """Verify /{namespace}/scistudio/{site_id}/edit and preview routes exist and guard unauthenticated access."""
-        route_paths = [r.path for r in app.routes]
+        route_paths = [r.path for r in app.routes if hasattr(r, "path")]  # included routers (collector) have no single path
         self.assertIn("/scistudio/{site_id}/edit", route_paths)
         self.assertIn("/{namespace}/scistudio/{site_id}/edit", route_paths)
         self.assertIn("/scistudio/{site_id}/preview", route_paths)
