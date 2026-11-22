@@ -48,8 +48,31 @@ export function ManageAccounts() {
   const [filter, setFilter] = useState("all");
   const [selected, setSelected] = useState<string | null>(null);
 
+  const [mfaOn, setMfaOn] = useState<Set<string>>(new Set());
+
   async function reload() {
     setAccounts(await api<Account[]>("/api/admin/licenses"));
+    // Two-step status is extra information; the page works without it.
+    api<{ enabled: string[] }>("/api/admin/mfa").then(r => setMfaOn(new Set(r.enabled))).catch(() => undefined);
+  }
+
+  function resetTwoStep(account: Account, name: string, memberId = "") {
+    setConfirmation({
+      title: "Reset two-step sign-in?",
+      description: `${name} will sign in with just their password and can set up two-step sign-in again. Only do this after you have confirmed who they are.`,
+      label: "Reset two-step sign-in",
+      run: async () => {
+        try {
+          await api("/api/admin/mfa/reset", { method: "POST", body: JSON.stringify({ license_key: account.license_key, member_id: memberId }) });
+          setMfaOn(old => { const next = new Set(old); next.delete(`${account.license_key}:${memberId}`); return next; });
+          toast.success(`Two-step sign-in turned off for ${name}.`);
+        } catch (e) {
+          toast.error(e instanceof Error ? e.message : "Two-step sign-in could not be reset.");
+        } finally {
+          setConfirmation(null);
+        }
+      },
+    });
   }
 
   useEffect(() => {
@@ -272,6 +295,11 @@ export function ManageAccounts() {
                             >
                               Manage
                             </button>
+                            {mfaOn.has(`${a.license_key}:`) && (
+                              <button type="button" disabled={busy} title="For someone who lost their phone" onClick={() => resetTwoStep(a, a.client_name)}>
+                                Reset two-step
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="danger"
@@ -379,6 +407,9 @@ export function ManageAccounts() {
                     >
                       Studio: {m.scistudio_access ? "On" : "Off"}
                     </button>
+                    {mfaOn.has(`${team.license_key}:${m.member_id}`) && (
+                      <button type="button" disabled={busy} onClick={() => resetTwoStep(team, m.name, m.member_id)}>Reset two-step</button>
+                    )}
                     <button
                       type="button"
                       disabled={busy}

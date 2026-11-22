@@ -113,3 +113,24 @@ class MfaDbTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AdminResetTests(unittest.TestCase):
+    def test_root_resets_a_client(self):
+        removed = []
+        fake = SimpleNamespace(reset=lambda key: removed.append(key) or key == "KEY1:mem-1", enabled_keys=lambda: ["__root__", "KEY1:"])
+        with patch.dict(sys.modules, {"mfa": fake}), patch.object(web_app, "_verify_admin_auth", lambda r: None):
+            self.assertEqual(asyncio.run(web_app.admin_mfa_status(_Req({})))["enabled"], ["KEY1:"], "root's own key is not listed")
+            ok = asyncio.run(web_app.admin_mfa_reset(_Req({"license_key": "KEY1", "member_id": "mem-1"})))
+            self.assertEqual(ok["status"], "ok")
+            for body in ({"license_key": "KEY1"}, {"license_key": "SCIP-PRO-ROOT-MASTER"}, {}):
+                with self.assertRaises(HTTPException):
+                    asyncio.run(web_app.admin_mfa_reset(_Req(body)))
+        self.assertEqual(removed, ["KEY1:mem-1", "KEY1:"])
+
+    def test_only_root(self):
+        def deny(request):
+            raise HTTPException(status_code=403, detail="no")
+        with patch.object(web_app, "_verify_admin_auth", deny):
+            with self.assertRaises(HTTPException):
+                asyncio.run(web_app.admin_mfa_reset(_Req({"license_key": "KEY1"})))

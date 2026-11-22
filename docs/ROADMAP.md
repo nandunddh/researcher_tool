@@ -111,7 +111,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Licenses: create, extend, stop / resume, upgrade, trial, daily limits
 - [x] Organization team members, SciStudio access per member
 - [x] 🧪 "Change password" in the profile menu
-- [ ] Admin button: reset two-step sign-in for a client
+- [x] 🧪 Admin button: reset two-step sign-in for a client
 - [ ] One-click client creation (organization + admin user)
 - [ ] Plans with limits (websites, pages, members, storage, submissions), usage dashboard
 

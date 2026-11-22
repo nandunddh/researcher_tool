@@ -114,3 +114,16 @@ def disable(user_key: str, code: str) -> bool:
     with db.transaction() as cur:
         cur.execute("DELETE FROM mfa WHERE user_key = %s", (user_key,))
     return True
+
+
+def reset(user_key: str) -> bool:
+    """Root admin: turn two-step sign-in off for someone who lost their phone and backup codes."""
+    with db.transaction() as cur:
+        cur.execute("DELETE FROM mfa WHERE user_key = %s", (user_key,))
+        return cur.rowcount > 0
+
+
+def enabled_keys() -> list:
+    with db.transaction() as cur:
+        cur.execute("SELECT user_key FROM mfa WHERE enabled_at IS NOT NULL")
+        return [row[0] for row in cur.fetchall()]

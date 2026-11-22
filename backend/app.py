@@ -874,6 +874,29 @@ async def admin_toggle_scistudio(request: Request):
     return {"status": "ok", "message": msg, "account": acc}
 
 
+@app.get("/api/admin/mfa")
+async def admin_mfa_status(request: Request):
+    """Root: which accounts and members have two-step sign-in on (keys "<license_key>:<member_id>")."""
+    import mfa
+    _verify_admin_auth(request)
+    return {"enabled": [k for k in mfa.enabled_keys() if k != "__root__"]}
+
+
+@app.post("/api/admin/mfa/reset")
+async def admin_mfa_reset(request: Request):
+    """Root: turn off two-step sign-in for a client or team member who lost their phone. They can set it up again."""
+    import mfa
+    _verify_admin_auth(request)
+    body = await request.json()
+    key = str(body.get("license_key") or "").strip()
+    member_id = str(body.get("member_id") or "").strip()
+    if not key or key == "SCIP-PRO-ROOT-MASTER":
+        raise HTTPException(status_code=400, detail="Choose a client account.")
+    if not mfa.reset(f"{key}:{member_id}"):
+        raise HTTPException(status_code=404, detail="Two-step sign-in is not on for this person.")
+    return {"status": "ok", "message": "Two-step sign-in was turned off. They can sign in with their password and set it up again."}
+
+
 @app.post("/api/admin/licenses/stop")
 async def admin_stop_license(request: Request):
     """Instant Remote Kill Switch."""
