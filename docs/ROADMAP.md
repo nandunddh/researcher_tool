@@ -96,7 +96,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 
 ## 7. Publishing
 - [x] Published sites rendered by React, ZIP export
-- [ ] 🔜 Publish / Unpublish buttons, Draft / Live status, "not available" page
+- [x] 🧪 Publish / Unpublish buttons, Draft / Live status, "not available" page
 - [ ] Custom domains (DNS instructions and checks)
 
 ---
@@ -110,7 +110,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Root dashboard, organization dashboard, client overview
 - [x] Licenses: create, extend, stop / resume, upgrade, trial, daily limits
 - [x] Organization team members, SciStudio access per member
-- [ ] 🔜 "Change password" in the profile menu
+- [x] 🧪 "Change password" in the profile menu
 - [ ] Admin button: reset two-step sign-in for a client
 - [ ] One-click client creation (organization + admin user)
 - [ ] Plans with limits (websites, pages, members, storage, submissions), usage dashboard
