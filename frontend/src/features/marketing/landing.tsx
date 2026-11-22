@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
-import { MotionEffects, NetworkCanvas, RotatingWords, ScrollStory } from "./motion";
+import { MotionEffects, RotatingWords, ScrollStory } from "./motion";
+import { HeroDemo } from "./hero-demo";
 import s from "./landing.module.css";
 
 export type PublicPlan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> };
@@ -115,11 +116,13 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
       <main>
         {/* ---------- Hero ---------- */}
         <section className={s.hero}>
-          <NetworkCanvas className={s.network} />
-          <div className={s.aurora} aria-hidden="true"><i /><i /><i /></div>
+          <div className={s.dotGrid} aria-hidden="true" />
           <div className={`${s.wrap} ${s.heroInner}`}>
-            <a className={s.pill} href="#story"><b>NEW</b> Registration, payments and receipts are built in <span>→</span></a>
-            <h1>Find the minds.<br /><span className={s.gradient}>Build the event.</span></h1>
+            <a className={s.pill} href="#story"><b>New</b> Registration, payments &amp; receipts, built in <span>→</span></a>
+            <h1 className={s.title}>
+              <span className={s.line}>Find the <mark className={s.mark}>minds.</mark></span>
+              <span className={s.line}>Build the event.</span>
+            </h1>
             <p className={s.lead}>
               SciProspect finds the researchers your event needs, then gives you a{" "}
               <RotatingWords className={s.rotate} words={["conference website", "registration desk", "abstract portal", "speaker line-up"]} />
@@ -129,10 +132,10 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
               <a className={s.btn} href={start}>{signedInHref ? "Open workspace" : "Start free"} <span className={s.arrow}>→</span></a>
               <a className={s.btnGhost} href="#story">See how it works</a>
             </div>
-            <p className={s.fine}>Free plan · no card needed</p>
+            <ul className={s.facts}><li>Free plan, no card</li><li>Verified researcher emails</li><li>Payments &amp; receipts</li></ul>
           </div>
           <div className={`${s.wrap} ${s.heroScreen}`}>
-            <div className={s.tilt}><PayScreen /></div>
+            <div className={s.tilt}><HeroDemo /></div>
           </div>
         </section>
 
@@ -210,7 +213,6 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
         <section className={s.cta}>
           <div className={s.wrap}>
             <div className={s.ctaBox} data-reveal="">
-              <div className={s.aurora} aria-hidden="true"><i /><i /><i /></div>
               <h2>Your next event starts here.</h2>
               <p>Create a free account in a minute. No card needed.</p>
               <a className={s.btnLight} href={start}>{signedInHref ? "Open workspace" : "Create free account"} <span className={s.arrow}>→</span></a>

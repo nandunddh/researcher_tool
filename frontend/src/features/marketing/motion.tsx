@@ -49,14 +49,15 @@ export function RotatingWords({ words, className }: { words: string[]; className
 }
 
 /** A live network of "researchers": drifting nodes that link when close and lean towards the cursor. */
-export function NetworkCanvas({ className }: { className?: string }) {
+export function NetworkCanvas({ className, accent = "#c8ff4d" }: { className?: string; accent?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
   useEffect(() => {
     const canvas = ref.current, ctx = canvas?.getContext("2d");
     if (!canvas || !ctx) return;
     let w = 0, h = 0, raf = 0, running = true;
     const mouse = { x: -9999, y: -9999 };
-    const colors = ["#8b7cff", "#38d0f0", "#f472b6", "#a5b4fc"];
+    // One accent for the hub nodes, quiet white for the rest (no rainbow).
+    const colors = ["rgba(255,255,255,.55)", "rgba(255,255,255,.35)", "rgba(255,255,255,.45)"];
     type Node = { x: number; y: number; vx: number; vy: number; r: number; c: string; hub: boolean };
     let nodes: Node[] = [];
 
@@ -68,7 +69,7 @@ export function NetworkCanvas({ className }: { className?: string }) {
       const count = Math.round(Math.min(110, Math.max(40, (w * h) / 14000)));
       nodes = Array.from({ length: count }, (_, i) => ({
         x: Math.random() * w, y: Math.random() * h, vx: (Math.random() - .5) * .35, vy: (Math.random() - .5) * .35,
-        r: i % 9 === 0 ? 3.2 : 1.6 + Math.random(), c: colors[i % colors.length], hub: i % 9 === 0,
+        r: i % 9 === 0 ? 3 : 1.3 + Math.random() * .8, c: i % 9 === 0 ? accent : colors[i % colors.length], hub: i % 9 === 0,
       }));
     };
     const draw = () => {
@@ -84,10 +85,10 @@ export function NetworkCanvas({ className }: { className?: string }) {
       }
       for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
         const a = nodes[i], b = nodes[j], d = Math.hypot(a.x - b.x, a.y - b.y);
-        if (d < 130) { ctx.strokeStyle = `rgba(139,124,255,${(1 - d / 130) * .35})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
+        if (d < 130) { ctx.strokeStyle = `rgba(255,255,255,${(1 - d / 130) * .14})`; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke(); }
       }
       for (const n of nodes) {
-        if (n.hub) { ctx.fillStyle = "rgba(139,124,255,.18)"; ctx.beginPath(); ctx.arc(n.x, n.y, 10, 0, Math.PI * 2); ctx.fill(); }
+        if (n.hub) { ctx.fillStyle = "rgba(200,255,77,.12)"; ctx.beginPath(); ctx.arc(n.x, n.y, 10, 0, Math.PI * 2); ctx.fill(); }
         ctx.fillStyle = n.c; ctx.beginPath(); ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2); ctx.fill();
       }
       if (running) raf = requestAnimationFrame(draw);

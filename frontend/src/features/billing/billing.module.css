@@ -2,8 +2,8 @@
    so every colour is set here (reset first). The invoice paper stays white so it prints well. */
 .page :where(h1, h2, h3, p, small, span, li, a, strong, b, label, td, th), .checkout :where(h1, h2, h3, p, small, span, li, a, strong, b, label) { color: inherit; }
 
-.page, .checkout { --ink: #eef0ff; --muted: #9aa3c0; --line: rgba(255, 255, 255, .1); --panel: rgba(13, 15, 31, .72); --brand: #8b7cff; --brand2: #38d0f0;
-  position: relative; min-height: 100vh; background: #05060f; color: var(--ink); font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif; }
+.page, .checkout { --ink: #eef0ff; --muted: #9aa3c0; --line: rgba(255, 255, 255, .1); --panel: rgba(13, 15, 31, .72); --brand: #c8ff4d; --brand2: #c8ff4d;
+  position: relative; min-height: 100vh; background: #09090b; color: var(--ink); font-family: var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif; }
 .layer { position: relative; z-index: 1; }
 .top { position: sticky; top: 0; z-index: 5; background: rgba(5, 6, 15, .7); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
 .topInner { max-width: 1040px; margin: 0 auto; padding: 0 24px; height: 66px; display: flex; align-items: center; justify-content: space-between; }
@@ -24,15 +24,15 @@
 .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
 .plan { border: 1px solid var(--line); border-radius: 18px; padding: 22px; display: grid; gap: 8px; align-content: start; background: rgba(255, 255, 255, .03); transition: transform .25s, border-color .25s; }
 .plan:hover { transform: translateY(-3px); border-color: rgba(255, 255, 255, .2); }
-.plan[data-current] { border-color: transparent; background: linear-gradient(#0d0f1f, #0d0f1f) padding-box, linear-gradient(135deg, var(--brand), var(--brand2)) border-box; border: 1.5px solid transparent; }
-.plan[data-highlight] { box-shadow: 0 0 0 4px rgba(139, 124, 255, .25), 0 20px 50px rgba(109, 93, 240, .25); border-color: rgba(139, 124, 255, .6); }
+.plan[data-current] { border: 1.5px solid #c8ff4d; }
+.plan[data-highlight] { box-shadow: 0 0 0 4px rgba(200, 255, 77, .18); border-color: #c8ff4d; }
 .plan h3 { margin: 0; font-size: 17px; color: #fff; }
 .price { font-size: 32px; font-weight: 800; color: #fff; letter-spacing: -.03em; }
 .price small { font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: 0; }
 .plan ul { margin: 4px 0 10px; padding-left: 18px; color: var(--muted); font-size: 14px; line-height: 1.8; }
 .primary, .secondary, .danger { height: 42px; padding: 0 18px; border-radius: 11px; font-weight: 700; font-size: 14px; cursor: pointer; border: 1px solid transparent; transition: transform .15s, box-shadow .2s, background .2s; }
-.primary { background: linear-gradient(135deg, #9b8cff, #6d5df0 50%, #4f3fd9); color: #fff; box-shadow: 0 8px 24px rgba(109, 93, 240, .4); }
-.primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 12px 30px rgba(109, 93, 240, .55); }
+.primary { background: #c8ff4d; color: #0a0a0a; border-radius: 999px; }
+.primary:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 26px rgba(200, 255, 77, .22); }
 .primary:disabled, .secondary:disabled { opacity: .5; cursor: not-allowed; box-shadow: none; }
 .secondary { background: rgba(255, 255, 255, .05); border-color: var(--line); color: #fff; }
 .secondary:hover:not(:disabled) { background: rgba(255, 255, 255, .1); }
@@ -41,7 +41,7 @@
 .table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .table th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); padding: 8px 0; border-bottom: 1px solid var(--line); }
 .table td { padding: 13px 0; border-bottom: 1px solid rgba(255, 255, 255, .05); color: var(--ink); }
-.table a { color: #c4bcff; font-weight: 600; text-decoration: none; }
+.table a { color: #c8ff4d; font-weight: 600; text-decoration: none; }
 .table a:hover { text-decoration: underline; }
 .alert { padding: 12px 16px; border-radius: 14px; background: rgba(248, 113, 113, .08); border: 1px solid rgba(248, 113, 113, .35); color: #fca5a5; font-size: 14px; margin: 0; }
 .success { padding: 12px 16px; border-radius: 14px; background: rgba(52, 211, 153, .08); border: 1px solid rgba(52, 211, 153, .35); color: #6ee7b7; font-size: 14px; margin: 0; }
@@ -58,13 +58,13 @@
 .payForm { display: grid; gap: 14px; padding: 26px; border-radius: 20px; background: var(--panel); backdrop-filter: blur(16px); border: 1px solid var(--line); }
 .payForm label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: #cdd3ea; }
 .payForm input { height: 46px; border: 1px solid rgba(255, 255, 255, .14); border-radius: 11px; padding: 0 14px; font-size: 15px; background: rgba(5, 6, 15, .6); color: #fff; }
-.payForm input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(139, 124, 255, .2); }
+.payForm input:focus { outline: none; border-color: #c8ff4d; box-shadow: 0 0 0 3px rgba(200, 255, 77, .18); }
 .payForm input[readonly] { color: var(--muted); }
 .cardRow { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .testBadge { align-self: flex-start; padding: 4px 11px; border-radius: 7px; background: rgba(251, 191, 36, .12); border: 1px solid rgba(251, 191, 36, .35); color: #fbbf24; font-size: 12px; font-weight: 800; letter-spacing: .06em; }
 .hint { font-size: 12.5px; color: var(--muted); line-height: 1.6; margin: 0; }
 .hint strong { color: #fff; }
-.payButton { height: 50px; border: 0; border-radius: 13px; background: linear-gradient(135deg, #9b8cff, #6d5df0 50%, #4f3fd9); color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; box-shadow: 0 12px 32px rgba(109, 93, 240, .45); transition: transform .15s; }
+.payButton { height: 50px; border: 0; border-radius: 999px; background: #c8ff4d; color: #0a0a0a; font-weight: 700; font-size: 16px; cursor: pointer; transition: transform .15s; }
 .payButton:hover:not(:disabled) { transform: translateY(-1px); }
 .payButton:disabled { opacity: .6; cursor: wait; }
 @media (max-width: 860px) { .checkout { grid-template-columns: 1fr; } .summary { align-items: stretch; padding: 32px 22px; border-right: 0; border-bottom: 1px solid var(--line); } .payPane { padding: 28px 22px; } }
@@ -90,3 +90,7 @@
   .page { background: #fff; }
   .paper { box-shadow: none; padding: 0; }
 }
+
+/* Display font for headings and big numbers */
+.main h1, .card h2, .current strong, .plan h3, .price, .amount { font-family: var(--font-display), system-ui, sans-serif; letter-spacing: -.03em; }
+.main h1 { font-weight: 800; font-size: 44px; }

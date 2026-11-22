@@ -1,6 +1,7 @@
 import { Notifications } from "@/components/notifications";
 import type { Metadata } from "next";
 import "./globals.css";
+import { bodyFont, displayFont } from "./fonts";
 export const metadata: Metadata = {
   title: "SciProspect — Research workspace",
   description: "SciProspect and SciStudio",
@@ -10,5 +11,5 @@ export const metadata: Metadata = {
   },
 };
 export default function Layout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}<Notifications/></body></html>;
+  return <html lang="en" className={`${displayFont.variable} ${bodyFont.variable}`}><body>{children}<Notifications/></body></html>;
 }
