@@ -110,7 +110,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
               <div className="input-wrapper"><input id="su-password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" /></div>
             </div>
             <label style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, fontSize: 13, fontWeight: 400 }}>
-              <input type="checkbox" name="terms" style={{ marginTop: 3 }} />I agree to the terms of service and privacy policy.
+              <input type="checkbox" name="terms" style={{ marginTop: 3 }} /><span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer">terms of service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a>.</span>
             </label>
             <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Sending code…" : "Create account"}</button>
             <p style={{ textAlign: "center", marginTop: 16, fontSize: 14 }}>Already have an account? <a href="/login">Log in</a></p>

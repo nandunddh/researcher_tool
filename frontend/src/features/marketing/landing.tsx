@@ -225,7 +225,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
       <footer className={s.footer}>
         <div className={s.wrap}>
           <span>© {new Date().getFullYear()} SciProspect</span>
-          <span><a href="#pricing">Pricing</a><a href="/login">Log in</a><a href="/signup">Sign up</a></span>
+          <span><a href="#pricing">Pricing</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a><a href="/signup">Sign up</a></span>
         </div>
       </footer>
     </div>

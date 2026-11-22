@@ -184,7 +184,7 @@ export function TestCheckout({ sessionId }: { sessionId: string }) {
             </div>
             <label>Name on card<input name="name" autoComplete="cc-name" required /></label>
             <button className={styles.payButton} type="submit" disabled={busy || !session}>{busy ? "Processing…" : `Subscribe · ${session ? money(session.amount, session.currency) : ""}`}</button>
-            <p className={styles.hint}>Test cards: <strong>4242 4242 4242 4242</strong> succeeds, <strong>4000 0000 0000 0002</strong> is declined. Any future date and any 3 digits. No money is charged. When Stripe is switched on, this page is replaced by Stripe&apos;s secure checkout.</p>
+            <p className={styles.hint}>Test cards: <strong>4242 4242 4242 4242</strong> succeeds, <strong>4000 0000 0000 0002</strong> is declined. Any future date and any 3 digits. No money is charged. When Stripe is switched on, this page is replaced by Stripe&apos;s secure checkout. By subscribing you agree to the <a href="/terms" target="_blank" rel="noopener noreferrer">terms</a>; you can cancel any time from Billing.</p>
           </form>
         )}
       </section>
