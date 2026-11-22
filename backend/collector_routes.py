@@ -59,6 +59,21 @@ def collector_router(require_user, licenses):
         limit = daily_limit(request)
         return {**counts, "daily_limit": limit, "remaining_today": None if limit is None else max(0, limit - counts["today"])}
 
+    @router.get("/contacts")
+    def contacts(offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=251), delivery_status: str | None = None,
+                 q: str = Query("", max_length=200), sort: str = "name", order: str = "asc", key: str = Depends(owner)):
+        """All contacts in the workspace's central archive (deduplicated across collections)."""
+        if delivery_status is not None and delivery_status not in STATUSES:
+            raise HTTPException(400, "Unknown delivery status.")
+        if sort not in archive.ALL_SORTS or order not in ("asc", "desc"):
+            raise HTTPException(400, "Unknown sort.")
+        return archive.all_contacts(key, limit, offset, delivery_status, q, sort, order)
+
+    @router.get("/contacts/export")
+    def contacts_export(key: str = Depends(owner)):
+        return Response(archive.all_contacts_csv(key), media_type="text/csv",
+                        headers={"Content-Disposition": 'attachment; filename="all-contacts.csv"', "Cache-Control": "private, no-store"})
+
     @router.get("/runs")
     def runs(key: str = Depends(owner)):
         return archive.history(key)

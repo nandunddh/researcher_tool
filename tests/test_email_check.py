@@ -222,3 +222,27 @@ class DailyLimitTests(unittest.TestCase):
         with patch.object(archive, "stats", return_value={"total": 5, "today": 30, "datasets": 1}):
             status, data, _ = self.call("GET", "/api/collector/stats")
         self.assertEqual((status, data["daily_limit"], data["remaining_today"]), (200, 100, 70))
+
+
+class AllContactsTests(DailyLimitTests):
+    def test_all_contacts_route_passes_search_and_sort(self):
+        with patch.object(archive, "all_contacts", return_value=[{"professional_email": "a@lab.test"}]) as found:
+            status, data, _ = self.call("GET", "/api/collector/contacts")
+        self.assertEqual((status, len(data)), (200, 1))
+        self.assertEqual(found.call_args.args[0], "owner:a@lab.test", "only this workspace's contacts")
+
+    def test_export_is_a_csv(self):
+        with patch.object(archive, "all_contacts_csv", return_value=b"email\r\na@lab.test\r\n"):
+            app = FastAPI()
+            app.include_router(collector_router(lambda request: {"client_email": "a@lab.test"}, None))
+            messages = []
+
+            async def receive():
+                return {"type": "http.request", "body": b""}
+
+            async def send(message):
+                messages.append(message)
+            asyncio.run(app({"type": "http", "method": "GET", "path": "/api/collector/contacts/export", "query_string": b"", "headers": []}, receive, send))
+        headers = dict(messages[0]["headers"])
+        self.assertEqual(messages[0]["status"], 200)
+        self.assertIn(b"all-contacts.csv", headers[b"content-disposition"])

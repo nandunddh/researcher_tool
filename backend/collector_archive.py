@@ -83,6 +83,42 @@ def results(owner, run_id, limit=None, offset=0, delivery_status=None, q="", sor
         return [row[0] for row in cur]
 
 
+# Same sort keys over the whole archive (one row per unique contact).
+ALL_SORTS = {"name": "record->>'researcher_name'", "email": "email", "affiliation": "record->>'affiliation'",
+             "source": "record->>'data_source'", "confidence": "record->>'email_confidence'",
+             "status": "COALESCE(record->>'delivery_status','unknown')"}
+
+
+def all_contacts(owner, limit=None, offset=0, delivery_status=None, q="", sort="name", order="asc"):
+    """Every contact the workspace ever collected, deduplicated (the central archive)."""
+    q = (q or "").strip()[:200]
+    pattern = "%" + q.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%"
+    with db.transaction() as cur:
+        cur.execute("""SELECT record || jsonb_build_object('delivery_status', COALESCE(record->>'delivery_status','unknown'))
+                       FROM collector_contacts WHERE owner_key=%s
+                         AND (%s IS NULL OR COALESCE(record->>'delivery_status','unknown')=%s)
+                         AND (%s = '' OR record->>'researcher_name' ILIKE %s ESCAPE '!' OR email ILIKE %s ESCAPE '!'
+                              OR record->>'affiliation' ILIKE %s ESCAPE '!')
+                       ORDER BY """ + ALL_SORTS.get(sort, "email") + (" DESC" if order == "desc" else " ASC") + """ NULLS LAST, email
+                       LIMIT %s OFFSET %s""",
+                    (owner, delivery_status, delivery_status, q, pattern, pattern, pattern, limit, offset))
+        return [row[0] for row in cur]
+
+
+def _csv(rows):
+    stream = io.StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=FIELDS)
+    writer.writeheader()
+    for row in rows:
+        fields = {key: str(row.get(key) or "") for key in FIELDS}
+        writer.writerow({k: "'" + v if v.lstrip().startswith(("=", "+", "-", "@")) else v for k,v in fields.items()})
+    return stream.getvalue().encode("utf-8-sig")
+
+
+def all_contacts_csv(owner):
+    return _csv(all_contacts(owner))
+
+
 def csv_export(owner, run_id):
     stream = io.StringIO(newline="")
     writer = csv.DictWriter(stream, fieldnames=FIELDS)

@@ -84,8 +84,9 @@ export function Collector() {
   const seen = useRef<Record<string, { status:string; source:string; collected:number; errors:number }>>({});
   const logBox = useRef<HTMLDivElement>(null);
   useEffect(() => () => checkRequest.current?.abort(), []);
-  const current = runs.find(run => run.id === selected) ?? runs[0];
-  const id = current?.id;
+  const allMode = selected === "all";
+  const current = allMode ? undefined : runs.find(run => run.id === selected) ?? runs[0];
+  const id = allMode ? "all" : current?.id;
   const active = runs.find(run => run.status === "running");
   const watched = active ?? (selected ? runs.find(r => r.id === selected) : undefined);
   const today = new Date().toISOString().slice(0,10);
@@ -145,7 +146,8 @@ export function Collector() {
     const params = new URLSearchParams({offset:String(offset), limit:String(pageSize+1), sort:sort.key, order:sort.order});
     if (deliveryFilter) params.set("delivery_status", deliveryFilter);
     if (query) params.set("q", query);
-    if (id) api<Contact[]>(endpoint + "/" + id + "/results?" + params,{signal:controller.signal})
+    const url = id === "all" ? "/api/collector/contacts?" : endpoint + "/" + id + "/results?";
+    if (id) api<Contact[]>(url + params,{signal:controller.signal})
       .then(value => { if (!controller.signal.aborted) setRows(value); })
       .catch(e => { if (!controller.signal.aborted) setError(message(e)); });
     return () => controller.abort();
@@ -218,7 +220,7 @@ export function Collector() {
     const lines = [["Researcher","Public email","Affiliation","Source","Email confidence","Delivery status"].map(csvCell).join(","),
       ...list.map(r => [r.researcher_name, r.professional_email, r.affiliation, r.data_source, r.email_confidence, statusLabels[r.delivery_status ?? "unknown"]].map(csvCell).join(","))];
     const url = URL.createObjectURL(new Blob(["\ufeff" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" }));
-    Object.assign(document.createElement("a"), { href: url, download: `${(current?.topic || "leads").replace(/[^\w-]+/g, "-")}-selected.csv` }).click();
+    Object.assign(document.createElement("a"), { href: url, download: `${(allMode ? "all-contacts" : current?.topic || "leads").replace(/[^\w-]+/g, "-")}-selected.csv` }).click();
     URL.revokeObjectURL(url);
   }
 
@@ -302,19 +304,23 @@ export function Collector() {
     </div>
 
     <section className={styles.card} id="datasets">
-      <div className={styles.cardTop}><h3 className={styles.h3}>Datasets Archive</h3>{current && <a className={styles.download} href={endpoint+"/"+current.id+"/export"} download>Download CSV</a>}</div>
-      {current ? <>
-        <label className={styles.field}>Dataset<select value={current.id} onChange={e=>{select(e.target.value);setRows([]);setOffset(0);}}>
-          {runs.map(r=><option key={r.id} value={r.id}>{r.topic} · {new Date(r.started_at).toLocaleString()} · {RUN_LABEL[r.status] ?? r.status}</option>)}
-        </select></label>
+      <div className={styles.cardTop}><h3 className={styles.h3}>Datasets Archive</h3>
+        {allMode ? <a className={styles.download} href="/api/collector/contacts/export" download>Download all contacts</a>
+          : current && <a className={styles.download} href={endpoint+"/"+current.id+"/export"} download>Download CSV</a>}</div>
+      {runs.length > 0 && <label className={styles.field}>Dataset<select value={allMode ? "all" : current?.id ?? ""} onChange={e=>{select(e.target.value);setRows([]);setOffset(0);}}>
+        <option value="all">All contacts · central archive ({stats?.total.toLocaleString() ?? "…"} unique)</option>
+        {runs.map(r=><option key={r.id} value={r.id}>{r.topic} · {new Date(r.started_at).toLocaleString()} · {RUN_LABEL[r.status] ?? r.status}</option>)}
+      </select></label>}
+      {allMode ? <p className={styles.muted}>Every contact from all your collections, without duplicates. Search, filter and export them below.</p>
+        : current ? <>
         <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts</p>
         {current.status==="partial" && <p className={styles.muted}>{current.shortfall} fewer contacts than requested met the collection criteria.</p>}
         {current.source_errors.map(e=><p key={e.source} className={styles.alert}>{e.source} · {e.message}</p>)}
       </> : <p className={styles.muted}>{loading ? "Loading collections…" : "Your collections will appear here."}</p>}
     </section>
 
-    {current && <section className={styles.card} id="leads">
-      <div className={styles.cardTop}><h3 className={styles.h3}>Leads Explorer</h3>
+    {(current || allMode) && <section className={styles.card} id="leads">
+      <div className={styles.cardTop}><h3 className={styles.h3}>Leads Explorer{allMode && <small className={styles.scope}> · all contacts</small>}</h3>
         <button type="button" className={styles.ghost} onClick={() => void checkEmails()} disabled={checking} title="Checks mail domains across all your datasets">{checking ? "Checking…" : "Check emails"}</button>
       </div>
       <div className={styles.toolbar}>

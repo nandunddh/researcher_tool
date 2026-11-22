@@ -184,3 +184,5 @@ th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn spa
 .quick button:disabled { opacity: .4; cursor: not-allowed; }
 .limitNote { margin: 10px 0 0; font-size: 13.5px; color: #b54708; text-align: center; }
 .limitNote a { color: #1d4ed8; font-weight: 600; }
+
+.scope { font-size: 14px; font-weight: 500; color: #64748b; }
