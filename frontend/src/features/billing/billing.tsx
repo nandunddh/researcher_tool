@@ -95,7 +95,7 @@ export function Billing({ highlight, paid, workspace }: { highlight: string; pai
                     <ul>
                       <li>{unlimited(p.limits.websites)} websites, {unlimited(p.limits.pages)} pages each</li>
                       <li>{Number(p.limits.members) === 0 ? "Just you" : `${unlimited(p.limits.members)} team members`}</li>
-                      <li>{unlimited(p.limits.submissions_month)} form submissions / month</li>
+                      <li>{Number(p.limits.submissions_month) < 0 ? "Unlimited form submissions" : `${p.limits.submissions_month} form submissions / month`}</li>
                     </ul>
                     {current ? <button type="button" className={styles.secondary} disabled>Current plan</button>
                       : p.price_month > 0

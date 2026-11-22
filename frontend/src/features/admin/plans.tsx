@@ -8,7 +8,7 @@ import type { Plan } from "./accounts";
 
 const LIMITS: [string, string, string][] = [
   ["websites", "Websites", ""], ["pages", "Pages per website", ""], ["members", "Team members", "Becomes the account's seat limit."],
-  ["storage_mb", "Image storage (MB)", ""], ["submissions_month", "Form submissions per month", "Registrations, messages and abstracts together."],
+  ["storage_mb", "Image storage (MB)", ""], ["submissions_month", "Form submissions per month", "-1 = unlimited (recommended). Spam is blocked by a limit of 10 per 10 minutes per visitor."],
 ];
 
 /** Root: edit website plans. Changes apply at once to every account on the plan. -1 = unlimited. */

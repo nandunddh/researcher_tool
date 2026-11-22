@@ -2474,6 +2474,8 @@ async def builder_upload_media(site_id: str, request: Request):
 
 
 _form_rate_limit = FormRateLimit()
+# Sending a form (message, registration, abstract): unlimited per plan, but at most 10 per 10 minutes per visitor.
+_submit_rate_limit = FormRateLimit(limit=10, seconds=600)
 
 
 def _limit_form_requests(request):
@@ -2486,6 +2488,9 @@ def _limit_form_requests(request):
 async def submit_website_form(site_id: str, form_id: str, request: Request):
     """Public: a visitor submits a form on a website. Values are checked against the form's own fields."""
     _limit_form_requests(request)
+    peer = request.client.host if request.client else "unknown"
+    if not _submit_rate_limit.allow(peer):
+        raise HTTPException(status_code=429, detail="You've sent several forms in a short time. Please wait a few minutes and try again.", headers={"Retry-After": "600"})
     import forms
     if not re.fullmatch(r"site_[a-f0-9]{8}", site_id) or not re.fullmatch(r"[A-Za-z0-9_-]{1,80}", form_id):
         raise HTTPException(status_code=404, detail="Form not found.")

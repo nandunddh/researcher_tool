@@ -17,7 +17,7 @@ function planLines(p: PublicPlan): { text: string; off?: boolean }[] {
     { text: `${fmt(l.pages)} pages per website` },
     { text: Number(l.members) === 0 ? "Just you" : `${fmt(l.members)} team members` },
     { text: `${storage} image storage` },
-    { text: `${fmt(l.submissions_month)} form submissions / month` },
+    { text: Number(l.submissions_month) < 0 ? "Unlimited form submissions" : `${fmt(l.submissions_month)} form submissions / month` },
     { text: "Registration, payments & receipts" },
     { text: "Custom domain", off: l.custom_domain !== true },
   ];

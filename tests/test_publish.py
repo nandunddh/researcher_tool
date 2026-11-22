@@ -35,3 +35,19 @@ class PublishTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class SubmitLimitTests(unittest.TestCase):
+    def test_ten_forms_per_ten_minutes_per_visitor(self):
+        from types import SimpleNamespace
+        from fastapi import HTTPException
+        req = SimpleNamespace(client=SimpleNamespace(host="203.0.113.9"), headers={})
+        with patch.object(web_app, "_submit_rate_limit", public_site.FormRateLimit(limit=2, seconds=600)), \
+                patch.object(web_app, "_form_rate_limit", public_site.FormRateLimit(limit=100, seconds=60)):
+            for _ in range(2):  # allowed: then the bad site id gives 404
+                with self.assertRaises(HTTPException) as err:
+                    asyncio.run(web_app.submit_website_form("bad", "form", req))
+                self.assertEqual(err.exception.status_code, 404)
+            with self.assertRaises(HTTPException) as err:
+                asyncio.run(web_app.submit_website_form("bad", "form", req))
+            self.assertEqual(err.exception.status_code, 429)
