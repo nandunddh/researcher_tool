@@ -217,6 +217,8 @@ class LicenseManager:
         org_name: str = "",
         can_invite_users: bool = False,
         seat_limit: Optional[int] = None,
+        password_hash: str = "",
+        plan_id: str = "",
     ) -> dict:
         """
         Creates a new user account and issues a license key.
@@ -283,9 +285,12 @@ class LicenseManager:
             "last_active_date": now.strftime("%Y-%m-%d"),
             "total_extracted": 0,
             "notes": notes.strip(),
-            "password_hash": hash_password(password) if password else "",
+            # Self sign-up passes an already-hashed password (the plain one is never stored while waiting for the email code).
+            "password_hash": password_hash or (hash_password(password) if password else ""),
             "scistudio_access": bool(scistudio_access),
         }
+        if plan_id:
+            account["plan_id"] = plan_id
 
         db["licenses"][key] = account
         self._save_db(db)

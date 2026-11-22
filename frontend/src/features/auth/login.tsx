@@ -195,6 +195,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
             <button className="primary login-submit" type="submit" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}
             </button>
+            <p style={{ textAlign: "center", marginTop: 16, fontSize: 14 }}>Don&apos;t have an account? <a href="/signup">Create one</a></p>
           </form>
         )}
 

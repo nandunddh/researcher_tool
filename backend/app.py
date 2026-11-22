@@ -488,6 +488,57 @@ async def api_auth_login_mfa(request: Request):
     return _signed_in(request, challenge["user"], challenge["msg"])
 
 
+_signup_limit = FormRateLimit(limit=5, seconds=900)
+
+
+@app.post("/api/auth/signup/start")
+async def api_signup_start(request: Request):
+    """Self sign-up, step 1: check the details and email a 6-digit code. Nothing is created yet."""
+    import signup
+    client = getattr(request, "client", None)
+    if not _signup_limit.allow(client.host if client else "unknown"):
+        raise HTTPException(status_code=429, detail="Too many sign-ups from here. Please try again in a few minutes.")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid request.")
+    details, problem = signup.clean(body)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    if license_engine.account_for_email(details["email"]) or details["email"] == license_engine.root_email():
+        raise HTTPException(status_code=409, detail="An account with this email already exists. Log in, or use “Forgot password”.")
+    try:
+        signup.start(details)
+    except Exception as exc:
+        print(f"[SIGNUP] Email not sent: {type(exc).__name__}")
+        raise HTTPException(status_code=503, detail="We couldn't send the email right now. Please try again in a minute.")
+    return {"status": "ok", "message": f"We've sent a 6-digit code to {details['email']}. It can take a minute; check your spam folder too."}
+
+
+@app.post("/api/auth/signup/verify")
+async def api_signup_verify(request: Request):
+    """Self sign-up, step 2: the emailed code creates the account (Free plan) and signs the person in."""
+    import signup
+    client = getattr(request, "client", None)
+    if not _reset_confirm_limit.allow(client.host if client else "unknown"):
+        raise HTTPException(status_code=429, detail="Too many tries. Please wait a few minutes.")
+    body = await request.json()
+    details, problem = signup.verify(str(body.get("email") or ""), str(body.get("code") or ""))
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    try:
+        # Collector license for self sign-ups: a year with a modest daily limit; paying for a plan upgrades it.
+        license_engine.create_account(name=details["name"], email=details["email"], tier="trial", duration_days=365, daily_limit=100,
+                                      account_type=details["account_type"], org_name=details["org_name"],
+                                      password_hash=details["password_hash"], plan_id="free", scistudio_access=True)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    ok, user, msg = license_engine.authenticate(details["email"], str(body.get("password") or ""))
+    if not ok:  # e.g. the page was reloaded and the password is gone: the account exists, they just sign in
+        return {"status": "ok", "signed_in": False, "message": "Your account is ready. Please sign in."}
+    return _signed_in(request, user, "Welcome to SciProspect!")
+
+
 @app.post("/api/auth/change-password")
 async def api_auth_change_password(request: Request):
     """Signed-in users change their own password after confirming the current one. Other sessions are signed out."""
