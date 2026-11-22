@@ -16,7 +16,8 @@ import email_check
 
 log = logging.getLogger(__name__)
 SOURCES = (("OpenAlex", "03_unified_lead_pipeline.py"), ("bioRxiv", "06_extract_biorxiv_researchers.py"))
-COLUMNS = "id,topic,target,min_score,from_date,to_date,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at"
+COUNTRY_SOURCES = {"OpenAlex"}  # sources that know the institution country
+COLUMNS = "id,topic,target,min_score,from_date,to_date,country,institution,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at"
 
 
 def expire(cur, owner):
@@ -24,12 +25,12 @@ def expire(cur, owner):
                    AND status='running' AND updated_at < now()-interval '3 minutes'""", (owner,))
 
 
-def create(owner, topic, target, score, start, end):
+def create(owner, topic, target, score, start, end, country="", institution=""):
     run_id = str(uuid.uuid4())
     with db.transaction() as cur:
         expire(cur, owner)
-        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,status)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end))
+        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution))
     return run_id
 
 
@@ -150,9 +151,12 @@ class Archive:
         self.key = (owner, run_id)
         self.cancelled = Event()
         self.email_checker = email_check.EmailChecker()
+        self.institution = ""  # set by execute(); rows whose affiliation lacks it are skipped
 
     def save(self, raw):
         record = normalize(raw)
+        if self.institution and self.institution.casefold() not in (record.get("affiliation") or "").casefold():
+            return False
         email = record["professional_email"]
         record.update(self.email_checker.check(email))
         owner, run_id = self.key
@@ -214,14 +218,19 @@ def execute(owner, run_id, sources=SOURCES, loader=load_source):
             for name, filename in sources:
                 with db.transaction() as cur:
                     cur.execute("""UPDATE collector_runs SET source=%s,updated_at=now() WHERE owner_key=%s AND id=%s
-                                   AND status='running' AND collected<target RETURNING topic,target-collected,min_score,from_date,to_date""",
+                                   AND status='running' AND collected<target RETURNING topic,target-collected,min_score,from_date,to_date,country,institution""",
                                 (name,*archive.key))
                     job = cur.fetchone()
                 if not job or archive.cancelled.is_set():
                     break
-                topic, remaining, score, start, end = job
+                topic, remaining, score, start, end, country, institution = job
+                archive.institution = institution
+                filters = {k: v for k, v in (("country", country), ("institution", institution)) if v}
+                if country and name not in COUNTRY_SOURCES:
+                    print(f"[AUTO] {name}: skipped (it has no country data)", flush=True)
+                    continue
                 try:
-                    loader(filename)(keyword=topic,target_leads=remaining,min_score=score,from_date=str(start),to_date=str(end),archive=archive)
+                    loader(filename)(keyword=topic,target_leads=remaining,min_score=score,from_date=str(start),to_date=str(end),archive=archive,**filters)
                 except Exception:
                     log.exception("Collection source failed: %s", name)
                     with db.transaction() as cur:

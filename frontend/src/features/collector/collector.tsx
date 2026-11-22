@@ -5,7 +5,12 @@ import { Icon } from "@/components/icon";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import styles from "./collector.module.css";
 
-type Run = { id:string; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
+// Countries researchers most often publish from; codes are ISO 3166-1 (OpenAlex institution country).
+const COUNTRY_CODES = "US GB DE FR IT ES NL BE CH AT SE NO DK FI IE PT PL CZ GR IL TR CA MX BR AR CL CO AU NZ JP KR CN TW HK SG IN PK BD MY TH ID PH VN SA AE QA EG ZA NG KE IR RU UA".split(" ");
+const regionNames = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
+const countryName = (code: string) => regionNames?.of(code) ?? code;
+const COUNTRIES = COUNTRY_CODES.map(code => [code, countryName(code)] as const).sort((a, b) => a[1].localeCompare(b[1]));
+type Run = { id:string; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; country?:string; institution?:string; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
 const statusLabels = {
   deliverable_domain: "Mail domain ready", role: "Role address", disposable: "Disposable",
   invalid_format: "Invalid format", no_domain: "Domain missing", no_mail_server: "No mail server", unknown: "Unknown",
@@ -194,7 +199,7 @@ export function Collector() {
     setError(""); setBusy(true);
     try {
       const {id} = await api<{id:string}>(endpoint,{method:"POST",body:JSON.stringify({
-        topic:form.get("topic"), target, min_score:Number(form.get("score")), from_date:form.get("from"), to_date:form.get("to"),
+        topic:form.get("topic"), target, min_score:Number(form.get("score")), from_date:form.get("from"), to_date:form.get("to"), country:form.get("country"), institution:form.get("institution"),
       })});
       setLog(lines => [...lines, { at:clock(), level:"info", text:`Queued collection for "${String(form.get("topic"))}" (${target} contacts)…` }]);
       select(id); setRows([]); setOffset(0); refresh(v => v+1);
@@ -212,7 +217,7 @@ export function Collector() {
     const form = formRef.current;
     if (!form) return;
     const set = (name: string, value: unknown) => { const el = form.elements.namedItem(name) as HTMLInputElement | null; if (el && value !== undefined && value !== null) el.value = String(value); };
-    set("topic", run.topic); set("score", run.min_score); set("from", run.from_date); set("to", run.to_date);
+    set("topic", run.topic); set("score", run.min_score); set("from", run.from_date); set("to", run.to_date); set("country", run.country ?? ""); set("institution", run.institution ?? "");
     setTarget(run.target);
     form.scrollIntoView({ behavior: "smooth", block: "start" });
     (form.elements.namedItem("topic") as HTMLInputElement | null)?.focus();
@@ -286,12 +291,15 @@ export function Collector() {
           <div className={styles.quick}><span>Quick select</span>{[50, 100, 250, 500].map(n => <button key={n} type="button" data-on={target === n || undefined} disabled={left !== null && n > left} onClick={() => setTarget(n)}>{n}</button>)}
             {left !== null && <em className={styles.left} data-empty={left === 0 || undefined}>{left === 0 ? "Today's limit reached" : `${left.toLocaleString()} left today`}</em>}</div>
           <details className={styles.settings}>
-            <summary><span>Collection settings</span><small>Score 50+ · Automatic sources</small></summary>
+            <summary><span>Collection settings</span><small>Score · Dates · Country · Institution</small></summary>
             <div className={styles.filters}>
               <label>From<input name="from" type="date" defaultValue={today.slice(0,4)+"-01-01"} required /></label>
               <label>Through<input name="to" type="date" defaultValue={today} required /></label>
               <label>Minimum score / 100<input name="score" type="number" min="0" max="100" defaultValue="50" required /></label>
+              <label>Country<select name="country" defaultValue=""><option value="">Any country</option>{COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>
+              <label>Institution<input name="institution" placeholder="e.g. Stanford, Max Planck" maxLength={120} /></label>
             </div>
+            <p className={styles.filterNote}>Country uses OpenAlex only (bioRxiv has no country data). Institution matches the researcher&apos;s affiliation.</p>
           </details>
           {!active && <button type="submit" className={styles.go} disabled={left === 0 || overLimit}>{busy ? "Starting…" : left === 0 ? "Daily limit reached" : `Collect ${target.toLocaleString()} contacts`}</button>}
           {!active && overLimit && left !== 0 && <p className={styles.limitNote}>You can collect {left} more contacts today. <button type="button" className={styles.linkBtn} onClick={() => setTarget(left!)}>Use {left}</button></p>}
@@ -347,7 +355,7 @@ export function Collector() {
           </div>
         ) : null}
         <div className={styles.runBar}>
-          <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts · score {current.min_score ?? 50}+</p>
+          <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts · score {current.min_score ?? 50}+{current.country ? ` · ${countryName(current.country)}` : ""}{current.institution ? ` · ${current.institution}` : ""}</p>
           <div className={styles.runActions}>
             <button type="button" className={styles.ghost} onClick={() => setRenaming(current.topic)}>Rename</button>
             <button type="button" className={styles.ghost} onClick={() => runAgain(current)} disabled={!!active}>Run again</button>

@@ -538,7 +538,8 @@ def run_biorxiv_pipeline(
     }
 
 
-def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31", archive=None):
+def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31", archive=None, institution=""):
+    # institution is applied by archive.save (affiliation match); bioRxiv has no country data.
     return run_biorxiv_pipeline(
         keyword=keyword,
         target_leads=int(target_leads),

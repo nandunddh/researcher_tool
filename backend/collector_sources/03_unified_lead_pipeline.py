@@ -337,7 +337,7 @@ def format_progress_meter(current: int, total: int, start_time: float) -> str:
 # WORK PROCESSOR (PARALLEL WORKER FUNCTION)
 # ----------------------------------------------------------------------
 
-def process_single_work(work: dict, keyword: str, min_score: int, existing_emails: set) -> list[dict]:
+def process_single_work(work: dict, keyword: str, min_score: int, existing_emails: set, country: str = "") -> list[dict]:
     paper_title = work.get("title") or ""
     pub_year = work.get("publication_year") or 2026
     doi = clean_doi(work.get("doi") or "")
@@ -351,6 +351,10 @@ def process_single_work(work: dict, keyword: str, min_score: int, existing_email
         author = authorship.get("author") or {}
         author_name = author.get("display_name") or ""
         if not author_name or len(author_name) < 3:
+            continue
+
+        # The work filter matches any co-author's country; keep only authors whose own institution is there.
+        if country and country not in {(i.get("country_code") or "").upper() for i in authorship.get("institutions", [])}:
             continue
 
         orcid_url = author.get("orcid") or ""
@@ -520,6 +524,8 @@ def run_unified_pipeline(
     from_date: str = "2025-01-01",
     to_date: str = "2026-12-31",
     archive=None,
+    country: str = "",
+    institution: str = "",
 ):
     global STOP_REQUESTED
     STOP_REQUESTED = False
@@ -533,6 +539,8 @@ def run_unified_pipeline(
     print(f"• Target Leads:        {target_leads:,} Verified Contacts")
     print(f"• Minimum Match Score: {min_score}+ / 100 (Strict Title + Name Verification)")
     print(f"• Date Window:         {from_date} to {to_date}")
+    if country or institution:
+        print(f"• Filters:             {' | '.join(x for x in (country and 'country ' + country, institution and 'institution ' + institution) if x)}")
     print("=" * 74)
 
     # 1. Output Files Setup
@@ -559,7 +567,7 @@ def run_unified_pipeline(
             url = "https://api.openalex.org/works"
             params = {
                 "search": keyword,
-                "filter": f"from_publication_date:{from_date},to_publication_date:{to_date}",
+                "filter": work_filter(from_date, to_date, country, institution),
                 "per_page": per_page,
                 "page": page,
                 "sort": "publication_date:desc",
@@ -601,7 +609,7 @@ def run_unified_pipeline(
 
             # Parallel resolution across works in this page
             futures = [
-                executor.submit(process_single_work, w, keyword, min_score, existing_emails)
+                executor.submit(process_single_work, w, keyword, min_score, existing_emails, country)
                 for w in works
             ]
 
@@ -708,8 +716,20 @@ def run_unified_pipeline(
     }
 
 
-def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31", archive=None):
-    return run_unified_pipeline(
+def work_filter(from_date, to_date, country="", institution=""):
+    """OpenAlex works filter. Commas and colons separate filters, so they are removed from the institution text."""
+    parts = [f"from_publication_date:{from_date}", f"to_publication_date:{to_date}"]
+    if country:
+        parts.append(f"authorships.institutions.country_code:{country.upper()}")
+    institution = " ".join(institution.replace(",", " ").replace(":", " ").replace("|", " ").split())
+    if institution:
+        parts.append(f"raw_affiliation_strings.search:{institution}")
+    return ",".join(parts)
+
+
+def run(keyword="cell biology", target_leads=1000, min_score=50, from_date="2025-01-01", to_date="2026-12-31", archive=None,
+        country="", institution=""):
+    return run_unified_pipeline(country=country, institution=institution,
         keyword=keyword,
         target_leads=int(target_leads),
         min_score=int(min_score),

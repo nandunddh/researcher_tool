@@ -199,3 +199,5 @@ th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn spa
 
 /* Grid children must not grow to their content (the wide leads table scrolls inside its card instead). */
 .page > *, .grid > *, .main { min-width: 0; }
+
+.filterNote { margin: 8px 0 0; font-size: 12px; color: var(--muted, #64748b); }
