@@ -5,7 +5,7 @@ business logic, account permissions, sessions and stored websites.
 
 ## Run locally
 
-Use Node 22.20 or later. Start FastAPI with the existing `run_web.bat` on port 8000.
+Use Node 22.20 or later. Start FastAPI on port 8000 (`cd backend; python -m uvicorn app:app --port 8000`).
 Then, from this folder:
 
 ```powershell
@@ -14,8 +14,7 @@ npm run dev
 ```
 
 Open **http://127.0.0.1:3000** (use the same hostname for both services).
-This is the migration frontend. Port 8000 continues to serve the original UI.
-Restart FastAPI once after this change to load `workspace_namespace` in `/api/auth/me`.
+This is the only UI. Port 8000 serves the API only.
 No password/token is saved in browser storage. Existing HttpOnly cookies are forwarded
 to FastAPI; private responses are not cached.
 
@@ -31,22 +30,12 @@ npm start
 Copy `.env.example` to `.env.local` only if FastAPI runs somewhere else.
 `FASTAPI_ORIGIN` is server-only; do not prefix it with `NEXT_PUBLIC_`.
 
-## Migration boundary
+## Scope
 
-React now owns sign-in, `/root/dashboard`, and `/{namespace}/scistudio`, including
-website listing/search, conference creation, templates, the three-step brief and
-website creation/deletion. The same palette and navigation patterns are retained.
-
-Unmigrated routes are explicitly forwarded to FastAPI: the editor, preview,
-collector, account management, public sites and assets. Links crossing this boundary
-use full navigation. This is **not yet a complete rewrite of the editor**. The
-fallback preserves its working functionality and saved data while the React editor
-is implemented in the next stage. Avoid deleting `web/static`.
-
-`features/studio/document.ts` defines the versioned boundary for that next stage;
-it is tested but is not yet used to rewrite or migrate production website records.
-Unknown components/settings survive conversion. The Python compiler remains the
-authoritative preview/export renderer until parity is tested.
+React owns every page: the public website, sign-in, dashboards, billing, SciStudio
+(editor, preview, publish, ZIP export) and the SciProspect collector. FastAPI owns
+business logic, permissions, sessions and storage. The old built-in UI (`backend/static`)
+and the desktop app were removed.
 
 ## Modules
 

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "app/main")]
+sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "backend/collector_sources")]
 import dns.exception
 import dns.resolver
 from fastapi import FastAPI, HTTPException

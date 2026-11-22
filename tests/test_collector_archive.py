@@ -7,7 +7,7 @@ import unittest
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "app/main")]
+sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "backend/collector_sources")]
 
 
 @unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA","").startswith("test_") and os.environ.get("SCIPROSPECT_DB_HOST"), "requires an isolated PostgreSQL test schema")
@@ -45,7 +45,7 @@ class CollectorArchiveTests(unittest.TestCase):
             self.assertEqual(cur.fetchone()[0],2)
         with self.assertRaises(KeyError):
             store.csv_export(owner+"other",run)
-        env = dict(os.environ, PYTHONPATH=os.pathsep.join(map(str,[ROOT/"backend",ROOT/"app/main"])))
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(map(str,[ROOT/"backend",ROOT/"backend/collector_sources"])))
         output = subprocess.check_output([sys.executable,"-c","import sys,collector_archive as a;sys.stdout.buffer.write(a.csv_export(*sys.argv[1:]))",owner,run],env=env)
         self.assertIn(b"ada@fixture.test",output)
         self.assertIn(b"lin@fixture.test",output)

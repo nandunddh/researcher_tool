@@ -5,7 +5,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'app/main'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'backend/collector_sources'))
+sys.path.insert(1, str(Path(__file__).resolve().parents[1] / 'backend'))
 from collector_store import save_leads, read_rows, merge_files
 from collector_identity import author_email, name_matches_email
 

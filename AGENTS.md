@@ -12,6 +12,6 @@ When an issue, bug, or fix is requested:
 
 ## 3. Fast, Targeted Actions (No Broad Repo Scans)
 - **Do NOT perform broad or recursive repo-wide searches** (e.g., searching across `**/*` or scanning all directories), as this wastes time.
-- Go directly to the specific, known file(s) and directory (e.g., `backend/static/app.js`, `backend/app.py`, `frontend/`).
+- Go directly to the specific, known file(s) and directory (e.g., `backend/app.py`, `backend/collector_routes.py`, `frontend/src/`).
 - Prioritize speed, precision, and minimal tool overhead.
 

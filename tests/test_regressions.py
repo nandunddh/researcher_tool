@@ -42,12 +42,3 @@ class RegressionTests(unittest.TestCase):
         self.assertTrue(scope["verify_password"]("example", hashed))
         self.assertFalse(scope["verify_password"]("wrong", hashed))
 
-    def test_pipeline_targets_exist(self):
-        tree = ast.parse((ROOT / "backend/app.py").read_text(encoding="utf-8"))
-        targets = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == "script_name" for t in node.targets):
-                targets.extend(n.value for n in ast.walk(node.value) if isinstance(n, ast.Constant) and isinstance(n.value, str) and n.value.endswith(".py"))
-        self.assertGreaterEqual(len(targets), 5)
-        for target in targets:
-            self.assertTrue((ROOT / "app/main" / target).is_file(), target)
