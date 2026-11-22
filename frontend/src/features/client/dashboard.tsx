@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Collector } from "@/features/collector/collector";
 import { api } from "@/lib/api";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { Icon } from "@/components/icon";
@@ -181,6 +182,7 @@ export function ClientDashboard() {
           </section>
         </>
       ) : null}
+      <Collector />
     </ClientShell>
   );
 }

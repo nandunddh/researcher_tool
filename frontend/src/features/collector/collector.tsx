@@ -14,7 +14,8 @@ const endpoint = "/api/collector/runs";
 const pageSize = 50;
 const message = (error: unknown) => error instanceof Error ? error.message : "Please try again.";
 
-export function Collector({namespace}: {namespace: string}) {
+/** The research collector, shown as a section of the workspace dashboard. */
+export function Collector() {
   const [runs,setRuns] = useState<Run[]>([]);
   const [selected,select] = useState("");
   const [offset,setOffset] = useState(0);
@@ -113,8 +114,8 @@ export function Collector({namespace}: {namespace: string}) {
     try { await api(endpoint + "/" + active.id + "/stop",{method:"POST"}); refresh(v => v+1); }
     catch(e) {setError(message(e));} finally {setBusy(false);}
   }
-  return <main className={styles.page}>
-    <header><a href={"/"+namespace+"/dashboard"}>← Workspace</a><h1>Research collector</h1></header>
+  return <div id="collector" className={styles.page}>
+    <h2 className={styles.title}>Research collector</h2>
     {error && <p role="alert">{error}</p>}
     <section><h2>Collect contacts</h2>
       <form onSubmit={start}><fieldset disabled={loading || busy || !!active}>
@@ -155,5 +156,5 @@ export function Collector({namespace}: {namespace: string}) {
         {(offset>0 || rows.length>pageSize) && <div className={styles.actions}><button disabled={!offset} onClick={()=>setOffset(v=>v-pageSize)}>Previous</button><span>Page {offset/pageSize+1}</span><button disabled={rows.length<=pageSize} onClick={()=>setOffset(v=>v+pageSize)}>Next</button></div>}
       </> : <p>{loading ? "Loading collections…" : "Your collections will appear here."}</p>}
     </section>
-  </main>;
+  </div>;
 }

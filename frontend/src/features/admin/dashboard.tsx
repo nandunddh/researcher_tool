@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Collector } from "@/features/collector/collector";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { api } from "@/lib/api";
 import type { Account } from "@/lib/contracts";
@@ -170,6 +171,7 @@ export function RootDashboard() {
           </a>
         </Modal>
       )}
+      <Collector />
     </AdminShell>
   );
 }

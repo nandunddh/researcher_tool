@@ -1,6 +1,6 @@
-.page { max-width:1120px; margin:0 auto; padding:36px clamp(16px,4vw,48px); color:#192e41; }
-.page header { margin-bottom:24px; }
-.page h1 { margin:14px 0 0; font-size:clamp(30px,4vw,44px); }
+/* Shown inside the dashboard, below the summary cards. */
+.page { margin-top:28px; color:#192e41; scroll-margin-top:90px; }
+.title { margin:0 0 14px; font-size:22px; font-weight:800; color:#18223b; }
 .page section { padding:clamp(18px,3vw,32px); margin-bottom:18px; border:1px solid #dce3e8; border-radius:14px; background:white; }
 .page fieldset,.filters { display:flex; align-items:end; gap:16px; flex-wrap:wrap; }
 .page fieldset { padding:0; margin:0; border:0; }
