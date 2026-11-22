@@ -6,11 +6,12 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import styles from "./collector.module.css";
 
 // Countries researchers most often publish from; codes are ISO 3166-1 (OpenAlex institution country).
-const COUNTRY_CODES = "US GB DE FR IT ES NL BE CH AT SE NO DK FI IE PT PL CZ GR IL TR CA MX BR AR CL CO AU NZ JP KR CN TW HK SG IN PK BD MY TH ID PH VN SA AE QA EG ZA NG KE IR RU UA".split(" ");
-const regionNames = typeof Intl.DisplayNames === "function" ? new Intl.DisplayNames(["en"], { type: "region" }) : null;
-const countryName = (code: string) => regionNames?.of(code) ?? code;
-const COUNTRIES = COUNTRY_CODES.map(code => [code, countryName(code)] as const).sort((a, b) => a[1].localeCompare(b[1]));
-type Run = { id:string; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; country?:string; institution?:string; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
+// Fixed names, not Intl.DisplayNames: Node and browsers name some regions differently (hydration mismatch).
+const COUNTRY_NAMES: Record<string, string> = { US:"United States", GB:"United Kingdom", DE:"Germany", FR:"France", IT:"Italy", ES:"Spain", NL:"Netherlands", BE:"Belgium", CH:"Switzerland", AT:"Austria", SE:"Sweden", NO:"Norway", DK:"Denmark", FI:"Finland", IE:"Ireland", PT:"Portugal", PL:"Poland", CZ:"Czechia", GR:"Greece", IL:"Israel", TR:"Türkiye", CA:"Canada", MX:"Mexico", BR:"Brazil", AR:"Argentina", CL:"Chile", CO:"Colombia", AU:"Australia", NZ:"New Zealand", JP:"Japan", KR:"South Korea", CN:"China", TW:"Taiwan", HK:"Hong Kong", SG:"Singapore", IN:"India", PK:"Pakistan", BD:"Bangladesh", MY:"Malaysia", TH:"Thailand", ID:"Indonesia", PH:"Philippines", VN:"Vietnam", SA:"Saudi Arabia", AE:"United Arab Emirates", QA:"Qatar", EG:"Egypt", ZA:"South Africa", NG:"Nigeria", KE:"Kenya", IR:"Iran", RU:"Russia", UA:"Ukraine" };
+const countryName = (code: string) => COUNTRY_NAMES[code] ?? code;
+const COUNTRIES = Object.entries(COUNTRY_NAMES).sort((a, b) => a[1].localeCompare(b[1], "en"));
+type Kind = "publications" | "nih";
+type Run = { id:string; kind?:Kind; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; country?:string; institution?:string; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
 const statusLabels = {
   deliverable_domain: "Mail domain ready", role: "Role address", disposable: "Disposable",
   invalid_format: "Invalid format", no_domain: "Domain missing", no_mail_server: "No mail server", unknown: "Unknown",
@@ -30,7 +31,8 @@ const mmss = (sec: number) => `${String(Math.floor(sec / 60)).padStart(2, "0")}:
 const RUN_LABEL: Record<string,string> = { running:"Running", completed:"Completed", partial:"Partial", stopped:"Stopped", interrupted:"Stopped", failed:"Failed" };
 
 /** The research collector app: its own sidebar, summary cards, new collection form, live monitor, datasets and leads. */
-export function CollectorApp({ namespace, userName, tier }: { namespace:string; userName:string; tier:string }) {
+export function CollectorApp({ namespace, userName, tier, kind = "publications" }: { namespace:string; userName:string; tier:string; kind?:Kind }) {
+  const nih = kind === "nih";
   return (
     <div className={styles.app}>
       <aside className={styles.side}>
@@ -40,8 +42,8 @@ export function CollectorApp({ namespace, userName, tier }: { namespace:string; 
         </a>
         <nav className={styles.nav} aria-label="Data collector">
           <p>Data collector</p>
-          <a href="#top" data-active=""><Icon name="bolt" size={18} />Dashboard</a>
-          <span className={styles.soon} title="Coming to the web collector soon"><Icon name="doc" size={18} />NIH Grant PIs<em>Soon</em></span>
+          <a href={`/${namespace}/collector`} data-active={nih ? undefined : ""} aria-current={nih ? undefined : "page"}><Icon name="bolt" size={18} />Dashboard</a>
+          <a href={`/${namespace}/collector/nih`} data-active={nih ? "" : undefined} aria-current={nih ? "page" : undefined}><Icon name="doc" size={18} />NIH Grant PIs</a>
           <a href="#leads"><Icon name="grid" size={18} />Leads Explorer</a>
           <a href="#datasets"><Icon name="layers" size={18} />Datasets Archive</a>
         </nav>
@@ -53,17 +55,18 @@ export function CollectorApp({ namespace, userName, tier }: { namespace:string; 
       </aside>
       <div className={styles.body}>
         <header className={styles.header}>
-          <div className={styles.headTitle}><span><Icon name="grid" size={18} /></span><div><h1>Dashboard</h1><small>Research workspace</small></div></div>
+          <div className={styles.headTitle}><span><Icon name="grid" size={18} /></span><div><h1>{nih ? "NIH Grant PIs" : "Dashboard"}</h1><small>{nih ? "NIH-funded investigators" : "Research workspace"}</small></div></div>
           <div className={styles.user}><span className={styles.avatar}><Icon name="user" size={16} /></span><strong>{userName}</strong><em>{tier === "pro" ? "PRO" : "TRIAL"}</em></div>
         </header>
-        <main className={styles.main} id="top"><Collector /></main>
+        <main className={styles.main} id="top"><Collector kind={kind} /></main>
         <footer className={styles.footer}><span><i />SciProspect &amp; SciStudio · Cloud Database Connected</span><span>© {new Date().getFullYear()} SciProspect</span></footer>
       </div>
     </div>
   );
 }
 
-export function Collector() {
+export function Collector({ kind = "publications" }: { kind?: Kind }) {
+  const nih = kind === "nih";
   const [runs,setRuns] = useState<Run[]>([]);
   const [selected,select] = useState("");
   const [offset,setOffset] = useState(0);
@@ -199,7 +202,7 @@ export function Collector() {
     setError(""); setBusy(true);
     try {
       const {id} = await api<{id:string}>(endpoint,{method:"POST",body:JSON.stringify({
-        topic:form.get("topic"), target, min_score:Number(form.get("score")), from_date:form.get("from"), to_date:form.get("to"), country:form.get("country"), institution:form.get("institution"),
+        topic:form.get("topic"), target, min_score:Number(form.get("score")), from_date:form.get("from"), to_date:form.get("to"), country:form.get("country") ?? "", institution:form.get("institution"), kind,
       })});
       setLog(lines => [...lines, { at:clock(), level:"info", text:`Queued collection for "${String(form.get("topic"))}" (${target} contacts)…` }]);
       select(id); setRows([]); setOffset(0); refresh(v => v+1);
@@ -280,26 +283,26 @@ export function Collector() {
 
     <div className={styles.grid}>
       <form className={styles.card} onSubmit={start} ref={formRef}>
-        <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>OpenAlex + bioRxiv</span></div>
-        <h3>Who are you looking for?</h3>
-        <p className={styles.muted}>Find research contacts by topic. We take care of discovery, enrichment and duplicates.</p>
+        <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>{nih ? "NIH RePORTER" : "OpenAlex + bioRxiv"}</span></div>
+        <h3>{nih ? "Which NIH-funded researchers?" : "Who are you looking for?"}</h3>
+        <p className={styles.muted}>{nih ? "Find principal investigators with NIH grants on a topic. We find their public email from their papers and ORCID." : "Find research contacts by topic. We take care of discovery, enrichment and duplicates."}</p>
         <fieldset disabled={loading || busy || !!active}>
           <div className={styles.inputs}>
-            <label>Research topic<input name="topic" placeholder="e.g. cell biology or physical chemistry" maxLength={200} required /></label>
+            <label>Research topic<input name="topic" placeholder={nih ? "e.g. Alzheimer's disease or cancer immunotherapy" : "e.g. cell biology or physical chemistry"} maxLength={200} required /></label>
             <label>Contacts to collect<input type="number" min={1} max={50000} value={target} onChange={e => setTarget(Math.max(1, Math.min(50000, Number(e.target.value) || 1)))} required /></label>
           </div>
           <div className={styles.quick}><span>Quick select</span>{[50, 100, 250, 500].map(n => <button key={n} type="button" data-on={target === n || undefined} disabled={left !== null && n > left} onClick={() => setTarget(n)}>{n}</button>)}
             {left !== null && <em className={styles.left} data-empty={left === 0 || undefined}>{left === 0 ? "Today's limit reached" : `${left.toLocaleString()} left today`}</em>}</div>
           <details className={styles.settings}>
-            <summary><span>Collection settings</span><small>Score · Dates · Country · Institution</small></summary>
+            <summary><span>Collection settings</span><small>{nih ? "Fiscal years · Institution" : "Score · Dates · Country · Institution"}</small></summary>
             <div className={styles.filters}>
               <label>From<input name="from" type="date" defaultValue={today.slice(0,4)+"-01-01"} required /></label>
               <label>Through<input name="to" type="date" defaultValue={today} required /></label>
-              <label>Minimum score / 100<input name="score" type="number" min="0" max="100" defaultValue="50" required /></label>
-              <label>Country<select name="country" defaultValue=""><option value="">Any country</option>{COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>
+              {nih ? <input type="hidden" name="score" value="50" /> : <label>Minimum score / 100<input name="score" type="number" min="0" max="100" defaultValue="50" required /></label>}
+              {!nih && <label>Country<select name="country" defaultValue=""><option value="">Any country</option>{COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>}
               <label>Institution<input name="institution" placeholder="e.g. Stanford, Max Planck" maxLength={120} /></label>
             </div>
-            <p className={styles.filterNote}>Country uses OpenAlex only (bioRxiv has no country data). Institution matches the researcher&apos;s affiliation.</p>
+            <p className={styles.filterNote}>{nih ? "Grants from the fiscal years these dates cover (up to the last 5). Institution matches the grantee organisation." : "Country uses OpenAlex only (bioRxiv has no country data). Institution matches the researcher’s affiliation."}</p>
           </details>
           {!active && <button type="submit" className={styles.go} disabled={left === 0 || overLimit}>{busy ? "Starting…" : left === 0 ? "Daily limit reached" : `Collect ${target.toLocaleString()} contacts`}</button>}
           {!active && overLimit && left !== 0 && <p className={styles.limitNote}>You can collect {left} more contacts today. <button type="button" className={styles.linkBtn} onClick={() => setTarget(left!)}>Use {left}</button></p>}
@@ -355,10 +358,11 @@ export function Collector() {
           </div>
         ) : null}
         <div className={styles.runBar}>
-          <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts · score {current.min_score ?? 50}+{current.country ? ` · ${countryName(current.country)}` : ""}{current.institution ? ` · ${current.institution}` : ""}</p>
+          <p className={styles.muted}>{RUN_LABEL[current.status] ?? current.status} · {current.collected} of {current.target} contacts · {current.kind === "nih" ? "NIH grants" : `score ${current.min_score ?? 50}+`}{current.country ? ` · ${countryName(current.country)}` : ""}{current.institution ? ` · ${current.institution}` : ""}</p>
           <div className={styles.runActions}>
             <button type="button" className={styles.ghost} onClick={() => setRenaming(current.topic)}>Rename</button>
-            <button type="button" className={styles.ghost} onClick={() => runAgain(current)} disabled={!!active}>Run again</button>
+            <button type="button" className={styles.ghost} onClick={() => runAgain(current)} disabled={!!active || (current.kind ?? "publications") !== kind}
+              title={(current.kind ?? "publications") !== kind ? `Open ${current.kind === "nih" ? "NIH Grant PIs" : "the Dashboard"} to run this again` : undefined}>Run again</button>
             <button type="button" className={styles.danger} onClick={() => setDeleting(current)} disabled={current.status === "running"}>Delete</button>
           </div>
         </div>

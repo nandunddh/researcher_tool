@@ -3,6 +3,8 @@ from threading import Lock
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
+from typing import Literal
+
 from pydantic import BaseModel, Field
 from psycopg2.errors import UniqueViolation
 import collector_archive as archive
@@ -18,6 +20,7 @@ class CollectionRequest(BaseModel):
     to_date: date
     country: str = Field(default="", pattern=r"^([A-Za-z]{2})?$")  # ISO 3166-1 alpha-2, e.g. US
     institution: str = Field(default="", max_length=120)
+    kind: Literal["publications", "nih"] = "publications"
 
 
 class RenameRequest(BaseModel):
@@ -101,7 +104,7 @@ def collector_router(require_user, licenses):
                 raise HTTPException(400, f"You can collect {remaining} more contacts today (your limit is {limit} a day).")
         try:
             run_id = archive.create(key, body.topic.strip(), body.target, body.min_score, body.from_date, body.to_date,
-                                    body.country.upper(), body.institution.strip())
+                                    body.country.upper(), body.institution.strip(), body.kind)
         except UniqueViolation:
             raise HTTPException(409, "A collection is already running in this workspace.")
         tasks.add_task(run_and_record, key, run_id, user.get("license_key") or "")

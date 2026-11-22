@@ -182,7 +182,7 @@ def load_dedup_set():
 # ----------------------------------------------------------------------
 # NIH RePORTER API FETCHER
 # ----------------------------------------------------------------------
-def fetch_nih_projects(keyword, limit=500):
+def fetch_nih_projects(keyword, limit=500, fiscal_years=None, cancelled=None):
     """Fetches active grant projects from NIH RePORTER API."""
     url = "https://api.reporter.nih.gov/v2/projects/search"
     projects = []
@@ -192,7 +192,7 @@ def fetch_nih_projects(keyword, limit=500):
     clean_keyword = keyword.replace("_", " ")
     print(f"\n[NIH] Querying grants for keyword: '{clean_keyword}'...")
     
-    while offset < limit:
+    while offset < limit and not (cancelled and cancelled.is_set()):
         payload = {
             "criteria": {
                 "advanced_text_search": {
@@ -200,7 +200,7 @@ def fetch_nih_projects(keyword, limit=500):
                     "search_field": "terms",
                     "search_text": clean_keyword
                 },
-                "fiscal_years": FISCAL_YEARS,
+                "fiscal_years": fiscal_years or FISCAL_YEARS,
                 "include_active_projects": True
             },
             "include_fields": [
@@ -453,6 +453,57 @@ def main():
         print("=" * 70)
     else:
         print("\n[INFO] No new verified emails were found for this specific batch. You can adjust KEYWORDS in the script.")
+
+
+def run(keyword="cell biology", target_leads=100, min_score=50, from_date="", to_date="", archive=None,
+        country="", institution=""):
+    """Web collector entry: funded PIs for the fiscal years in the date window, saved through the archive.
+    min_score does not apply (grants have no paper match score). NIH funds US institutions, so a non-US
+    country finds nothing."""
+    if country and country.upper() != "US":
+        print(f"[NIH] Skipped: NIH grants go to US institutions (country filter is {country.upper()})", flush=True)
+        return
+    first = int((from_date or TODAY_STR)[:4])
+    last = max(first, int((to_date or TODAY_STR)[:4]))
+    years = list(range(first, last + 1))[-5:]  # shortcut: at most 5 fiscal years per query; widen if users ask
+    target_leads = int(target_leads)
+    cancelled = archive.cancelled if archive else None
+    print(f"[NIH] Grants for '{keyword}' in fiscal years {years[0]}–{years[-1]}", flush=True)
+    pis, seen = [], set()
+    for pi in fetch_nih_projects(keyword, limit=max(200, target_leads * 12), fiscal_years=years, cancelled=cancelled):
+        key = (normalize_text(pi["full_name"]), normalize_text(pi["organization"]))
+        if key in seen or (institution and institution.casefold() not in pi["organization"].casefold()):
+            continue
+        seen.add(key)
+        pis.append(pi)
+    print(f"[NIH] {len(pis)} funded PIs to look up", flush=True)
+    saved = 0
+    with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+        futures = {executor.submit(find_pi_email, pi): pi for pi in pis}
+        for future in as_completed(futures):
+            if saved >= target_leads or (cancelled and cancelled.is_set()):
+                break
+            pi = futures[future]
+            try:
+                email = future.result()
+            except Exception:
+                email = ""
+            if not email:
+                continue
+            amount = pi["award_amount"]
+            lead = {"full_name": pi["full_name"], "email": email, "organization": pi["organization"], "city": pi["city"],
+                    "state": pi["state"], "award_amount": f"${amount:,}" if isinstance(amount, (int, float)) else str(amount or ""),
+                    "project_title": pi["project_title"], "fiscal_year": pi["fiscal_year"], "field_keyword": keyword,
+                    "source": "NIH RePORTER", "date_collected": TODAY_STR,
+                    "review_status": "author_linked"}  # email found on the PI's own name-matched record
+            try:
+                if archive is None or archive.save(lead):
+                    saved += 1
+            except ValueError:
+                continue
+        for future in futures:
+            future.cancel()
+    print(f"[NIH] Saved {saved} PI contacts", flush=True)
 
 
 if __name__ == "__main__":

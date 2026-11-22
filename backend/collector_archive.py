@@ -16,8 +16,9 @@ import email_check
 
 log = logging.getLogger(__name__)
 SOURCES = (("OpenAlex", "03_unified_lead_pipeline.py"), ("bioRxiv", "06_extract_biorxiv_researchers.py"))
-COUNTRY_SOURCES = {"OpenAlex"}  # sources that know the institution country
-COLUMNS = "id,topic,target,min_score,from_date,to_date,country,institution,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at"
+NIH_SOURCES = (("NIH RePORTER", "04_extract_nih_researchers.py"),)
+COUNTRY_SOURCES = {"OpenAlex", "NIH RePORTER"}  # sources that know the institution country
+COLUMNS = "id,kind,topic,target,min_score,from_date,to_date,country,institution,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at"
 
 
 def expire(cur, owner):
@@ -25,12 +26,12 @@ def expire(cur, owner):
                    AND status='running' AND updated_at < now()-interval '3 minutes'""", (owner,))
 
 
-def create(owner, topic, target, score, start, end, country="", institution=""):
+def create(owner, topic, target, score, start, end, country="", institution="", kind="publications"):
     run_id = str(uuid.uuid4())
     with db.transaction() as cur:
         expire(cur, owner)
-        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,status)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution))
+        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,kind,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution,kind))
     return run_id
 
 
@@ -214,6 +215,12 @@ class Archive:
 def execute(owner, run_id, sources=SOURCES, loader=load_source):
     archive = Archive(owner, run_id)
     try:
+        if sources is SOURCES:
+            with db.transaction() as cur:
+                cur.execute("SELECT kind FROM collector_runs WHERE owner_key=%s AND id=%s", archive.key)
+                row = cur.fetchone()
+            if row and row[0] == "nih":
+                sources = NIH_SOURCES
         with archive.heartbeat():
             for name, filename in sources:
                 with db.transaction() as cur:

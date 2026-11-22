@@ -16,7 +16,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Datasets and explorer views
 - [x] Collector in the Next.js web app, own page in the original design: summary cards, live monitor with dark log
 - [x] Search filters: country and institution (topic, years and score exist)
-- [ ] NIH Grant PIs in the web collector (old app had it; page shows "Soon")
+- [x] NIH Grant PIs in the web collector (/{namespace}/collector/nih)
 - [x] Collected data stored in PostgreSQL (runs, contacts, evidence, results)
 - [ ] 💡 Saved searches and scheduled runs
 - [ ] 💡 More sources (e.g. PubMed, Crossref)
