@@ -15,3 +15,7 @@
 .page th,.page td { text-align:left; border-bottom:1px solid #e2e8ec; padding:12px 8px; }
 .page th { color:#456173; font-size:13px; }
 .page [role=alert] { color:#923127; }
+.badge { display:inline-block; white-space:nowrap; border-radius:6px; padding:3px 8px; font-size:13px; font-weight:600; color:#425467; background:#eef1f4; }
+.badge[data-status="deliverable_domain"] { color:#145446; background:#def2e9; }
+.badge[data-status="role"],.badge[data-status="disposable"] { color:#744300; background:#fff0cf; }
+.badge[data-status="invalid_format"],.badge[data-status="no_domain"],.badge[data-status="no_mail_server"] { color:#862f2b; background:#fbe8e6; }

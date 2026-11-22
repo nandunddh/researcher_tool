@@ -12,6 +12,7 @@ from psycopg2.extras import Json, RealDictCursor
 from collector_store import FIELDS, normalize
 from collect_all import load_source
 import db
+import email_check
 
 log = logging.getLogger(__name__)
 SOURCES = (("OpenAlex", "03_unified_lead_pipeline.py"), ("bioRxiv", "06_extract_biorxiv_researchers.py"))
@@ -40,13 +41,20 @@ def history(owner):
             return rows.fetchall()
 
 
-def results(owner, run_id, limit=None, offset=0):
+def results(owner, run_id, limit=None, offset=0, delivery_status=None):
     with db.transaction() as cur:
         cur.execute("SELECT 1 FROM collector_runs WHERE owner_key=%s AND id=%s", (owner,run_id))
         if not cur.fetchone():
             raise KeyError(run_id)
-        cur.execute("""SELECT record FROM collector_results WHERE owner_key=%s AND run_id=%s
-                       ORDER BY email LIMIT %s OFFSET %s""", (owner,run_id,limit,offset))
+        # Keep the collected snapshot, with the latest delivery check from the archive.
+        cur.execute("""SELECT r.record || jsonb_strip_nulls(jsonb_build_object(
+                                'delivery_status', COALESCE(c.record->>'delivery_status','unknown'),
+                                'checks', c.record->'checks', 'checked_at', c.record->'checked_at'))
+                       FROM collector_results r JOIN collector_contacts c USING (owner_key,email)
+                       WHERE r.owner_key=%s AND r.run_id=%s
+                         AND (%s IS NULL OR COALESCE(c.record->>'delivery_status','unknown')=%s)
+                       ORDER BY r.email LIMIT %s OFFSET %s""",
+                    (owner,run_id,delivery_status,delivery_status,limit,offset))
         return [row[0] for row in cur]
 
 
@@ -55,18 +63,37 @@ def csv_export(owner, run_id):
     writer = csv.DictWriter(stream, fieldnames=FIELDS)
     writer.writeheader()
     for row in results(owner, run_id):
-        writer.writerow({k: "'" + v if v.lstrip().startswith(("=", "+", "-", "@")) else v for k,v in row.items()})
+        fields = {key: str(row.get(key) or "") for key in FIELDS}
+        writer.writerow({k: "'" + v if v.lstrip().startswith(("=", "+", "-", "@")) else v for k,v in fields.items()})
     return stream.getvalue().encode("utf-8-sig")
+
+
+def recheck_contacts(owner, after="", batch_size=24, resolver=None):
+    with db.transaction() as cur:
+        cur.execute("""SELECT email FROM collector_contacts WHERE owner_key=%s AND email>%s
+                       ORDER BY email LIMIT %s""", (owner, after, batch_size + 1))
+        emails = [row[0] for row in cur]
+    batch = emails[:batch_size]
+    checked = email_check.check_batch(batch, resolver)
+    with db.transaction() as cur:
+        for email in batch:
+            cur.execute("""UPDATE collector_contacts SET record=record || %s::jsonb
+                           WHERE owner_key=%s AND email=%s
+                             AND COALESCE(record->>'checked_at','') <= %s""",
+                        (Json(checked[email]), owner, email, checked[email]["checked_at"]))
+    return {"checked": len(batch), "next_after": batch[-1] if len(emails) > batch_size else None}
 
 
 class Archive:
     def __init__(self, owner, run_id):
         self.key = (owner, run_id)
         self.cancelled = Event()
+        self.email_checker = email_check.EmailChecker()
 
     def save(self, raw):
         record = normalize(raw)
         email = record["professional_email"]
+        record.update(self.email_checker.check(email))
         owner, run_id = self.key
         digest = hashlib.sha256(json.dumps(raw, sort_keys=True).encode()).hexdigest()
         with db.transaction() as cur:
@@ -81,8 +108,12 @@ class Archive:
                 cur.execute("SELECT record FROM collector_contacts WHERE owner_key=%s AND email=%s FOR UPDATE", (owner,email))
                 merged = cur.fetchone()[0]
                 for field, value in record.items():
-                    if value and (not merged.get(field) or field not in ("email_confidence", "delivery_status")):
+                    if field in ("checks", "checked_at", "delivery_status"):
+                        continue
+                    if value and (not merged.get(field) or field != "email_confidence"):
                         merged[field] = value
+                if not merged.get("checked_at"):
+                    merged.update({k: record[k] for k in ("checks", "checked_at", "delivery_status")})
                 cur.execute("UPDATE collector_contacts SET record=%s WHERE owner_key=%s AND email=%s", (Json(merged),owner,email))
             cur.execute("INSERT INTO collector_evidence VALUES (%s,%s,%s,%s) ON CONFLICT DO NOTHING", (owner,email,digest,Json(raw)))
             if new:

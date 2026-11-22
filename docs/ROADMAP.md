@@ -25,7 +25,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Merge and remove duplicates, clear all
 - [ ] Leads table in the web app: search, sort, filter, select
 - [x] Email discovery matched to the author's name (ORCID, Crossref, Europe PMC), format check
-- [ ] Email checker after the web rebuild: domain/mail-server check, role (info@) and disposable flags → fills `delivery_status` (today always "unknown")
+- [x] Web collector checks mail domains, flags role and disposable addresses, and shows delivery status in the leads table and CSV. Owners can recheck existing contacts.
 - [ ] 💡 Mailbox check (SMTP) via a paid API (ZeroBounce/NeverBounce), never from our mail server
 - [ ] 💡 Send selected researchers to SciStudio (invite as speakers, email a call for abstracts)
 

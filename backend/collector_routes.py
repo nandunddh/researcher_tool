@@ -1,10 +1,13 @@
 from datetime import date
+from threading import Lock
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 from psycopg2.errors import UniqueViolation
 import collector_archive as archive
+from email_check import STATUSES
+from public_site import FormRateLimit
 
 
 class CollectionRequest(BaseModel):
@@ -15,8 +18,14 @@ class CollectionRequest(BaseModel):
     to_date: date
 
 
+class CheckRequest(BaseModel):
+    after: str = Field(default="", max_length=320)
+
+
 def collector_router(require_user, licenses):
-    router = APIRouter(prefix="/api/collector/runs")
+    router = APIRouter(prefix="/api/collector")
+    batch_limit = FormRateLimit(limit=60, seconds=60)
+    limit_lock = Lock()
 
     def owner(request: Request):
         user = require_user(request)
@@ -29,11 +38,18 @@ def collector_router(require_user, licenses):
             raise HTTPException(403, "Workspace identity unavailable.")
         return "owner:" + email
 
-    @router.get("")
+    @router.post("/contacts/check")
+    def check_contacts(body: CheckRequest = CheckRequest(), key: str = Depends(owner)):
+        with limit_lock:
+            if not batch_limit.allow(key):
+                raise HTTPException(429, "Email check limit reached. Try again in a minute.", headers={"Retry-After": "60"})
+        return archive.recheck_contacts(key, body.after)
+
+    @router.get("/runs")
     def runs(key: str = Depends(owner)):
         return archive.history(key)
 
-    @router.post("", status_code=202)
+    @router.post("/runs", status_code=202)
     def start(body: CollectionRequest, tasks: BackgroundTasks, request: Request, key: str = Depends(owner)):
         user = require_user(request)
         license_info = licenses.validate_license(user.get("license_key") or "")
@@ -48,20 +64,23 @@ def collector_router(require_user, licenses):
         tasks.add_task(archive.execute, key, run_id)
         return {"id": run_id}
 
-    @router.post("/{run_id}/stop")
+    @router.post("/runs/{run_id}/stop")
     def stop(run_id: UUID, key: str = Depends(owner)):
         if not archive.stop(key, str(run_id)):
             raise HTTPException(404, "Active collection not found.")
         return {"status": "stopped"}
 
-    @router.get("/{run_id}/results")
-    def rows(run_id: UUID, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100), key: str = Depends(owner)):
+    @router.get("/runs/{run_id}/results")
+    def rows(run_id: UUID, offset: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=100),
+             delivery_status: str | None = None, key: str = Depends(owner)):
+        if delivery_status is not None and delivery_status not in STATUSES:
+            raise HTTPException(400, "Unknown delivery status.")
         try:
-            return archive.results(key, str(run_id), limit, offset)
+            return archive.results(key, str(run_id), limit, offset, delivery_status)
         except KeyError:
             raise HTTPException(404, "Collection not found.")
 
-    @router.get("/{run_id}/export")
+    @router.get("/runs/{run_id}/export")
     def export(run_id: UUID, key: str = Depends(owner)):
         try:
             data = archive.csv_export(key, str(run_id))
