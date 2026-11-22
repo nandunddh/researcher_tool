@@ -56,6 +56,11 @@ export function PlansAdmin() {
                 {hint && <small style={{ fontWeight: 400, color: "var(--muted, #667085)" }}>{hint}</small>}
               </label>
             ))}
+            {p.price_month > 0 && (
+              <label>Stripe price id <small style={{ fontWeight: 400, color: "var(--muted, #667085)" }}>Needed only when Stripe is switched on (starts with price_).</small>
+                <input value={p.stripe_price_id ?? ""} placeholder="price_…" onChange={e => update(p.id, { stripe_price_id: e.target.value.trim() })} />
+              </label>
+            )}
             <label style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <input type="checkbox" checked={p.limits.custom_domain === true} onChange={e => setLimit(p, "custom_domain", e.target.checked)} />Custom domain
             </label>

@@ -103,6 +103,15 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 
 # Part C: Platform (shared by SciProspect and SciStudio)
 
+## 7b. Public website, sign-up and billing
+- [x] 🧪 Public home page: both tools, live pricing from the Plans page, FAQ
+- [x] 🧪 Self sign-up with plan choice and 6-digit email code
+- [x] 🧪 Billing: test checkout like Stripe, invoices, renew, cancel, switch plans (see `docs/PAYMENTS.md`)
+- [x] 🧪 Root: payment status and self sign-ups in Manage Accounts; Stripe price ids on the Plans page
+- [ ] Switch subscriptions to Stripe (keys + webhook, no code changes)
+- [ ] Registration payments on event websites through Stripe Checkout
+- [ ] Terms of service and privacy policy pages
+
 ## 8. Accounts and security
 - [x] Passwords in a separate credentials table
 - [x] Password reset with an emailed 6-digit code (Brevo)

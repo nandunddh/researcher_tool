@@ -530,7 +530,7 @@ async def api_signup_verify(request: Request):
         # Collector license for self sign-ups: a year with a modest daily limit; paying for a plan upgrades it.
         license_engine.create_account(name=details["name"], email=details["email"], tier="trial", duration_days=365, daily_limit=100,
                                       account_type=details["account_type"], org_name=details["org_name"],
-                                      password_hash=details["password_hash"], plan_id="free", scistudio_access=True)
+                                      password_hash=details["password_hash"], plan_id="free", scistudio_access=True, notes="Self sign-up")
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     ok, user, msg = license_engine.authenticate(details["email"], str(body.get("password") or ""))
@@ -967,7 +967,9 @@ async def admin_usage(request: Request):
     for account in license_engine.list_accounts():
         key = account.get("license_key")
         if key and key != "SCIP-PRO-ROOT-MASTER":
-            out[key] = {"plan_id": plans.default_plan_id(account), "usage": plans.usage(account.get("client_email", ""))}
+            import billing
+            out[key] = {"plan_id": plans.default_plan_id(account), "usage": plans.usage(account.get("client_email", "")),
+                        "subscription": billing.subscription(key), "self_signup": account.get("notes") == "Self sign-up"}
     return {"accounts": out}
 
 

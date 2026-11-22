@@ -33,7 +33,9 @@ type Account = {
 };
 
 type Usage = { websites: number; pages: number; storage_mb: number; submissions_month: number };
-export type Plan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
+type UsageEntry = { plan_id: string; usage: Usage; self_signup?: boolean;
+  subscription?: { status: string; current_period_end: string | null; cancel_at_period_end: boolean; provider: string } | null };
+export type Plan = { id: string; name: string; price_month: number; stripe_price_id?: string; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
 
 export function ManageAccounts() {
   const [confirmation, setConfirmation] = useState<{
@@ -53,19 +55,23 @@ export function ManageAccounts() {
 
   const [mfaOn, setMfaOn] = useState<Set<string>>(new Set());
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [usage, setUsage] = useState<Record<string, { plan_id: string; usage: Usage }>>({});
+  const [usage, setUsage] = useState<Record<string, UsageEntry>>({});
 
   function loadPlans() {
     // Plans and usage are extra information; the page works without them.
     api<{ plans: Plan[] }>("/api/admin/plans").then(r => setPlans(r.plans)).catch(() => undefined);
-    api<{ accounts: Record<string, { plan_id: string; usage: Usage }> }>("/api/admin/usage").then(r => setUsage(r.accounts)).catch(() => undefined);
+    api<{ accounts: Record<string, UsageEntry> }>("/api/admin/usage").then(r => setUsage(r.accounts)).catch(() => undefined);
   }
 
   function usageText(key: string) {
     const entry = usage[key], limits = plans.find(p => p.id === entry?.plan_id)?.limits;
     if (!entry) return "";
     const of = (used: number, limit?: number) => `${used}${limit !== undefined && limit >= 0 ? `/${limit}` : ""}`;
-    return `${of(entry.usage.websites, limits?.websites)} sites · ${of(entry.usage.submissions_month, limits?.submissions_month)} submissions this month · ${entry.usage.storage_mb} MB`;
+    const sub = entry.subscription;
+    const paid = sub?.status === "active"
+      ? ` · ${sub.cancel_at_period_end ? "ends" : "paid, renews"} ${new Date(sub.current_period_end ?? "").toLocaleDateString()}${sub.provider === "test" ? " (test)" : ""}`
+      : sub?.status === "canceled" ? " · subscription ended" : "";
+    return `${entry.self_signup ? "Self sign-up · " : ""}${of(entry.usage.websites, limits?.websites)} sites · ${of(entry.usage.submissions_month, limits?.submissions_month)} submissions this month · ${entry.usage.storage_mb} MB${paid}`;
   }
 
   async function changePlan(account: Account, planId: string) {
