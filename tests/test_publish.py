@@ -24,7 +24,7 @@ class PublishTests(unittest.TestCase):
     def test_unpublish_takes_the_site_offline(self):
         engine = _Engine()
         with patch.object(web_app, "builder_engine", engine), patch.object(web_app, "_require_authenticated_user", lambda r: {"email": "o"}), \
-                patch.object(web_app, "_require_scistudio_access", lambda u: None), patch.object(web_app, "_require_owned_site", lambda s, u: None):
+                patch.object(web_app, "_require_scistudio_access", lambda u: None), patch.object(web_app, "_require_owned_site", lambda s, u, need="view": None):
             self.assertIsNotNone(public_site.published_page(engine.sites["site_00000001"]))
             asyncio.run(web_app.builder_unpublish_site("site_00000001", object()))
             self.assertEqual(engine.sites["site_00000001"]["status"], "draft")

@@ -15,13 +15,14 @@ class BuilderAccessTests(unittest.TestCase):
     def setUp(self):
         import re
         tree = ast.parse((Path(__file__).resolve().parents[1]/'backend/app.py').read_text(encoding='utf-8'))
-        names = {'_require_owned_site', 'get_published_page', 'builder_get_site'}
+        names = {'_require_owned_site', 'get_published_page', 'builder_get_site', '_check_member', '_workspace_email'}
         functions = [n for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)) and n.name in names]
         for n in functions:
             n.decorator_list = []
         self.site = {'site_id':'site_1234abcd','slug':'example','user_email':'owner@example.test','status':'draft','compiled_html':'<h1>Test</h1>'}
         self.scope = {'Optional':Optional,'published_page':published_page,'JSONResponse':JSONResponse,'re':re,'HTTPException':HTTPException,'HTMLResponse':HTMLResponse,
-                      'Request':object, '_require_authenticated_user':lambda req:req, '_require_scistudio_access':lambda user:None,
+                      'Request':object, 'MEMBER_NEEDS':{'view':{'viewer','editor','admin'},'edit':{'editor','admin'},'manage':{'admin'}},
+                      'license_engine':SimpleNamespace(get_account=lambda key:None), '_require_authenticated_user':lambda req:req, '_require_scistudio_access':lambda user:None,
                       'builder_engine':SimpleNamespace(get_site=lambda sid:self.site,get_site_by_slug=lambda slug:self.site)}
         exec(compile(ast.Module(body=functions,type_ignores=[]), '<builder-tests>', 'exec'), self.scope)
 

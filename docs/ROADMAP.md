@@ -110,7 +110,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] 🧪 Root: payment status and self sign-ups in Manage Accounts; Stripe price ids on the Plans page
 - [ ] Switch subscriptions to Stripe (keys + webhook, no code changes)
 - [ ] Registration payments on event websites through Stripe Checkout
-- [ ] Terms of service and privacy policy pages
+- [x] 🧪 Terms of service and privacy policy pages (draft: lawyer review + company details needed)
 
 ## 8. Accounts and security
 - [x] Passwords in a separate credentials table

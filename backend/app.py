@@ -1166,7 +1166,7 @@ async def my_plan(request: Request):
     plan = _user_plan(user)
     if not plan:
         return {"plan": None, "usage": None}
-    return {"plan": plan, "usage": plans.usage(user.get("client_email", ""))}
+    return {"plan": plan, "usage": plans.usage(_workspace_email(user))}
 
 
 @app.get("/api/admin/mfa")
@@ -2093,18 +2093,37 @@ def _require_scistudio_access(user: dict):
     """Enforces that the user account has SciStudio website builder access enabled."""
     if user.get("is_admin"):
         return
-    if user.get("is_member"):
-        raise HTTPException(
-            status_code=403,
-            detail="Subaccounts are restricted from conference and website operations until assignments are configured."
-        )
+    # Team members are allowed; what they may do on each website depends on their role (_check_member).
     if not user.get("scistudio_access", True):
         raise HTTPException(
             status_code=403,
             detail="SciStudio access is disabled for your account. Please contact an administrator to request access."
         )
 
-def _require_owned_conference(conference_id: str, user: dict) -> dict:
+
+# Team members work on their organization's websites. Viewer: open and preview. Editor: also edit and create.
+# Admin: also publish, delete, export and see submissions. Billing stays with the account owner.
+MEMBER_NEEDS = {"view": {"viewer", "editor", "admin"}, "edit": {"editor", "admin"}, "manage": {"admin"}}
+
+
+def _workspace_email(user: dict) -> str:
+    """The email that owns the workspace's websites: the account owner's, also for their team members."""
+    if user.get("is_member"):
+        account = license_engine.get_account(user.get("parent_license_key") or user.get("license_key")) or {}
+        return str(account.get("client_email") or "").strip().lower()
+    return str(user.get("client_email") or "").strip().lower()
+
+
+def _check_member(user: dict, need: str) -> None:
+    if not user.get("is_member"):
+        return
+    if not user.get("scistudio_access", True):
+        raise HTTPException(status_code=403, detail="SciStudio is turned off for your account. Ask your organization admin.")
+    if str(user.get("role") or "editor") not in MEMBER_NEEDS.get(need, MEMBER_NEEDS["manage"]):
+        raise HTTPException(status_code=403, detail="Your role can't do this. Ask an organization admin." if need == "manage"
+                            else "Viewers can open websites but not change them. Ask an organization admin for editor access.")
+
+def _require_owned_conference(conference_id: str, user: dict, need: str = "view") -> dict:
     if not re.fullmatch(r"conf_[a-f0-9]{8}", conference_id):
         raise HTTPException(status_code=404, detail="Conference not found.")
     conf = conference_engine.get_conference(conference_id)
@@ -2112,12 +2131,8 @@ def _require_owned_conference(conference_id: str, user: dict) -> dict:
         raise HTTPException(status_code=404, detail="Conference not found.")
     if user.get("is_admin"):
         return conf
-    if user.get("is_member"):
-        raise HTTPException(
-            status_code=403,
-            detail="Subaccounts are restricted from conference and website operations until assignments are configured."
-        )
-    user_email = (user.get("client_email") or "").strip().lower()
+    _check_member(user, need)
+    user_email = _workspace_email(user)
     owner_email = (conf.get("owner_email") or "").strip().lower()
     user_key = (user.get("license_key") or "").strip().upper()
     owner_key = (conf.get("owner_license_key") or "").strip().upper()
@@ -2127,7 +2142,7 @@ def _require_owned_conference(conference_id: str, user: dict) -> dict:
 
     raise HTTPException(status_code=404, detail="Conference not found.")
 
-def _require_owned_site(site_id: str, user: dict) -> dict:
+def _require_owned_site(site_id: str, user: dict, need: str = "view") -> dict:
     if not re.fullmatch(r"site_[a-f0-9]{8}", site_id):
         raise HTTPException(status_code=404, detail="Website not found.")
     site = builder_engine.get_site(site_id)
@@ -2135,19 +2150,15 @@ def _require_owned_site(site_id: str, user: dict) -> dict:
         raise HTTPException(status_code=404, detail="Website not found.")
     if user.get("is_admin"):
         return site
-    if user.get("is_member"):
-        raise HTTPException(
-            status_code=403,
-            detail="Subaccounts are restricted from conference and website operations until assignments are configured."
-        )
+    _check_member(user, need)
     owner = (site or {}).get("user_email", "").strip().lower()
-    email = user.get("client_email", "").strip().lower()
+    email = _workspace_email(user)
     if email and owner == email:
         return site
     conf_id = site.get("conference_id")
     if conf_id:
         try:
-            _require_owned_conference(conf_id, user)
+            _require_owned_conference(conf_id, user, need)
             return site
         except HTTPException:
             pass
@@ -2260,7 +2271,7 @@ async def builder_get_conference(conference_id: str, request: Request):
 async def builder_update_conference(conference_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_conference(conference_id, user)
+    _require_owned_conference(conference_id, user, "edit")
     body = await request.json()
     ok, msg, conf = conference_engine.update_conference(conference_id, body)
     if not ok:
@@ -2272,7 +2283,7 @@ async def builder_update_conference(conference_id: str, request: Request):
 async def builder_delete_conference(conference_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_conference(conference_id, user)
+    _require_owned_conference(conference_id, user, "manage")
     email = user.get("client_email", "")
     sites = builder_engine.list_sites("admin" if user.get("is_admin") else email, conference_id=conference_id)
     for s in sites:
@@ -2289,8 +2300,7 @@ async def builder_list_sites(request: Request, conference_id: Optional[str] = No
     _require_scistudio_access(user)
     if conference_id and conference_id != "all":
         _require_owned_conference(conference_id, user)
-    email = user.get("client_email", "")
-    sites = builder_engine.list_sites("admin" if user.get("is_admin") else email, conference_id=conference_id)
+    sites = builder_engine.list_sites("admin" if user.get("is_admin") else _workspace_email(user), conference_id=conference_id)
     return {"sites": sites}
 
 
@@ -2318,10 +2328,11 @@ def _user_plan(user: dict) -> Optional[dict]:
 async def builder_create_site(request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
+    _check_member(user, "edit")
     plan = _user_plan(user)
     if plan:
         import plans
-        _enforce_plan(plan, "websites", plans.usage(user.get("client_email", ""))["websites"] + 1)
+        _enforce_plan(plan, "websites", plans.usage(_workspace_email(user))["websites"] + 1)
     body = await request.json()
     name = (body.get("name") or "New Website").strip()
     slug = (body.get("slug") or "").strip() or None
@@ -2348,7 +2359,7 @@ async def builder_create_site(request: Request):
                 raise HTTPException(status_code=400, detail='Invalid component identifier.')
             ids.add(identifier)
     site = builder_engine.create_site(
-        user_email=user.get("client_email", ""),
+        user_email=_workspace_email(user),  # members create websites for their organization
         name=name,
         slug=slug,
         template_id=template_id,
@@ -2375,7 +2386,7 @@ async def builder_get_site(site_id: str, request: Request):
 async def builder_update_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "edit")
     body = await request.json()
     if "conference_id" in body and body["conference_id"]:
         _require_owned_conference(body["conference_id"], user)
@@ -2391,7 +2402,7 @@ async def builder_update_site(site_id: str, request: Request):
 async def builder_assign_site_conference(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "edit")
     body = await request.json()
     new_conf_id = (body.get("conference_id") or "").strip() or None
     if new_conf_id:
@@ -2406,7 +2417,7 @@ async def builder_assign_site_conference(site_id: str, request: Request):
 async def builder_delete_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "manage")
     ok, msg = builder_engine.delete_site(site_id)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -2417,7 +2428,7 @@ async def builder_delete_site(site_id: str, request: Request):
 async def builder_publish_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "manage")
     ok, msg, site = builder_engine.update_site(site_id, {"status": "published"})
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -2429,7 +2440,7 @@ async def builder_unpublish_site(site_id: str, request: Request):
     """Takes a website offline; visitors see a "not available" page. Content is kept."""
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "manage")
     ok, msg, _site = builder_engine.update_site(site_id, {"status": "draft"})
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
@@ -2440,7 +2451,7 @@ async def builder_unpublish_site(site_id: str, request: Request):
 def builder_export_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    site = _require_owned_site(site_id, user)
+    site = _require_owned_site(site_id, user, "manage")
     from react_export import export_zip
     zip_bytes, filename = export_zip(site, _media_dir(site_id))
     return Response(
@@ -2481,7 +2492,7 @@ def _sniff_image(data: bytes) -> Optional[str]:
 async def builder_upload_media(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "edit")
     try:
         declared = int(request.headers.get("content-length") or 0)
     except ValueError:
@@ -2501,7 +2512,7 @@ async def builder_upload_media(site_id: str, request: Request):
     plan = _user_plan(user)
     if plan:
         import plans
-        _enforce_plan(plan, "storage_mb", plans.usage(user.get("client_email", ""))["storage_mb"] + len(data) / 1_048_576)
+        _enforce_plan(plan, "storage_mb", plans.usage(_workspace_email(user))["storage_mb"] + len(data) / 1_048_576)
     import uuid
     name = f"{uuid.uuid4().hex}.{MEDIA_TYPES[mime]}"
     folder = _media_dir(site_id)
@@ -2719,7 +2730,7 @@ async def builder_set_submission_status(site_id: str, submission_id: int, reques
     import forms
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "manage")
     status = str((await request.json()).get("status") or "")
     if not forms.set_status(site_id, submission_id, status):
         raise HTTPException(status_code=400, detail="That status can't be used.")
@@ -2732,7 +2743,7 @@ async def builder_submission_file(site_id: str, submission_id: int, request: Req
     import forms
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "manage")
     meta = forms.submission_file(site_id, submission_id)
     path = _uploads_dir(site_id) / meta["id"] if meta else None
     if not path or not path.is_file():
@@ -2746,7 +2757,7 @@ async def builder_list_submissions(site_id: str, request: Request):
     import forms
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user)
+    _require_owned_site(site_id, user, "manage")
     return {"submissions": forms.list_submissions(site_id)}
 
 

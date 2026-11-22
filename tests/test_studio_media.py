@@ -43,7 +43,8 @@ class StudioMediaTests(unittest.TestCase):
             "Request": object,
             "_require_authenticated_user": lambda req: {"client_email": "owner@example.test"},
             "_require_scistudio_access": lambda user: None,
-            "_require_owned_site": lambda sid, user: self.owned.append(sid),
+            "_require_owned_site": lambda sid, user, need="view": self.owned.append(sid),
+            "_workspace_email": lambda user: user.get("client_email", ""),
             "_user_plan": lambda user: None,  # no plan limits in this test (see test_plans.py)
             "_media_dir": lambda sid: root / sid,
             "builder_engine": SimpleNamespace(record_media=lambda *args: self.recorded.append(args)),
