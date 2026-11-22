@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
+import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/contracts";
 
@@ -58,7 +59,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
 
   return (
     <main className="login-screen">
-      <div className="login-backdrop-glow" aria-hidden="true" />
+      <AuthBackdrop />
       <section className="login-card">
         <div className="login-header">
           <a className="login-brand" aria-label="SciProspect home" href="/">

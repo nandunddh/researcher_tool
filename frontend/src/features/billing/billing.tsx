@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
+import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import styles from "./billing.module.css";
 
 type Plan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> };
@@ -15,11 +16,12 @@ const unlimited = (n: unknown, unit = "") => (typeof n === "number" && n < 0 ? "
 function Shell({ children, back = "/" }: { children: ReactNode; back?: string }) {
   return (
     <div className={styles.page}>
+      <div className={styles.noPrint}><AuthBackdrop /></div>
       <header className={styles.top}><div className={styles.topInner}>
         <a className={styles.brand} href="/"><img src="/branding/sciprospect-a-icon.png" alt="" />SciProspect</a>
         <a className={styles.back} href={back}>← Back to workspace</a>
       </div></header>
-      {children}
+      <div className={styles.layer}>{children}</div>
     </div>
   );
 }
@@ -145,6 +147,7 @@ export function TestCheckout({ sessionId }: { sessionId: string }) {
 
   return (
     <div className={styles.checkout}>
+      <AuthBackdrop />
       <aside className={styles.summary}>
         <div>
           <a className={styles.back} href="/billing">← Back</a>
@@ -183,7 +186,7 @@ export function InvoiceView({ id }: { id: string }) {
   return (
     <Shell back="/billing">
       <div className={styles.printBar}><a className={styles.back} href="/billing">← Billing</a><button type="button" className={styles.primary} onClick={() => window.print()}>Download PDF / Print</button></div>
-      {error && <p className={styles.alert} style={{ maxWidth: 760, margin: "0 auto" }}>{error}</p>}
+      {error && <p className={styles.alert} style={{ maxWidth: 760, margin: "0 auto" }} role="alert">{error}</p>}
       {inv && (
         <article className={styles.paper}>
           <header className={styles.paperTop}>
@@ -198,7 +201,7 @@ export function InvoiceView({ id }: { id: string }) {
             <thead><tr><th>Description</th><th style={{ textAlign: "right" }}>Amount</th></tr></thead>
             <tbody><tr><td>SciProspect {inv.plan_name} plan, 1 month</td><td style={{ textAlign: "right" }}>{money(inv.amount, inv.currency)}</td></tr></tbody>
           </table>
-          <p style={{ textAlign: "right", fontSize: 18, fontWeight: 800, marginTop: 16 }}>Total paid {money(inv.amount, inv.currency)}</p>
+          <p className={styles.paperTotal}>Total paid {money(inv.amount, inv.currency)}</p>
         </article>
       )}
     </Shell>

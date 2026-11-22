@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
+import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
 import type { Session } from "@/lib/contracts";
 import { Icon } from "@/components/icon";
@@ -109,7 +110,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
 
   return (
     <main className="login-screen">
-      <div className="login-backdrop-glow" aria-hidden="true" />
+      <AuthBackdrop />
       <section className="login-card">
         <div className="login-header">
           <div className="login-brand" aria-label="SciProspect">
