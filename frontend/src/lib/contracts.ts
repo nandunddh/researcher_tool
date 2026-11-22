@@ -5,7 +5,7 @@ export function isNamespace(value: string): value is Namespace {
 }
 export type User = {
   client_name: string; client_email: string; is_admin?: boolean; is_member?: boolean;
-  scistudio_access?: boolean; workspace_namespace: Namespace;
+  scistudio_access?: boolean; workspace_namespace: Namespace; tier?: string;
   /** Signed in, but two-step sign-in must be set up before anything else. */
   mfa_setup_required?: boolean;
 };

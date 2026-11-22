@@ -12,19 +12,19 @@ const ROOT_LINKS: NavItem[] = [
   { label: "Manage Accounts", url: "/root/accounts", icon: "doc" },
   { label: "Plans", url: "/root/plans", icon: "grid" },
   { label: "Design Library", url: "/root/designs", icon: "layers" },
-  { label: "Data Collector", url: "/root/dashboard#collector", icon: "bolt" },
+  { label: "Data Collector", url: "/root/collector", icon: "bolt" },
 ];
 
 const ORG_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/organization/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
-  { label: "Data Collector", url: "/organization/dashboard#collector", icon: "bolt" },
+  { label: "Data Collector", url: "/organization/collector", icon: "bolt" },
 ];
 
 const CLIENT_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/client/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
-  { label: "Data Collector", url: "/client/dashboard#collector", icon: "bolt" },
+  { label: "Data Collector", url: "/client/collector", icon: "bolt" },
 ];
 
 const CONFERENCE_LINKS: NavItem[] = [

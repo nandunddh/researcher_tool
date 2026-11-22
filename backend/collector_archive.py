@@ -41,6 +41,19 @@ def history(owner):
             return rows.fetchall()
 
 
+def stats(owner):
+    """Counts for the collector page's summary cards."""
+    with db.transaction() as cur:
+        cur.execute("SELECT count(*) FROM collector_contacts WHERE owner_key=%s", (owner,))
+        total = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM collector_results r JOIN collector_runs u ON u.owner_key=r.owner_key AND u.id=r.run_id "
+                    "WHERE r.owner_key=%s AND u.started_at >= date_trunc('day', now())", (owner,))
+        today = cur.fetchone()[0]
+        cur.execute("SELECT count(*) FROM collector_runs WHERE owner_key=%s", (owner,))
+        datasets = cur.fetchone()[0]
+    return {"total": int(total), "today": int(today), "datasets": int(datasets)}
+
+
 def results(owner, run_id, limit=None, offset=0, delivery_status=None):
     with db.transaction() as cur:
         cur.execute("SELECT 1 FROM collector_runs WHERE owner_key=%s AND id=%s", (owner,run_id))

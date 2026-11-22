@@ -45,6 +45,10 @@ def collector_router(require_user, licenses):
                 raise HTTPException(429, "Email check limit reached. Try again in a minute.", headers={"Retry-After": "60"})
         return archive.recheck_contacts(key, body.after)
 
+    @router.get("/stats")
+    def stats(key: str = Depends(owner)):
+        return archive.stats(key)
+
     @router.get("/runs")
     def runs(key: str = Depends(owner)):
         return archive.history(key)

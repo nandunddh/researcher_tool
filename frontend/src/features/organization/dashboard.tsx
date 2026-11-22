@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
-import { Collector } from "@/features/collector/collector";
 import { toast } from "react-toastify";
 import { api } from "@/lib/api";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -508,7 +507,6 @@ export function OrgDashboard() {
           }}
         />
       )}
-      <Collector />
     </OrgShell>
   );
 }
