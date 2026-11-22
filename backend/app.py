@@ -379,12 +379,21 @@ def _extract_token_from_request(request: Request) -> Optional[str]:
         token = request.headers.get("X-Auth-Token", "").strip()
     return token or None
 
+# Two-step sign-in is required for every account. Until it is set up, a session can only reach these.
+MFA_SETUP_PATHS = {"/api/auth/me", "/api/auth/logout", "/api/auth/mfa", "/api/auth/mfa/setup", "/api/auth/mfa/enable"}
+
+
+def _mfa_blocked(user: Optional[dict], request: Request) -> bool:
+    url = getattr(request, "url", None)
+    return bool(user and user.get("mfa_setup_required") and getattr(url, "path", "") not in MFA_SETUP_PATHS)
+
+
 def _get_current_user_from_request(request: Request) -> Optional[dict]:
     """Extracts and validates the current user from session cookie or headers."""
     token = _extract_token_from_request(request)
     if token:
         user = license_engine.get_session(token)
-        if user:
+        if user and not _mfa_blocked(user, request):
             return user
     return None
 
@@ -405,6 +414,9 @@ def _require_authenticated_user(request: Request) -> dict:
             raise HTTPException(status_code=403, detail="🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
         raise HTTPException(status_code=401, detail="Session expired or invalid. Please sign in.")
     
+    if _mfa_blocked(user, request):
+        raise HTTPException(status_code=403, detail="Set up two-step sign-in to continue.")
+
     # Real-time kill switch verification for non-admin accounts
     if not user.get("is_admin"):
         key = user.get("license_key")
@@ -451,7 +463,7 @@ async def api_auth_login(request: Request):
         _drop_old_challenges()
         _mfa_challenges[challenge] = {"user": user, "msg": msg, "expires": time.time() + MFA_CHALLENGE_SECONDS, "tries": 0}
         return {"status": "mfa_required", "mfa_token": challenge}
-    return _signed_in(request, user, msg)
+    return _signed_in(request, {**user, "mfa_setup_required": True}, msg)
 
 
 # shortcut: password-checked sign-ins waiting for their app code live in this worker's memory; move to the DB if running several workers.
@@ -536,7 +548,7 @@ async def api_signup_verify(request: Request):
     ok, user, msg = license_engine.authenticate(details["email"], str(body.get("password") or ""))
     if not ok:  # e.g. the page was reloaded and the password is gone: the account exists, they just sign in
         return {"status": "ok", "signed_in": False, "message": "Your account is ready. Please sign in."}
-    return _signed_in(request, user, "Welcome to SciProspect!")
+    return _signed_in(request, {**user, "mfa_setup_required": True}, "Welcome to SciProspect!")
 
 
 @app.post("/api/auth/change-password")
@@ -594,6 +606,10 @@ async def api_auth_mfa_enable(request: Request):
     codes = mfa.enable(_mfa_key(user), str((await request.json()).get("code") or ""))
     if not codes:
         raise HTTPException(status_code=400, detail="That code is not right. Enter the current 6-digit code from the app.")
+    if user.get("mfa_setup_required"):
+        license_engine.revoke_session(_extract_token_from_request(request))
+        clean = {k: v for k, v in user.items() if k != "mfa_setup_required"}
+        return _signed_in(request, clean, "Two-step sign-in is on.", {"backup_codes": codes})
     return {"status": "ok", "backup_codes": codes}
 
 
@@ -606,7 +622,7 @@ async def api_auth_mfa_disable(request: Request):
     return {"status": "ok"}
 
 
-def _signed_in(request: Request, user: dict, msg: str) -> JSONResponse:
+def _signed_in(request: Request, user: dict, msg: str, extra: Optional[dict] = None) -> JSONResponse:
     token = license_engine.issue_session(user)
     if user.get("license_key"):
         set_current_license_key(user["license_key"])
@@ -616,7 +632,8 @@ def _signed_in(request: Request, user: dict, msg: str) -> JSONResponse:
         "authenticated": True,
         "token": token,
         "user": user,
-        "message": msg
+        "message": msg,
+        **(extra or {}),
     })
     secure_cookie = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     res.set_cookie(

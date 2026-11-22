@@ -70,7 +70,7 @@ def create_checkout(account_key: str, email: str, plan: dict, app_url: str) -> s
             raise ValueError("This plan has no Stripe price yet. Add it on the Plans page.")
         session = _stripe().checkout.Session.create(
             mode="subscription", line_items=[{"price": plan["stripe_price_id"], "quantity": 1}],
-            success_url=f"{app_url}/billing?paid=1", cancel_url=f"{app_url}/billing?canceled=1",
+            success_url=f"{app_url}/billing/success", cancel_url=f"{app_url}/billing",
             client_reference_id=account_key, customer_email=email,
             metadata={"account_key": account_key, "plan_id": plan["id"]},
             subscription_data={"metadata": {"account_key": account_key, "plan_id": plan["id"]}},

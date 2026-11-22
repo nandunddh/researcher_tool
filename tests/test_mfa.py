@@ -134,3 +134,33 @@ class AdminResetTests(unittest.TestCase):
         with patch.object(web_app, "_verify_admin_auth", deny):
             with self.assertRaises(HTTPException):
                 asyncio.run(web_app.admin_mfa_reset(_Req({"license_key": "KEY1"})))
+
+
+class MandatoryTwoStepTests(LoginWithMfaTests):
+    def _path_req(self, path, payload=None):
+        r = _Req(payload or {})
+        r.url = SimpleNamespace(scheme="http", path=path)
+        return r
+
+    def test_without_two_step_the_session_can_only_set_it_up(self):
+        a, b = self._login(set())
+        with a, b:
+            res = asyncio.run(web_app.api_auth_login(_Req({"identifier": "jane@university.edu", "password": "OldPassword1!"})))
+        token = res.headers["set-cookie"].split("scip_token=")[1].split(";")[0]
+        user, _ = self.mgr.get_session_info(token)
+        self.assertTrue(user["mfa_setup_required"], "signed in, but limited")
+        with patch.object(web_app, "license_engine", self.mgr), patch.object(web_app, "_extract_token_from_request", lambda r: token):
+            with self.assertRaises(HTTPException) as err:
+                web_app._require_authenticated_user(self._path_req("/api/builder/sites"))
+            self.assertEqual(err.exception.status_code, 403)
+            self.assertIn("two-step", err.exception.detail)
+            self.assertTrue(web_app._require_authenticated_user(self._path_req("/api/auth/mfa/setup")))
+            self.assertIsNone(web_app._get_current_user_from_request(self._path_req("/api/admin/licenses")), "admin routes blocked too")
+
+            fake = SimpleNamespace(enable=lambda key, code: ["aaaaa-bbbbb"] if code == "123456" else None)
+            with patch.dict(sys.modules, {"mfa": fake}):
+                done = asyncio.run(web_app.api_auth_mfa_enable(self._path_req("/api/auth/mfa/enable", {"code": "123456"})))
+        new_token = done.headers["set-cookie"].split("scip_token=")[1].split(";")[0]
+        self.assertNotEqual(new_token, token)
+        self.assertIsNone(self.mgr.get_session_info(token)[0], "old limited session is gone")
+        self.assertNotIn("mfa_setup_required", self.mgr.get_session_info(new_token)[0], "new session is not limited")

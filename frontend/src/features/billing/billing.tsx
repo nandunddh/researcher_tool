@@ -27,11 +27,25 @@ function Shell({ children, back = "/" }: { children: ReactNode; back?: string })
 }
 
 /** The account owner's plan, renewal, invoices and plan changes. */
-export function Billing({ highlight, paid, workspace }: { highlight: string; paid: boolean; workspace: string }) {
+const NOTICE_KEY = "sciprospect:billing-notice";
+
+/** Checkout returns here (/billing/success); it leaves a message for Billing and moves on to a clean /billing. */
+export function PaymentSuccess() {
+  useEffect(() => {
+    try { sessionStorage.setItem(NOTICE_KEY, "Payment received. Your new plan is active, and the invoice is on its way to your email."); } catch { /* private mode */ }
+    window.location.replace("/billing");
+  }, []);
+  return <Shell><main className={styles.main}><p className={styles.success} role="status">Payment received. Opening Billing…</p></main></Shell>;
+}
+
+export function Billing({ highlight, workspace }: { highlight: string; workspace: string }) {
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const [notice, setNotice] = useState(paid ? "Payment received. Your new plan is active." : "");
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    try { const saved = sessionStorage.getItem(NOTICE_KEY); if (saved) { setNotice(saved); sessionStorage.removeItem(NOTICE_KEY); } } catch { /* private mode */ }
+  }, []);
 
   const load = () => api<Overview>("/api/billing").then(setData).catch(e => setError(e instanceof Error ? e.message : "Billing could not be loaded."));
   useEffect(() => { void load(); }, []);
@@ -141,7 +155,7 @@ export function TestCheckout({ sessionId }: { sessionId: string }) {
     setBusy(true); setError("");
     try {
       await api(`/api/billing/checkout/${encodeURIComponent(sessionId)}/pay`, { method: "POST", body: JSON.stringify({ card_number: data.get("card"), expiry: data.get("expiry"), cvc: data.get("cvc"), name: data.get("name") }) });
-      window.location.assign("/billing?paid=1");
+      window.location.assign("/billing/success");
     } catch (e) { setError(e instanceof Error ? e.message : "Payment failed."); setBusy(false); }
   }
 

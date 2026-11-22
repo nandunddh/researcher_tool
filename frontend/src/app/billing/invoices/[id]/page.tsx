@@ -5,6 +5,8 @@ import { InvoiceView } from "@/features/billing/billing";
 export const metadata = { title: "Invoice · SciProspect", robots: { index: false } };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  if (!(await session())) redirect("/login?next=/billing");
+  const current = await session();
+  if (!current) redirect("/login");
+  if (current.user.mfa_setup_required) redirect("/setup-2fa");
   return <InvoiceView id={(await params).id} />;
 }

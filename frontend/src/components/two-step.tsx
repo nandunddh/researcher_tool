@@ -42,6 +42,7 @@ export function TwoStepDialog({ onClose }: { onClose: () => void }) {
     void run(async () => {
       await api("/api/auth/mfa/disable", { method: "POST", body: JSON.stringify({ code: value }) });
       setEnabled(false);
+      setSetup(await api<Setup>("/api/auth/mfa/setup", { method: "POST" }));  // straight into setting up the new phone
     });
   };
 
@@ -77,10 +78,10 @@ export function TwoStepDialog({ onClose }: { onClose: () => void }) {
         </form>
       ) : enabled ? (
         <form onSubmit={turnOff}>
-          <p><strong>Two-step sign-in is on.</strong> After your password, we ask for a code from your authenticator app.</p>
-          <p>To turn it off, enter a code from the app or one of your backup codes.</p>
+          <p><strong>Two-step sign-in is on.</strong> It is required for every SciProspect account.</p>
+          <p>Got a new phone? Enter a code from your current app (or a backup code), then scan a new QR code.</p>
           {codeField("Code")}
-          <button className="danger" type="submit" disabled={busy}>{busy ? "Checking…" : "Turn off"}</button>
+          <button className="primary" type="submit" disabled={busy}>{busy ? "Checking…" : "Move to a new phone"}</button>
         </form>
       ) : enabled === false && (
         <>

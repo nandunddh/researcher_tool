@@ -188,7 +188,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
                     <h3>{p.name}</h3>
                     <div className={s.price}>{p.price_month > 0 ? `$${p.price_month.toLocaleString()}` : "Free"}{p.price_month > 0 && <small> / month</small>}</div>
                     <ul>{planLines(p).map(line => <li key={line.text} data-off={line.off || undefined}>{line.text}</li>)}</ul>
-                    <a className={p.id === popular ? s.btn : s.btnGhost} href={`/signup?plan=${encodeURIComponent(p.id)}`}>{p.price_month > 0 ? `Choose ${p.name}` : "Start free"}</a>
+                    <a className={p.id === popular ? s.btn : s.btnGhost} href={`/signup/${encodeURIComponent(p.id)}`}>{p.price_month > 0 ? `Choose ${p.name}` : "Start free"}</a>
                   </article>
                 ))}
               </div>

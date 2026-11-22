@@ -4,9 +4,9 @@ import { Billing } from "@/features/billing/billing";
 
 export const metadata = { title: "Billing · SciProspect" };
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ plan?: string; paid?: string }> }) {
+export default async function Page() {
   const current = await session();
-  if (!current) redirect("/login?next=/billing");
-  const { plan, paid } = await searchParams;
-  return <Billing highlight={plan ?? ""} paid={paid === "1"} workspace={`/${current.user.workspace_namespace}/dashboard`} />;
+  if (!current) redirect("/login");
+  if (current.user.mfa_setup_required) redirect("/setup-2fa");
+  return <Billing highlight="" workspace={`/${current.user.workspace_namespace}/dashboard`} />;
 }

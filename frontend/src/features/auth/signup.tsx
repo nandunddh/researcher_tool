@@ -2,7 +2,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
-import type { Session } from "@/lib/contracts";
+import { AFTER_SETUP_KEY } from "./setup-two-step";
 
 type Plan = { id: string; name: string; price_month: number };
 
@@ -48,9 +48,9 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
     try {
       const result = await api<{ signed_in?: boolean }>("/api/auth/signup/verify", { method: "POST", body: JSON.stringify({ email, code, password }) });
       if (result.signed_in === false) { window.location.assign("/login"); return; }
-      if (chosen && chosen.price_month > 0) { window.location.assign(`/billing?plan=${encodeURIComponent(chosen.id)}`); return; }
-      const me = await api<Session>("/api/auth/me");
-      window.location.assign(`/${me.user.workspace_namespace}/dashboard`);
+      // Two-step sign-in comes first; then checkout for a paid plan, else the workspace.
+      if (chosen && chosen.price_month > 0) { try { sessionStorage.setItem(AFTER_SETUP_KEY, `/billing/upgrade/${encodeURIComponent(chosen.id)}`); } catch { /* private mode */ } }
+      window.location.assign("/setup-2fa");
     } catch (e) {
       setError(e instanceof Error ? e.message : "That code didn't work.");
       setBusy(false);
