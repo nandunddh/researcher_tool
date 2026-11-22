@@ -14,16 +14,19 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Pipeline: run / stop with live progress (OpenAlex)
 - [x] NIH data source page
 - [x] Datasets and explorer views
-- [ ] 🔜 Rebuild the collector in the Next.js web app (Codex, branch `codex/scistudio-design`)
-- [ ] Search filters in the web app: topic, country, institution, years
-- [ ] Store collected data in PostgreSQL (check: today it uses a data folder on disk)
+- [x] Collector in the Next.js web app, own page in the original design: summary cards, live monitor with dark log
+- [ ] Search filters: country and institution (topic, years and score exist)
+- [ ] NIH Grant PIs in the web collector (old app had it; page shows "Soon")
+- [x] Collected data stored in PostgreSQL (runs, contacts, evidence, results)
 - [ ] 💡 Saved searches and scheduled runs
 - [ ] 💡 More sources (e.g. PubMed, Crossref)
 
 ## A2. Leads
 - [x] Leads list, CSV export
 - [x] Merge and remove duplicates, clear all
-- [ ] Leads table in the web app: search, sort, filter, select
+- [x] 🧪 Leads Explorer: search, sort, filter, select, copy emails, export selected; All contacts (central archive)
+- [x] 🧪 Daily contact limit from the license (trial 100/day), shown on the page
+- [x] 🧪 Manage collections: rename, run again, delete
 - [x] Email discovery matched to the author's name (ORCID, Crossref, Europe PMC), format check
 - [x] Web collector checks mail domains, flags role and disposable addresses, and shows delivery status in the leads table and CSV. Owners can recheck existing contacts.
 - [ ] 💡 Mailbox check (SMTP) via a paid API (ZeroBounce/NeverBounce), never from our mail server
