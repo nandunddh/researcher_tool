@@ -16,9 +16,10 @@ export async function session(): Promise<Session | null> {
   if (!isNamespace(data.user?.workspace_namespace)) throw new Error("Restart FastAPI to load the frontend session contract.");
   return data;
 }
-export async function requireSession(namespace: Namespace) {
+/** returnTo: where to come back after signing in (defaults to SciStudio). */
+export async function requireSession(namespace: Namespace, returnTo = `/${namespace}/scistudio`) {
   const current = await session();
-  if (!current) redirect(`/login?next=/${namespace}/scistudio`);
+  if (!current) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
   if (current.user.mfa_setup_required) redirect("/setup-2fa");
   if (current.user.workspace_namespace !== namespace) redirect(`/${current.user.workspace_namespace}/dashboard`);
   return current.user;

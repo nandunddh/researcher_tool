@@ -9,6 +9,6 @@ export const metadata = { title: "Data collector · SciProspect" };
 export default async function Page({params}: {params: Promise<{namespace: string}>}) {
   const {namespace} = await params;
   if (!isNamespace(namespace) || namespace === "conference") notFound();
-  const user = await requireSession(namespace);
+  const user = await requireSession(namespace, `/${namespace}/collector`);
   return <CollectorApp namespace={namespace} userName={user.client_name} tier={user.tier ?? ""} />;
 }
