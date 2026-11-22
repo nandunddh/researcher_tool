@@ -10,7 +10,7 @@ two `.service` files if it is elsewhere.
 bash ~/researcher_tool/deploy/update.sh
 ```
 
-It pulls `codex/react-nextjs-migration`, installs Python and Node packages, builds the frontend, restarts both services
+It pulls `main`, installs Python and Node packages, builds the frontend, restarts both services
 (database migrations run automatically when the backend starts) and checks that both answer. Logs:
 `sudo journalctl -u sciprospect-backend -n 80` and `sudo journalctl -u sciprospect-frontend -n 80`.
 

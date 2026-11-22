@@ -5,7 +5,7 @@
 set -euo pipefail
 
 APP_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BRANCH="${BRANCH:-codex/react-nextjs-migration}"
+BRANCH="${BRANCH:-main}"
 cd "$APP_DIR"
 
 if [ "${1:-}" != "--no-pull" ]; then
