@@ -132,6 +132,6 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 
 ## 9. Housekeeping
 - [ ] Update `docs/HANDOFF_NEXT_TASKS.md` (out of date)
-- [ ] Merge the Codex branch `codex/scistudio-design` when ready (check conflicts, run tests)
+- [x] Merge the Codex branch `codex/scistudio-design` (merged into main and deleted 2026-11-22)
 - [ ] Clean up files attached to submission forms that were never submitted
 - [ ] 💡 Demo video with sound, polished deck
