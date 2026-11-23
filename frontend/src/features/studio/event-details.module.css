@@ -25,3 +25,13 @@
 .picker label span { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .picker small { color: var(--muted, #6b7280); white-space: nowrap; }
 @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } .start { flex-direction: column; align-items: flex-start; } }
+
+/* Invited speakers (private shortlist from the collector) */
+.invited { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line, #e5e7eb); }
+.invitedList { list-style: none; margin: 12px 0 0; padding: 0; display: grid; gap: 8px; }
+.invitedList li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px 14px; border: 1px solid var(--line, #e5e7eb); border-radius: 12px; }
+.invitedList div { display: grid; gap: 2px; min-width: 0; }
+.invitedList small { color: var(--muted, #6b7280); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.invitedList button { padding: 4px 10px; font-size: 12px; }
+.onSite { font-size: 12px; color: #15803d; font-weight: 600; }
+@media (max-width: 700px) { .invitedList li { grid-template-columns: 1fr auto; } .invitedList div { grid-column: 1 / -1; } }

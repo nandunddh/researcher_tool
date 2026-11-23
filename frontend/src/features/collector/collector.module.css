@@ -219,3 +219,10 @@ th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn spa
   .savedRow { grid-template-columns: 1fr auto; }
   .savedInfo { grid-column: 1 / -1; }
 }
+
+/* Add to event dialog */
+.dialogBody { display: grid; gap: 12px; min-width: min(420px, 80vw); }
+.dialogBody p { margin: 0; }
+.dialogBody .field select { width: 100%; }
+.dialogActions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
+.dialogActions a { display: inline-flex; align-items: center; text-decoration: none; }

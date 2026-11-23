@@ -48,21 +48,25 @@ class CheckRequest(BaseModel):
     after: str = Field(default="", max_length=320)
 
 
+def collector_owner_key(user):
+    """The archive a signed-in user collects into: their workspace (owner email) or root's. Members have none."""
+    if user.get("is_member"):
+        raise HTTPException(403, "Collector access requires a workspace owner.")
+    email = (user.get("client_email") or "").strip().lower()
+    if user.get("is_admin"):
+        return "admin:" + (email or "root")
+    if not email:
+        raise HTTPException(403, "Workspace identity unavailable.")
+    return "owner:" + email
+
+
 def collector_router(require_user, licenses):
     router = APIRouter(prefix="/api/collector")
     batch_limit = FormRateLimit(limit=60, seconds=60)
     limit_lock = Lock()
 
     def owner(request: Request):
-        user = require_user(request)
-        if user.get("is_member"):
-            raise HTTPException(403, "Collector access requires a workspace owner.")
-        email = (user.get("client_email") or "").strip().lower()
-        if user.get("is_admin"):
-            return "admin:" + (email or "root")
-        if not email:
-            raise HTTPException(403, "Workspace identity unavailable.")
-        return "owner:" + email
+        return collector_owner_key(require_user(request))
 
     @router.post("/contacts/check")
     def check_contacts(body: CheckRequest = CheckRequest(), key: str = Depends(owner)):

@@ -30,8 +30,9 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] 🧪 Manage collections: rename, run again, delete
 - [x] Email discovery matched to the author's name (ORCID, Crossref, Europe PMC), format check
 - [x] Web collector checks mail domains, flags role and disposable addresses, and shows delivery status in the leads table and CSV. Owners can recheck existing contacts.
-- [ ] 💡 Mailbox check (SMTP) via a paid API (ZeroBounce/NeverBounce), never from our mail server
-- [ ] 💡 Send selected researchers to SciStudio (invite as speakers, email a call for abstracts)
+- [ ] ⏸ PENDING (decide later): Mailbox check (SMTP) via a paid API (ZeroBounce/NeverBounce), never from our mail server
+- [x] Send selected researchers to SciStudio: private "Invited speakers" shortlist per event (Leads Explorer → Add to event; Event details → Speakers → Add to website). Nothing is public or emailed until the organiser adds a person
+- [ ] ⏸ PENDING (needs unsubscribe link, per-person sending and a legal check): email an invitation or call for abstracts to shortlisted researchers
 
 ## A3. Desktop app (to retire)
 - [x] Desktop app with auto-update (check, download, install)

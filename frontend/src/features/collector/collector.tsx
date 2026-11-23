@@ -4,6 +4,7 @@ import { api, ApiError } from "@/lib/api";
 import { Icon } from "@/components/icon";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SavedSearches } from "./saved-searches";
+import { AddToEvent } from "./add-to-event";
 import styles from "./collector.module.css";
 
 // Countries researchers most often publish from; codes are ISO 3166-1 (OpenAlex institution country).
@@ -59,14 +60,14 @@ export function CollectorApp({ namespace, userName, tier, kind = "publications" 
           <div className={styles.headTitle}><span><Icon name="grid" size={18} /></span><div><h1>{nih ? "NIH Grant PIs" : "Dashboard"}</h1><small>{nih ? "NIH-funded investigators" : "Research workspace"}</small></div></div>
           <div className={styles.user}><span className={styles.avatar}><Icon name="user" size={16} /></span><strong>{userName}</strong><em>{tier === "pro" ? "PRO" : "TRIAL"}</em></div>
         </header>
-        <main className={styles.main} id="top"><Collector kind={kind} /></main>
+        <main className={styles.main} id="top"><Collector kind={kind} namespace={namespace} /></main>
         <footer className={styles.footer}><span><i />SciProspect &amp; SciStudio · Cloud Database Connected</span><span>© {new Date().getFullYear()} SciProspect</span></footer>
       </div>
     </div>
   );
 }
 
-export function Collector({ kind = "publications" }: { kind?: Kind }) {
+export function Collector({ kind = "publications", namespace = "client" }: { kind?: Kind; namespace?: string }) {
   const nih = kind === "nih";
   const [runs,setRuns] = useState<Run[]>([]);
   const [selected,select] = useState("");
@@ -91,6 +92,7 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [stats, setStats] = useState<Stats | null>(null);
   const [savedRev, setSavedRev] = useState(0);
+  const [addingToEvent, setAddingToEvent] = useState(false);
   const [savedNote, setSavedNote] = useState("");
   const [log, setLog] = useState<LogLine[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -414,6 +416,7 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
         <span>{picked.size ? `${picked.size} selected` : `${pageRows.length} on this page`}</span>
         <button type="button" className={styles.ghost} onClick={() => void copyEmails()} disabled={!pageRows.length}>Copy emails</button>
         <button type="button" className={styles.ghost} onClick={exportSelected} disabled={!pageRows.length}>{picked.size ? "Export selected" : "Export this page"}</button>
+        <button type="button" className={styles.ghost} onClick={() => setAddingToEvent(true)} disabled={!pageRows.length} title="Add to an event's private Invited speakers list in SciStudio">Add to event</button>
         {picked.size > 0 && <button type="button" className={styles.linkBtn} onClick={() => setPicked(new Set())}>Clear selection</button>}
         {copied && <em role="status">{copied}</em>}
       </div>
@@ -434,6 +437,7 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
           {pageRows.length===0 && <tr><td colSpan={7} className={styles.empty}>{query || deliveryFilter ? "No leads match your search or filter." : "No contacts to show."}</td></tr>}</tbody></table></div>
       {(offset>0 || rows.length>pageSize) && <div className={styles.pager}><button className={styles.ghost} disabled={!offset} onClick={()=>setOffset(v=>Math.max(0, v-pageSize))}>← Previous</button><span>Page {Math.floor(offset/pageSize)+1}</span><button className={styles.ghost} disabled={rows.length<=pageSize} onClick={()=>setOffset(v=>v+pageSize)}>Next →</button></div>}
     </section>}
+    {addingToEvent && <AddToEvent emails={chosenRows().map(r => r.professional_email)} namespace={namespace} onClose={() => setAddingToEvent(false)} />}
     {deleting && <ConfirmDialog title="Delete this collection?" label="Delete collection" busy={false}
       description={`“${deleting.topic}” will be removed from Datasets. Its ${deleting.collected} contacts stay in All contacts.`}
       onCancel={() => setDeleting(null)} onConfirm={() => void removeRun(deleting)} />}

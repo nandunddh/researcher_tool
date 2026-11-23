@@ -117,6 +117,16 @@ def _csv(rows):
     return stream.getvalue().encode("utf-8-sig")
 
 
+def contacts_by_email(owner, emails):
+    """The workspace's own archive records for these addresses (others are ignored)."""
+    wanted = sorted({str(e).strip().lower() for e in emails if str(e).strip()})[:200]
+    if not wanted:
+        return []
+    with db.transaction() as cur:
+        cur.execute("SELECT record FROM collector_contacts WHERE owner_key=%s AND email = ANY(%s)", (owner, wanted))
+        return [row[0] for row in cur]
+
+
 def all_contacts_csv(owner):
     return _csv(all_contacts(owner))
 

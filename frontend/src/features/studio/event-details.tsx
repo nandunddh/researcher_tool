@@ -5,6 +5,7 @@ import { setSectionField, type EditorSite } from "./editor-model";
 import type { Section } from "./document";
 import { uploadImage } from "./media";
 import { PriceGrid, PriceInput } from "./registration-prices";
+import { InvitedSpeakers } from "./invited-speakers";
 import { currentPeriod, priceIn } from "./registration-pricing";
 import styles from "./event-details.module.css";
 
@@ -211,6 +212,8 @@ export function EventDetailsDialog({ site, initialTab = "basics", readOnly, chan
             fields={[{ key: "photo", label: "Photo", kind: "image", wide: true }, { key: "name", label: "Name", kind: "text" }, { key: "role", label: "Role / talk", kind: "text" },
               { key: "affiliation", label: "Organization", kind: "text" }, { key: "keynote", label: "Keynote speaker", kind: "toggle" }, { key: "bio", label: "Short bio", kind: "textarea", wide: true }]}
             newItem={() => ({ id: uid("spk"), name: "New speaker", role: "", affiliation: "", photo: "", bio: "", keynote: false })} />
+          <InvitedSpeakers siteId={site.site_id} speakers={list("speakers")} readOnly={readOnly} onError={onError}
+            onAdd={speaker => setList("speakers")([...list("speakers"), { id: uid("spk"), role: "", photo: "", bio: "", keynote: false, ...speaker }])} />
         </div>
       )}
     </Modal>

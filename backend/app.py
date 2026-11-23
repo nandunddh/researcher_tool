@@ -5,12 +5,8 @@ FastAPI backend for SciProspect Scientific Lead Prospecting & Outreach Suite.
 Supports both Unrestricted Full Production Mode and Evaluation Trial Mode.
 """
 
-import asyncio
-import csv
-import json
 import os
 import re
-import subprocess
 import sys
 import threading
 from urllib.parse import quote, unquote
@@ -23,12 +19,11 @@ from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse, HTMLResponse, Response, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 
-import requests
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from app_config import get_data_dir, set_data_dir
+from app_config import get_data_dir
 from public_site import FormRateLimit, published_page
 sys.path.append(str(Path(__file__).resolve().parent / "collector_sources"))  # web collector scripts
 from license_manager import license_engine, sanitize_member
@@ -1191,6 +1186,9 @@ async def client_overview(request: Request):
 # SciStudio Website Builder Module Endpoints (/api/builder)
 # -----------------------------------------------------------------------------
 from builder_manager import builder_engine
+import collector_archive
+import event_shortlist
+from collector_routes import collector_owner_key
 from conference_manager import conference_engine
 
 def _require_scistudio_access(user: dict):
@@ -1500,6 +1498,41 @@ async def builder_update_site(site_id: str, request: Request):
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok", "message": msg, "site": site}
+
+
+# ---------- Invited speakers: a private shortlist per event website ----------
+@app.get("/api/builder/sites/{site_id}/shortlist")
+async def builder_shortlist(site_id: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user)
+    return {"invited": event_shortlist.listing(site_id)}
+
+
+@app.post("/api/builder/sites/{site_id}/shortlist")
+async def builder_shortlist_add(site_id: str, request: Request):
+    """Adds researchers from the caller's collector archive to the site's private shortlist (not shown on the website)."""
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user, "edit")
+    key = collector_owner_key(user)
+    body = await request.json()
+    emails = body.get("emails") if isinstance(body, dict) else None
+    if not isinstance(emails, list) or not emails or not all(isinstance(e, str) for e in emails) or len(emails) > event_shortlist.MAX_PER_REQUEST:
+        raise HTTPException(status_code=400, detail=f"Send between 1 and {event_shortlist.MAX_PER_REQUEST} email addresses.")
+    contacts = collector_archive.contacts_by_email(key, emails)
+    added = event_shortlist.add(site_id, contacts)
+    return {"added": added, "already_listed": len(contacts) - added, "not_found": len({e.strip().lower() for e in emails}) - len(contacts)}
+
+
+@app.delete("/api/builder/sites/{site_id}/shortlist/{email}")
+async def builder_shortlist_remove(site_id: str, email: str, request: Request):
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user, "edit")
+    if not event_shortlist.remove(site_id, email):
+        raise HTTPException(status_code=404, detail="That researcher is not on the shortlist.")
+    return {"status": "ok"}
 
 
 @app.patch("/api/builder/sites/{site_id}/conference")
