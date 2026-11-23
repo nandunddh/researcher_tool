@@ -35,6 +35,7 @@ def collect(keyword, target=100, min_score=50, from_date='2025-01-01', to_date=N
     errors = []
     sources = sources if sources is not None else [
         ('OpenAlex', lambda **kw: load_source('03_unified_lead_pipeline.py')(**kw)),
+        ('PubMed', lambda **kw: load_source('07_extract_pubmed_researchers.py')(**kw)),
         ('bioRxiv', lambda **kw: load_source('06_extract_biorxiv_researchers.py')(**kw)),
     ]
     for name, run in sources:

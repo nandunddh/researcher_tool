@@ -15,7 +15,7 @@ import db
 import email_check
 
 log = logging.getLogger(__name__)
-SOURCES = (("OpenAlex", "03_unified_lead_pipeline.py"), ("bioRxiv", "06_extract_biorxiv_researchers.py"))
+SOURCES = (("OpenAlex", "03_unified_lead_pipeline.py"), ("PubMed", "07_extract_pubmed_researchers.py"), ("bioRxiv", "06_extract_biorxiv_researchers.py"))
 NIH_SOURCES = (("NIH RePORTER", "04_extract_nih_researchers.py"),)
 COUNTRY_SOURCES = {"OpenAlex", "NIH RePORTER"}  # sources that know the institution country
 COLUMNS = "id,kind,topic,target,min_score,from_date,to_date,country,institution,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at"

@@ -19,7 +19,8 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] NIH Grant PIs in the web collector (/{namespace}/collector/nih)
 - [x] Collected data stored in PostgreSQL (runs, contacts, evidence, results)
 - [x] Saved searches and scheduled runs (daily or weekly; scheduler runs only where SCIPROSPECT_SCHEDULER=on)
-- [ ] 💡 More sources (e.g. PubMed, Crossref)
+- [x] PubMed source (author emails printed in the record's own affiliation)
+- [ ] 💡 More sources (e.g. Crossref)
 
 ## A2. Leads
 - [x] Leads list, CSV export

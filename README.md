@@ -14,7 +14,7 @@ researcher_tool/
 │   ├── app.py                # API routes
 │   ├── collector_routes.py   # /api/collector (runs, contacts, export)
 │   ├── collector_archive.py  # collector storage in PostgreSQL
-│   ├── collector_sources/    # source scripts the collector runs (OpenAlex, bioRxiv, NIH, ...)
+│   ├── collector_sources/    # source scripts the collector runs (OpenAlex, PubMed, bioRxiv, NIH)
 │   ├── migrations/           # SQL migrations, applied at startup
 │   └── ...
 ├── tests/                    # Python tests

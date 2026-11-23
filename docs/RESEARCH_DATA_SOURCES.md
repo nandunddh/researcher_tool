@@ -14,8 +14,8 @@ This catalog outlines all 21 verified scientific databases, preprint servers, an
 | **3** | **Crossref REST API** | `ACTIVE (02)` | Peer-Reviewed Journals (ACS, RSC, Wiley, Elsevier) | 150M+ | Polite pool (Free email header) | Official corresponding author contact from publishers |
 | **4** | **Europe PMC** | `ACTIVE (02)` | Biology, Chemistry, Medicine | 45M+ | Unlimited (No key needed) | Full-text XML manuscript author emails |
 | **5** | **bioRxiv / medRxiv** | `ACTIVE (Script)` | Cell Biology, Cancer, Genetics, COVID | 3M+ | Free public API | Fresh preprints weeks before peer-reviewed publication |
-| **6** | **PubMed / NCBI** | `CAN ADD` | Medicine, Clinical Trials, Pharma, Oncology | 36M+ | 10 / sec (Free instant API key) | Extremely high email density in author affiliations |
-| **7** | **NIH RePORTER** | `CAN ADD` | Biomedical, Chemistry, Biotech, Health Grants | $30B+ in Grants | 100% Free (`api.reporter.nih.gov`) | Gives direct Principal Investigator (PI) emails with active grant money! |
+| **6** | **PubMed / NCBI** | `ACTIVE (07)` | Medicine, Clinical Trials, Pharma, Oncology | 36M+ | 10 / sec (Free instant API key) | Extremely high email density in author affiliations |
+| **7** | **NIH RePORTER** | `ACTIVE (04)` | Biomedical, Chemistry, Biotech, Health Grants | $30B+ in Grants | 100% Free (`api.reporter.nih.gov`) | Gives direct Principal Investigator (PI) emails with active grant money! |
 | **8** | **ClinicalTrials.gov** | `CAN ADD` | Clinical Medicine, Oncology, Vaccines, Pharma | 450k+ Trials | 100% Free REST API (v2) | Contains direct Study Director emails and phone numbers |
 | **9** | **ChemRxiv** | `CAN ADD` | Physical Chemistry, Organic, Polymers, Nano | 250k+ | Free public API (No key needed) | Dedicated pure chemistry preprints from ACS & RSC |
 | **10** | **ScienceDirect** | `CAN ADD` | Materials, Chemical Physics, Energy, Engineering | 19M+ | Free API key (`dev.elsevier.com`) | Official correspondence records directly from Elsevier journals |

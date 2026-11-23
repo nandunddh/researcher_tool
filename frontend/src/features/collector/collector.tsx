@@ -301,7 +301,7 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
 
     <div className={styles.grid}>
       <form className={styles.card} onSubmit={start} ref={formRef}>
-        <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>{nih ? "NIH RePORTER" : "OpenAlex + bioRxiv"}</span></div>
+        <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>{nih ? "NIH RePORTER" : "OpenAlex + PubMed + bioRxiv"}</span></div>
         <h3>{nih ? "Which NIH-funded researchers?" : "Who are you looking for?"}</h3>
         <p className={styles.muted}>{nih ? "Find principal investigators with NIH grants on a topic. We find their public email from their papers and ORCID." : "Find research contacts by topic. We take care of discovery, enrichment and duplicates."}</p>
         <fieldset disabled={loading || busy || !!active}>
@@ -320,7 +320,7 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
               {!nih && <label>Country<select name="country" defaultValue=""><option value="">Any country</option>{COUNTRIES.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</select></label>}
               <label>Institution<input name="institution" placeholder="e.g. Stanford, Max Planck" maxLength={120} /></label>
             </div>
-            <p className={styles.filterNote}>{nih ? "Grants from the fiscal years these dates cover (up to the last 5). Institution matches the grantee organisation." : "Country uses OpenAlex only (bioRxiv has no country data). Institution matches the researcher’s affiliation."}</p>
+            <p className={styles.filterNote}>{nih ? "Grants from the fiscal years these dates cover (up to the last 5). Institution matches the grantee organisation." : "Country uses OpenAlex only (PubMed and bioRxiv have no country data). Institution matches the researcher’s affiliation."}</p>
           </details>
           {!active && <button type="submit" className={styles.go} disabled={left === 0 || overLimit}>{busy ? "Starting…" : left === 0 ? "Daily limit reached" : `Collect ${target.toLocaleString()} contacts`}</button>}
           {!active && <button type="button" className={styles.saveSearch} onClick={() => void saveSearch()}>Save this search</button>}
