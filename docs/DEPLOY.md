@@ -25,6 +25,7 @@ Migrations only add columns, so older code keeps working with the newer database
 2. **Code:** `git clone https://github.com/nandunddh/researcher_tool.git ~/researcher_tool`.
 3. **Settings:** copy your `backend/.env` from your PC to `~/researcher_tool/backend/.env` (with `scp`, never through git).
    On the server also set `SCIPROSPECT_APP_URL=https://your-domain.com`.
+   Also add `SCIPROSPECT_SCHEDULER=on` there: it turns on scheduled collector searches. Leave it off on your PC, because your PC shares the same database and would run production jobs.
 4. **Services:**
    ```bash
    sudo cp ~/researcher_tool/deploy/sciprospect-*.service /etc/systemd/system/

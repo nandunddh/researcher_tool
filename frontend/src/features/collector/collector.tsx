@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Icon } from "@/components/icon";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { SavedSearches } from "./saved-searches";
 import styles from "./collector.module.css";
 
 // Countries researchers most often publish from; codes are ISO 3166-1 (OpenAlex institution country).
@@ -89,6 +90,8 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
   const [deleting, setDeleting] = useState<Run | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [savedRev, setSavedRev] = useState(0);
+  const [savedNote, setSavedNote] = useState("");
   const [log, setLog] = useState<LogLine[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [now, setNow] = useState(Date.now());
@@ -208,6 +211,21 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
       select(id); setRows([]); setOffset(0); refresh(v => v+1);
     } catch(e) {setError(message(e));} finally {setBusy(false);}
   }
+  async function saveSearch() {
+    const form = formRef.current;
+    if (!form) return;
+    if (!form.reportValidity()) return;
+    const data = new FormData(form);
+    setError(""); setSavedNote("");
+    try {
+      await api("/api/collector/searches", { method:"POST", body:JSON.stringify({
+        topic:data.get("topic"), target, min_score:Number(data.get("score")), from_date:data.get("from"), to_date:data.get("to"),
+        country:data.get("country") ?? "", institution:data.get("institution") ?? "", kind,
+      })});
+      setSavedRev(v => v + 1);
+      setSavedNote(`Saved "${String(data.get("topic")).trim()}". Run it again or schedule it under Saved searches.`);
+    } catch (e) { setError(message(e)); }
+  }
   async function stop() {
     if (!active) return;
     setBusy(true); setError("");
@@ -305,6 +323,8 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
             <p className={styles.filterNote}>{nih ? "Grants from the fiscal years these dates cover (up to the last 5). Institution matches the grantee organisation." : "Country uses OpenAlex only (bioRxiv has no country data). Institution matches the researcher’s affiliation."}</p>
           </details>
           {!active && <button type="submit" className={styles.go} disabled={left === 0 || overLimit}>{busy ? "Starting…" : left === 0 ? "Daily limit reached" : `Collect ${target.toLocaleString()} contacts`}</button>}
+          {!active && <button type="button" className={styles.saveSearch} onClick={() => void saveSearch()}>Save this search</button>}
+          {savedNote && <p className={styles.savedNote} role="status">{savedNote}</p>}
           {!active && overLimit && left !== 0 && <p className={styles.limitNote}>You can collect {left} more contacts today. <button type="button" className={styles.linkBtn} onClick={() => setTarget(left!)}>Use {left}</button></p>}
           {!active && left === 0 && <p className={styles.limitNote}>It resets at midnight (UTC). <a href="/billing">Upgrade your plan</a> for unlimited collection.</p>}
         </fieldset>
@@ -338,6 +358,10 @@ export function Collector({ kind = "publications" }: { kind?: Kind }) {
         <div className={styles.monFoot}><span>{log.length} lines</span><span>Duration: {mmss(elapsed)}</span></div>
       </aside>
     </div>
+
+    <SavedSearches kind={kind} revision={savedRev + revision} busy={!!active || busy}
+      onStarted={runId => { setSavedNote(""); select(runId); setRows([]); setOffset(0); refresh(v => v + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+      onError={setError} />
 
     <section className={styles.card} id="datasets">
       <div className={styles.cardTop}><h3 className={styles.h3}>Datasets Archive</h3>

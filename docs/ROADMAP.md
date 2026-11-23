@@ -18,7 +18,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Search filters: country and institution (topic, years and score exist)
 - [x] NIH Grant PIs in the web collector (/{namespace}/collector/nih)
 - [x] Collected data stored in PostgreSQL (runs, contacts, evidence, results)
-- [ ] 💡 Saved searches and scheduled runs
+- [x] Saved searches and scheduled runs (daily or weekly; scheduler runs only where SCIPROSPECT_SCHEDULER=on)
 - [ ] 💡 More sources (e.g. PubMed, Crossref)
 
 ## A2. Leads
