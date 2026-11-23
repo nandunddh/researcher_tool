@@ -205,3 +205,19 @@
 .stat-card small a{color:#5a45d6;font-weight:700;text-decoration:none}
 .stat-card small a:hover{text-decoration:underline}
 .badge.status-active{background:#e7f6ef;color:#067647}
+
+/* Password field with Show/Hide in light workspace dialogs (the dark sign-in screens use .input-wrapper.password-wrapper) */
+.password-field{position:relative;display:flex;align-items:center;width:100%}
+.password-field input{width:100%;padding-right:48px}
+.password-field .password-toggle-btn{background:#f3f4f6;border-color:#d1d5db;color:#475569}
+.password-field .password-toggle-btn:hover{background:#e5e7eb;border-color:#9ca3af;color:#0f172a}
+
+/* One-time codes as separate digit boxes (CodeInput) */
+.code-label{display:block;margin-bottom:8px;font-size:13px;font-weight:600;color:#d4d4d8}
+.code-boxes{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;width:100%}
+.code-boxes input:not([type=hidden]){width:100%;min-width:0;height:56px;padding:0;text-align:center;font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;color:#f4f4f5;background:#0c0c0e;border:1px solid rgba(255,255,255,.12);border-radius:10px;caret-color:#c8ff4d;transition:border-color .15s,box-shadow .15s}
+.code-boxes input:not([type=hidden]):focus{outline:none;border-color:#c8ff4d;box-shadow:0 0 0 3px rgba(200,255,77,.18);background:#0e1728}
+.code-boxes input:not([type=hidden]):disabled{opacity:.6}
+.code-boxes[data-invalid] input:not([type=hidden]){border-color:#e5484d}
+.code-status{margin:14px 0 0;text-align:center;font-size:13px;color:#a1a1aa}
+@media (max-width:420px){.code-boxes{gap:6px}.code-boxes input:not([type=hidden]){height:48px;font-size:20px}}

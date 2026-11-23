@@ -1,6 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
+import { CodeInput } from "@/components/code-input";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 
 /** Where to go after setup (e.g. checkout chosen at sign-up). Stored for this tab only, so URLs stay clean. */
@@ -10,6 +11,7 @@ export const AFTER_SETUP_KEY = "sciprospect:after-setup";
 export function SetupTwoStep({ workspace, email }: { workspace: string; email: string }) {
   const [setup, setSetup] = useState<{ secret: string; qr: string } | null>(null);
   const [codes, setCodes] = useState<string[]>([]);
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
@@ -20,14 +22,13 @@ export function SetupTwoStep({ workspace, email }: { workspace: string; email: s
     catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); }
     finally { setBusy(false); }
   }
-  async function confirm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const code = String(new FormData(event.currentTarget).get("code") ?? "").trim();
+  /** Runs by itself when the last digit is entered. */
+  async function confirm(code: string) {
     setBusy(true); setError("");
     try {
       const result = await api<{ backup_codes: string[] }>("/api/auth/mfa/enable", { method: "POST", body: JSON.stringify({ code }) });
       setCodes(result.backup_codes);
-    } catch (e) { setError(e instanceof Error ? e.message : "That code didn't work."); }
+    } catch (e) { setError(e instanceof Error ? e.message : "That code didn't work."); setCode(""); }
     finally { setBusy(false); }
   }
   function download() {
@@ -70,14 +71,14 @@ export function SetupTwoStep({ workspace, email }: { workspace: string; email: s
         )}
 
         {step === 2 && setup && (
-          <form onSubmit={confirm} noValidate>
+          <form onSubmit={e => e.preventDefault()} noValidate>
             <img src={setup.qr} alt="QR code for your authenticator app" width={196} height={196} style={{ display: "block", margin: "22px auto 10px", background: "#fff", borderRadius: 12, padding: 6 }} />
             <p style={{ fontSize: 12.5, color: "#a1a1aa", textAlign: "center", margin: "0 0 18px" }}>Can&apos;t scan? Choose “Enter a setup key” and type:<br /><code style={{ color: "#f4f4f5", wordBreak: "break-all" }}>{setup.secret}</code></p>
             <div className="form-group">
-              <label htmlFor="mfa-setup-code">6-digit code from the app</label>
-              <div className="input-wrapper"><input id="mfa-setup-code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required autoFocus placeholder="123456" /></div>
+              <span className="code-label">6-digit code from the app</span>
+              <CodeInput value={code} onChange={setCode} onComplete={confirm} autoFocus disabled={busy} invalid={!!error} label="6-digit code from the app" />
             </div>
-            <button className="primary login-submit" type="submit" style={{ width: "100%" }} disabled={busy}>{busy ? "Checking…" : "Turn on two-step sign-in"}</button>
+            <p className="code-status" role="status" aria-live="polite">{busy ? "Turning on two-step sign-in…" : "Two-step sign-in turns on as soon as you enter the last digit."}</p>
           </form>
         )}
 

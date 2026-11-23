@@ -2,6 +2,7 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import styles from "./billing.module.css";
 
 type Plan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> };
@@ -43,6 +44,7 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
+  const [confirming, setConfirming] = useState<"cancel" | "downgrade" | null>(null);
   useEffect(() => {
     try { const saved = sessionStorage.getItem(NOTICE_KEY); if (saved) { setNotice(saved); sessionStorage.removeItem(NOTICE_KEY); } } catch { /* private mode */ }
   }, []);
@@ -93,7 +95,7 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
               </div>
               {active && (sub?.cancel_at_period_end
                 ? <button type="button" className={styles.primary} disabled={!!busy} onClick={() => void cancel(true)}>Keep my plan</button>
-                : <button type="button" className={styles.danger} disabled={!!busy} onClick={() => { if (window.confirm("Cancel your subscription? You keep your plan until the end of the period.")) void cancel(false); }}>Cancel subscription</button>)}
+                : <button type="button" className={styles.danger} disabled={!!busy} onClick={() => setConfirming("cancel")}>Cancel subscription</button>)}
             </div>
           </section>
 
@@ -107,14 +109,14 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
                     <h3>{p.name}</h3>
                     <div className={styles.price}>{p.price_month > 0 ? money(p.price_month) : "Free"}{p.price_month > 0 && <small> / month</small>}</div>
                     <ul>
-                      <li>{unlimited(p.limits.websites)} websites, {unlimited(p.limits.pages)} pages each</li>
+                      <li>{unlimited(p.limits.websites)} website{p.limits.websites === 1 ? "" : "s"}, {unlimited(p.limits.pages)} page{p.limits.pages === 1 ? "" : "s"} each</li>
                       <li>{Number(p.limits.members) === 0 ? "Just you" : `${unlimited(p.limits.members)} team members`}</li>
                       <li>{Number(p.limits.submissions_month) < 0 ? "Unlimited form submissions" : `${p.limits.submissions_month} form submissions / month`}</li>
                     </ul>
                     {current ? <button type="button" className={styles.secondary} disabled>Current plan</button>
                       : p.price_month > 0
                         ? <button type="button" className={styles.primary} disabled={!!busy} onClick={() => void choose(p)}>{busy === p.id ? "Opening…" : active ? `Switch to ${p.name}` : `Upgrade to ${p.name}`}</button>
-                        : active ? <button type="button" className={styles.secondary} disabled={!!busy || sub?.cancel_at_period_end} onClick={() => { if (window.confirm("Move to Free at the end of this period?")) void cancel(false); }}>{sub?.cancel_at_period_end ? "Scheduled" : "Downgrade to Free"}</button>
+                        : active ? <button type="button" className={styles.secondary} disabled={!!busy || sub?.cancel_at_period_end} onClick={() => setConfirming("downgrade")}>{sub?.cancel_at_period_end ? "Scheduled" : "Downgrade to Free"}</button>
                           : null}
                   </article>
                 );
@@ -135,6 +137,18 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
             ) : <p className={styles.muted}>No invoices yet.</p>}
           </section>
         </>}
+        {confirming && (
+          <ConfirmDialog
+            title={confirming === "cancel" ? "Cancel your subscription?" : "Move to Free?"}
+            description={confirming === "cancel"
+              ? `You keep your plan until ${day(sub?.current_period_end)}. After that you move to Free, and you can upgrade again at any time.`
+              : `Your plan stays active until ${day(sub?.current_period_end)}. After that you move to Free.`}
+            label={confirming === "cancel" ? "Cancel subscription" : "Move to Free"}
+            busy={busy === "cancel"}
+            onCancel={() => setConfirming(null)}
+            onConfirm={() => { setConfirming(null); void cancel(false); }}
+          />
+        )}
       </main>
     </Shell>
   );

@@ -1,6 +1,7 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import { toast } from "react-toastify";
+import { PasswordInput } from "@/components/password-input";
 import { createAccount } from "./requests";
 import { AdminShell } from "./shell";
 
@@ -50,7 +51,7 @@ export function AddAccount() {
           </label>
           <label>
             Password (optional)
-            <input name="password" type="password" autoComplete="new-password" />
+            <PasswordInput name="password" autoComplete="new-password" />
           </label>
           {kind === "org" && (
             <>

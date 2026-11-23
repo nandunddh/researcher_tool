@@ -2,6 +2,8 @@
 import { useState, type FormEvent } from "react";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
+import { CodeInput } from "@/components/code-input";
+import { PasswordInput } from "@/components/password-input";
 import type { Session } from "@/lib/contracts";
 import { Icon } from "@/components/icon";
 
@@ -17,7 +19,10 @@ export function Login({ returnPath }: { returnPath: string | null }) {
   // Form input states
   const [email, setEmail] = useState("");
   const [codeSent, setCodeSent] = useState(false);
+  const [resetCode, setResetCode] = useState("");
   const [mfaToken, setMfaToken] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [useBackup, setUseBackup] = useState(false);
 
   async function finishSignIn() {
     const current = await api<Session>("/api/auth/me");
@@ -70,9 +75,8 @@ export function Login({ returnPath }: { returnPath: string | null }) {
     }
   }
 
-  async function handleMfa(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const code = String(new FormData(event.currentTarget).get("code") ?? "").trim();
+  /** Runs by itself when the 6th digit is entered (authenticator code), or on submit for a backup code. */
+  async function submitMfa(code: string) {
     setBusy(true);
     setError("");
     try {
@@ -81,6 +85,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "That code didn't work.";
       setError(message);
+      setMfaCode("");
       if (/expired|again/i.test(message) && !/try again/i.test(message)) { setMode("login"); setMfaToken(""); }
       setBusy(false);
     }
@@ -205,17 +210,34 @@ export function Login({ returnPath }: { returnPath: string | null }) {
         )}
 
         {mode === "mfa" && (
-          <form onSubmit={handleMfa} noValidate>
-            <p style={{ marginTop: "1rem" }}>Open your authenticator app and enter the 6-digit code for SciProspect. Lost your phone? Use one of your backup codes.</p>
-            <div className="form-group">
-              <label htmlFor="mfa-code">Code</label>
-              <div className="input-wrapper">
-                <input id="mfa-code" name="code" inputMode="numeric" autoComplete="one-time-code" required autoFocus placeholder="123456" />
-              </div>
-            </div>
-            <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Checking…" : "Verify and sign in"}</button>
+          <form onSubmit={e => { e.preventDefault(); if (useBackup) void submitMfa(String(new FormData(e.currentTarget).get("code") ?? "").trim()); }} noValidate>
+            {useBackup ? (
+              <>
+                <p style={{ marginTop: "1rem" }}>Enter one of your backup codes. Each code works once.</p>
+                <div className="form-group">
+                  <label htmlFor="mfa-code">Backup code</label>
+                  <div className="input-wrapper">
+                    <input id="mfa-code" name="code" autoComplete="off" required autoFocus placeholder="1a2b3-c4d5e" />
+                  </div>
+                </div>
+                <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Checking…" : "Verify and sign in"}</button>
+              </>
+            ) : (
+              <>
+                <p style={{ marginTop: "1rem" }}>Open your authenticator app and enter the 6-digit code for SciProspect.</p>
+                <div className="form-group">
+                  <span className="code-label">6-digit code</span>
+                  <CodeInput value={mfaCode} onChange={setMfaCode} onComplete={submitMfa} autoFocus disabled={busy} invalid={!!error} />
+                </div>
+                <p className="code-status" role="status" aria-live="polite">{busy ? "Checking your code…" : "We check it as soon as you enter the last digit."}</p>
+              </>
+            )}
             <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
-              onClick={() => { setError(""); setMfaToken(""); setMode("login"); }}>
+              onClick={() => { setUseBackup(v => !v); setError(""); setMfaCode(""); }}>
+              {useBackup ? "Use my authenticator app instead" : "Lost your phone? Use a backup code"}
+            </button>
+            <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
+              onClick={() => { setError(""); setMfaToken(""); setMfaCode(""); setUseBackup(false); setMode("login"); }}>
               ← Back to sign in
             </button>
           </form>
@@ -224,22 +246,20 @@ export function Login({ returnPath }: { returnPath: string | null }) {
         {mode === "forgot" && codeSent && (
           <form onSubmit={handleNewPassword} noValidate>
             <div className="form-group">
-              <label htmlFor="reset-code">6-digit code</label>
-              <div className="input-wrapper">
-                <input id="reset-code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required placeholder="123456" />
-              </div>
+              <span className="code-label">6-digit code</span>
+              <CodeInput value={resetCode} onChange={setResetCode} autoFocus />
             </div>
             <div className="form-group">
               <label htmlFor="new-password">New password</label>
-              <div className="input-wrapper"><input id="new-password" name="password" type="password" autoComplete="new-password" required minLength={8} /></div>
+              <PasswordInput variant="auth" id="new-password" name="password" autoComplete="new-password" required minLength={8} />
             </div>
             <div className="form-group">
               <label htmlFor="repeat-password">Repeat new password</label>
-              <div className="input-wrapper"><input id="repeat-password" name="repeat" type="password" autoComplete="new-password" required minLength={8} /></div>
+              <PasswordInput variant="auth" id="repeat-password" name="repeat" autoComplete="new-password" required minLength={8} />
             </div>
             <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Saving…" : "Save new password"}</button>
             <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }}
-              onClick={() => { setError(""); setSuccess(""); setCodeSent(false); }}>
+              onClick={() => { setError(""); setSuccess(""); setCodeSent(false); setResetCode(""); }}>
               Didn't get it? Send a new code
             </button>
           </form>

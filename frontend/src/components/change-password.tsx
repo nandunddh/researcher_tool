@@ -2,6 +2,7 @@
 import { useState, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { Modal } from "./modal";
+import { PasswordInput } from "./password-input";
 
 /** Change your own password: current password, then the new one twice. */
 export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
@@ -43,9 +44,9 @@ export function ChangePasswordDialog({ onClose }: { onClose: () => void }) {
       ) : (
         <form onSubmit={submit} noValidate>
           {error && <p role="alert" className="alert">{error}</p>}
-          <label>Current password<input name="current" type="password" autoComplete="current-password" required autoFocus /></label>
-          <label>New password<input name="next" type="password" autoComplete="new-password" required minLength={8} /></label>
-          <label>Repeat new password<input name="repeat" type="password" autoComplete="new-password" required minLength={8} /></label>
+          <label>Current password<PasswordInput name="current" autoComplete="current-password" required autoFocus /></label>
+          <label>New password<PasswordInput name="next" autoComplete="new-password" required minLength={8} /></label>
+          <label>Repeat new password<PasswordInput name="repeat" autoComplete="new-password" required minLength={8} /></label>
           <p style={{ fontSize: 13, color: "var(--muted, #6b7280)" }}>At least 8 characters. You&apos;ll be signed out on your other devices.</p>
           <div className="modal-actions">
             <button type="button" disabled={busy} onClick={onClose}>Cancel</button>

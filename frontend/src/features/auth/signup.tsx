@@ -2,6 +2,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
+import { CodeInput } from "@/components/code-input";
+import { PasswordInput } from "@/components/password-input";
 import { AFTER_SETUP_KEY } from "./setup-two-step";
 
 type Plan = { id: string; name: string; price_month: number };
@@ -14,6 +16,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
   const [step, setStep] = useState<"details" | "code">("details");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
@@ -41,9 +44,8 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
     } finally { setBusy(false); }
   }
 
-  async function verify(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const code = String(new FormData(event.currentTarget).get("code") ?? "").trim();
+  /** Runs by itself when the last digit is entered. */
+  async function verify(code: string) {
     setBusy(true); setError("");
     try {
       const result = await api<{ signed_in?: boolean }>("/api/auth/signup/verify", { method: "POST", body: JSON.stringify({ email, code, password }) });
@@ -53,6 +55,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
       window.location.assign("/setup-2fa");
     } catch (e) {
       setError(e instanceof Error ? e.message : "That code didn't work.");
+      setCode("");
       setBusy(false);
     }
   }
@@ -79,7 +82,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
               <div className="input-wrapper">
                 <select id="su-plan" value={plan} onChange={e => setPlan(e.target.value)}>
                   {(plans.length ? plans : [{ id: plan, name: plan, price_month: 0 }]).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}{p.price_month > 0 ? ` · $${p.price_month}/month` : " · Free"}</option>
+                    <option key={p.id} value={p.id}>{p.name}{p.price_month > 0 ? ` · $${p.price_month} a month` : " · $0"}</option>
                   ))}
                 </select>
               </div>
@@ -107,7 +110,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
             </div>
             <div className="form-group">
               <label htmlFor="su-password">Password</label>
-              <div className="input-wrapper"><input id="su-password" type="password" autoComplete="new-password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" /></div>
+              <PasswordInput variant="auth" id="su-password" autoComplete="new-password" required minLength={8} value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 8 characters" />
             </div>
             <label style={{ flexDirection: "row", alignItems: "flex-start", gap: 8, fontSize: 13, fontWeight: 400 }}>
               <input type="checkbox" name="terms" style={{ marginTop: 3 }} /><span>I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer">terms of service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer">privacy policy</a>.</span>
@@ -116,13 +119,13 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
             <p style={{ textAlign: "center", marginTop: 16, fontSize: 14 }}>Already have an account? <a href="/login">Log in</a></p>
           </form>
         ) : (
-          <form onSubmit={verify} noValidate>
+          <form onSubmit={e => e.preventDefault()} noValidate>
             <div className="form-group">
-              <label htmlFor="su-code">6-digit code</label>
-              <div className="input-wrapper"><input id="su-code" name="code" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required autoFocus placeholder="123456" /></div>
+              <span className="code-label">6-digit code</span>
+              <CodeInput value={code} onChange={setCode} onComplete={verify} autoFocus disabled={busy} invalid={!!error} />
             </div>
-            <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Checking…" : "Verify and continue"}</button>
-            <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }} onClick={() => { setStep("details"); setError(""); }}>
+            <p className="code-status" role="status" aria-live="polite">{busy ? "Checking your code…" : "We check it as soon as you enter the last digit."}</p>
+            <button type="button" className="link-button" style={{ marginTop: "1rem", width: "100%" }} onClick={() => { setStep("details"); setError(""); setCode(""); }}>
               ← Change details or send a new code
             </button>
           </form>

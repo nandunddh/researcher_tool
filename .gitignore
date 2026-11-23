@@ -52,3 +52,6 @@ web/server-restart.*.log
 backend/licenses.json
 docs/login details.txt
 docs/login_details.txt
+
+# Local test accounts (never commit)
+*.local.txt

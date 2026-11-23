@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { Modal } from "@/components/modal";
+import { PasswordInput } from "@/components/password-input";
 import { Icon } from "@/components/icon";
 import { OrgShell } from "./shell";
 
@@ -441,7 +442,7 @@ export function OrgDashboard() {
               </label>
               <label>
                 Password (optional)
-                <input name="password" type="password" autoComplete="new-password" placeholder="Leave blank to set later" />
+                <PasswordInput name="password" autoComplete="new-password" placeholder="Leave blank to set later" />
               </label>
               <label className="inline-label">
                 <input type="checkbox" name="studio" defaultChecked />

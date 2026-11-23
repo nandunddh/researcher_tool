@@ -30,6 +30,12 @@ export function ClientDashboard() {
   const [data, setData] = useState<ClientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [planName, setPlanName] = useState("");
+
+  // The plan the customer chose (Free, Pro, …), the same name Billing shows; the license tier is only the fallback.
+  useEffect(() => {
+    api<{ plan: { name: string } | null }>("/api/billing").then(b => setPlanName(b.plan?.name ?? "")).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     api<ClientData>("/api/client/overview")
@@ -66,7 +72,7 @@ export function ClientDashboard() {
             <article className="stat-card">
               <span className="stat-label">Plan &amp; Status</span>
               <strong className="stat-value">
-                <span className="badge">{data.tier.toUpperCase()}</span>
+                <span className="badge">{(planName || data.tier).toUpperCase()}</span>
               </strong>
               <small>
                 Account:{" "}

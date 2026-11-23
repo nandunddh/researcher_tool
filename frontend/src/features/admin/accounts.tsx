@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { api } from "@/lib/api";
 import { Modal } from "@/components/modal";
+import { PasswordInput } from "@/components/password-input";
 import { updateAccount, matchesAccount } from "./requests";
 import { AdminShell } from "./shell";
 
@@ -506,11 +507,7 @@ export function ManageAccounts() {
                   </label>
                   <label>
                     Password (optional)
-                    <input
-                      name="password"
-                      type="password"
-                      autoComplete="new-password"
-                    />
+                    <PasswordInput name="password" autoComplete="new-password" />
                   </label>
                   <label className="inline-label">
                     <input type="checkbox" name="studio" defaultChecked />
