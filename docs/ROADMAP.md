@@ -20,6 +20,7 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] Collected data stored in PostgreSQL (runs, contacts, evidence, results)
 - [x] Saved searches and scheduled runs (daily or weekly; scheduler runs only where SCIPROSPECT_SCHEDULER=on)
 - [x] PubMed source (author emails printed in the record's own affiliation)
+- [ ] ⏸ PENDING (before launch): add a free OpenAlex API key (openalex.org/settings/api, $1/day = 1,000 searches) as `OPENALEX_API_KEY` in `backend/.env` on the PC and the server, then restart the backend. Without it every request shares a tiny no-key budget
 - [ ] 💡 More sources (e.g. Crossref)
 
 ## A2. Leads
