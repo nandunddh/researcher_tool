@@ -65,3 +65,31 @@ records, source evidence, page content, and form responses. Customers who connec
 
 Email-domain checks are included in every paid plan. For a mailbox-level check, select the addresses you want to verify and use
 prepaid credits. Unused credits carry forward. Checks that return an unknown result use zero credits.
+
+## Print tools (stage 2, not built yet)
+
+Program and badge generators sit inside SciStudio and use the same PDF engine. Limits are per event website. Proposed numbers, to
+confirm before building.
+
+### Event program (PDF)
+
+| | Basic | Pro | Ultra | Custom |
+|---|---|---|---|---|
+| Programs per event | 1 | 3 | Unlimited | Unlimited |
+| Templates | Starter set | All templates | All templates | All templates + your own |
+| Speaker photos | Yes | Yes | Yes | Yes |
+| Schedule from the event website | Yes | Yes | Yes | Yes |
+| PDF exports per month | 20 | 100 | Unlimited | Unlimited |
+
+### Badges and ID cards (PDF)
+
+| | Basic | Pro | Ultra | Custom |
+|---|---|---|---|---|
+| Badges per event | 200 | 1,000 | 5,000 | Custom |
+| Badge templates | Starter set | All templates | All templates | All templates + your own |
+| Role colour bands | Yes | Yes | Yes | Yes |
+| People from registrations or CSV | Yes | Yes | Yes | Yes |
+| QR code on each badge | Yes | Yes | Yes | Yes |
+| Bulk PDF (many cards per sheet) | Yes | Yes | Yes | Yes |
+
+Both are free during the 7-day trial with the trial's website limits. Certificates, the abstract book, and QR check-in come later.
