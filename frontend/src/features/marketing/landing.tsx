@@ -165,7 +165,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
         <section id="pricing" className={s.section}>
           <div className={s.wrap}>
             <div className={s.head} data-reveal=""><span className={s.kicker}>Pricing</span><h2>Simple plans that grow with you</h2><p>Start with a 7-day free trial. Change or cancel your plan at any time.</p></div>
-            <Pricing plans={plans} signedIn={!!signedInHref} />
+            <Pricing plans={plans} signedIn={!!signedInHref} compareHref="/pricing#comparison" />
             <p className={s.note}>Prices in USD. Running something bigger? <a href="mailto:hello@sciprospect.com">Talk to us</a>.</p>
           </div>
         </section>

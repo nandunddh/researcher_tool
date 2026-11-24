@@ -1,10 +1,10 @@
 "use client";
 import { useState } from "react";
-import { INTERVAL_KEY, planLines, priceFor, usd, yearlySaving, type Interval, type PublicPlan } from "@/lib/plans";
+import { INTERVAL_KEY, cardLines, priceFor, usd, yearlySaving, type Interval, type PublicPlan } from "@/lib/plans";
 import s from "./landing.module.css";
 
 /** The pricing section: a card-free 7-day trial, then Basic / Pro / Ultra (monthly or annual) and a contact-sales Custom plan. */
-export function Pricing({ plans, signedIn }: { plans: PublicPlan[]; signedIn: boolean }) {
+export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[]; signedIn: boolean; compareHref?: string }) {
   const [interval, setInterval] = useState<Interval>("month");
   const trial = plans.find(p => p.kind === "trial");
   const paid = plans.filter(p => p.kind === "paid");
@@ -43,7 +43,7 @@ export function Pricing({ plans, signedIn }: { plans: PublicPlan[]; signedIn: bo
               <h3>{p.name}</h3>
               <div className={s.price}>{usd(price)}<small> / {interval === "year" ? "year" : "month"}</small></div>
               <p className={s.priceNote}>{interval === "year" ? `Saves ${usd(yearlySaving(p))} a year` : `or ${usd(p.price_year)} a year`}</p>
-              <ul>{planLines(p).map(line => <li key={line}>{line}</li>)}</ul>
+              <ul>{cardLines(p).map(line => <li key={line}>{line}</li>)}</ul>
               <a className={p.id === popular ? s.btn : s.btnGhost} href={hrefFor(p)} onClick={choose}>Choose {p.name}</a>
             </article>
           );
@@ -53,11 +53,12 @@ export function Pricing({ plans, signedIn }: { plans: PublicPlan[]; signedIn: bo
             <h3>{custom.name}</h3>
             <div className={s.price}>Let&apos;s talk</div>
             <p className={s.priceNote}>Priced by quote</p>
-            <ul>{planLines(custom).map(line => <li key={line}>{line}</li>)}</ul>
+            <ul>{cardLines(custom).map(line => <li key={line}>{line}</li>)}</ul>
             <a className={s.btnGhost} href="mailto:hello@sciprospect.com?subject=SciProspect%20Custom%20plan">Contact sales</a>
           </article>
         )}
       </div>
+      {compareHref && <p className={s.jump}><a href={compareHref}>Compare all features ↓</a></p>}
     </>
   );
 }

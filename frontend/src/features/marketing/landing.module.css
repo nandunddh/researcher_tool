@@ -237,3 +237,32 @@
 .toggle button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
 .toggle em { padding: 2px 8px; border-radius: 999px; background: var(--lime); color: #0a0a0a; font-style: normal; font-size: 12px; font-weight: 700; }
 .priceNote { margin: -6px 0 0; font-size: 13.5px; color: var(--dim); }
+
+/* ---------- /pricing: compare table and add-ons ---------- */
+.jump { margin: 28px 0 0; text-align: center; font-size: 15px; }
+.jump a { color: var(--lime); font-weight: 600; text-decoration: none; }
+.jump a:hover { text-decoration: underline; }
+.compare { position: relative; z-index: 2; padding: 56px 0 8px; }
+.compare h2 { margin: 0 0 24px; font-family: var(--display); font-weight: 800; font-size: clamp(28px, 3.6vw, 44px); letter-spacing: -.04em; color: #fff; }
+.matrix { overflow: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); }
+.matrix:focus-visible { outline: 3px solid var(--lime); outline-offset: 3px; }
+.matrix table { width: 100%; min-width: 760px; border-collapse: collapse; text-align: left; font-size: 14.5px; table-layout: fixed; }
+.matrix caption { text-align: left; color: var(--dim); padding: 14px 20px; font-size: 13px; }
+.matrix th, .matrix td { padding: 13px 16px; border-top: 1px solid var(--line); vertical-align: top; color: var(--ink); background: transparent; text-transform: none; letter-spacing: normal; text-align: left; font-size: 14.5px; font-weight: 400; }
+.matrix thead th { background: var(--panel2); font-family: var(--display); font-size: 16px; color: #fff; }
+.matrix tbody th[scope=row] { font-weight: 500; font-size: 14.5px; color: var(--ink); }
+.matrix th:first-child { width: 28%; }
+.matrix td { color: #d4d4db; }
+.matrix tbody tr:hover td, .matrix tbody tr:hover th[scope=row] { background: rgba(255, 255, 255, .02); }
+.matrix th.group { background: #18191c; color: var(--lime); font-size: 13px; font-weight: 700; letter-spacing: .02em; }
+.matrix th.group, .matrix thead th { text-transform: none; }
+.yes { color: var(--lime); font-size: 19px; font-weight: 700; }
+.no { color: var(--dim); font-size: 19px; font-weight: 700; }
+.soon { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255, 255, 255, .04); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.tableNote { margin: 14px 0 0; font-size: 13.5px; color: var(--dim); }
+.addons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.addons > div { padding: 24px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); }
+.addons h3 { margin: 0 0 8px; font-family: var(--display); font-size: 20px; color: #fff; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.addons p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
+@media (max-width: 640px) { .addons { grid-template-columns: 1fr; } .compare { padding-top: 40px; } }

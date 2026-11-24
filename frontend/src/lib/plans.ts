@@ -34,3 +34,11 @@ export function planLines(plan: PublicPlan): string[] {
     l.custom_domain === true ? "Your own domain" : "SciProspect subdomain",
   ];
 }
+
+/** The short list on a pricing card (the full comparison is a table below): users, contacts per user, websites. */
+export function cardLines(plan: PublicPlan): string[] {
+  const l = plan.limits;
+  if (plan.kind === "custom") return ["Users and collection limits by agreement", "Tailored website and storage capacity", "Your own domain"];
+  const users = num(l.members) < 0 ? "Unlimited users" : plural(num(l.members) + 1, "user");
+  return [users, `${count(l.daily_contacts)} contacts per user per day`, `${plural(l.websites, "website")} · ${plural(l.pages, "page")} each`];
+}
