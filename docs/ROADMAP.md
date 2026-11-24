@@ -105,6 +105,16 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] 🧪 Publish / Unpublish buttons, Draft / Live status, "not available" page
 - [ ] Custom domains (DNS instructions and checks)
 
+## 7a. Print tools (one PDF engine: Program, Badges, Certificates, Abstract book)
+Same editor feel as websites: pick a template, drag and drop blocks, upload images, export a PDF. Counts under the Studio limits, no new plan.
+- [ ] **Phase 1: Program PDF.** Fixed A4 / Letter page, templates, editable text, speaker photo upload, simple schedule table, export one PDF. Server renders the PDF with a headless browser (install it in `deploy/update.sh` and `docs/DEPLOY.md`)
+- [ ] Program Phase 2: drag-and-drop blocks (cover, schedule by day and time, speaker cards, sponsor logos), several page layouts, fill speakers and sessions from the event website so a change is made once
+- [ ] Page breaks that never split a session across pages
+- [ ] **Badges / ID cards.** Sizes A6, 4×3 in, CR80 and how many fit on an A4 sheet; fields name, title, institution, photo, QR code; role colour bands (attendee, speaker, organiser, sponsor)
+- [ ] Badge people from registrations, the speaker list or a CSV upload; bulk PDF (500+ cards) made on the server
+- [ ] Badge limit per event by plan (for example 200 on Basic, more on Pro and Ultra)
+- [ ] 💡 Certificates, abstract book, QR check-in page for the day
+
 ---
 
 # Part C: Platform (shared by SciProspect and SciStudio)
