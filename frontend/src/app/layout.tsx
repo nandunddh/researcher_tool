@@ -6,7 +6,7 @@ export const metadata: Metadata = {
   title: "SciProspect — Research workspace",
   description: "SciProspect and SciStudio",
   icons: {
-    icon: [{ url: "/branding/sciprospect-a-favicon.png", sizes: "32x32", type: "image/png" }],
+    icon: [{ url: "/branding/sciprospect-a-favicon.png", sizes: "32x32", type: "image/png" }, { url: "/branding/sciprospect-a-favicon-64.png", sizes: "64x64", type: "image/png" }],
     apple: [{ url: "/branding/sciprospect-a-apple.png", sizes: "180x180", type: "image/png" }],
   },
 };
