@@ -29,8 +29,8 @@
 .login-submit:active:not(:disabled){transform:translateY(0)}
 .login-alert{padding:12px 16px;border:1px solid #75202e;background:#35131b;color:#fca5a5;border-radius:10px;font-size:13px;line-height:1.4;margin:0}
 .login-success{padding:12px 16px;border:1px solid #165b4c;background:#0d2822;color:#6ee7b7;border-radius:10px;font-size:13px;line-height:1.4;margin:0}
-.auth-text-link{background:none !important;border:none !important;padding:0 !important;color:#38bdf8 !important;font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;transition:color 0.15s;line-height:1}
-.auth-text-link:hover{color:#7dd3fc !important;text-decoration:underline}
+.auth-text-link{background:none !important;border:none !important;padding:0 !important;color:#c8ff4d !important;font-size:12px;font-weight:500;cursor:pointer;text-decoration:none;transition:color 0.15s;line-height:1}
+.auth-text-link:hover{color:#e0ff8f !important;text-decoration:underline}
 .auth-back-btn{background:transparent !important;border:1px solid #334155 !important;color:#94a3b8 !important;border-radius:10px;padding:12px;font-size:13px;font-weight:600;width:100%;cursor:pointer;transition:all 0.15s;margin-top:2px}
 .auth-back-btn:hover{background:rgba(255,255,255,0.05) !important;color:#f1f5f9 !important;border-color:#475569 !important}
 .account-banner{background:#112035;border:1px solid #1e3a5f;color:#7dd3fc;padding:10px 14px;border-radius:8px;font-size:12px;display:flex;align-items:center;gap:8px}
@@ -228,3 +228,26 @@
 .product-tab:hover{background:#152d52;color:#fff}
 .product-tab.active{background:linear-gradient(100deg,#1e40af,#155e75);color:#f0f9ff}
 .product-tab:focus-visible{outline:2px solid #c8ff4d;outline-offset:2px}
+
+/* Collect | Studio inside the logo text: two equal halves under the name */
+.login-brand-text{display:flex;flex-direction:column;align-items:stretch}
+.login-brand-text small{display:grid;grid-template-columns:1fr 1fr;margin-top:2px;font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:#c8ff4d}
+.login-brand-text small i{font-style:normal;text-align:center}
+.login-brand-text small i + i{border-left:1px solid rgba(200,255,77,.5)}
+.login-brand-text small{margin-top:4px;padding-top:4px;border-top:1px solid rgba(200,255,77,.5)}
+/* curved line under the name (a soft smile) */
+.login-brand-text small{position:relative;border-top:0;margin-top:10px;padding-top:2px}
+.login-brand-text small::before{content:"";position:absolute;left:4%;right:4%;top:-8px;height:8px;border-bottom:2px solid rgba(200,255,77,.7);border-radius:0 0 50% 50% / 0 0 100% 100%}
+/* flipped: the curve rises toward the name */
+.login-brand-text small::before{border-bottom:0;border-top:2px solid rgba(200,255,77,.7);border-radius:50% 50% 0 0 / 100% 100% 0 0}
+/* "&" instead of a divider line between Collect and Studio */
+.login-brand-text small{grid-template-columns:1fr auto 1fr;column-gap:8px}
+.login-brand-text small i + i{border-left:0}
+.login-brand-text small b{font-weight:700;color:#fff}
+/* wider curve */
+.login-brand-text small::before{left:-14%;right:-14%;height:10px;top:-10px}
+.login-brand-text small::before{left:-7%;right:-7%}
+/* Studio header is white: show the original coloured icon there */
+.studio-header .sciprospect-original-mark{background-image:url('/branding/sciprospect-a-icon.png')}
+/* inside the compact page headers the name stays at the header's own size */
+.login-brand-text{font-size:inherit;line-height:1.1}

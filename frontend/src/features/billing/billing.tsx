@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { BrandText } from "@/components/brand-text";
 import { api } from "@/lib/api";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -22,7 +23,7 @@ function Shell({ children, back = "/" }: { children: ReactNode; back?: string })
     <div className={styles.page}>
       <div className={styles.noPrint}><AuthBackdrop /></div>
       <header className={styles.top}><div className={styles.topInner}>
-        <a className={styles.brand} href="/"><img src="/branding/sciprospect-a-icon-white.png" alt="" />SciProspect</a>
+        <a className={styles.brand} href="/"><img src="/branding/sciprospect-a-icon-white.png" alt="" /><BrandText /></a>
         <a className={styles.back} href={back}>← Back to workspace</a>
       </div></header>
       <div className={styles.layer}>{children}</div>

@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { BrandText } from "@/components/brand-text";
 import { MotionEffects, RotatingWords, ScrollStory } from "./motion";
 import { HeroDemo } from "./hero-demo";
 import { Pricing } from "./pricing";
@@ -88,7 +89,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
 
       <header className={s.nav}>
         <div className={`${s.wrap} ${s.navInner}`}>
-          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" />SciProspect</a>
+          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" /><BrandText /></a>
           <nav className={s.links} aria-label="Main"><a href="#story">Product</a><a href="#features">Features</a><a href="#pricing">Pricing</a><a href="#faq">FAQ</a></nav>
           <div className={s.actions}>
             {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>

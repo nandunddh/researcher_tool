@@ -1,5 +1,6 @@
 "use client";
 import { useState, type FormEvent } from "react";
+import { BrandText } from "@/components/brand-text";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
 import { CodeInput } from "@/components/code-input";
@@ -121,7 +122,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
         <div className="login-header">
           <div className="login-brand" aria-label="SciProspect">
             <img src="/branding/sciprospect-a-icon-lime.png" alt="" width="56" height="56" />
-            <span>SciProspect</span>
+            <BrandText />
           </div>
           {/* One title per step: sign in, two-step code, password reset. */}
           <h1>{mode === "login" ? "Welcome back" : mode === "mfa" ? "Two-step sign-in" : "Reset password"}</h1>

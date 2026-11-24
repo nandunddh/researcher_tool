@@ -1,4 +1,5 @@
 import { MotionEffects } from "./motion";
+import { BrandText } from "@/components/brand-text";
 import { Pricing } from "./pricing";
 import { PricingAddons, PricingCompare } from "./pricing-compare";
 import type { PublicPlan } from "@/lib/plans";
@@ -11,7 +12,7 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
       <MotionEffects />
       <header className={s.nav}>
         <div className={`${s.wrap} ${s.navInner}`}>
-          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" />SciProspect</a>
+          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" /><BrandText /></a>
           <nav className={s.links} aria-label="Pricing"><a href="#pricing">Pricing</a><a href="#comparison">Compare plans</a><a href="#addons">Add-ons</a></nav>
           <div className={s.actions}>
             {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>

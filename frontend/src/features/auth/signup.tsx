@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
+import { BrandText } from "@/components/brand-text";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { api } from "@/lib/api";
 import { CodeInput } from "@/components/code-input";
@@ -67,7 +68,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
         <div className="login-header">
           <a className="login-brand" aria-label="SciProspect home" href="/">
             <img src="/branding/sciprospect-a-icon-lime.png" alt="" width="56" height="56" />
-            <span>SciProspect</span>
+            <BrandText />
           </a>
           <h1>{step === "details" ? "Start your 7-day free trial" : "Check your email"}</h1>
           <p>{step === "details" ? "No card needed. Choose a plan any time during or after your trial." : `Enter the 6-digit code we sent to ${email}.`}</p>

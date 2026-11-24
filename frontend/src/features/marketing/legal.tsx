@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { BrandText } from "@/components/brand-text";
 import s from "./legal.module.css";
 
 /** Company details shown in the legal pages. Fill these in before launch. */
@@ -14,7 +15,7 @@ export function LegalPage({ title, intro, children }: { title: string; intro: st
     <div className={s.page}>
       <header className={s.nav}>
         <div className={s.wrap}>
-          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" />SciProspect</a>
+          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" /><BrandText /></a>
           <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a className={s.cta} href="/signup">Start free</a></nav>
         </div>
       </header>
