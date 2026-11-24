@@ -266,7 +266,8 @@ export function ManageAccounts() {
                           <>
                             <select aria-label={`Website plan for ${a.client_name}`} disabled={busy || !plans.length}
                               value={usage[a.license_key]?.plan_id ?? defaultPlan(a)} onChange={e => void changePlan(a, e.target.value)}>
-                              {plans.length ? plans.map(p => <option key={p.id} value={p.id}>{p.name}{p.retired ? " (retired)" : ""}</option>)
+                              {plans.length ? plans.filter(p => !p.retired || p.id === (usage[a.license_key]?.plan_id ?? defaultPlan(a)))
+                                .map(p => <option key={p.id} value={p.id}>{p.name}{p.retired ? " (no longer sold)" : ""}</option>)
                                 : <option value={usage[a.license_key]?.plan_id ?? defaultPlan(a)}>{(usage[a.license_key]?.plan_id ?? defaultPlan(a)).replace(/^./, c => c.toUpperCase())}</option>}
                             </select>
                             {usage[a.license_key] && <small style={{ display: "block", marginTop: 4 }}>{usageText(a.license_key)}</small>}
