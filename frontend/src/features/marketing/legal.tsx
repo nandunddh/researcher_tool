@@ -14,7 +14,7 @@ export function LegalPage({ title, intro, children }: { title: string; intro: st
     <div className={s.page}>
       <header className={s.nav}>
         <div className={s.wrap}>
-          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon.png" alt="" />SciProspect</a>
+          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-white.png" alt="" />SciProspect</a>
           <nav><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a className={s.cta} href="/signup">Start free</a></nav>
         </div>
       </header>

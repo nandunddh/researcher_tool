@@ -6,7 +6,7 @@
 .app { display: grid; grid-template-columns: 236px minmax(0, 1fr); min-height: 100vh; background: #f3f6fb; color: #18223b; font-family: var(--font-body), system-ui, "Segoe UI", sans-serif; }
 .side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; background: #0f1b33; color: #c9d4ea; }
 .brand { display: flex; align-items: center; gap: 12px; padding: 22px 20px; border-bottom: 1px solid rgba(255, 255, 255, .07); color: #fff; text-decoration: none; }
-.logo { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #0b1428; border: 1px solid rgba(255, 255, 255, .12); }
+.logo { display: grid; place-items: center; width: 40px; height: 40px; }
 .logo img { width: 26px; height: 26px; }
 .brand strong { display: block; font-size: 18px; letter-spacing: -.01em; color: #fff; }
 .brand small { display: block; font-size: 11.5px; color: #8fa0c2; }

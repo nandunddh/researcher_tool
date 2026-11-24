@@ -39,7 +39,7 @@ export function CollectorApp({ namespace, userName, tier, kind = "publications" 
     <div className={styles.app}>
       <aside className={styles.side}>
         <a className={styles.brand} href={`/${namespace}/collector`}>
-          <span className={styles.logo}><img src="/branding/sciprospect-a-icon.png" alt="" /></span>
+          <span className={styles.logo}><img src="/branding/sciprospect-a-icon-white.png" alt="" /></span>
           <span><strong>SciProspect</strong><small>Research intelligence</small></span>
         </a>
         <nav className={styles.nav} aria-label="Data collector">

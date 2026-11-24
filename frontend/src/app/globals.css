@@ -96,13 +96,13 @@
 .sidebar-brand .collector-brand-name small{font-weight:400;letter-spacing:0}
 /* Full wordmark lockup with a dedicated, original-artwork icon. */
 .app-sidebar .sidebar-brand{gap:10px;min-height:95px}
-.sciprospect-original-mark{background-image:url('/branding/sciprospect-a-icon.png');background-size:contain;background-position:center}
+.sciprospect-original-mark{background-image:url('/branding/sciprospect-a-icon-white.png');background-size:contain;background-position:center;background-color:transparent;border-radius:0;width:40px;height:40px;flex-basis:40px}
 .sidebar-brand .collector-brand-name{font-size:22px;letter-spacing:-1px;line-height:1.15}
 @media(max-width:800px){.admin-layout .sidebar-brand{justify-content:center}}
 .studio-brand{gap:10px}
 .studio-brand .studio-wordmark{font-family:'Segoe UI',Arial,sans-serif;font-size:22px;font-weight:750;letter-spacing:-1px;line-height:1.15}
 
-.login-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 auto 26px;color:#fff;font:750 28px/1.2 "Segoe UI",sans-serif;letter-spacing:-1px}.login-brand img{display:block;object-fit:contain;border-radius:14px;background:#fff}
+.login-brand{display:flex;align-items:center;justify-content:center;gap:12px;margin:0 auto 26px;color:#fff;font:750 28px/1.2 "Segoe UI",sans-serif;letter-spacing:-1px}.login-brand img{display:block;object-fit:contain}
 
 .profile-dropdown{position:relative}.profile-icon-button{width:44px;height:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#f4f2ff;color:#6150cc;border:1px solid #e2ddfb}.profile-dropdown-panel{position:absolute;right:0;top:calc(100% + 10px);z-index:50;width:170px;background:white;padding:8px;border:1px solid #e1e5ef;border-radius:12px;box-shadow:0 12px 30px #24334d20}.profile-dropdown-panel button{width:100%;justify-content:flex-start;gap:10px}
 

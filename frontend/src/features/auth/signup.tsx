@@ -66,7 +66,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
       <section className="login-card">
         <div className="login-header">
           <a className="login-brand" aria-label="SciProspect home" href="/">
-            <img src="/branding/sciprospect-a-icon.png" alt="" width="56" height="56" />
+            <img src="/branding/sciprospect-a-icon-white.png" alt="" width="56" height="56" />
             <span>SciProspect</span>
           </a>
           <h1>{step === "details" ? "Start your 7-day free trial" : "Check your email"}</h1>
