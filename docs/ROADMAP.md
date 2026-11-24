@@ -105,7 +105,8 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] 🧪 Publish / Unpublish buttons, Draft / Live status, "not available" page
 - [ ] Custom domains (DNS instructions and checks)
 
-## 7a. Print tools (one PDF engine: Program, Badges, Certificates, Abstract book)
+## 7a. Print tools — STAGE 2 (v2, after the current version is finished and live)
+One PDF engine: Program, Badges, Certificates, Abstract book.
 Same editor feel as websites: pick a template, drag and drop blocks, upload images, export a PDF. Counts under the Studio limits, no new plan.
 - [ ] **Phase 1: Program PDF.** Fixed A4 / Letter page, templates, editable text, speaker photo upload, simple schedule table, export one PDF. Server renders the PDF with a headless browser (install it in `deploy/update.sh` and `docs/DEPLOY.md`)
 - [ ] Program Phase 2: drag-and-drop blocks (cover, schedule by day and time, speaker cards, sponsor logos), several page layouts, fill speakers and sessions from the event website so a change is made once
