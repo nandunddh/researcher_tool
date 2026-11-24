@@ -50,7 +50,7 @@ export function SetupTwoStep({ workspace, email }: { workspace: string; email: s
       <AuthBackdrop />
       <section className="login-card" style={{ maxWidth: 480 }}>
         <div className="login-header">
-          <div className="login-brand"><img src="/branding/sciprospect-a-icon-white.png" alt="" width="56" height="56" /><span>SciProspect</span></div>
+          <div className="login-brand"><img src="/branding/sciprospect-a-icon-lime.png" alt="" width="56" height="56" /><span>SciProspect</span></div>
           <p style={{ margin: "0 0 6px", fontSize: 12, letterSpacing: ".12em", textTransform: "uppercase", color: "#c8ff4d", fontWeight: 700 }}>Step {step} of 3</p>
           <h1>{step === 3 ? "Save your backup codes" : "Protect your account"}</h1>
           <p>{step === 1 && "Two-step sign-in is required for every SciProspect account. After your password, you'll enter a 6-digit code from an app on your phone."}

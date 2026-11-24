@@ -120,7 +120,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
       <section className="login-card">
         <div className="login-header">
           <div className="login-brand" aria-label="SciProspect">
-            <img src="/branding/sciprospect-a-icon-white.png" alt="" width="56" height="56" />
+            <img src="/branding/sciprospect-a-icon-lime.png" alt="" width="56" height="56" />
             <span>SciProspect</span>
           </div>
           {/* One title per step: sign in, two-step code, password reset. */}
