@@ -9,6 +9,8 @@ WorkingDirectory=/home/ubuntu/researcher_tool/backend
 # Settings come from backend/.env (loaded by db.py). One worker: rate limits and sign-in challenges are in memory.
 # --proxy-headers: behind Nginx + Next.js, take the visitor's IP from X-Forwarded-For (per-IP form rate limit).
 ExecStart=/home/ubuntu/researcher_tool/.venv/bin/python -m uvicorn app:app --host 127.0.0.1 --port 8000 --workers 1 --proxy-headers --forwarded-allow-ips=127.0.0.1
+# The collector keeps its working files here (outside the git checkout, so updates never touch them).
+Environment=SCIPROSPECT_DATA_DIR=/home/ubuntu/sciprospect_data
 Restart=always
 RestartSec=3
 

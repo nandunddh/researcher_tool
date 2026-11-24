@@ -10,6 +10,9 @@ cd "$APP_DIR"
 
 if [ "${1:-}" != "--no-pull" ]; then
   echo "==> Pulling $BRANCH"
+  # next-env.d.ts is rewritten by every build; the service file may carry an old hand edit. Dropping local changes to these two
+  # files only (never anything else) keeps "git pull" from stopping on them.
+  git checkout -- deploy/sciprospect-backend.service frontend/next-env.d.ts 2>/dev/null || true
   git fetch origin "$BRANCH"
   git checkout "$BRANCH"
   git pull --ff-only origin "$BRANCH"

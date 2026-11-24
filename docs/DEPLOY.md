@@ -25,6 +25,7 @@ Migrations only add columns, so older code keeps working with the newer database
 2. **Code:** `git clone https://github.com/nandunddh/researcher_tool.git ~/researcher_tool`.
 3. **Settings:** copy your `backend/.env` from your PC to `~/researcher_tool/backend/.env` (with `scp`, never through git).
    On the server also set `SCIPROSPECT_APP_URL=https://your-domain.com`.
+   Add `OPENALEX_API_KEY=<your key>` too (free at openalex.org/settings/api, $1 a day included). Without it every collection shares a tiny no-key budget.
    Also add `SCIPROSPECT_SCHEDULER=on` there: it turns on scheduled collector searches. Leave it off on your PC, because your PC shares the same database and would run production jobs.
 4. **Services:**
    ```bash
@@ -33,7 +34,17 @@ Migrations only add columns, so older code keeps working with the newer database
    sudo systemctl enable sciprospect-backend sciprospect-frontend
    bash ~/researcher_tool/deploy/update.sh
    ```
-5. **Nginx + HTTPS:** edit the domain in `deploy/nginx-sciprospect.conf`, then
+5. **Web server + HTTPS.** *This project's server uses Apache* (it also serves other sites, so never stop it). Point its HTTPS site at the app:
+   ```bash
+   sudo a2enmod proxy proxy_http proxy_wstunnel headers rewrite
+   sudo cp /etc/apache2/sites-enabled/sciprospect-le-ssl.conf ~/sciprospect-le-ssl.conf.bak   # backup first
+   # in that file, inside <VirtualHost *:443>: ProxyPass / and ProxyPassReverse / go to http://127.0.0.1:3000/ (not 8000), and add
+   #   RequestHeader set X-Forwarded-Proto "https"
+   sudo apache2ctl configtest && sudo systemctl reload apache2
+   ```
+   Certificates come from certbot (`sudo certbot --apache -d your-domain.com`). To undo, copy the backup back and reload Apache.
+
+   *Alternative, only on a server without Apache:* Nginx. Edit the domain in `deploy/nginx-sciprospect.conf`, then
    ```bash
    sudo cp ~/researcher_tool/deploy/nginx-sciprospect.conf /etc/nginx/sites-available/sciprospect
    sudo ln -sf /etc/nginx/sites-available/sciprospect /etc/nginx/sites-enabled/sciprospect
