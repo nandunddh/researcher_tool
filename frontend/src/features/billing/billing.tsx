@@ -56,6 +56,9 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
     } catch { /* private mode */ }
   }, []);
 
+  // Open on the billing period the account already pays (an annual plan shows the annual prices first).
+  useEffect(() => { if (data?.subscription?.status === "active") setInterval(data.subscription.interval); }, [data?.subscription?.status, data?.subscription?.interval]);
+
   const load = () => api<Overview>("/api/billing").then(setData).catch(e => setError(e instanceof Error ? e.message : "Billing could not be loaded."));
   useEffect(() => { void load(); }, []);
 

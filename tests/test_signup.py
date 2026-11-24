@@ -65,7 +65,7 @@ class SignupFlowTests(unittest.TestCase):
             account = self.mgr.account_for_email("ada@uni.edu")
             self.assertEqual((account["plan_id"], account["account_type"], account["org_name"]), ("trial", "org", "Lab"), "every sign-up starts the trial; paid plans start after checkout")
             self.assertEqual((account["tier"], account["daily_limit"], account["duration_days"]), ("trial", 1000, 7))
-            self.assertEqual(self.mgr.validate_license(account["license_key"])["days_left"][:1], "6", "7 days from now")
+            self.assertEqual(self.mgr.validate_license(account["license_key"])["days_left"], "7 days", "a fresh trial says 7, not 6")
             with self.assertRaises(HTTPException) as err:
                 asyncio.run(web_app.api_signup_start(_Req(GOOD)))
             self.assertEqual(err.exception.status_code, 409, "existing email")

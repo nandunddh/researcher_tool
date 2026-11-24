@@ -786,7 +786,8 @@ class LicenseManager:
                         "client_name": client_name,
                         "message": f"License expired on {expires_at}. Contact root admin to renew.",
                     }
-                days_left_str = f"{max(0, diff.days)} days"
+                days = max(0, -(-int(diff.total_seconds()) // 86400))  # round up: a fresh 7-day trial says 7, not 6
+                days_left_str = f"{days} day{'' if days == 1 else 's'}"
             except Exception:
                 pass
 
