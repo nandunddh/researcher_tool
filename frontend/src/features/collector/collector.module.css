@@ -226,3 +226,9 @@ th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn spa
 .dialogBody .field select { width: 100%; }
 .dialogActions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 4px; }
 .dialogActions a { display: inline-flex; align-items: center; text-decoration: none; }
+
+/* Collect | Studio, centered and equal under the logo */
+.switch { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 16px 12px 0; padding: 4px; border-radius: 12px; background: rgba(255, 255, 255, .05); border: 1px solid rgba(255, 255, 255, .08); }
+.switch a { display: flex; align-items: center; justify-content: center; gap: 8px; height: 38px; border-radius: 9px; font-size: 13.5px; font-weight: 600; color: #c9d4ea; text-decoration: none; transition: background .15s; }
+.switch a:hover { background: rgba(255, 255, 255, .08); color: #fff; }
+.switch a[data-active] { background: linear-gradient(90deg, #1d4fd8, #155e75); color: #fff; }

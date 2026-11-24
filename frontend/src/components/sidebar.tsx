@@ -12,19 +12,16 @@ const ROOT_LINKS: NavItem[] = [
   { label: "Manage Accounts", url: "/root/accounts", icon: "doc" },
   { label: "Plans", url: "/root/plans", icon: "grid" },
   { label: "Design Library", url: "/root/designs", icon: "layers" },
-  { label: "Data Collector", url: "/root/collector", icon: "bolt" },
 ];
 
 const ORG_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/organization/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
-  { label: "Data Collector", url: "/organization/collector", icon: "bolt" },
 ];
 
 const CLIENT_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/client/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
-  { label: "Data Collector", url: "/client/collector", icon: "bolt" },
 ];
 
 const CONFERENCE_LINKS: NavItem[] = [
@@ -68,6 +65,8 @@ export function Sidebar({
       : "ROOT ADMIN";
 
   const studioUrl = `/${effectiveNamespace}/scistudio`;
+  const collectUrl = `/${effectiveNamespace}/collector`;
+  const hasCollector = effectiveNamespace !== "conference";  // team members have no collector, so only Studio
 
   return (
     <aside className="app-sidebar">
@@ -77,6 +76,13 @@ export function Sidebar({
           SciProspect
         </div>
       </a>
+
+      {hasCollector && (
+        <div className="product-switch" role="group" aria-label="SciProspect products">
+          <a className={`product-tab ${currentPath.includes("/collector") ? "active" : ""}`} href={collectUrl}><Icon name="bolt" size={16} />Collect</a>
+          <a className={`product-tab ${currentPath.includes("/scistudio") ? "active" : ""}`} href={studioUrl}><Icon name="layers" size={16} />Studio</a>
+        </div>
+      )}
 
       <div className="sidebar-section sidebar-collector-section">
         <div className="sidebar-heading">{heading}</div>
@@ -95,7 +101,7 @@ export function Sidebar({
         </nav>
       </div>
 
-      <div className="sidebar-section sidebar-studio-section">
+      {!hasCollector && <div className="sidebar-section sidebar-studio-section">
         <div className="sidebar-heading">STUDIO</div>
         <nav className="sidebar-nav">
           <a
@@ -110,7 +116,7 @@ export function Sidebar({
             </span>
           </a>
         </nav>
-      </div>
+      </div>}
     </aside>
   );
 }
