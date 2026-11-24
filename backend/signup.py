@@ -34,7 +34,7 @@ def clean(body: dict) -> Tuple[Optional[dict], Optional[str]]:
     if body.get("accept_terms") is not True:
         return None, "Please accept the terms to continue."
     return {"name": name, "email": email, "account_type": kind, "org_name": org if kind == "org" else "",
-            "plan_id": str(body.get("plan_id") or "free")[:40], "password_hash": hash_password(password)}, None
+            "plan_id": str(body.get("plan_id") or "trial")[:40], "password_hash": hash_password(password)}, None
 
 
 def _code_hash(email: str, code: str) -> str:

@@ -115,6 +115,11 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [x] 🧪 Billing: test checkout like Stripe, invoices, renew, cancel, switch plans (see `docs/PAYMENTS.md`)
 - [x] 🧪 Root: payment status and self sign-ups in Manage Accounts; Stripe price ids on the Plans page
 - [ ] Switch subscriptions to Stripe (keys + webhook, no code changes)
+- [x] New pricing, phase 1 (docs/PRICING_PROPOSAL.md): 7-day trial instead of Free, Basic / Pro / Ultra / Custom, monthly and annual billing, per-plan daily contact limit, an ended trial or plan can only open Billing
+- [ ] Pricing phase 2: daily contact limit per team member, and team members who can collect (several collections at once in one workspace)
+- [ ] Pricing phase 3: measure file and data storage, storage add-ons, "expandable" websites add-on (price still to decide)
+- [ ] ⏸ PENDING: pricing phase 4, mailbox verification packs (500 / 2,000 / 10,000 checks), together with the paid mailbox check
+- [ ] 💡 Pricing later: own workspace database for Ultra, own application instance for Custom, a custom domain per event
 - [ ] Registration payments on event websites through Stripe Checkout
 - [x] 🧪 Terms of service and privacy policy pages (draft: lawyer review + company details needed)
 

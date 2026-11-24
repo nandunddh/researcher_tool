@@ -1,8 +1,17 @@
-# SciProspect pricing: proposal (not live yet)
+# SciProspect pricing (phase 1 built)
 
-Status: **proposal pasted by the owner on 2026-11-23, under review.** Nothing in the product uses this yet; the live plans are still
-Free, Pro $29, Business $59 and Organization $99 (see `backend/plans.py`). The source text wrote the name as "SisProspect"; it is
-written here as SciProspect on the assumption that was a typo.
+Status: **phase 1 is built (2026-11-24)**; the rest is listed in `docs/ROADMAP.md`. The source text wrote the name as "SisProspect";
+it is written here as SciProspect on the assumption that was a typo.
+
+| Part of this price list | Status |
+|---|---|
+| 7-day trial (1,000 contacts a day, one user), no permanent free plan | built (trial plan; after 7 days only Billing is open) |
+| Basic $39 / Pro $89 / Ultra $199, annual = 10 months, Custom by quote | built (migration 105, Monthly/Annual toggle everywhere) |
+| Users, websites, pages, file storage, custom domain, daily contacts per user | shown on the pricing page; websites, pages, file storage and team seats are enforced; the daily limit applies to the account owner |
+| Daily limit per *team member*, several people collecting at once | not built (team members cannot use the collector yet) |
+| Data storage (10 / 20 / 50 GB), "expandable" websites, storage add-ons | data storage is shown but not measured; expansion and add-ons not built (no price was given for the website expansion) |
+| Mailbox verification packs | not built (needs a paid verification service) |
+| Ultra: own workspace database; Custom: own application instance and private database | not built; sold by conversation, not self-serve |
 
 Find researchers and build your event website in one workspace. Choose Basic, Pro, Ultra, or Custom. All plans are available to
 individuals, teams, and organizations. Prices are in USD per account.

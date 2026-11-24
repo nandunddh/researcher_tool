@@ -49,12 +49,13 @@ class SignupFlowTests(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_code_creates_free_account_and_signs_in(self):
+    def test_code_starts_the_7_day_trial_and_signs_in(self):
         started = []
         details = {"name": "Ada", "email": "ada@uni.edu", "account_type": "org", "org_name": "Lab", "plan_id": "pro", "password_hash": hash_password("Password1!")}
         fake = SimpleNamespace(clean=signup.clean, start=started.append,
                                verify=lambda email, code: (details, None) if code == "123456" else (None, "That code is not right."))
-        with patch.object(web_app, "license_engine", self.mgr), patch.dict(sys.modules, {"signup": fake}):
+        trial = {"id": "trial", "limits": {"members": 0, "daily_contacts": 1000}}
+        with patch.object(web_app, "license_engine", self.mgr), patch.dict(sys.modules, {"signup": fake}), patch.object(web_app, "_plan_by_id", lambda plan_id: trial):
             asyncio.run(web_app.api_signup_start(_Req(GOOD)))
             self.assertEqual(len(started), 1)
             with self.assertRaises(HTTPException):
@@ -62,7 +63,9 @@ class SignupFlowTests(unittest.TestCase):
             res = asyncio.run(web_app.api_signup_verify(_Req({"email": "ada@uni.edu", "code": "123456", "password": "Password1!"})))
             self.assertIn("scip_token=", res.headers.get("set-cookie", ""))
             account = self.mgr.account_for_email("ada@uni.edu")
-            self.assertEqual((account["plan_id"], account["account_type"], account["org_name"]), ("free", "org", "Lab"), "paid plans start after checkout")
+            self.assertEqual((account["plan_id"], account["account_type"], account["org_name"]), ("trial", "org", "Lab"), "every sign-up starts the trial; paid plans start after checkout")
+            self.assertEqual((account["tier"], account["daily_limit"], account["duration_days"]), ("trial", 1000, 7))
+            self.assertEqual(self.mgr.validate_license(account["license_key"])["days_left"][:1], "6", "7 days from now")
             with self.assertRaises(HTTPException) as err:
                 asyncio.run(web_app.api_signup_start(_Req(GOOD)))
             self.assertEqual(err.exception.status_code, 409, "existing email")

@@ -226,3 +226,14 @@
   .leadRow, .page [data-reveal] { opacity: 1; transform: none; }
   .tilt { transform: none; }
 }
+
+/* ---------- Pricing: trial band, billing period toggle ---------- */
+.trialBand { display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; margin: 0 auto 32px; max-width: 920px; padding: 24px 28px; border-radius: 20px; background: var(--panel); border: 1px solid var(--line); }
+.trialBand strong { display: block; font-family: var(--display); font-size: 22px; color: #fff; letter-spacing: -.02em; }
+.trialBand p { margin: 6px 0 0; max-width: 560px; font-size: 15px; color: var(--muted); }
+.toggle { display: flex; width: max-content; margin: 0 auto 32px; padding: 4px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); }
+.toggle button { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 20px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 14.5px; font-weight: 600; cursor: pointer; transition: background .2s, color .2s; }
+.toggle button[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
+.toggle button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.toggle em { padding: 2px 8px; border-radius: 999px; background: var(--lime); color: #0a0a0a; font-style: normal; font-size: 12px; font-weight: 700; }
+.priceNote { margin: -6px 0 0; font-size: 13.5px; color: var(--dim); }

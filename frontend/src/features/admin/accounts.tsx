@@ -41,7 +41,7 @@ const defaultPlan = (a: { plan_id?: string; account_type: string; tier: string }
 type Usage = { websites: number; pages: number; storage_mb: number; submissions_month: number };
 type UsageEntry = { plan_id: string; usage: Usage; self_signup?: boolean;
   subscription?: { status: string; current_period_end: string | null; cancel_at_period_end: boolean; provider: string } | null };
-export type Plan = { id: string; name: string; price_month: number; stripe_price_id?: string; featured?: boolean; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
+export type Plan = { id: string; name: string; price_month: number; price_year?: number; kind?: "trial" | "paid" | "custom"; retired?: boolean; stripe_price_id?: string; stripe_price_id_year?: string; featured?: boolean; limits: Record<string, number | boolean> & { websites?: number; submissions_month?: number } };
 
 export function ManageAccounts() {
   const [confirmation, setConfirmation] = useState<{
@@ -266,7 +266,7 @@ export function ManageAccounts() {
                           <>
                             <select aria-label={`Website plan for ${a.client_name}`} disabled={busy || !plans.length}
                               value={usage[a.license_key]?.plan_id ?? defaultPlan(a)} onChange={e => void changePlan(a, e.target.value)}>
-                              {plans.length ? plans.map(p => <option key={p.id} value={p.id}>{p.name}</option>)
+                              {plans.length ? plans.map(p => <option key={p.id} value={p.id}>{p.name}{p.retired ? " (retired)" : ""}</option>)
                                 : <option value={usage[a.license_key]?.plan_id ?? defaultPlan(a)}>{(usage[a.license_key]?.plan_id ?? defaultPlan(a)).replace(/^./, c => c.toUpperCase())}</option>}
                             </select>
                             {usage[a.license_key] && <small style={{ display: "block", marginTop: 4 }}>{usageText(a.license_key)}</small>}

@@ -21,6 +21,7 @@ export async function requireSession(namespace: Namespace, returnTo = `/${namesp
   const current = await session();
   if (!current) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
   if (current.user.mfa_setup_required) redirect("/setup-2fa");
+  if (current.user.license_expired) redirect("/billing");  // an ended trial or plan can only reach Billing
   if (current.user.workspace_namespace !== namespace) redirect(`/${current.user.workspace_namespace}/dashboard`);
   return current.user;
 }

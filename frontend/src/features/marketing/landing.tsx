@@ -1,27 +1,14 @@
 import type { CSSProperties } from "react";
 import { MotionEffects, RotatingWords, ScrollStory } from "./motion";
 import { HeroDemo } from "./hero-demo";
+import { Pricing } from "./pricing";
+import type { PublicPlan } from "@/lib/plans";
 import s from "./landing.module.css";
 
-export type PublicPlan = { id: string; name: string; price_month: number; featured?: boolean; limits: Record<string, number | boolean> };
+export type { PublicPlan } from "@/lib/plans";
 
-const fmt = (n: unknown) => (typeof n === "number" && n < 0 ? "Unlimited" : Number(n).toLocaleString());
 const delay = (sec: number) => ({ "--d": `${sec}s` }) as CSSProperties;
 const SOURCES = ["OpenAlex", "ORCID", "Crossref", "Europe PMC", "NIH RePORTER"];
-
-function planLines(p: PublicPlan): { text: string; off?: boolean }[] {
-  const l = p.limits, mb = Number(l.storage_mb);
-  const storage = mb < 0 ? "Unlimited" : mb >= 1000 ? `${Math.round(mb / 1000)} GB` : `${mb} MB`;
-  return [
-    { text: `${fmt(l.websites)} website${l.websites === 1 ? "" : "s"}` },
-    { text: `${fmt(l.pages)} pages per website` },
-    { text: Number(l.members) === 0 ? "Just you" : `${fmt(l.members)} team members` },
-    { text: `${storage} image storage` },
-    { text: Number(l.submissions_month) < 0 ? "Unlimited form submissions" : `${fmt(l.submissions_month)} form submissions / month` },
-    { text: "Registration, payments & receipts" },
-    { text: "Custom domain", off: l.custom_domain !== true },
-  ];
-}
 
 /* ---------- product screens (drawn in HTML so they stay sharp and light) ---------- */
 function Chrome({ url, children }: { url: string; children: React.ReactNode }) {
@@ -93,8 +80,6 @@ function PayScreen() {
 
 /** Public home page. */
 export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedInHref: string | null }) {
-  // Root picks the highlighted plan on the Plans page ("Highlight as Most popular").
-  const popular = plans.find(p => p.featured)?.id ?? plans.find(p => p.price_month > 0)?.id;
   const start = signedInHref ?? "/signup";
   return (
     <div className={s.page}>
@@ -108,7 +93,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.actions}>
             {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>
               <a className={s.btnGhost} href="/login">Log in</a>
-              <a className={s.btn} href="/signup">Start free <span className={s.arrow}>→</span></a>
+              <a className={s.btn} href="/signup">Start free trial <span className={s.arrow}>→</span></a>
             </>}
           </div>
         </div>
@@ -130,10 +115,10 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
               {" "}in minutes. No code.
             </p>
             <div className={s.ctas}>
-              <a className={s.btn} href={start}>{signedInHref ? "Open workspace" : "Start free"} <span className={s.arrow}>→</span></a>
+              <a className={s.btn} href={start}>{signedInHref ? "Open workspace" : "Start free trial"} <span className={s.arrow}>→</span></a>
               <a className={s.btnGhost} href="#story">See how it works</a>
             </div>
-            <ul className={s.facts}><li>Free plan, no card</li><li>Verified researcher emails</li><li>Payments &amp; receipts</li></ul>
+            <ul className={s.facts}><li>7-day free trial, no card</li><li>Verified researcher emails</li><li>Payments &amp; receipts</li></ul>
           </div>
           <div className={`${s.wrap} ${s.heroScreen}`}>
             <div className={s.tilt}><HeroDemo /></div>
@@ -179,20 +164,8 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
         {/* ---------- Pricing ---------- */}
         <section id="pricing" className={s.section}>
           <div className={s.wrap}>
-            <div className={s.head} data-reveal=""><span className={s.kicker}>Pricing</span><h2>Simple plans that grow with you</h2><p>Start free. Upgrade, downgrade or cancel at any time.</p></div>
-            {plans.length ? (
-              <div className={s.plans}>
-                {plans.map((p, i) => (
-                  <article key={p.id} className={s.plan} data-popular={p.id === popular || undefined} data-reveal="" style={delay(i * .1)}>
-                    {p.id === popular && <span className={s.popular}>Most popular</span>}
-                    <h3>{p.name}</h3>
-                    <div className={s.price}>{p.price_month > 0 ? `$${p.price_month.toLocaleString()}` : "Free"}{p.price_month > 0 && <small> / month</small>}</div>
-                    <ul>{planLines(p).map(line => <li key={line.text} data-off={line.off || undefined}>{line.text}</li>)}</ul>
-                    <a className={p.id === popular ? s.btn : s.btnGhost} href={`/signup/${encodeURIComponent(p.id)}`}>{p.price_month > 0 ? `Choose ${p.name}` : "Start free"}</a>
-                  </article>
-                ))}
-              </div>
-            ) : <p className={s.note}>Plans are being updated. Please check back soon.</p>}
+            <div className={s.head} data-reveal=""><span className={s.kicker}>Pricing</span><h2>Simple plans that grow with you</h2><p>Start with a 7-day free trial. Change or cancel your plan at any time.</p></div>
+            <Pricing plans={plans} signedIn={!!signedInHref} />
             <p className={s.note}>Prices in USD. Running something bigger? <a href="mailto:hello@sciprospect.com">Talk to us</a>.</p>
           </div>
         </section>
@@ -215,8 +188,8 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.wrap}>
             <div className={s.ctaBox} data-reveal="">
               <h2>Your next event starts here.</h2>
-              <p>Create a free account in a minute. No card needed.</p>
-              <a className={s.btnLight} href={start}>{signedInHref ? "Open workspace" : "Create free account"} <span className={s.arrow}>→</span></a>
+              <p>Start your 7-day free trial in a minute. No card needed.</p>
+              <a className={s.btnLight} href={start}>{signedInHref ? "Open workspace" : "Start free trial"} <span className={s.arrow}>→</span></a>
             </div>
           </div>
         </section>

@@ -3,16 +3,19 @@ import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { INTERVAL_KEY, planLines, priceFor, usd, yearlySaving, type Interval, type PublicPlan } from "@/lib/plans";
 import styles from "./billing.module.css";
 
-type Plan = { id: string; name: string; price_month: number; limits: Record<string, number | boolean> };
-type Subscription = { plan_id: string; status: string; current_period_end: string | null; cancel_at_period_end: boolean; provider: string } | null;
+type Plan = PublicPlan;
+type Subscription = { plan_id: string; status: string; current_period_end: string | null; cancel_at_period_end: boolean; provider: string; interval: Interval } | null;
 type Invoice = { id: number; number: string; plan_id: string; amount: number; currency: string; status: string; period_start: string; period_end: string; created_at: string };
-type Overview = { provider: "test" | "stripe"; plan: Plan | null; subscription: Subscription; invoices: Invoice[]; plans: Plan[] };
+type License = { expired: boolean; tier: string; expires_at: string | null; days_left: string | null };
+type Overview = { provider: "test" | "stripe"; plan: Plan | null; subscription: Subscription; invoices: Invoice[]; plans: Plan[]; license: License };
 
 const money = (n: number, currency = "USD") => { try { return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n); } catch { return `${currency} ${n.toFixed(2)}`; } };
 const day = (iso?: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) : "");
-const unlimited = (n: unknown, unit = "") => (typeof n === "number" && n < 0 ? "Unlimited" : `${n}${unit}`);
+/** The license stores "YYYY-MM-DD HH:MM:SS UTC". */
+const licenseDay = (value?: string | null) => (value && value !== "never" ? day(value.replace(" UTC", "").replace(" ", "T") + "Z") : "");
 
 function Shell({ children, back = "/" }: { children: ReactNode; back?: string }) {
   return (
@@ -44,9 +47,13 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
-  const [confirming, setConfirming] = useState<"cancel" | "downgrade" | null>(null);
+  const [confirming, setConfirming] = useState<"cancel" | null>(null);
+  const [interval, setInterval] = useState<Interval>("month");
   useEffect(() => {
-    try { const saved = sessionStorage.getItem(NOTICE_KEY); if (saved) { setNotice(saved); sessionStorage.removeItem(NOTICE_KEY); } } catch { /* private mode */ }
+    try {
+      const saved = sessionStorage.getItem(NOTICE_KEY); if (saved) { setNotice(saved); sessionStorage.removeItem(NOTICE_KEY); }
+      const chosen = sessionStorage.getItem(INTERVAL_KEY); if (chosen === "year" || chosen === "month") setInterval(chosen);  // set by the pricing page
+    } catch { /* private mode */ }
   }, []);
 
   const load = () => api<Overview>("/api/billing").then(setData).catch(e => setError(e instanceof Error ? e.message : "Billing could not be loaded."));
@@ -55,7 +62,7 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
   async function choose(plan: Plan) {
     setBusy(plan.id); setError("");
     try {
-      const result = await api<{ url?: string; message?: string }>("/api/billing/checkout", { method: "POST", body: JSON.stringify({ plan_id: plan.id }) });
+      const result = await api<{ url?: string; message?: string }>("/api/billing/checkout", { method: "POST", body: JSON.stringify({ plan_id: plan.id, interval }) });
       if (result.url) { window.location.assign(result.url); return; }
       setNotice(result.message ?? "Plan changed."); await load();
     } catch (e) { setError(e instanceof Error ? e.message : "Something went wrong."); }
@@ -72,6 +79,7 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
   }
 
   const sub = data?.subscription, active = sub?.status === "active";
+  const ended = !!data?.license.expired, onTrial = data?.plan?.kind === "trial";
   return (
     <Shell back={workspace}>
       <main className={styles.main}>
@@ -85,12 +93,15 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
             <div className={styles.current}>
               <div>
                 <span className={styles.muted}>Current plan</span><br />
-                <strong>{data.plan?.name ?? "Free"}</strong>
+                <strong>{data.plan?.name ?? "Free trial"}</strong>
                 {active && <span className={styles.badge} data-tone={sub?.cancel_at_period_end ? "warn" : undefined}>{sub?.cancel_at_period_end ? "Ends soon" : "Active"}</span>}
+                {!active && <span className={styles.badge} data-tone={ended ? "warn" : undefined}>{ended ? "Ended" : onTrial ? "Trial" : "Not offered"}</span>}
                 <p className={styles.muted}>
-                  {active && sub?.cancel_at_period_end && `Your plan ends on ${day(sub.current_period_end)}. After that you move to Free.`}
-                  {active && !sub?.cancel_at_period_end && `Renews on ${day(sub?.current_period_end)} for ${money(data.plan?.price_month ?? 0)}.`}
-                  {!active && "No payment needed. Upgrade any time."}
+                  {active && sub?.cancel_at_period_end && `Your plan ends on ${day(sub.current_period_end)}. After that your account is paused until you choose a plan.`}
+                  {active && !sub?.cancel_at_period_end && `Renews on ${day(sub?.current_period_end)} for ${usd(data.plan ? priceFor(data.plan, sub?.interval ?? "month") : 0)} (${sub?.interval === "year" ? "billed yearly" : "billed monthly"}).`}
+                  {!active && ended && `Your ${onTrial ? "7-day free trial" : "plan"} ended on ${licenseDay(data.license.expires_at)}. Choose a plan below to continue. Your contacts and websites are kept.`}
+                  {!active && !ended && onTrial && `Your 7-day free trial ends on ${licenseDay(data.license.expires_at)} (${data.license.days_left} left). Choose a plan to keep going.`}
+                  {!active && !ended && !onTrial && "This plan is no longer offered. Choose one of the plans below when you want to switch."}
                 </p>
               </div>
               {active && (sub?.cancel_at_period_end
@@ -101,23 +112,28 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
 
           <section className={styles.card}>
             <h2>Plans</h2>
+            <div className={styles.toggle} role="group" aria-label="Billing period">
+              <button type="button" aria-pressed={interval === "month"} onClick={() => setInterval("month")}>Monthly</button>
+              <button type="button" aria-pressed={interval === "year"} onClick={() => setInterval("year")}>Annual<em>Save 2 months</em></button>
+            </div>
             <div className={styles.plans}>
-              {data.plans.map(p => {
-                const current = p.id === (data.plan?.id ?? "free");
+              {data.plans.filter(p => p.kind !== "trial").map(p => {
+                const current = p.id === data.plan?.id;
+                const sameInterval = !active || sub?.interval === interval;
                 return (
-                  <article key={p.id} className={styles.plan} data-current={current || undefined} data-highlight={p.id === highlight && !current || undefined}>
+                  <article key={p.id} className={styles.plan} data-current={(current && sameInterval) || undefined} data-highlight={p.id === highlight && !current || undefined}>
                     <h3>{p.name}</h3>
-                    <div className={styles.price}>{p.price_month > 0 ? money(p.price_month) : "Free"}{p.price_month > 0 && <small> / month</small>}</div>
-                    <ul>
-                      <li>{unlimited(p.limits.websites)} website{p.limits.websites === 1 ? "" : "s"}, {unlimited(p.limits.pages)} page{p.limits.pages === 1 ? "" : "s"} each</li>
-                      <li>{Number(p.limits.members) === 0 ? "Just you" : `${unlimited(p.limits.members)} team members`}</li>
-                      <li>{Number(p.limits.submissions_month) < 0 ? "Unlimited form submissions" : `${p.limits.submissions_month} form submissions / month`}</li>
-                    </ul>
-                    {current ? <button type="button" className={styles.secondary} disabled>Current plan</button>
-                      : p.price_month > 0
-                        ? <button type="button" className={styles.primary} disabled={!!busy} onClick={() => void choose(p)}>{busy === p.id ? "Opening…" : active ? `Switch to ${p.name}` : `Upgrade to ${p.name}`}</button>
-                        : active ? <button type="button" className={styles.secondary} disabled={!!busy || sub?.cancel_at_period_end} onClick={() => setConfirming("downgrade")}>{sub?.cancel_at_period_end ? "Scheduled" : "Downgrade to Free"}</button>
-                          : null}
+                    {p.kind === "custom" ? <div className={styles.price}>Let&apos;s talk</div> : (
+                      <div className={styles.price}>{usd(priceFor(p, interval))}<small> / {interval === "year" ? "year" : "month"}</small></div>
+                    )}
+                    {p.kind === "paid" && <p className={styles.muted}>{interval === "year" ? `Saves ${usd(yearlySaving(p))} a year` : `or ${usd(p.price_year)} a year`}</p>}
+                    <ul>{planLines(p).map(line => <li key={line}>{line}</li>)}</ul>
+                    {p.kind === "custom"
+                      ? <a className={styles.secondary} href="mailto:hello@sciprospect.com?subject=SciProspect%20Custom%20plan">Contact sales</a>
+                      : current && sameInterval ? <button type="button" className={styles.secondary} disabled>Current plan</button>
+                        : <button type="button" className={styles.primary} disabled={!!busy} onClick={() => void choose(p)}>
+                            {busy === p.id ? "Opening…" : active ? (current ? `Switch to ${interval === "year" ? "yearly" : "monthly"} billing` : `Switch to ${p.name}`) : `Choose ${p.name}`}
+                          </button>}
                   </article>
                 );
               })}
@@ -139,11 +155,9 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
         </>}
         {confirming && (
           <ConfirmDialog
-            title={confirming === "cancel" ? "Cancel your subscription?" : "Move to Free?"}
-            description={confirming === "cancel"
-              ? `You keep your plan until ${day(sub?.current_period_end)}. After that you move to Free, and you can upgrade again at any time.`
-              : `Your plan stays active until ${day(sub?.current_period_end)}. After that you move to Free.`}
-            label={confirming === "cancel" ? "Cancel subscription" : "Move to Free"}
+            title="Cancel your subscription?"
+            description={`You keep your plan until ${day(sub?.current_period_end)}. After that your account is paused until you choose a plan again. Your contacts and websites are kept.`}
+            label="Cancel subscription"
             busy={busy === "cancel"}
             onCancel={() => setConfirming(null)}
             onConfirm={() => { setConfirming(null); void cancel(false); }}
@@ -156,7 +170,7 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
 
 /** Test provider's checkout page, laid out like Stripe Checkout. With Stripe on, people go to Stripe instead. */
 export function TestCheckout({ sessionId }: { sessionId: string }) {
-  const [session, setSession] = useState<{ plan_name: string; amount: number; currency: string; status: string; email: string } | null>(null);
+  const [session, setSession] = useState<{ plan_name: string; amount: number; currency: string; status: string; email: string; interval: Interval } | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -180,8 +194,8 @@ export function TestCheckout({ sessionId }: { sessionId: string }) {
         <div>
           <a className={styles.back} href="/billing">← Back</a>
           <p className={styles.muted} style={{ marginTop: 24 }}>Subscribe to SciProspect {session?.plan_name}</p>
-          <div className={styles.amount}>{session ? money(session.amount, session.currency) : "…"} <small>per month</small></div>
-          <div className={styles.lineItem}><span>{session?.plan_name} plan · billed monthly</span><span>{session && money(session.amount, session.currency)}</span></div>
+          <div className={styles.amount}>{session ? money(session.amount, session.currency) : "…"} <small>per {session?.interval === "year" ? "year" : "month"}</small></div>
+          <div className={styles.lineItem}><span>{session?.plan_name} plan · billed {session?.interval === "year" ? "yearly" : "monthly"}</span><span>{session && money(session.amount, session.currency)}</span></div>
           <div className={styles.lineItem}><strong>Total due today</strong><strong>{session && money(session.amount, session.currency)}</strong></div>
         </div>
       </aside>

@@ -8,6 +8,8 @@ export type User = {
   scistudio_access?: boolean; workspace_namespace: Namespace; tier?: string;
   /** Signed in, but two-step sign-in must be set up before anything else. */
   mfa_setup_required?: boolean;
+  /** The trial or plan has ended: only Billing is open until a plan is chosen. */
+  license_expired?: boolean;
 };
 export type Session = { authenticated: boolean; user: User };
 export type Site = {

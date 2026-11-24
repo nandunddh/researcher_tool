@@ -158,11 +158,12 @@ def _get_current_user_from_request(request: Request) -> Optional[dict]:
     return None
 
 
-def _require_authenticated_user(request: Request) -> dict:
+def _require_authenticated_user(request: Request, allow_expired: bool = False) -> dict:
     """
     Enforces that the request has an active, valid session.
     If not authenticated, raises HTTP 401.
-    If authenticated but account is suspended/stopped/expired, raises HTTP 403.
+    If authenticated but account is suspended/stopped, raises HTTP 403.
+    If the trial or plan has ended, raises HTTP 403 too, except where allow_expired is set (Billing: the owner must be able to pay).
     """
     token = _extract_token_from_request(request)
     if not token:
@@ -182,6 +183,10 @@ def _require_authenticated_user(request: Request) -> dict:
         key = user.get("license_key")
         if key:
             val = license_engine.validate_license(key)
+            if val.get("status") == "expired" and not user.get("is_member"):
+                if allow_expired:
+                    return user
+                raise HTTPException(status_code=403, detail="Your free trial or plan has ended. Choose a plan in Billing to continue.")
             if not val.get("valid") or val.get("status") == "stopped":
                 raise HTTPException(status_code=403, detail="🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
     return user
@@ -278,7 +283,7 @@ async def api_signup_start(request: Request):
 
 @app.post("/api/auth/signup/verify")
 async def api_signup_verify(request: Request):
-    """Self sign-up, step 2: the emailed code creates the account (Free plan) and signs the person in."""
+    """Self sign-up, step 2: the emailed code creates the account (7-day free trial) and signs the person in."""
     import signup
     client = getattr(request, "client", None)
     if not _reset_confirm_limit.allow(client.host if client else "unknown"):
@@ -288,10 +293,13 @@ async def api_signup_verify(request: Request):
     if problem:
         raise HTTPException(status_code=400, detail=problem)
     try:
-        # Collector license for self sign-ups: a year with a modest daily limit; paying for a plan upgrades it.
-        license_engine.create_account(name=details["name"], email=details["email"], tier="trial", duration_days=365, daily_limit=100,
+        # Self sign-ups start the 7-day free trial (no permanent free plan); paying for a plan upgrades the license.
+        import plans
+        trial = _plan_by_id("trial")
+        license_engine.create_account(name=details["name"], email=details["email"], tier="trial", duration_days=TRIAL_DAYS,
+                                      daily_limit=plans.daily_contacts(trial) if trial else 1000,
                                       account_type=details["account_type"], org_name=details["org_name"],
-                                      password_hash=details["password_hash"], plan_id="free", scistudio_access=True, notes="Self sign-up")
+                                      password_hash=details["password_hash"], plan_id="trial", scistudio_access=True, notes="Self sign-up")
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     ok, user, msg = license_engine.authenticate(details["email"], str(body.get("password") or ""))
@@ -720,12 +728,15 @@ async def admin_usage(request: Request):
 async def public_plans():
     """Public: the plans shown on the pricing page (read live from the Plans page)."""
     import plans
-    return {"plans": [{k: p[k] for k in ("id", "name", "price_month", "limits", "featured")} for p in plans.list_plans()]}
+    return {"plans": plans.public_plans()}
 
 
 # -----------------------------------------------------------------------------
 # Billing (test provider now, Stripe later: see backend/billing.py)
 # -----------------------------------------------------------------------------
+TRIAL_DAYS = 7
+
+
 def _plan_by_id(plan_id: str) -> Optional[dict]:
     import plans
     return next((p for p in plans.list_plans() if p["id"] == plan_id), None)
@@ -733,22 +744,24 @@ def _plan_by_id(plan_id: str) -> Optional[dict]:
 
 def _billing_hooks() -> dict:
     """What a payment event does to the account: website plan, team seats and the collector license."""
+    import plans
+
     def on_paid(key, plan_id):
         plan = _plan_by_id(plan_id)
         license_engine.set_plan(key, plan_id, int((plan or {}).get("limits", {}).get("members", -1)))
+        if (license_engine.get_account(key) or {}).get("tier") == "pro":  # switching plan while subscribed: the new daily limit applies now
+            license_engine.upgrade_account(key, "pro", plans.daily_contacts(plan))
 
-    def on_renewed(key):
+    def on_renewed(key, days=30):
+        # First payment starts the paid period now; a renewal adds the period (30 days monthly, 365 days yearly) to what is left.
         account = license_engine.get_account(key) or {}
-        if account.get("tier") != "pro":
-            license_engine.upgrade_account(key, "pro", -1)  # first payment: Pro collector license for 30 days
-        else:
-            license_engine.extend_account(key, 30)
+        license_engine.activate_paid(key, days, plans.daily_contacts(_plan_by_id(str(account.get("plan_id") or ""))))
 
     def on_ended(key):
-        free = _plan_by_id("free") or {"limits": {"members": 0}}
-        license_engine.set_plan(key, "free", int(free["limits"].get("members", 0)))
-        license_engine.upgrade_account(key, "trial", 100)
-        license_engine.extend_account(key, 365)  # keep signing in on the Free plan
+        # There is no permanent free plan: the account goes back to trial limits and, once the paid period is over, only Billing is open.
+        trial = _plan_by_id("trial") or {"limits": {"members": 0}}
+        license_engine.set_plan(key, "trial", int(trial["limits"].get("members", 0)))
+        license_engine.upgrade_account(key, "trial", plans.daily_contacts(trial))
     def on_invoice(key, inv):
         account = license_engine.get_account(key) or {}
         to = account.get("client_email", "")
@@ -773,7 +786,7 @@ def _billing_hooks() -> dict:
 
 
 def _billing_owner(request: Request):
-    user = _require_authenticated_user(request)
+    user = _require_authenticated_user(request, allow_expired=True)
     if user.get("is_admin"):
         raise HTTPException(status_code=403, detail="The root account has no billing.")
     if user.get("is_member"):
@@ -793,8 +806,11 @@ async def billing_overview(request: Request):
     if billing.provider() == "test":
         billing.sync_test(key, _billing_hooks())
         account = license_engine.get_account(key) or account
+    status = license_engine.validate_license(key)
     return {"provider": billing.provider(), "plan": plans.plan_for(account), "subscription": billing.subscription(key),
-            "invoices": billing.invoices(key), "plans": [{k: p[k] for k in ("id", "name", "price_month", "limits", "featured")} for p in plans.list_plans()]}
+            "invoices": billing.invoices(key), "plans": plans.public_plans(),
+            "license": {"expired": status.get("status") == "expired", "tier": account.get("tier"), "expires_at": account.get("expires_at"),
+                        "days_left": status.get("days_left")}}
 
 
 @app.post("/api/billing/checkout")
@@ -802,19 +818,26 @@ async def billing_checkout(request: Request):
     """Start paying for a plan (or switch between paid plans while subscribed)."""
     import billing
     user, account = _billing_owner(request)
-    plan = _plan_by_id(str((await request.json()).get("plan_id") or ""))
-    if not plan or plan["price_month"] <= 0:
+    body = await request.json()
+    plan = _plan_by_id(str(body.get("plan_id") or ""))
+    interval = str(body.get("interval") or "month")
+    if plan and plan["kind"] == "custom":
+        raise HTTPException(status_code=400, detail="The Custom plan is set up with us. Please contact us for a quote.")
+    if not plan or plan["retired"] or plan["kind"] != "paid" or interval not in billing.INTERVALS or billing.price_for(plan, interval) <= 0:
         raise HTTPException(status_code=400, detail="Choose a paid plan.")
     key = account["license_key"]
     sub = billing.subscription(key)
     if sub and sub["status"] == "active":
-        if sub["plan_id"] == plan["id"]:
+        if sub["plan_id"] == plan["id"] and sub["interval"] == interval:
             raise HTTPException(status_code=400, detail="You are already on this plan.")
-        billing.switch_plan(key, sub, plan)
+        try:
+            billing.switch_plan(key, sub, plan, interval)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
         _billing_hooks()["on_paid"](key, plan["id"])
-        return {"changed": True, "message": f"You are now on {plan['name']}."}
+        return {"changed": True, "message": f"You are now on {plan['name']} ({'yearly' if interval == 'year' else 'monthly'})."}
     try:
-        url = billing.create_checkout(key, user.get("client_email", ""), plan, os.environ.get("SCIPROSPECT_APP_URL", "http://127.0.0.1:3000").rstrip("/"))
+        url = billing.create_checkout(key, user.get("client_email", ""), plan, os.environ.get("SCIPROSPECT_APP_URL", "http://127.0.0.1:3000").rstrip("/"), interval)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return {"url": url}

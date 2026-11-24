@@ -13,7 +13,13 @@ from typing import Callable, Dict, Optional
 
 import db
 
-PERIOD = timedelta(days=30)
+PERIODS = {"month": timedelta(days=30), "year": timedelta(days=365)}
+INTERVALS = tuple(PERIODS)
+
+
+def price_for(plan: dict, interval: str) -> float:
+    """What one period costs: the plan's yearly price for "year", the monthly price otherwise."""
+    return float(plan.get("price_year") or 0) if interval == "year" else float(plan.get("price_month") or 0)
 
 
 def provider() -> str:
@@ -33,13 +39,13 @@ def _now() -> datetime:
 # ---------------------------------------------------------------- reading
 def subscription(account_key: str) -> Optional[dict]:
     with db.transaction() as cur:
-        cur.execute("SELECT plan_id, status, current_period_end, cancel_at_period_end, provider, provider_subscription_id "
+        cur.execute("SELECT plan_id, status, current_period_end, cancel_at_period_end, provider, provider_subscription_id, billing_interval "
                     "FROM subscriptions WHERE account_key = %s", (account_key,))
         row = cur.fetchone()
     if not row:
         return None
     return {"plan_id": row[0], "status": row[1], "current_period_end": row[2].isoformat() if row[2] else None,
-            "cancel_at_period_end": row[3], "provider": row[4], "provider_subscription_id": row[5]}
+            "cancel_at_period_end": row[3], "provider": row[4], "provider_subscription_id": row[5], "interval": row[6]}
 
 
 def invoices(account_key: str) -> list:
@@ -56,32 +62,36 @@ def invoice(account_key: str, invoice_id: int) -> Optional[dict]:
 
 def checkout(session_id: str, account_key: str) -> Optional[dict]:
     with db.transaction() as cur:
-        cur.execute("SELECT plan_id, amount, currency, status, provider FROM checkout_sessions WHERE id = %s AND account_key = %s",
+        cur.execute("SELECT plan_id, amount, currency, status, provider, billing_interval FROM checkout_sessions WHERE id = %s AND account_key = %s",
                     (session_id, account_key))
         row = cur.fetchone()
-    return {"id": session_id, "plan_id": row[0], "amount": float(row[1]), "currency": row[2], "status": row[3], "provider": row[4]} if row else None
+    return {"id": session_id, "plan_id": row[0], "amount": float(row[1]), "currency": row[2], "status": row[3], "provider": row[4], "interval": row[5]} if row else None
 
 
 # ---------------------------------------------------------------- starting a payment
-def create_checkout(account_key: str, email: str, plan: dict, app_url: str) -> str:
+def create_checkout(account_key: str, email: str, plan: dict, app_url: str, interval: str = "month") -> str:
     """Returns the URL to send the person to: our test checkout page, or Stripe Checkout."""
+    if interval not in INTERVALS:
+        raise ValueError("Choose monthly or yearly billing.")
+    if price_for(plan, interval) <= 0:
+        raise ValueError("This plan can't be bought online. Contact us for a quote.")
     if provider() == "stripe":
-        if not plan.get("stripe_price_id"):
-            raise ValueError("This plan has no Stripe price yet. Add it on the Plans page.")
+        price_id = plan.get("stripe_price_id_year") if interval == "year" else plan.get("stripe_price_id")
+        if not price_id:
+            raise ValueError(f"This plan has no Stripe {'yearly' if interval == 'year' else 'monthly'} price yet. Add it on the Plans page.")
+        meta = {"account_key": account_key, "plan_id": plan["id"], "interval": interval}
         session = _stripe().checkout.Session.create(
-            mode="subscription", line_items=[{"price": plan["stripe_price_id"], "quantity": 1}],
+            mode="subscription", line_items=[{"price": price_id, "quantity": 1}],
             success_url=f"{app_url}/billing/success", cancel_url=f"{app_url}/billing",
-            client_reference_id=account_key, customer_email=email,
-            metadata={"account_key": account_key, "plan_id": plan["id"]},
-            subscription_data={"metadata": {"account_key": account_key, "plan_id": plan["id"]}},
+            client_reference_id=account_key, customer_email=email, metadata=meta, subscription_data={"metadata": meta},
         )
         session_id, url = session["id"], session["url"]
     else:
         session_id = f"cs_test_{secrets.token_hex(12)}"
         url = f"/billing/checkout/{session_id}"
     with db.transaction() as cur:
-        cur.execute("INSERT INTO checkout_sessions (id, account_key, plan_id, amount, provider) VALUES (%s, %s, %s, %s, %s)",
-                    (session_id, account_key, plan["id"], plan["price_month"], provider()))
+        cur.execute("INSERT INTO checkout_sessions (id, account_key, plan_id, amount, provider, billing_interval) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (session_id, account_key, plan["id"], price_for(plan, interval), provider(), interval))
     return url
 
 
@@ -93,18 +103,18 @@ def pay_test_checkout(session_id: str, account_key: str, hooks: Dict[str, Callab
     sub_id = f"sub_test_{secrets.token_hex(8)}"
     handle_event({"type": "checkout.session.completed", "data": {"object": {
         "id": session_id, "client_reference_id": account_key, "subscription": sub_id, "customer": f"cus_test_{account_key[-6:]}",
-        "metadata": {"account_key": account_key, "plan_id": found["plan_id"]}}}}, hooks)
+        "metadata": {"account_key": account_key, "plan_id": found["plan_id"], "interval": found["interval"]}}}}, hooks)
     start = _now()
     handle_event({"type": "invoice.paid", "data": {"object": {
         "id": f"in_test_{secrets.token_hex(8)}", "subscription": sub_id, "amount_paid": round(found["amount"] * 100), "currency": found["currency"].lower(),
-        "period_start": int(start.timestamp()), "period_end": int((start + PERIOD).timestamp())}}}, hooks)
+        "period_start": int(start.timestamp()), "period_end": int((start + PERIODS[found["interval"]]).timestamp())}}}, hooks)
     return True
 
 
 # ---------------------------------------------------------------- the single place where state changes
 def handle_event(event: dict, hooks: Dict[str, Callable]) -> None:
     """Applies a payment event (from Stripe's webhook or the test provider).
-    hooks: on_paid(account_key, plan_id), on_renewed(account_key), on_ended(account_key)."""
+    hooks: on_paid(account_key, plan_id), on_renewed(account_key, days), on_ended(account_key); days = length of the paid period."""
     kind, obj = event.get("type"), (event.get("data") or {}).get("object") or {}
     if kind == "checkout.session.completed":
         meta = obj.get("metadata") or {}
@@ -113,12 +123,13 @@ def handle_event(event: dict, hooks: Dict[str, Callable]) -> None:
             return
         with db.transaction() as cur:
             cur.execute("UPDATE checkout_sessions SET status = 'complete' WHERE id = %s", (obj.get("id"),))
-            cur.execute("INSERT INTO subscriptions (account_key, plan_id, status, provider, provider_customer_id, provider_subscription_id) "
-                        "VALUES (%s, %s, 'active', %s, %s, %s) ON CONFLICT (account_key) DO UPDATE SET plan_id = EXCLUDED.plan_id, "
+            cur.execute("INSERT INTO subscriptions (account_key, plan_id, status, provider, provider_customer_id, provider_subscription_id, billing_interval) "
+                        "VALUES (%s, %s, 'active', %s, %s, %s, %s) ON CONFLICT (account_key) DO UPDATE SET plan_id = EXCLUDED.plan_id, "
                         "status = 'active', cancel_at_period_end = false, provider = EXCLUDED.provider, provider_customer_id = EXCLUDED.provider_customer_id, "
-                        "provider_subscription_id = EXCLUDED.provider_subscription_id, updated_at = now()",
+                        "provider_subscription_id = EXCLUDED.provider_subscription_id, billing_interval = EXCLUDED.billing_interval, updated_at = now()",
                         (account_key, plan_id, "stripe" if not str(obj.get("id", "")).startswith("cs_test_") else "test",
-                         str(obj.get("customer") or ""), str(obj.get("subscription") or "")))
+                         str(obj.get("customer") or ""), str(obj.get("subscription") or ""),
+                         meta.get("interval") if meta.get("interval") in INTERVALS else "month"))
         hooks["on_paid"](account_key, plan_id)
     elif kind == "invoice.paid":
         with db.transaction() as cur:
@@ -128,7 +139,7 @@ def handle_event(event: dict, hooks: Dict[str, Callable]) -> None:
                 return
             account_key, plan_id, prov = row
             start = datetime.fromtimestamp(int(obj.get("period_start") or _now().timestamp()), timezone.utc)
-            end = datetime.fromtimestamp(int(obj.get("period_end") or (start + PERIOD).timestamp()), timezone.utc)
+            end = datetime.fromtimestamp(int(obj.get("period_end") or (start + PERIODS["month"]).timestamp()), timezone.utc)
             cur.execute("SELECT 1 FROM invoices WHERE provider_invoice_id = %s", (str(obj.get("id") or ""),))
             if cur.fetchone():
                 return  # Stripe may send the same event twice
@@ -140,7 +151,7 @@ def handle_event(event: dict, hooks: Dict[str, Callable]) -> None:
                         (number, account_key, plan_id, amount, currency, start, end, prov, str(obj.get("id") or "")))
             invoice_id = cur.fetchone()[0]
             cur.execute("UPDATE subscriptions SET status = 'active', current_period_end = %s, updated_at = now() WHERE account_key = %s", (end, account_key))
-        hooks["on_renewed"](account_key)
+        hooks["on_renewed"](account_key, max(1, (end - start).days))
         if "on_invoice" in hooks:
             hooks["on_invoice"](account_key, {"id": invoice_id, "number": number, "plan_id": plan_id, "amount": amount, "currency": currency,
                                               "period_start": start, "period_end": end})
@@ -182,11 +193,13 @@ def sync_test(account_key: str, hooks: Dict[str, Callable]) -> None:
             handle_event({"type": "customer.subscription.deleted", "data": {"object": {"id": sub["provider_subscription_id"]}}}, hooks)
             return
         with db.transaction() as cur:
-            cur.execute("SELECT amount FROM invoices WHERE account_key = %s ORDER BY created_at DESC LIMIT 1", (account_key,))
-            amount = float((cur.fetchone() or [0])[0])
+            # Like Stripe, a renewal charges the plan's current price for the current billing period (not the last invoice's amount).
+            cur.execute("SELECT price_month, price_year FROM plans WHERE id = %s", (sub["plan_id"],))
+            row = cur.fetchone()
+            amount = float(row[1] if sub["interval"] == "year" else row[0]) if row else 0.0
         handle_event({"type": "invoice.paid", "data": {"object": {
             "id": f"in_test_{secrets.token_hex(8)}", "subscription": sub["provider_subscription_id"], "amount_paid": round(amount * 100),
-            "period_start": int(end.timestamp()), "period_end": int((end + PERIOD).timestamp())}}}, hooks)
+            "period_start": int(end.timestamp()), "period_end": int((end + PERIODS[sub["interval"]]).timestamp())}}}, hooks)
 
 
 def verify_webhook(payload: bytes, signature: str) -> dict:
@@ -206,21 +219,25 @@ def check_test_card(body: dict) -> Optional[str]:
     return None
 
 
-def switch_plan(account_key: str, sub: dict, plan: dict) -> None:
-    """Move an active subscription to another paid plan (Stripe prorates the difference)."""
+def switch_plan(account_key: str, sub: dict, plan: dict, interval: Optional[str] = None) -> None:
+    """Move an active subscription to another paid plan (Stripe prorates the difference). The billing interval stays unless one is given."""
+    interval = interval if interval in INTERVALS else sub.get("interval", "month")
     if sub["provider"] == "stripe":
+        price_id = plan.get("stripe_price_id_year") if interval == "year" else plan.get("stripe_price_id")
+        if not price_id:
+            raise ValueError("This plan has no Stripe price for that billing period yet.")
         stripe_api = _stripe()
         item = stripe_api.Subscription.retrieve(sub["provider_subscription_id"])["items"]["data"][0]["id"]
-        stripe_api.Subscription.modify(sub["provider_subscription_id"], items=[{"id": item, "price": plan["stripe_price_id"]}],
+        stripe_api.Subscription.modify(sub["provider_subscription_id"], items=[{"id": item, "price": price_id}],
                                        proration_behavior="create_prorations")
     with db.transaction() as cur:
-        cur.execute("UPDATE subscriptions SET plan_id = %s, cancel_at_period_end = false, updated_at = now() WHERE account_key = %s",
-                    (plan["id"], account_key))
+        cur.execute("UPDATE subscriptions SET plan_id = %s, billing_interval = %s, cancel_at_period_end = false, updated_at = now() WHERE account_key = %s",
+                    (plan["id"], interval, account_key))
 
 
 def all_subscriptions() -> Dict[str, dict]:
     """Every subscription in one query (for root's Manage Accounts)."""
     with db.transaction() as cur:
-        cur.execute("SELECT account_key, plan_id, status, current_period_end, cancel_at_period_end, provider FROM subscriptions")
+        cur.execute("SELECT account_key, plan_id, status, current_period_end, cancel_at_period_end, provider, billing_interval FROM subscriptions")
         return {r[0]: {"plan_id": r[1], "status": r[2], "current_period_end": r[3].isoformat() if r[3] else None,
-                       "cancel_at_period_end": r[4], "provider": r[5]} for r in cur.fetchall()}
+                       "cancel_at_period_end": r[4], "provider": r[5], "interval": r[6]} for r in cur.fetchall()}

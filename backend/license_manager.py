@@ -390,6 +390,32 @@ class LicenseManager:
         self._save_db(db)
         return True, f"Extended account validity by {additional_days} days.", sanitize_account(account)
 
+    def activate_paid(self, license_key: str, days: int, daily_limit: int) -> Tuple[bool, str]:
+        """A payment arrived: Pro collector license for `days` more days, with the plan's daily contact limit (-1 = unlimited).
+        The first payment starts its period now (it replaces what was left of the trial); a renewal adds to what is left."""
+        key_clean = (license_key or "").strip().upper()
+        if key_clean == "SCIP-PRO-ROOT-MASTER":
+            return False, "The root account has no plan."
+        db = self._load_db()
+        account = db["licenses"].get(key_clean)
+        if not account:
+            return False, "Account not found."
+        now = datetime.utcnow()
+        base, current = now, account.get("expires_at", "never")
+        if account.get("tier") == "pro" and current != "never":
+            try:
+                base = max(datetime.strptime(current.replace(" UTC", ""), "%Y-%m-%d %H:%M:%S"), now)
+            except Exception:
+                base = now
+        account["tier"] = "pro"
+        account["daily_limit"] = daily_limit if daily_limit > 0 else -1
+        account["status"] = "active"
+        account["duration_days"] = days
+        if current != "never":
+            account["expires_at"] = (base + timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S UTC")
+        self._save_db(db)
+        return True, "Plan activated."
+
     def upgrade_account(self, license_key: str, new_tier: str = "pro", new_limit: int = -1) -> Tuple[bool, str, dict]:
         """Upgrades or modifies an account's tier and limit."""
         key_clean = (license_key or "").strip().upper()
@@ -972,19 +998,22 @@ class LicenseManager:
             return False, {}, "Incorrect password. Please try again."
 
         val = self.validate_license(found_key)
-        if not val.get("valid") or val.get("status") == "stopped":
+        # An ended trial or plan is not a suspension: the owner signs in to choose a plan (the app limits an expired session to Billing).
+        expired = val.get("status") == "expired"
+        if (not val.get("valid") and not expired) or val.get("status") == "stopped":
             return False, {}, val.get("message", "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin.")
 
         user_info = {
             "is_member": False,
             "license_key": found_key,  # Hidden account ID used for tracking and limits
             "client_name": val.get("client_name", "Valued Client"),
-            "client_email": val.get("client_email", ""),
+            "client_email": val.get("client_email") or found_acc.get("client_email", ""),
             "tier": val.get("tier", "pro"),
             "is_admin": (found_key == "SCIP-PRO-ROOT-MASTER"),
             "scistudio_access": val.get("scistudio_access", True),
             "daily_limit": val.get("daily_limit", "Unlimited"),
-            "status": "active"
+            "status": "expired" if expired else "active",
+            "license_expired": expired,
         }
         return True, user_info, f"Welcome back, {user_info['client_name']}"
 
@@ -1025,7 +1054,8 @@ class LicenseManager:
         key = user.get("parent_license_key") or user.get("license_key")
         if key:
             val = self.validate_license(key)
-            if not val.get("valid") or val.get("status") == "stopped" or user.get("status") == "stopped":
+            expired = val.get("status") == "expired" and not user.get("is_member")  # the owner can still reach Billing
+            if (not val.get("valid") and not expired) or val.get("status") == "stopped" or user.get("status") == "stopped":
                 self._sessions.pop(token, None)
                 self._save_sessions()
                 msg = val.get("message") or "🚨 ACCESS SUSPENDED: Your account is Temporarily stopped. Contact Admin."
@@ -1048,9 +1078,13 @@ class LicenseManager:
 
             # Keep user details synchronized
             user["status"] = val.get("status", "active")
+            user["license_expired"] = expired
             user["tier"] = val.get("tier", user.get("tier", "pro"))
-            user["daily_limit"] = val.get("daily_limit", "Unlimited")
-            user["days_left"] = val.get("days_left", "Unlimited")
+            if not expired:
+                user["daily_limit"] = val.get("daily_limit", "Unlimited")
+                user["days_left"] = val.get("days_left", "Unlimited")
+            else:
+                user["days_left"] = "0 days"
             if not user.get("is_member"):
                 user["scistudio_access"] = val.get("scistudio_access", True)
 

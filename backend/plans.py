@@ -5,14 +5,23 @@ from typing import Dict, Optional
 import db
 from psycopg2.extras import Json
 
-LIMIT_KEYS = ("websites", "pages", "members", "storage_mb", "submissions_month")
+LIMIT_KEYS = ("websites", "pages", "members", "storage_mb", "data_storage_mb", "submissions_month", "daily_contacts")
+KINDS = ("trial", "paid", "custom")
+# What visitors may see of a plan (never Stripe ids).
+PUBLIC_FIELDS = ("id", "name", "price_month", "price_year", "kind", "limits", "featured")
 UNLIMITED = -1
 
 
 def list_plans() -> list:
     with db.transaction() as cur:
-        cur.execute("SELECT id, name, price_month, limits, stripe_price_id, featured FROM plans ORDER BY sort, id")
-        return [{"id": i, "name": n, "price_month": float(p), "limits": l, "stripe_price_id": sp, "featured": f} for i, n, p, l, sp, f in cur.fetchall()]
+        cur.execute("SELECT id, name, price_month, price_year, kind, retired, limits, stripe_price_id, stripe_price_id_year, featured FROM plans ORDER BY sort, id")
+        return [{"id": i, "name": n, "price_month": float(pm), "price_year": float(py), "kind": k, "retired": r, "limits": l,
+                 "stripe_price_id": sp, "stripe_price_id_year": spy, "featured": f} for i, n, pm, py, k, r, l, sp, spy, f in cur.fetchall()]
+
+
+def public_plans() -> list:
+    """The plans on the pricing page: not retired ones. The trial is returned too (it is a card-free start, not a purchase)."""
+    return [{k: p[k] for k in PUBLIC_FIELDS} for p in list_plans() if not p["retired"]]
 
 
 def clean_plan(body: dict) -> dict:
@@ -22,8 +31,12 @@ def clean_plan(body: dict) -> dict:
         raise ValueError("The plan needs a name.")
     try:
         price = round(max(0.0, float(body.get("price_month") or 0)), 2)
+        price_year = round(max(0.0, float(body.get("price_year") or 0)), 2)
     except (TypeError, ValueError):
-        raise ValueError("The price must be a number.")
+        raise ValueError("The prices must be numbers.")
+    kind = str(body.get("kind") or "paid")
+    if kind not in KINDS:
+        raise ValueError("The plan type must be trial, paid or custom.")
     raw = body.get("limits") if isinstance(body.get("limits"), dict) else {}
     limits: Dict[str, object] = {}
     for key in LIMIT_KEYS:
@@ -33,22 +46,34 @@ def clean_plan(body: dict) -> dict:
             raise ValueError(f"“{key}” must be a whole number (-1 = unlimited).")
         limits[key] = UNLIMITED if value < 0 else min(value, 10_000_000)
     limits["custom_domain"] = raw.get("custom_domain") is True
-    stripe_price = str(body.get("stripe_price_id") or "").strip()
-    if stripe_price and not stripe_price.startswith("price_"):
-        raise ValueError("A Stripe price id starts with “price_”.")
-    return {"name": name, "price_month": price, "limits": limits, "stripe_price_id": stripe_price[:100], "featured": body.get("featured") is True}
+    stripe_ids = []
+    for field in ("stripe_price_id", "stripe_price_id_year"):
+        value = str(body.get(field) or "").strip()
+        if value and not value.startswith("price_"):
+            raise ValueError("A Stripe price id starts with “price_”.")
+        stripe_ids.append(value[:100])
+    return {"name": name, "price_month": price, "price_year": price_year, "kind": kind, "retired": body.get("retired") is True, "limits": limits,
+            "stripe_price_id": stripe_ids[0], "stripe_price_id_year": stripe_ids[1], "featured": body.get("featured") is True}
 
 
 def save_plan(plan_id: str, body: dict) -> dict:
     plan = clean_plan(body)
     with db.transaction() as cur:
-        cur.execute("UPDATE plans SET name = %s, price_month = %s, limits = %s, stripe_price_id = %s, featured = %s, updated_at = now() WHERE id = %s",
-                    (plan["name"], plan["price_month"], Json(plan["limits"]), plan["stripe_price_id"], plan["featured"], plan_id))
+        cur.execute("UPDATE plans SET name = %s, price_month = %s, price_year = %s, kind = %s, retired = %s, limits = %s, stripe_price_id = %s, "
+                    "stripe_price_id_year = %s, featured = %s, updated_at = now() WHERE id = %s",
+                    (plan["name"], plan["price_month"], plan["price_year"], plan["kind"], plan["retired"], Json(plan["limits"]), plan["stripe_price_id"],
+                     plan["stripe_price_id_year"], plan["featured"], plan_id))
         if cur.rowcount != 1:
             raise ValueError("Plan not found.")
         if plan["featured"]:  # only one plan carries the "Most popular" badge
             cur.execute("UPDATE plans SET featured = false WHERE id <> %s", (plan_id,))
     return {"id": plan_id, **plan}
+
+
+def daily_contacts(plan: Optional[dict]) -> int:
+    """Contacts one user may collect per day on this plan (-1 = unlimited)."""
+    value = ((plan or {}).get("limits") or {}).get("daily_contacts", UNLIMITED)
+    return int(value) if isinstance(value, (int, float)) else UNLIMITED
 
 
 def default_plan_id(account: dict) -> str:

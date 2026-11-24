@@ -11,7 +11,7 @@ type Plan = { id: string; name: string; price_month: number };
 /** Self sign-up: details → 6-digit email code → signed in → checkout (paid plans) or workspace. */
 export function Signup({ initialPlan }: { initialPlan: string }) {
   const [plans, setPlans] = useState<Plan[]>([]);
-  const [plan, setPlan] = useState(initialPlan || "free");
+  const plan = initialPlan || "trial"; // everyone starts the trial; a plan chosen on the pricing page is paid for after sign-up
   const [kind, setKind] = useState<"single" | "org">("single");
   const [step, setStep] = useState<"details" | "code">("details");
   const [email, setEmail] = useState("");
@@ -69,24 +69,19 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
             <img src="/branding/sciprospect-a-icon.png" alt="" width="56" height="56" />
             <span>SciProspect</span>
           </a>
-          <h1>{step === "details" ? "Create your account" : "Check your email"}</h1>
-          <p>{step === "details" ? "Start free. You can change your plan at any time." : `Enter the 6-digit code we sent to ${email}.`}</p>
+          <h1>{step === "details" ? "Start your 7-day free trial" : "Check your email"}</h1>
+          <p>{step === "details" ? "No card needed. Choose a plan any time during or after your trial." : `Enter the 6-digit code we sent to ${email}.`}</p>
         </div>
         {error && <div className="alert login-alert" role="alert" style={{ marginTop: 20 }}><span>{error}</span></div>}
         {info && step === "code" && <div className="alert login-success" role="status" style={{ marginTop: 20 }}><span>{info}</span></div>}
 
         {step === "details" ? (
           <form onSubmit={start} noValidate>
-            <div className="form-group">
-              <label htmlFor="su-plan">Plan</label>
-              <div className="input-wrapper">
-                <select id="su-plan" value={plan} onChange={e => setPlan(e.target.value)}>
-                  {(plans.length ? plans : [{ id: plan, name: plan, price_month: 0 }]).map(p => (
-                    <option key={p.id} value={p.id}>{p.name}{p.price_month > 0 ? ` · $${p.price_month} a month` : " · $0"}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            {chosen && chosen.price_month > 0 && (
+              <p className="login-success alert" role="note" style={{ marginBottom: 16 }}>
+                You chose the <strong>{chosen.name}</strong> plan. After you verify your email and secure your account, you&apos;ll go to checkout. Prefer to try first? <a href="/signup">Start the free trial</a> instead.
+              </p>
+            )}
             <div className="form-group">
               <label htmlFor="su-name">Your name</label>
               <div className="input-wrapper"><input id="su-name" name="name" autoComplete="name" required /></div>
