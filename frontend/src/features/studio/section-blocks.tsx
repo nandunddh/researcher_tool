@@ -523,7 +523,7 @@ function Cards({ c }: { c: Ctx }) {
           <figure key={i} className={`${styles.card} ${styles.quote}`}>
             <T c={c} path={["items", i, "description"]} tag="blockquote" className={styles.quoteText} placeholder="quote" multiline />
             <figcaption className={styles.quoteBy}>
-              {safeImage(item.image) && <Img className={styles.quoteImage} src={item.image} alt="" />}
+              {safeImage(item.image) ? <Img className={styles.quoteImage} src={item.image} alt="" /> : <span className={`${styles.quoteImage} ${styles.quoteAvatar}`} aria-hidden="true"><Icon name="user" size={22} /></span>}
               <span>
                 <T c={c} path={["items", i, "title"]} tag="strong" placeholder="name" />
                 <T c={c} path={["items", i, "meta"]} tag="span" className={styles.small} placeholder="role, institution" />
@@ -585,7 +585,13 @@ function Video({ c }: { c: Ctx }) {
           <iframe src={embed.src} title={str(d.title) || "Video"} loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen"
             allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={c.edit ? { pointerEvents: "none" } : undefined} />
         </div>
-      ) : c.edit && <p className={styles.muted}>Paste a YouTube or Vimeo link in the panel.</p>}
+      ) : (
+        // Same 16:9 frame until a video is linked, so the page layout does not jump when it is added.
+        <div className={`${styles.video} ${styles.videoEmpty}`}>
+          <svg viewBox="0 0 24 24" width="44" height="44" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor" /></svg>
+          <span>{c.edit ? "Paste a YouTube or Vimeo link in the panel." : "Video coming soon"}</span>
+        </div>
+      )}
       <T c={c} path={["caption"]} tag="figcaption" className={styles.small} placeholder="caption" />
     </figure>
   );

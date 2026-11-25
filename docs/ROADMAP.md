@@ -66,12 +66,13 @@ Ready-made sections people drag into a page. We write every block ourselves; fre
 - [x] 🧪 Headers: mobile menu without scripts, headers that stay at the top, Conference and Dark headers; false promises (dropdown, mega menu, search) removed
 - [x] 🧪 Effects and assets that were promised but missing: hover lift, animated gradient (respects reduced motion), 12 outline icons with a picker, orbit illustration, gradient band
 - [x] 🧪 Schedule by day (time, room, track, speaker), Sponsors by tier (logos that link out), Countdown (from Event details), Venue and directions (from Event details, Open in maps)
-- [ ] Header dropdown (sub-menus): needs sub-items in the menu schema, the editor and the mobile menu
+- [x] 🧪 Header sub-menus (one level): edited under each link in the panel, open on click or Enter without scripts, close on outside click or Escape, also in the mobile menu
 - [x] 🧪 Speakers in three layouts (cards, list, large portraits) with a talk title, Organising committee, Simple and Column footers with social links
 - [x] 🧪 Event in numbers (large figures), Testimonials with photo and role, Logo strip, Video (YouTube and Vimeo, privacy mode, only real video ids), Downloads, Travel and stay; every card can carry a link
-- [ ] Footer newsletter box (needs an email list first)
+- [x] 🧪 Newsletter sign-up block: email and consent, sign-ups land in the website Inbox (CSV), the same email is not stored twice and the answer never reveals who is on the list
 - [ ] More heroes: background image, video-free animated, with countdown or key dates
-- [ ] Look at every block in a browser (desktop, tablet, phone) and fix spacing; so far blocks are checked by test cases only
+- [x] Library previews now use the real page renderer (the old hand-made mock-ups showed menus, search and log-in buttons the real headers never had). Looked at headers (desktop and phone menu), schedule, sponsors, countdown, venue, travel, numbers, testimonials, video, downloads, speakers, footers and newsletter; fixed the dark phone menu, footer line stacking, empty video frame, quote photo slot and travel text
+- [ ] Tablet widths and the older blocks (hero, pricing, gallery, FAQ, contact layouts) have not been looked at in a browser yet
 - [ ] A few new blocks every week through the daily designs workflow
 - [ ] 💡 Catalog page with thumbnails and categories in the Design Library
 

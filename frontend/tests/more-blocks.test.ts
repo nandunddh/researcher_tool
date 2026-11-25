@@ -60,7 +60,7 @@ test("each new entry starts in the layout its name promises, with nothing made u
   assert.ok((downloads.data.files as { label: string; url: string }[]).every(f => f.label && f.url === ""), "no made-up file links");
   const travel = make("travel-stay");
   assert.equal(travel.type, "travel");
-  assert.ok((travel.data.items as { title: string; description: string }[]).every(i => i.title && i.description === ""), "no invented travel advice");
+  assert.ok((travel.data.items as { title: string; description: string }[]).every(i => i.title && i.description && !/\d/.test(i.description)), "says what goes in each card, without invented details");
 });
 
 test("the newsletter sign-up asks for an email and consent, and the panel shows the same fields", () => {

@@ -10,6 +10,6 @@ export function libraryFallback(siteName?: string) {
     const library = section.library;
     const id = library && typeof library === "object" && !Array.isArray(library) ? library.id : undefined;
     const item = componentCatalog.find(c => c.id === id);
-    return item ? <SectionPreview item={item} brand={siteName} interactive={false} /> : null;
+    return item ? <SectionPreview item={item} brand={siteName} /> : null;
   };
 }

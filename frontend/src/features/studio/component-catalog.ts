@@ -1,7 +1,6 @@
 import { modernComponents } from "./modern-presets";
 export type LibraryLevel = "basic" | "medium" | "pro";
 export type LibraryFilter = "all" | LibraryLevel;
-export type NavigationVariant = "business" | "portfolio" | "services" | "product" | "editorial";
 export type LibraryGroup = "Sections" | "Elements" | "Assets";
 export type LibraryComponent = {id:string;version:number;name:string;category:string;group:LibraryGroup;level:LibraryLevel;description:string;variant:string;features:string[];
  /** Imported designs carry their finished section; built-in ones are created in component-instance.ts. */
