@@ -19,7 +19,7 @@ export type EditorSite = {
 export type Selection = { sectionId: string; elementId?: string; path?: string };
 
 export const sectionLayouts: Record<string, Record<string, string>> = {
-  navbar: { business: "Business", portfolio: "Portfolio", services: "Services", product: "Product", editorial: "Editorial" },
+  navbar: { business: "Business", portfolio: "Portfolio", services: "Services", product: "Product", editorial: "Editorial", conference: "Conference", dark: "Dark" },
   hero: {
     split: "Image right", image_left: "Image left", centered: "Centered", image_top: "Image above",
     text_only: "Text only", conference_program: "Conference program",

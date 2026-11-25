@@ -11,6 +11,7 @@ import { linkHref, safeImage, type LinkContext } from "./site-schema";
 import { EditableText } from "./editable-text";
 import type { EditHooks } from "./site-renderer";
 import { Icon } from "@/components/icon";
+import { isIllustration, symbolPath } from "./site-symbols";
 import styles from "./section-blocks.module.css";
 
 type Rec = Record<string, Json>;
@@ -499,6 +500,20 @@ function Custom({ c }: { c: Ctx }) {
   return <iframe title="Custom section" sandbox="" srcDoc={str(d.html)} className={styles.custom} style={{ height }} />;
 }
 
+/** A decorative orbit: rings, a core and three planets. Colours follow the site's accent. */
+function Orbit({ style }: { style: React.CSSProperties }) {
+  return (
+    <svg viewBox="0 0 240 240" className={`${styles.illustration} ${styles.accentText}`} style={{ gridColumn: style.gridColumn }} aria-hidden="true" focusable="false">
+      <circle cx="120" cy="120" r="92" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
+      <circle cx="120" cy="120" r="58" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 6" opacity="0.55" />
+      <circle cx="120" cy="120" r="24" fill="currentColor" />
+      <circle cx="198" cy="82" r="9" fill="currentColor" />
+      <circle cx="52" cy="150" r="7" fill="currentColor" opacity="0.7" />
+      <circle cx="140" cy="62" r="5" fill="currentColor" opacity="0.55" />
+    </svg>
+  );
+}
+
 function nodeStyle(n: Rec, columns: number): React.CSSProperties {
   const hex = (v: unknown) => (/^#[0-9a-f]{3,8}$/i.test(str(v)) ? str(v) : undefined);
   return {
@@ -521,7 +536,12 @@ function Content({ c }: { c: Ctx }) {
       {nodes.map((n, i) => {
         const kind = str(n.kind), style = nodeStyle(n, columns);
         if (kind === "divider") return <hr key={i} className={styles.divider} />;
-        if (kind === "icon") return <span key={i} style={style} className={styles.accentText} aria-hidden="true"><Icon name="grid" size={32} /></span>;
+        if (kind === "icon") return (
+          <span key={i} style={style} className={styles.accentText} aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={symbolPath(n.symbol)} /></svg>
+          </span>
+        );
+        if (kind === "illustration") return isIllustration(n.art) ? <Orbit key={i} style={style} /> : null;
         if (kind === "button") return (
           <div key={i} style={{ gridColumn: style.gridColumn, textAlign: style.textAlign }}>
             <a className={styles.button} data-primary href={href(c, n.url)} style={{ fontSize: style.fontSize }}>
@@ -539,7 +559,7 @@ function Content({ c }: { c: Ctx }) {
           </nav>
         );
         return (
-          <div key={i} style={style}>
+          <div key={i} style={style} data-effect={n.effect === "lift" || n.effect === "gradient" ? n.effect : undefined}>
             <T c={c} path={["nodes", i, "text"]} tag={kind === "heading" ? "h2" : "p"} className={styles.node} placeholder="text" multiline />
           </div>
         );

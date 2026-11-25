@@ -67,6 +67,7 @@
 .custom { display: block; width: 100%; border: 0; }
 
 .nodes { display: grid; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); }
+.illustration { display: block; width: 100%; max-width: 280px; height: auto; margin-inline: auto; }
 .node { margin: 0; line-height: 1.4; white-space: pre-line; }
 .nodeMenu { display: flex; flex-direction: column; gap: 8px; }
 .nodeMenu a { color: inherit; }
@@ -145,3 +146,10 @@
 .authorRow { display: grid; grid-template-columns: 1.2fr 1.2fr 1.2fr auto auto; gap: 8px; align-items: center; }
 .linkButton { background: none; border: 0; color: var(--accent, #5a45d6); font-weight: 600; cursor: pointer; padding: 4px 0; justify-self: start; }
 @container (max-width: 640px) { .authorRow { grid-template-columns: 1fr; } }
+/* Effects on content blocks. Motion only runs for visitors who have not asked their device to reduce it. */
+.nodes > [data-effect=lift] { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+@media (prefers-reduced-motion: no-preference) {
+  .nodes > [data-effect=lift]:hover { transform: translateY(-4px); box-shadow: 0 14px 30px #18233b1f; }
+  .nodes > [data-effect=gradient] { background-size: 200% 200%; animation: gradientDrift 14s ease-in-out infinite; }
+}
+@keyframes gradientDrift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }

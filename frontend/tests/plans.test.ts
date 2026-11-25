@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cardLines, planLines, priceFor, usd, yearlySaving, type PublicPlan } from "../src/lib/plans";
+import { cardLines, planLines, priceFor, usedOf, usd, yearlySaving, type PublicPlan } from "../src/lib/plans";
 
 const basic: PublicPlan = { id: "basic", name: "Basic", price_month: 39, price_year: 390, kind: "paid",
   limits: { websites: 3, pages: 5, members: 1, storage_mb: 4000, data_storage_mb: 10000, submissions_month: -1, custom_domain: false, daily_contacts: 3000 } };
@@ -30,4 +30,11 @@ test("the full list adds storage, form submissions and the publishing address", 
   assert.ok(lines.includes("SciProspect subdomain"), "no custom domain on Basic");
   assert.ok(planLines({ ...basic, limits: { ...basic.limits, custom_domain: true } }).includes("Your own domain"));
   assert.equal(cardLines({ ...basic, limits: { ...basic.limits, members: -1, daily_contacts: -1 } })[0], "Unlimited users");
+});
+
+test("storage use reads as used of limit", () => {
+  assert.equal(usedOf(120, 4000), "120 MB of 4 GB");
+  assert.equal(usedOf(2500, 10000), "2.5 GB of 10 GB");
+  assert.equal(usedOf(0.04, 4000), "0 MB of 4 GB");
+  assert.equal(usedOf(300, -1), "300 MB of unlimited");
 });

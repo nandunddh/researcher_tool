@@ -9,6 +9,6 @@ test("library levels are cumulative and all designs remain browsable", () => {
   assert.deepEqual(filterComponents("all", "", "Sections", "Navigation"), navigation);
   assert.ok(navigation.some(item => item.id === "modern-mega" && item.level === "pro"));
 });
-test("catalog IDs are unique and search combines with level",()=>{assert.equal(new Set(componentCatalog.map(c=>c.id)).size,componentCatalog.length);assert.equal(filterComponents("all"," MEGA MENU ").length,1);assert.equal(filterComponents("basic","mega menu").length,0)});
+test("catalog IDs are unique and search combines with level",()=>{assert.equal(new Set(componentCatalog.map(c=>c.id)).size,componentCatalog.length);assert.equal(filterComponents("all"," NAVIGATION MENU ").length,1);assert.equal(filterComponents("basic","navigation menu").length,0)});
 
 test("library groups and categories stay isolated",()=>{for(const group of ["Sections","Elements","Assets"] as const){const items=filterComponents("all","",group);assert.ok(items.length>0);assert.ok(items.every(c=>c.group===group))}assert.equal(filterComponents("all","","Elements","Buttons").length,1);assert.equal(filterComponents("all","","Assets","Navigation").length,0)});

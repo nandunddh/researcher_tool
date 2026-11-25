@@ -5,6 +5,7 @@
  */
 import type { Json } from "./document";
 import { safeImage, safeUrl } from "./site-schema";
+import { symbolNames } from "./site-symbols";
 
 export type FieldKind = "text" | "textarea" | "image" | "link" | "toggle" | "lines" | "select" | "number" | "date" | "money";
 export type FieldDef = {
@@ -138,7 +139,8 @@ export const sectionRegistry: Record<string, SectionDef> = {
     name: "Content blocks", header: false, fields: [],
     lists: [{
       key: "nodes", label: "Blocks", itemLabel: "Block", max: 24,
-      fields: [area("text", "Text"), { key: "url", label: "Link (buttons)", kind: "link" }],
+      fields: [area("text", "Text"), { key: "url", label: "Link (buttons)", kind: "link" },
+        { key: "symbol", label: "Icon (for icon blocks)", kind: "select", options: symbolNames.map(n => [n, n[0].toUpperCase() + n.slice(1)] as [string, string]) }],
       newItem: () => ({ id: crypto.randomUUID(), kind: "text", text: "New block", size: 18, padding: 16, span: 1 }),
     }],
   },

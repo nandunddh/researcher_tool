@@ -42,17 +42,15 @@ const labels: Record<string, string> = {
   cta: "button text", primary: "button text", secondary: "second button text",
 };
 
-function ElementView({ element, section, ctx, edit }: { element: SiteElement; section: Section; ctx: LinkContext; edit?: EditHooks }) {
+/** `mirror` draws a second copy of an element (the mobile menu): no editor hooks and no data-* ids, so ids stay unique. */
+function ElementView({ element, section, ctx, edit, mirror = false }: { element: SiteElement; section: Section; ctx: LinkContext; edit?: EditHooks; mirror?: boolean }) {
   const selected = edit?.selection?.elementId === element.id;
-  const common = {
+  const onClick = edit ? (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); edit.onSelect({ sectionId: section.id, elementId: element.id }); } : undefined;
+  const common = mirror ? {} : {
     "data-el": element.id,
     "data-kind": element.kind,
     "data-role": element.role,
-    ...(edit ? {
-      "data-editable": true,
-      "data-selected": selected || undefined,
-      onClick: (e: MouseEvent) => { e.preventDefault(); e.stopPropagation(); edit.onSelect({ sectionId: section.id, elementId: element.id }); },
-    } : {}),
+    ...(edit ? { "data-editable": true, "data-selected": selected || undefined, onClick } : {}),
   };
   const textValue = element.text ?? "";
   const editable = (tag: string, className?: string, multiline = false) => (
@@ -81,8 +79,8 @@ function ElementView({ element, section, ctx, edit }: { element: SiteElement; se
       return (
         <a className={`${styles.button} ${element.role === "secondary" ? styles.secondary : ""}`} href={edit ? undefined : href}
           {...(newTab && !edit ? { target: "_blank", rel: "noopener noreferrer" } : {})}
-          data-el={element.id} data-kind="button" data-role={element.role}
-          {...(edit ? { "data-editable": true, "data-selected": selected || undefined, onClick: common.onClick } : {})}>
+          {...(mirror ? {} : { "data-el": element.id, "data-kind": "button", "data-role": element.role })}
+          {...(edit ? { "data-editable": true, "data-selected": selected || undefined, onClick } : {})}>
           <EditableText key={`${element.id}:${textValue}`} tag="span" value={textValue} edit={edit}
             placeholder={labels[element.role ?? ""] ?? "button text"} onCommit={text => edit?.onText(section.id, element.id, text)} />
         </a>
@@ -95,7 +93,7 @@ function ElementView({ element, section, ctx, edit }: { element: SiteElement; se
     }
     case "menu":
       return (
-        <nav className={styles.menu} aria-label="Main navigation" {...common}>
+        <nav className={styles.menu} aria-label={mirror ? "Menu" : "Main navigation"} {...common}>
           <ul>
             {(element.items ?? []).map(item => {
               const itemHref = linkHref(item.link, ctx);
@@ -161,15 +159,22 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
       </section>
     );
   }
-  const slot = (name: string): ReactNode[] =>
-    elements.filter(e => e.slot === name).map(e => <ElementView key={e.id} element={e} section={section} ctx={ctx} edit={edit} />);
+  const slot = (name: string, mirror = false): ReactNode[] =>
+    elements.filter(e => e.slot === name).map(e => <ElementView key={e.id} element={e} section={section} ctx={ctx} edit={mirror ? undefined : edit} mirror={mirror} />);
 
   if (section.type === "navbar") {
     return (
-      <header className={styles.navbar} {...sectionProps}>{handle}
+      <header className={styles.navbar} data-collapsible={!edit || undefined} {...sectionProps}>{handle}
         <div className={styles.brand}>{slot("brand")}</div>
         <div className={styles.links}>{slot("links")}</div>
         <div className={styles.actions}>{slot("actions")}</div>
+        {!edit && (
+          // Small screens: the links and buttons move into a menu that opens without scripts (so it also works in a downloaded site).
+          <details className={styles.mobileMenu}>
+            <summary><span aria-hidden="true">☰</span> Menu</summary>
+            <div className={styles.mobilePanel}>{slot("links", true)}{slot("actions", true)}</div>
+          </details>
+        )}
       </header>
     );
   }

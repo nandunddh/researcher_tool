@@ -8,7 +8,7 @@ export function instantiateComponent(item:LibraryComponent,name="Your brand"):Co
  let type=item.variant,data:Record<string,unknown>={};
  const title={section_title:item.name,section_tag:"",section_subtitle:"Replace this sample with your own content."};
  if(item.variant.startsWith("modern-")){type="content";const preset=modernPreset(item.variant,name);data={...preset,nodes:preset.nodes.map(node=>({...node,id:crypto.randomUUID()}))};}
- else if(item.category==="Navigation"){type="navbar";data={brand_name:name,brand_mode:"text",logo_url:"",layout_variant:item.variant,links:[{label:"Home",url:"#"},{label:"About",url:"#about"},{label:"Contact",url:"#contact"}],cta_label:item.variant==="product"?"Start free":item.variant==="services"?"Book a consultation":item.variant==="editorial"?"Subscribe":"Get in touch",cta_link:"#contact"}}
+ else if(item.category==="Navigation"){type="navbar";data={brand_name:name,brand_mode:"text",logo_url:"",layout_variant:item.variant,links:[{label:"Home",url:"#"},{label:"About",url:"#about"},{label:"Contact",url:"#contact"}],cta_label:({product:"Start free",services:"Book a consultation",editorial:"Subscribe",conference:"Register now",dark:"Get in touch"} as Record<string,string>)[item.variant]??"Get in touch",cta_link:"#contact"}}
  else if(type==="hero")data={eyebrow:"INTRODUCING YOUR BRAND",headline:"Make something meaningful.",subheadline:"A clear introduction to what you do and why it matters.",primary_btn_text:"Get started",primary_btn_url:"#contact",secondary_btn_text:"Learn more",secondary_btn_url:"#about",hero_image:"",layout_variant:"split"};
  else if(type==="about")data={...title,section_title:"Our story",items:[{title:"Our purpose",description:"Share your purpose and the people behind your work.",image:""}],design:"spotlight"};
  else if(type==="features")data={...title,section_title:"What we do",items:["Strategy","Design","Development"].map(title=>({title,description:"Describe the value you bring.",icon:"fa-solid fa-layer-group"}))};
@@ -27,7 +27,7 @@ export function instantiateComponent(item:LibraryComponent,name="Your brand"):Co
  else if(['text','button','columns','divider','icons','svg','gradient'].includes(item.variant)) {
   type='content';
   const node=(kind:string,text='')=>({id:crypto.randomUUID(),kind,text,size:kind==='heading'?36:18,padding:16});
-  const nodes=item.variant==='columns'?[node('text','Column one'),node('text','Column two')]:item.variant==='icons'?[{...node('icon'),symbol:'grid'},{...node('icon'),symbol:'circle'},{...node('icon'),symbol:'diamond'}]:[item.variant==='text'?node('heading',name):item.variant==='button'?{...node('button','Get started'),url:'#contact'}:item.variant==='svg'?{...node('icon'),symbol:'circle'}:node(item.variant)];
+  const nodes=item.variant==='columns'?[node('text','Column one'),node('text','Column two')]:item.variant==='icons'?["calendar","pin","users"].map(symbol=>({...node('icon'),symbol})):[item.variant==='text'?node('heading',name):item.variant==='button'?{...node('button','Get started'),url:'#contact'}:item.variant==='svg'?{...node('illustration'),art:'orbit'}:{...node('text'),size:18,padding:96,radius:24,effect:'gradient',start:'#d9ccff',end:'#bfeaf7'}];
   data={columns:item.variant==='columns'?2:item.variant==='icons'?3:1,mobile_columns:1,gap:24,nodes};
  }
  else {

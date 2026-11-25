@@ -2,7 +2,7 @@ import type { LibraryComponent } from "./component-catalog";
 export type ModernNode = {kind:string;text:string;size:number;padding:number;radius:number;span:number;color:string;background:string;align:"left"|"center";url?:string;links?:string;effect?:string;start?:string;end?:string};
 const card=(kind:string,text:string,size=18,span=1,background="#f4f5fa",color="#18223b"):ModernNode=>({kind,text,size,span,background,color,padding:28,radius:20,align:"left"});
 export const modernComponents:LibraryComponent[] = [
- ["mega","Conference navigation menu","Navigation","pro","Expandable navigation with links to tracks, speakers, and registration."],
+ ["mega","Conference navigation menu","Navigation","pro","A brand, a grouped list of links to tracks, speakers and registration, and a Register button."],
  ["motion","Conference hero with motion","Hero","pro","Animated gradient with reduced-motion support."],
  ["interactive-bento","Program highlights grid","Features","pro","Asymmetric cards with subtle hover elevation."],
  ["launch","Conference introduction","Hero","pro","A split layout for the event title, summary, and contact action."],
