@@ -68,7 +68,8 @@ Ready-made sections people drag into a page. We write every block ourselves; fre
 - [x] 🧪 Schedule by day (time, room, track, speaker), Sponsors by tier (logos that link out), Countdown (from Event details), Venue and directions (from Event details, Open in maps)
 - [ ] Header dropdown (sub-menus): needs sub-items in the menu schema, the editor and the mobile menu
 - [x] 🧪 Speakers in three layouts (cards, list, large portraits) with a talk title, Organising committee, Simple and Column footers with social links
-- [ ] Footer newsletter box (needs an email list), Video block, Logo strip, Testimonials with photo and role, Statistics with large numbers, Downloads (brochure), Travel and accommodation
+- [x] 🧪 Event in numbers (large figures), Testimonials with photo and role, Logo strip, Video (YouTube and Vimeo, privacy mode, only real video ids), Downloads, Travel and stay; every card can carry a link
+- [ ] Footer newsletter box (needs an email list first)
 - [ ] More heroes: background image, video-free animated, with countdown or key dates
 - [ ] Look at every block in a browser (desktop, tablet, phone) and fix spacing; so far blocks are checked by test cases only
 - [ ] A few new blocks every week through the daily designs workflow

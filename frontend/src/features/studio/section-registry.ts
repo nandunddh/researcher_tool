@@ -25,14 +25,15 @@ export type SectionDef = { name: string; header: boolean; fields: FieldDef[]; li
 
 const t = (key: string, label: string, extra: Partial<FieldDef> = {}): FieldDef => ({ key, label, kind: "text", ...extra });
 const area = (key: string, label: string, extra: Partial<FieldDef> = {}): FieldDef => ({ key, label, kind: "textarea", ...extra });
-const designs: [string, string][] = [["grid", "Cards in a grid"], ["list", "Simple list"], ["spotlight", "One large card"]];
+const designs: [string, string][] = [["grid", "Cards in a grid"], ["list", "Simple list"], ["spotlight", "One large card"], ["figures", "Large numbers"], ["quotes", "Quotes with photo"]];
 const cardsSection = (name: string, itemLabel: string): SectionDef => ({
   name, header: true,
   fields: [{ key: "design", label: "Layout", kind: "select", options: designs }],
   lists: [{
     key: "items", label: `${itemLabel}s`, itemLabel, max: 24,
-    fields: [t("title", "Title"), area("description", "Description"), { key: "image", label: "Image", kind: "image" }],
-    newItem: () => ({ title: `New ${itemLabel.toLowerCase()}`, description: "Add a short description.", image: "" }),
+    fields: [t("title", "Title"), t("meta", "Small line", { hint: "For example a role, a date or a distance." }), area("description", "Description"),
+      { key: "image", label: "Image", kind: "image" }, { key: "url", label: "Link (optional)", kind: "link" }, t("link_label", "Link text", { placeholder: "More information" })],
+    newItem: () => ({ title: `New ${itemLabel.toLowerCase()}`, meta: "", description: "Add a short description.", image: "", url: "", link_label: "" }),
   }],
 });
 
@@ -131,6 +132,7 @@ export const sectionRegistry: Record<string, SectionDef> = {
   sponsors: cardsSection("Sponsors", "Sponsor"),
   testimonials: cardsSection("Testimonials", "Quote"),
   announcement: cardsSection("Announcement", "Notice"),
+  travel: cardsSection("Travel and stay", "Place"),
   image: {
     name: "Image", header: false,
     fields: [{ key: "image_url", label: "Image", kind: "image" }, t("caption", "Caption")],
@@ -165,7 +167,8 @@ sectionRegistry.schedule = {
 };
 
 sectionRegistry.sponsor_tiers = {
-  name: "Sponsors", header: true, fields: [],
+  name: "Sponsors", header: true,
+  fields: [{ key: "design", label: "Layout", kind: "select", options: [["tiers", "Grouped by tier"], ["strip", "One row of logos"]] }],
   lists: [{
     key: "sponsors", label: "Sponsors", itemLabel: "Sponsor", max: 60,
     fields: [t("tier", "Tier", { placeholder: "Platinum", hint: "Sponsors with the same tier are grouped. The first tier is shown largest." }),
@@ -185,6 +188,22 @@ sectionRegistry.venue = {
   fields: [{ key: "source", label: "Venue details", kind: "select", options: [["event", "From Event details"], ["custom", "Write it here"]] },
     t("name", "Venue name (when written here)"), area("address", "Address (when written here)"),
     { key: "image", label: "Photo of the venue", kind: "image" }, area("details", "Getting there", { hint: "Public transport, parking, accessibility." })],
+  lists: [],
+};
+
+sectionRegistry.downloads = {
+  name: "Downloads", header: true, fields: [],
+  lists: [{
+    key: "files", label: "Files", itemLabel: "File", max: 30,
+    fields: [t("label", "Name"), { key: "url", label: "File link", kind: "link", hint: "A link to the file, for example a PDF on your website or in cloud storage." },
+      t("note", "Type and size", { placeholder: "PDF, 2 MB" })],
+    newItem: () => ({ label: "New file", url: "", note: "" }),
+  }],
+};
+sectionRegistry.video = {
+  name: "Video", header: true,
+  fields: [t("url", "YouTube or Vimeo link", { placeholder: "https://www.youtube.com/watch?v=…" }),
+    t("title", "Video title", { hint: "Read out by screen readers." }), t("caption", "Caption")],
   lists: [],
 };
 

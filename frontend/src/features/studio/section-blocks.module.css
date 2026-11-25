@@ -215,3 +215,36 @@
 .footerColumns strong { display: block; margin-bottom: 10px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; }
 .footerColumns ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
 @container sci-site (max-width: 640px) { .footerColumns { flex-direction: column; gap: 24px; } .people[data-design=list] .person { align-items: flex-start; } }
+
+/* Cards: large numbers, quotes with a photo, and an optional link */
+.grid[data-design=figures] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); text-align: center; }
+.grid[data-design=figures] .card { align-items: center; border: 0; box-shadow: none; background: transparent; padding: 12px; }
+.grid[data-design=figures] h3 { font-size: clamp(36px, 5.5cqi, 60px); line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+.quote { margin: 0; justify-content: space-between; }
+.quoteText { margin: 0; font-size: 18px; line-height: 1.6; }
+.quoteText::before { content: "\201C"; }
+.quoteText::after { content: "\201D"; }
+.quoteBy { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.quoteBy > span { display: flex; flex-direction: column; gap: 2px; }
+.quoteImage { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
+.cardLink { margin-top: auto; padding-top: 6px; font-weight: 600; color: var(--accent); text-decoration: none; }
+.cardLink:hover { text-decoration: underline; text-underline-offset: 3px; }
+.cardLink:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+/* Logo strip */
+[data-design=strip] .logos { --logo-h: 48px; }
+[data-design=strip] .logos img { filter: grayscale(1); opacity: 0.7; transition: filter 0.2s ease, opacity 0.2s ease; }
+[data-design=strip] .logos a:is(:hover, :focus-visible) img { filter: none; opacity: 1; }
+
+/* Downloads */
+.downloads { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.downloads li { display: flex; align-items: center; gap: 14px; padding: 16px 0; border-bottom: 1px solid #e4e7f0; }
+.downloadText { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.downloads a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.downloads a:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+
+/* Video */
+.videoBlock { margin-inline: auto; }
+.video { position: relative; aspect-ratio: 16 / 9; border-radius: 18px; overflow: hidden; background: #0b1220; }
+.video iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.videoBlock figcaption { margin-top: 10px; text-align: center; }

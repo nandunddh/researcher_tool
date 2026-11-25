@@ -15,6 +15,7 @@ import { isIllustration, symbolPath } from "./site-symbols";
 import { groupByDay } from "./schedule";
 import { groupByField } from "./grouping";
 import { longDate, mapLink, parseDay, remaining } from "./countdown";
+import { videoEmbed } from "./video";
 import styles from "./section-blocks.module.css";
 
 type Rec = Record<string, Json>;
@@ -491,22 +492,84 @@ function Footer({ c }: { c: Ctx }) {
   );
 }
 
+const CARD_DESIGNS = ["grid", "list", "spotlight", "figures", "quotes"];
+
 function Cards({ c }: { c: Ctx }) {
   const items = list(c.section.data.items);
-  const design = ["grid", "list", "spotlight"].includes(str(c.section.data.design)) ? str(c.section.data.design) : "grid";
+  const design = CARD_DESIGNS.includes(str(c.section.data.design)) ? str(c.section.data.design) : "grid";
   return (
     <div className={styles.wrap}>
       <Header c={c} center={design !== "list"} />
       <div className={styles.grid} data-design={design}>
-        {items.map((item, i) => (
+        {items.map((item, i) => design === "quotes" ? (
+          <figure key={i} className={`${styles.card} ${styles.quote}`}>
+            <T c={c} path={["items", i, "description"]} tag="blockquote" className={styles.quoteText} placeholder="quote" multiline />
+            <figcaption className={styles.quoteBy}>
+              {safeImage(item.image) && <Img className={styles.quoteImage} src={item.image} alt="" />}
+              <span>
+                <T c={c} path={["items", i, "title"]} tag="strong" placeholder="name" />
+                <T c={c} path={["items", i, "meta"]} tag="span" className={styles.small} placeholder="role, institution" />
+              </span>
+            </figcaption>
+          </figure>
+        ) : (
           <article key={i} className={styles.card}>
-            <Img className={styles.cardImage} src={item.image} alt={str(item.title)} />
+            {design !== "figures" && <Img className={styles.cardImage} src={item.image} alt={str(item.title)} />}
             <T c={c} path={["items", i, "title"]} tag="h3" placeholder="title" />
+            <T c={c} path={["items", i, "meta"]} tag="p" className={styles.accentText} placeholder="small line" />
             <T c={c} path={["items", i, "description"]} tag="p" className={styles.muted} placeholder="description" multiline />
+            {str(item.url) && (
+              <a className={styles.cardLink} href={href(c, item.url)}>
+                {str(item.link_label) || c.edit ? <T c={c} path={["items", i, "link_label"]} placeholder="link text" /> : "More information"}
+              </a>
+            )}
           </article>
         ))}
       </div>
     </div>
+  );
+}
+
+function Downloads({ c }: { c: Ctx }) {
+  const files = list(c.section.data.files);
+  return (
+    <div className={`${styles.wrap} ${styles.narrow}`}>
+      <Header c={c} />
+      {!files.length && c.edit && <p className={styles.muted}>Add files in the panel.</p>}
+      <ul className={styles.downloads}>
+        {files.map((file, i) => {
+          const target = str(file.url) ? href(c, file.url) : undefined;
+          const label = <T c={c} path={["files", i, "label"]} tag="strong" placeholder="file name" />;
+          return (
+            <li key={i}>
+              <span className={styles.accentText} aria-hidden="true"><Icon name="doc" size={22} /></span>
+              <span className={styles.downloadText}>
+                {target && target !== "#" ? <a href={target} target="_blank" rel="noopener noreferrer">{label}</a> : label}
+                <T c={c} path={["files", i, "note"]} tag="span" className={styles.small} placeholder="PDF, 2 MB" />
+              </span>
+              {!c.edit && (!target || target === "#") && <span className={styles.small}>Available soon</span>}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function Video({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  const embed = videoEmbed(d.url);
+  return (
+    <figure className={`${styles.wrap} ${styles.narrow} ${styles.videoBlock}`}>
+      <Header c={c} />
+      {embed ? (
+        <div className={styles.video}>
+          <iframe src={embed.src} title={str(d.title) || "Video"} loading="lazy" allow="encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen referrerPolicy="strict-origin-when-cross-origin" style={c.edit ? { pointerEvents: "none" } : undefined} />
+        </div>
+      ) : c.edit && <p className={styles.muted}>Paste a YouTube or Vimeo link in the panel.</p>}
+      <T c={c} path={["caption"]} tag="figcaption" className={styles.small} placeholder="caption" />
+    </figure>
   );
 }
 
@@ -660,9 +723,12 @@ function Venue({ c }: { c: Ctx }) {
 }
 
 function Sponsors({ c }: { c: Ctx }) {
-  const groups = groupByField(list(c.section.data.sponsors), "tier");
+  const strip = str(c.section.data.design) === "strip";
+  const sponsors = list(c.section.data.sponsors);
+  // A logo strip is one row: tiers are ignored.
+  const groups = strip ? (sponsors.length ? [{ label: "", rows: sponsors.map((data, index) => ({ index, data })) }] : []) : groupByField(sponsors, "tier");
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} data-design={strip ? "strip" : undefined}>
       <Header c={c} />
       {!groups.length && c.edit && <p className={styles.muted}>Add sponsors in the panel.</p>}
       {groups.map((group, rank) => (
@@ -816,7 +882,7 @@ function Submission({ c }: { c: Ctx }) {
 
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   submission: Submission,
-  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors, countdown: Countdown, venue: Venue,
+  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors, countdown: Countdown, venue: Venue, downloads: Downloads, video: Video, travel: Cards,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
   image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,
