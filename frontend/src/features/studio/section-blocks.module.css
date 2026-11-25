@@ -119,8 +119,10 @@
 .form .regType input { position: absolute; opacity: 0; width: 1px; }
 .regType[data-active] { border-color: var(--accent); background: #f6f3ff; }
 .regType span { font-size: 20px; font-weight: 700; }
-.form .regAddon { display: flex !important; justify-content: space-between; align-items: center; gap: 12px; font-weight: 500 !important; }
-.form .regAddon select { width: auto; min-width: 70px; }
+/* Add-on rows sit above the form too, so they are not scoped to .form. */
+.regAddon { display: flex !important; flex-direction: row !important; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; padding: 10px 14px; border: 1px solid #e4e7f0; border-radius: 12px; text-align: left; font-weight: 500 !important; }
+.regAddon > span { flex: 1; min-width: 0; }
+.regAddon select { width: auto; min-width: 70px; }
 .regAddon small { color: var(--muted); }
 .regCode { display: flex; gap: 8px; }
 .form .regCode input { flex: 1; }
@@ -203,7 +205,7 @@
 .people[data-design=list] .person { flex-direction: row; align-items: center; text-align: left; gap: 20px; padding: 18px 0; border-width: 0 0 1px; border-radius: 0; box-shadow: none; background: transparent; }
 .people[data-design=list] .personBody { align-items: flex-start; }
 .people[data-design=list] .portrait, .people[data-design=list] .avatar { flex: none; width: 84px; height: 84px; aspect-ratio: 1; border-radius: 50%; margin: 0; }
-.people[data-design=portraits] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.people[data-design=portraits] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }
 .people[data-design=portraits] .portrait { aspect-ratio: 3 / 4; }
 .people[data-design=portraits] .avatar { width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: 14px; }
 
@@ -253,5 +255,14 @@
 /* Newsletter sign-up */
 .newsletter { max-width: 640px; }
 .newsletter form { padding: 28px; border: 1px solid #e4e7f0; border-radius: 18px; background: white; box-shadow: 0 6px 24px #18223b0d; }
-.quoteAvatar { display: grid; place-items: center; flex: none; background: #eeeaff; color: #7865b5; }
+.quoteAvatar { display: grid; place-items: center; flex: none; background: #eeeaff; color: var(--accent); font-size: 16px; font-weight: 700; }
 .videoEmpty { display: grid; place-content: center; justify-items: center; gap: 10px; color: #c9d2e3; font-size: 15px; font-weight: 600; }
+
+/* Four cards: one row of four on wide pages, two by two below that, never three and one left over. */
+@container sci-site (min-width: 1024px) { .grid[data-count="4"]:not([data-design=list], [data-design=spotlight]) { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@container sci-site (min-width: 561px) and (max-width: 1023px) { .grid[data-count="4"]:not([data-design=list], [data-design=spotlight], [data-design=portraits]) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.keynote { align-self: center; padding: 3px 10px; border-radius: 999px; background: var(--accent); color: white; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.people[data-design=list] .keynote { align-self: flex-start; }
+/* Initials stand in for a photo: large and calm, in the accent colour. */
+.avatar { font-weight: 700; font-size: 30px; letter-spacing: 0.02em; color: var(--accent); }
+.people[data-design=portraits] .avatar { font-size: clamp(34px, 5cqi, 52px); }

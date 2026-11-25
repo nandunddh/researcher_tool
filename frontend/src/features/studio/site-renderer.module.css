@@ -43,9 +43,9 @@
 .navbar { position: relative; --nav-bg: #ffffff; --nav-line: #dce1ed; }
 .navbar[data-layout=dark] { --nav-bg: #0b1220; --nav-line: #1f2a44; }
 .mobileMenu { display: none; }
-.mobileMenu summary { list-style: none; cursor: pointer; padding: 8px 14px; border-radius: 10px; border: 1px solid currentColor; font-weight: 600; font-size: 15px; user-select: none; }
-.mobileMenu summary::-webkit-details-marker { display: none; }
-.mobileMenu summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.mobileMenu > summary { list-style: none; cursor: pointer; padding: 8px 14px; border-radius: 10px; border: 1px solid currentColor; font-weight: 600; font-size: 15px; user-select: none; }
+.mobileMenu > summary::-webkit-details-marker { display: none; }
+.mobileMenu > summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .mobilePanel { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; display: grid; gap: 14px; padding: 18px; background: var(--nav-bg); color: inherit; border-bottom: 1px solid var(--nav-line); box-shadow: 0 14px 30px #18233b1f; }
 .mobilePanel .menu ul { flex-direction: column; gap: 4px; }
 .mobilePanel .menu a { display: block; padding: 10px 4px; font-size: 16px; }

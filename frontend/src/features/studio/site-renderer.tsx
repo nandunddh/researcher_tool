@@ -193,7 +193,8 @@ function SectionView({ section, ctx, edit, fallback }: { section: Section; ctx: 
     );
   }
   const image = elements.find(e => e.slot === "media");
-  const hasImage = layout !== "text_only" && !!image;
+  // Visitors never see an empty image box: without a picture the hero uses the full width. The editor keeps the slot to add one.
+  const hasImage = layout !== "text_only" && !!image && (!!edit || !!safeImage(image.src));
   return (
     <section className={styles.hero} data-has-image={hasImage || undefined} {...sectionProps}>{handle}
       <div className={styles.heroContent}>

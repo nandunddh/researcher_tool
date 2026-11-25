@@ -5,7 +5,7 @@
  */
 import { paletteMime, reorderMime } from "./form-palette";
 import { currentPeriod, keyDates, priceIn, registrationData } from "./registration-pricing";
-import { useEffect, useState, type ReactNode } from "react";
+import { createElement, useEffect, useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
 import { linkHref, safeImage, type LinkContext } from "./site-schema";
 import { EditableText } from "./editable-text";
@@ -16,6 +16,7 @@ import { groupByDay } from "./schedule";
 import { groupByField } from "./grouping";
 import { longDate, mapLink, parseDay, remaining } from "./countdown";
 import { videoEmbed } from "./video";
+import { initials } from "./people";
 import styles from "./section-blocks.module.css";
 
 type Rec = Record<string, Json>;
@@ -78,7 +79,7 @@ function Features({ c }: { c: Ctx }) {
   return (
     <div className={styles.wrap}>
       <Header c={c} />
-      <div className={styles.grid}>
+      <div className={styles.grid} data-count={items.length}>
         {items.map((item, i) => (
           <article key={i} className={styles.card}>
             <span className={styles.iconBadge} aria-hidden="true"><Icon name="bolt" size={20} /></span>
@@ -100,22 +101,28 @@ function Speakers({ c: own }: { c: Ctx }) {
   const people = fromEvent
     ? list(own.ctx.event?.speakers).filter(p => !Array.isArray(chosen) || chosen.includes(p.id))
     : list(own.section.data.speakers);
-  const c = fromEvent ? { ...own, edit: undefined } : own;
   const design = SPEAKER_DESIGNS.includes(str(own.section.data.design)) ? str(own.section.data.design) : "cards";
+  // Speakers from Event details are shown as plain text (they are edited there); the section's own speakers are edited in place.
+  const line = (p: Rec, i: number, key: string, tag: string, className: string | undefined, placeholder: string, multiline = false) =>
+    fromEvent
+      ? (str(p[key]) ? createElement(tag, { className }, str(p[key])) : null)
+      : <T c={own} path={["speakers", i, key]} tag={tag} className={className} placeholder={placeholder} multiline={multiline} />;
   return (
     <div className={styles.wrap}>
-      <Header c={c} center={design !== "list"} />
-      <div className={`${styles.grid} ${styles.people}`} data-design={design}>
+      <Header c={own} center={design !== "list"} />
+      {!people.length && own.edit && <p className={styles.muted}>{fromEvent ? "Add speakers in Event details." : "Add speakers in the panel."}</p>}
+      <div className={`${styles.grid} ${styles.people}`} data-design={design} data-count={people.length}>
         {people.map((p, i) => (
           <article key={i} className={`${styles.card} ${styles.person}`}>
             {safeImage(p.photo) ? <Img className={styles.portrait} src={p.photo} alt={str(p.name)} />
-              : <span className={styles.avatar} aria-hidden="true"><Icon name="user" size={34} /></span>}
+              : <span className={styles.avatar} aria-hidden="true">{initials(p.name) || <Icon name="user" size={34} />}</span>}
             <div className={styles.personBody}>
-              <T c={c} path={["speakers", i, "name"]} tag="h3" placeholder="name" />
-              <T c={c} path={["speakers", i, "role"]} tag="p" className={styles.accentText} placeholder="role" />
-              <T c={c} path={["speakers", i, "affiliation"]} tag="p" className={styles.muted} placeholder="organization" />
-              <T c={c} path={["speakers", i, "talk"]} tag="p" className={styles.talk} placeholder="talk title" />
-              <T c={c} path={["speakers", i, "bio"]} tag="p" className={styles.small} placeholder="short bio" multiline />
+              {p.keynote === true && <span className={styles.keynote}>Keynote</span>}
+              {line(p, i, "name", "h3", undefined, "name")}
+              {line(p, i, "role", "p", styles.accentText, "role")}
+              {line(p, i, "affiliation", "p", styles.muted, "organization")}
+              {line(p, i, "talk", "p", styles.talk, "talk title")}
+              {line(p, i, "bio", "p", styles.small, "short bio", true)}
             </div>
           </article>
         ))}
@@ -349,6 +356,8 @@ const money = (currency: string, n: number) => `${currency} ${n.toLocaleString(u
 /** Registration: choose a type, add-ons and a discount code; the server prices it, then test payment. */
 function Registration({ c }: { c: Ctx }) {
   const d = registrationData(c.section.data, c.ctx.event);
+  // With Event details the types and add-ons come from there (edited there), so they are shown as plain text.
+  const fromEvent = d !== c.section.data;
   const cats = list(d.categories), addons = list(d.addons), currency = str(d.currency) || "USD";
   const period = currentPeriod(d), periodId = str(period?.id);
   const offered = cats.filter(x => priceIn(x, periodId) !== null);
@@ -382,7 +391,7 @@ function Registration({ c }: { c: Ctx }) {
   const picker = (
     <div className={styles.regPicker}>
       <p className={styles.regPeriod}>{period
-        ? <>{str(period.name) || "Current"} prices{str(period.ends) && <> · until {new Date(str(period.ends)).toLocaleDateString()}</>}</>
+        ? <>{str(period.name) || "Current"} prices{parseDay(period.ends) !== null && <> · until {longDate(parseDay(period.ends)!)}</>}</>
         : "Set up price periods in Event details to show prices."}</p>
       {c.edit && !cats.length && <p className={styles.muted}>No ticket types yet. Open <strong>Event details</strong> in the top bar, or tick ticket types in the panel on the right.</p>}
       <div className={styles.regTypes} role="radiogroup" aria-label="Registration type">
@@ -392,7 +401,7 @@ function Registration({ c }: { c: Ctx }) {
           return (
             <label key={str(x.id) || i} className={styles.regType} data-active={str(x.id) === category || undefined} style={price === null ? { opacity: .55 } : undefined}>
               <input type="radio" name="_category" checked={str(x.id) === category} onChange={() => { setCategory(str(x.id)); setOrder(null); }} disabled={!!c.edit} />
-              <T c={c} path={["categories", i, "name"]} tag="strong" placeholder="type name" />
+              {fromEvent ? <strong>{str(x.name)}</strong> : <T c={c} path={["categories", i, "name"]} tag="strong" placeholder="type name" />}
               {str(x.description) && <small className={styles.muted}>{str(x.description)}</small>}
               <span>{price === null ? "Not offered now" : money(currency, price)}</span>
             </label>
@@ -401,7 +410,7 @@ function Registration({ c }: { c: Ctx }) {
       </div>
       {addons.map((a, i) => (
         <label key={str(a.id) || i} className={styles.regAddon}>
-          <span><T c={c} path={["addons", i, "name"]} placeholder="add-on" /> <small>{money(currency, Number(a.price) || 0)} each{str(a.description) && ` · ${str(a.description)}`}</small></span>
+          <span>{fromEvent ? str(a.name) : <T c={c} path={["addons", i, "name"]} placeholder="add-on" />} <small>{money(currency, Number(a.price) || 0)} each{str(a.description) && ` · ${str(a.description)}`}</small></span>
           <select value={qty[str(a.id)] ?? 0} disabled={!!c.edit} onChange={e => { setQty(q => ({ ...q, [str(a.id)]: Number(e.target.value) })); setOrder(null); }}>
             {Array.from({ length: (Number(a.max) || 5) + 1 }, (_, n) => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -518,12 +527,12 @@ function Cards({ c }: { c: Ctx }) {
   return (
     <div className={styles.wrap}>
       <Header c={c} center={design !== "list"} />
-      <div className={styles.grid} data-design={design}>
+      <div className={styles.grid} data-design={design} data-count={items.length}>
         {items.map((item, i) => design === "quotes" ? (
           <figure key={i} className={`${styles.card} ${styles.quote}`}>
             <T c={c} path={["items", i, "description"]} tag="blockquote" className={styles.quoteText} placeholder="quote" multiline />
             <figcaption className={styles.quoteBy}>
-              {safeImage(item.image) ? <Img className={styles.quoteImage} src={item.image} alt="" /> : <span className={`${styles.quoteImage} ${styles.quoteAvatar}`} aria-hidden="true"><Icon name="user" size={22} /></span>}
+              {safeImage(item.image) ? <Img className={styles.quoteImage} src={item.image} alt="" /> : <span className={`${styles.quoteImage} ${styles.quoteAvatar}`} aria-hidden="true">{initials(item.title) || <Icon name="user" size={22} />}</span>}
               <span>
                 <T c={c} path={["items", i, "title"]} tag="strong" placeholder="name" />
                 <T c={c} path={["items", i, "meta"]} tag="span" className={styles.small} placeholder="role, institution" />

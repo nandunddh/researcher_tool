@@ -4,6 +4,7 @@ import { componentCatalog } from "../src/features/studio/component-catalog";
 import { instantiateComponent } from "../src/features/studio/component-instance";
 import { groupByField } from "../src/features/studio/grouping";
 import { sectionRegistry } from "../src/features/studio/section-registry";
+import { initials } from "../src/features/studio/people";
 
 const make = (id: string) => instantiateComponent(componentCatalog.find(c => c.id === id)!, "Summit 2027");
 
@@ -47,4 +48,15 @@ test("the column footer has columns and the simple footer does not", () => {
   const simple = make("footer-simple").data as { design: string; links: Record<string, string>[] };
   assert.equal(simple.design, "simple");
   assert.deepEqual(groupByField(simple.links, "group").map(g => g.label), [""], "one row, no headings");
+});
+
+test("initials stand in for a missing photo, without titles", () => {
+  assert.equal(initials("Prof. Amara Okafor"), "AO");
+  assert.equal(initials("Dr Kenji Watanabe"), "KW");
+  assert.equal(initials("  madonna "), "M");
+  assert.equal(initials("Ana María de la Cruz"), "AC");
+  assert.equal(initials("Émile Zola"), "ÉZ");
+  assert.equal(initials(""), "");
+  assert.equal(initials(undefined), "");
+  assert.equal(initials("Dr."), "", "a title alone gives no initials, so the icon is shown");
 });
