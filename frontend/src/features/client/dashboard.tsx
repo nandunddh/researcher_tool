@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { Icon } from "@/components/icon";
 import { ClientShell } from "./shell";
+import { TeamPanel, type Member } from "./team-panel";
 
 type Conference = {
   conference_id: string;
@@ -23,6 +24,8 @@ type ClientData = {
   daily_limit: number;
   used_today: number;
   scistudio_access: boolean;
+  seat_limit: number;
+  members: Member[];
   conferences: Conference[];
 };
 
@@ -37,17 +40,12 @@ export function ClientDashboard() {
     api<{ plan: { name: string } | null }>("/api/billing").then(b => setPlanName(b.plan?.name ?? "")).catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    api<ClientData>("/api/client/overview")
-      .then((res) => {
-        setData(res);
-        setError("");
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load client workspace");
-      })
-      .finally(() => setLoading(false));
-  }, []);
+  async function load() {
+    try { setData(await api<ClientData>("/api/client/overview")); setError(""); }
+    catch (err) { setError(err instanceof Error ? err.message : "Failed to load client workspace"); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void load(); }, []);
 
   return (
     <ClientShell title="Client Dashboard" clientName={data?.client_name}>
@@ -134,6 +132,8 @@ export function ClientDashboard() {
               </article>
             </div>
           </section>
+
+          <TeamPanel members={data.members ?? []} seatLimit={data.seat_limit ?? 0} onChanged={load} />
 
           {/* Conferences Section */}
           <section className="account-panel" style={{ marginTop: "1.5rem" }}>

@@ -42,12 +42,10 @@ export function CollectorApp({ namespace, userName, tier, kind = "publications" 
           <span className={styles.logo}><img src="/branding/sciprospect-a-icon-white.png" alt="" /></span>
           <span><strong>SciProspect</strong><small>Research intelligence</small></span>
         </a>
-        {namespace !== "conference" && (
-          <div className={styles.switch} role="group" aria-label="SciProspect products">
-            <a href={`/${namespace}/collector`} data-active=""><Icon name="bolt" size={16} />Collect</a>
-            <a href={`/${namespace}/scistudio`}><Icon name="layers" size={16} />Studio</a>
-          </div>
-        )}
+        <div className={styles.switch} role="group" aria-label="SciProspect products">
+          <a href={`/${namespace}/collector`} data-active=""><Icon name="bolt" size={16} />Collect</a>
+          <a href={`/${namespace}/scistudio`}><Icon name="layers" size={16} />Studio</a>
+        </div>
         <nav className={styles.nav} aria-label="Data collector">
           <p>Data collector</p>
           <a href={`/${namespace}/collector`} data-active={nih ? undefined : ""} aria-current={nih ? undefined : "page"}><Icon name="bolt" size={18} />Dashboard</a>

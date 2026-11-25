@@ -585,7 +585,7 @@ class LicenseManager:
         seat_limit = parent.get("seat_limit", 5 if parent.get("account_type") == "org" else 1)
 
         if seat_limit != -1 and len(members) >= seat_limit:
-            return False, f"Team seat limit reached ({seat_limit} seats). Upgrade limit in Admin Console.", None
+            return False, f"Team seat limit reached ({seat_limit} seats). Upgrade your plan to add more people.", None
 
         clean_email = email.strip().lower()
         if not clean_email or "@" not in clean_email:

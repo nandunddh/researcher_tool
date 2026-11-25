@@ -66,7 +66,6 @@ export function Sidebar({
 
   const studioUrl = `/${effectiveNamespace}/scistudio`;
   const collectUrl = `/${effectiveNamespace}/collector`;
-  const hasCollector = effectiveNamespace !== "conference";  // team members have no collector, so only Studio
 
   return (
     <aside className="app-sidebar">
@@ -77,12 +76,10 @@ export function Sidebar({
         </div>
       </a>
 
-      {hasCollector && (
-        <div className="product-switch" role="group" aria-label="SciProspect products">
-          <a className={`product-tab ${currentPath.includes("/collector") ? "active" : ""}`} href={collectUrl}><Icon name="bolt" size={16} />Collect</a>
-          <a className={`product-tab ${currentPath.includes("/scistudio") ? "active" : ""}`} href={studioUrl}><Icon name="layers" size={16} />Studio</a>
-        </div>
-      )}
+      <div className="product-switch" role="group" aria-label="SciProspect products">
+        <a className={`product-tab ${currentPath.includes("/collector") ? "active" : ""}`} href={collectUrl}><Icon name="bolt" size={16} />Collect</a>
+        <a className={`product-tab ${currentPath.includes("/scistudio") ? "active" : ""}`} href={studioUrl}><Icon name="layers" size={16} />Studio</a>
+      </div>
 
       <div className="sidebar-section sidebar-collector-section">
         <div className="sidebar-heading">{heading}</div>
@@ -100,23 +97,6 @@ export function Sidebar({
           ))}
         </nav>
       </div>
-
-      {!hasCollector && <div className="sidebar-section sidebar-studio-section">
-        <div className="sidebar-heading">STUDIO</div>
-        <nav className="sidebar-nav">
-          <a
-            href={studioUrl}
-            className={`nav-tab studio-nav-card ${currentPath.includes("/scistudio") ? "active" : ""}`}
-            title="SciStudio Website builder"
-          >
-            <Icon name="layers" size={18} />
-            <span className="nav-label studio-nav-copy">
-              <span>SciStudio</span>
-              <small>Website builder</small>
-            </span>
-          </a>
-        </nav>
-      </div>}
     </aside>
   );
 }

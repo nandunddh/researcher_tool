@@ -296,10 +296,12 @@ async def api_signup_verify(request: Request):
         # Self sign-ups start the 7-day free trial (no permanent free plan); paying for a plan upgrades the license.
         import plans
         trial = _plan_by_id("trial")
-        license_engine.create_account(name=details["name"], email=details["email"], tier="trial", duration_days=TRIAL_DAYS,
+        created = license_engine.create_account(name=details["name"], email=details["email"], tier="trial", duration_days=TRIAL_DAYS,
                                       daily_limit=plans.daily_contacts(trial) if trial else 1000,
                                       account_type=details["account_type"], org_name=details["org_name"],
                                       password_hash=details["password_hash"], plan_id="trial", scistudio_access=True, notes="Self sign-up")
+        if trial:  # the trial's team size (none) becomes the seat limit
+            license_engine.set_plan(created["license_key"], "trial", int(trial["limits"].get("members", 0)))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
     ok, user, msg = license_engine.authenticate(details["email"], str(body.get("password") or ""))
@@ -1040,6 +1042,21 @@ def _require_org_owner(request: Request):
     return user
 
 
+def _require_team_owner(request: Request):
+    """Whoever owns a workspace with seats: an organisation, or a solo account whose plan includes team members."""
+    user = _get_current_user_from_request(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required. Please sign in.")
+    if user.get("is_admin"):
+        return user
+    if user.get("is_member"):
+        raise HTTPException(status_code=403, detail="Only the account owner can manage the team.")
+    account = license_engine.get_account(user.get("license_key", ""))
+    if not account or account.get("account_type") not in ("org", "single"):
+        raise HTTPException(status_code=403, detail="Account owner access required.")
+    return user
+
+
 @app.get("/api/organization/overview")
 async def organization_overview(request: Request):
     user = _require_org_owner(request)
@@ -1088,7 +1105,7 @@ async def organization_overview(request: Request):
 
 @app.post("/api/organization/team/add")
 async def organization_team_add(request: Request):
-    user = _require_org_owner(request)
+    user = _require_team_owner(request)
     key = user.get("license_key", "")
     body = await request.json()
     name = (body.get("name") or "").strip()
@@ -1118,7 +1135,7 @@ async def organization_team_add(request: Request):
 
 @app.post("/api/organization/team/remove")
 async def organization_team_remove(request: Request):
-    user = _require_org_owner(request)
+    user = _require_team_owner(request)
     key = user.get("license_key", "")
     body = await request.json()
     member_id = (body.get("member_id") or "").strip()
@@ -1132,7 +1149,7 @@ async def organization_team_remove(request: Request):
 
 @app.post("/api/organization/team/toggle-scistudio")
 async def organization_team_toggle_studio(request: Request):
-    user = _require_org_owner(request)
+    user = _require_team_owner(request)
     key = user.get("license_key", "")
     body = await request.json()
     member_id = (body.get("member_id") or "").strip()
@@ -1196,6 +1213,8 @@ async def client_overview(request: Request):
         "daily_limit": account.get("daily_limit", 1000),
         "used_today": account.get("used_today", 0),
         "scistudio_access": bool(account.get("scistudio_access", True)),
+        "seat_limit": account.get("seat_limit", 0),
+        "members": [sanitize_member(m) for m in account.get("members", [])],
         "conferences": conferences,
     }
 
