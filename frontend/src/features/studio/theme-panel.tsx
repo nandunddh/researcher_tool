@@ -1,5 +1,5 @@
 import { FONT_STACKS } from "./site-schema";
-import { readTheme, themeDefaults, type StudioTheme } from "./studio-theme";
+import { readTheme, SITE_STYLES, themeDefaults, type SiteStyle, type StudioTheme } from "./studio-theme";
 import styles from "./react-editor.module.css";
 
 export function ThemePanel({ config, disabled, onChange }: {
@@ -9,6 +9,11 @@ export function ThemePanel({ config, disabled, onChange }: {
   return <fieldset disabled={disabled} className={styles.themePanel}>
     <legend>Website theme</legend>
     <p className={styles.hint}>Applies to every page. Individual section and element styles take priority.</p>
+    <label>Look
+      <select value={theme.style} onChange={e => onChange({ style: e.target.value as SiteStyle })}>
+        {SITE_STYLES.map(style => <option key={style} value={style}>{style === "modern" ? "Modern (gradients and motion)" : "Classic"}</option>)}
+      </select>
+    </label>
     {(["accent", "ink"] as const).map(key => <label key={key}>
       {key === "accent" ? "Brand color" : "Text color"}
       <input type="color" value={theme[key]} onChange={e => onChange({ [key]: e.target.value })} />

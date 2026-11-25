@@ -829,7 +829,7 @@ function KeyDates({ c }: { c: Ctx }) {
         <ol className={styles.dates}>
           {dates.map((x, i) => (
             <li key={i} data-passed={x.date < today || undefined}>
-              <time dateTime={x.date}>{new Date(`${x.date}T00:00:00`).toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" })}</time>
+              <time dateTime={x.date}>{parseDay(x.date) !== null ? longDate(parseDay(x.date)!) : x.date}</time>
               <span>{x.name}{x.date < today && <small> · Passed</small>}</span>
             </li>
           ))}

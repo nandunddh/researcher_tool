@@ -266,3 +266,46 @@
 /* Initials stand in for a photo: large and calm, in the accent colour. */
 .avatar { font-weight: 700; font-size: 30px; letter-spacing: 0.02em; color: var(--accent); }
 .people[data-design=portraits] .avatar { font-size: clamp(34px, 5cqi, 52px); }
+
+/* =========================================================== Modern look for content blocks */
+:global([data-style=modern]) .wrap { padding-block: clamp(72px, 9cqi, 112px); }
+:global([data-style=modern]) .title { font-size: clamp(32px, 4.6cqi, 56px); letter-spacing: -0.035em; line-height: 1.05; }
+:global([data-style=modern]) .subtitle { font-size: 18px; }
+:global([data-style=modern]) .tag { padding: 6px 12px; border-radius: 999px; background: color-mix(in oklab, var(--accent) 12%, transparent); border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent); }
+:global([data-style=modern]) .card { border-color: #e6e8f2; border-radius: 22px; background: linear-gradient(180deg, #ffffff, #fbfbfe); box-shadow: 0 1px 2px #0f172a0a, 0 8px 24px #0f172a08;
+  transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.3s ease, border-color 0.3s ease; }
+:global([data-style=modern]) .card:hover { transform: translateY(-6px); border-color: color-mix(in oklab, var(--accent) 35%, #e6e8f2); box-shadow: 0 24px 54px #0f172a17; }
+:global([data-style=modern]) .iconBadge { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #ffffff; box-shadow: 0 10px 22px color-mix(in oklab, var(--accent) 35%, transparent); }
+:global([data-style=modern]) .grid[data-design=figures] .card { background: transparent; box-shadow: none; }
+:global([data-style=modern]) .grid[data-design=figures] .card:hover { transform: none; }
+:global([data-style=modern]) .grid[data-design=figures] h3 { font-size: clamp(48px, 6.5cqi, 80px); background: linear-gradient(120deg, #ffffff, color-mix(in oklab, var(--accent-2) 60%, #ffffff)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+:global([data-style=modern]) .grid[data-design=figures] .accentText { color: #c3cbe8; text-transform: uppercase; letter-spacing: 0.12em; font-size: 12px; }
+
+/* countdown on a dark band: glass tiles with glowing numbers */
+:global([data-style=modern]) .countTile { border-radius: 22px; border-color: #e6e8f2; background: linear-gradient(180deg, #ffffff, #f6f7fd); box-shadow: 0 18px 40px #0f172a10; }
+:global([data-style=modern]) .countTile strong { font-size: clamp(36px, 6cqi, 64px); background: linear-gradient(120deg, var(--accent), var(--accent-2)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+
+/* people: gradient portrait slots, the photo zooms gently on hover */
+:global([data-style=modern]) .person { overflow: hidden; }
+:global([data-style=modern]) .avatar { background: linear-gradient(135deg, color-mix(in oklab, var(--accent) 18%, #ffffff), color-mix(in oklab, var(--accent-2) 24%, #ffffff)); }
+:global([data-style=modern]) .portrait { transition: transform 0.5s ease; }
+:global([data-style=modern]) .person:hover .portrait { transform: scale(1.04); }
+
+/* schedule: rows light up on hover */
+:global([data-style=modern]) .dayTitle { font-size: 24px; border-bottom: 0; padding-bottom: 0; }
+:global([data-style=modern]) .dayTitle::after { content: ""; display: block; height: 3px; width: 64px; margin-top: 10px; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
+:global([data-style=modern]) .session { padding: 18px 16px; border-radius: 16px; border-bottom-color: transparent; transition: background 0.2s ease; }
+:global([data-style=modern]) .session:hover { background: color-mix(in oklab, var(--accent) 6%, #ffffff); }
+
+/* sponsors and quotes */
+:global([data-style=modern]) .logos li { padding: 16px 26px; border-radius: 16px; background: #ffffff; border: 1px solid #eceef5; transition: transform 0.25s ease, box-shadow 0.25s ease; }
+:global([data-style=modern]) .logos li:hover { transform: translateY(-3px); box-shadow: 0 14px 30px #0f172a12; }
+:global([data-style=modern]) .quoteText { font-size: 19px; }
+:global([data-style=modern]) .quoteText::before { display: block; font-size: 56px; line-height: 0.6; margin-bottom: 8px; color: var(--accent); }
+:global([data-style=modern]) .quoteText::after { content: none; }
+
+/* newsletter on a dark band: the form stays a light card */
+:global([data-style=modern]) .newsletter form { color: #18223b; box-shadow: 0 30px 70px #00000052; }
+:global([data-style=modern]) .video { box-shadow: 0 30px 70px #0f172a33; }
+:global([data-style=modern]) .footer { background: #070b1d; }
+@media (prefers-reduced-motion: reduce) { :global([data-style=modern]) :is(.card, .portrait, .logos li, .session) { transition: none; } :global([data-style=modern]) .card:hover { transform: none; } }

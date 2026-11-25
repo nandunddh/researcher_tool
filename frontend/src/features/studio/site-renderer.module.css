@@ -168,3 +168,58 @@
 .navbar[data-layout=dark] .menu .submenu a[href]:hover { background: #1a2540; color: #fff; }
 .mobilePanel .menu .submenu { position: static; min-width: 0; padding: 2px 0 6px 14px; border: 0; box-shadow: none; background: transparent; color: inherit; }
 .mobilePanel .menu details > summary { padding: 10px 4px; font-size: 16px; }
+
+/* =========================================================== Modern look (theme: Look = Modern) */
+.site[data-style=modern] { --accent-2: color-mix(in oklab, var(--accent) 50%, #12c2e9); --night: #070b1d; letter-spacing: -0.006em; }
+.site[data-style=modern] :where(h1, h2, h3) { letter-spacing: -0.025em; }
+
+/* header: glass, a shadow once the page scrolls, underline that grows on hover */
+.site[data-style=modern] .navbar { transition: box-shadow 0.3s ease, background 0.3s ease; }
+.site[data-style=modern][data-scrolled] .navbar:is([data-layout=conference], [data-layout=product], [data-layout=dark]) { box-shadow: 0 12px 32px #0f172a1a; }
+.site[data-style=modern] .navbar:not([data-layout=dark]) .logo:not(:has(img)) { background: linear-gradient(100deg, var(--ink) 30%, var(--accent)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.site[data-style=modern] .menu > ul > li > a { position: relative; }
+.site[data-style=modern] .menu > ul > li > a::after { content: ""; position: absolute; left: 0; right: 0; bottom: -6px; height: 2px; border-radius: 2px; background: var(--accent); transform: scaleX(0); transform-origin: left; transition: transform 0.25s ease; }
+.site[data-style=modern] .menu > ul > li > a[href]:hover::after { transform: scaleX(1); }
+
+/* buttons: gradient, soft glow, lift */
+.site[data-style=modern] .button { background: linear-gradient(120deg, var(--accent), var(--accent-2)); box-shadow: 0 10px 24px color-mix(in oklab, var(--accent) 32%, transparent); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.site[data-style=modern] .button:hover { transform: translateY(-2px); box-shadow: 0 16px 34px color-mix(in oklab, var(--accent) 42%, transparent); }
+.site[data-style=modern] .button.secondary { background: transparent; box-shadow: inset 0 0 0 1.5px currentColor; }
+
+/* hero: night sky with a slowly drifting colour mesh and a fading grid */
+.site[data-style=modern] .hero { position: relative; overflow: hidden; isolation: isolate; padding-block: clamp(80px, 12cqi, 140px); background: var(--night); color: #eef2ff; }
+.site[data-style=modern] .hero::before { content: ""; position: absolute; inset: -25%; z-index: -2; filter: blur(30px);
+  background: radial-gradient(38% 48% at 22% 30%, color-mix(in oklab, var(--accent) 85%, transparent), transparent 70%),
+    radial-gradient(34% 44% at 80% 22%, color-mix(in oklab, var(--accent-2) 75%, transparent), transparent 70%),
+    radial-gradient(44% 52% at 62% 92%, #7c3aed8c, transparent 70%);
+  animation: meshDrift 18s ease-in-out infinite alternate; }
+.site[data-style=modern] .hero::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none;
+  background-image: linear-gradient(#ffffff0f 1px, transparent 1px), linear-gradient(90deg, #ffffff0f 1px, transparent 1px); background-size: 52px 52px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 40%, #000 25%, transparent 72%); mask-image: radial-gradient(ellipse at 50% 40%, #000 25%, transparent 72%); }
+.site[data-style=modern] .hero .heading { font-size: clamp(40px, 6.6cqi, 86px); line-height: 1.02; letter-spacing: -0.04em;
+  background: linear-gradient(100deg, #ffffff 35%, color-mix(in oklab, var(--accent-2) 55%, #ffffff)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.site[data-style=modern] .hero .text { color: #c3cbe8; font-size: 19px; }
+.site[data-style=modern] .hero .eyebrow { align-self: flex-start; padding: 8px 14px; border-radius: 999px; color: #e0e7ff; background: #ffffff14; border: 1px solid #ffffff26; backdrop-filter: blur(8px); letter-spacing: 0.14em; }
+.site[data-style=modern] .hero:is([data-layout=centered], [data-layout=image_top], [data-layout=text_only]) .eyebrow { align-self: center; }
+.site[data-style=modern] .hero .button.secondary { color: #ffffff; background: #ffffff10; box-shadow: inset 0 0 0 1.5px #ffffff59; backdrop-filter: blur(8px); }
+.site[data-style=modern] .hero .image { border-radius: 24px; box-shadow: 0 30px 80px #00000066; }
+@keyframes meshDrift { 0% { transform: translate3d(-4%, -3%, 0) rotate(0deg) scale(1); } 100% { transform: translate3d(4%, 4%, 0) rotate(8deg) scale(1.1); } }
+
+/* sections: soft alternating bands, dark bands for figures and sign-up, glowing footer */
+.site[data-style=modern] > section.block:nth-of-type(odd) { background: linear-gradient(180deg, #f8f9fd, #ffffff); }
+.site[data-style=modern] > section.block:is([data-type=stats], [data-type=newsletter]) {
+  background: radial-gradient(60% 80% at 15% 0%, color-mix(in oklab, var(--accent) 38%, transparent), transparent 70%),
+    radial-gradient(50% 70% at 90% 100%, color-mix(in oklab, var(--accent-2) 30%, transparent), transparent 70%), var(--night);
+  color: #eef2ff; --muted: #aab3d6; }
+.site[data-style=modern] > [data-type=footer] { position: relative; }
+.site[data-style=modern] > [data-type=footer]::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--accent-2), transparent); }
+
+/* scroll reveal (only after the script has started, so the page is never blank without it) */
+.site[data-animate] > [data-section]:not([data-type=navbar]) { opacity: 0; transform: translateY(24px); transition: opacity 0.6s ease, transform 0.6s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.site[data-animate] > [data-section][data-visible] { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .site[data-style=modern] .hero::before { animation: none; }
+  .site[data-style=modern] :is(.button, .menu a::after) { transition: none; }
+}
+/* labels on dark bands */
+.site[data-style=modern] > section.block:is([data-type=stats], [data-type=newsletter]) :is(small, [class*=tag]) { color: #c7d2fe; }

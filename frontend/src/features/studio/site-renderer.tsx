@@ -3,7 +3,8 @@
  * One renderer for SciStudio pages. The editor canvas passes `edit` to add selection
  * and in-place text editing; without it the output is the visitor-facing page.
  */
-import { themeVariables } from "./studio-theme";
+import { siteStyle, themeVariables } from "./studio-theme";
+import { countUpTarget } from "./motion";
 import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { EditableText } from "./editable-text";
 import { Icon } from "@/components/icon";
@@ -233,10 +234,52 @@ export function SiteRenderer({ themeConfig, sections, pages, siteSlug, siteId, e
     site.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("click", onClick); site.removeEventListener("keydown", onKey); };
   }, []);
+
+  const look = siteStyle(themeConfig);
+  // Modern look, visitors only: sections fade in as they scroll into view and figures count up. Nothing is hidden
+  // until this script runs, and nothing moves for visitors who ask their device to reduce motion.
+  useEffect(() => {
+    const site = root.current;
+    if (!site || edit || look !== "modern" || typeof IntersectionObserver === "undefined") return;
+    const onScroll = () => site.toggleAttribute("data-scrolled", window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (still) return () => window.removeEventListener("scroll", onScroll);
+    site.setAttribute("data-animate", "");
+    const frames = new Set<number>();
+    const countUp = (el: Element) => {
+      const target = countUpTarget(el.textContent ?? "");
+      if (!target || el.hasAttribute("data-counted")) return;
+      el.setAttribute("data-counted", "");
+      const start = performance.now();
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / 1400), eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = target.format(Math.round(target.value * eased));
+        if (t < 1) frames.add(requestAnimationFrame(step));
+      };
+      frames.add(requestAnimationFrame(step));
+    };
+    const observer = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        entry.target.setAttribute("data-visible", "");
+        entry.target.querySelectorAll('[data-design="figures"] h3').forEach(countUp);
+        observer.unobserve(entry.target);
+      }
+    }, { rootMargin: "0px 0px -40px 0px", threshold: 0 });
+    site.querySelectorAll("[data-section]").forEach(section => observer.observe(section));
+    return () => {
+      observer.disconnect();
+      frames.forEach(cancelAnimationFrame);
+      window.removeEventListener("scroll", onScroll);
+      site.removeAttribute("data-animate");
+    };
+  }, [edit, look, sections]);
   const ctx = useMemo(() => ({ sections, pages, siteSlug, siteId, pagePath, event: event && typeof event === "object" ? event as Record<string, unknown> : undefined }),
     [sections, pages, siteSlug, siteId, pagePath, event]);
   return (
-    <div ref={root} className={styles.site} style={themeVariables(themeConfig) as CSSProperties} data-editing={edit ? true : undefined}>
+    <div ref={root} className={styles.site} style={themeVariables(themeConfig) as CSSProperties} data-editing={edit ? true : undefined} data-style={look}>
       <style>{css}</style>
       {sections.map(section => <SectionView key={section.id} section={section} ctx={ctx} edit={edit} fallback={fallback} />)}
       {edit?.dragging && (
