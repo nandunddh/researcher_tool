@@ -626,7 +626,7 @@ function Custom({ c }: { c: Ctx }) {
 /** A decorative orbit: rings, a core and three planets. Colours follow the site's accent. */
 function Orbit({ style }: { style: React.CSSProperties }) {
   return (
-    <svg viewBox="0 0 240 240" className={`${styles.illustration} ${styles.accentText}`} style={{ gridColumn: style.gridColumn }} aria-hidden="true" focusable="false">
+    <svg viewBox="0 0 240 240" className={`${styles.illustration} ${styles.accentText}`} style={{ gridColumn: style.gridColumn }} data-span="wide" aria-hidden="true" focusable="false">
       <circle cx="120" cy="120" r="92" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.35" />
       <circle cx="120" cy="120" r="58" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 6" opacity="0.55" />
       <circle cx="120" cy="120" r="24" fill="currentColor" />
@@ -655,25 +655,27 @@ function Content({ c }: { c: Ctx }) {
   const nodes = list(d.nodes);
   const columns = Math.min(6, Math.max(1, Number(d.columns) || 1));
   return (
-    <div className={`${styles.wrap} ${styles.nodes}`} style={{ "--cols": columns, gap: Math.min(80, Number(d.gap) || 16) } as React.CSSProperties}>
+    <div className={`${styles.wrap} ${styles.nodes}`} data-cols={columns > 1 ? "multi" : undefined} style={{ "--cols": columns, gap: Math.min(80, Number(d.gap) || 16) } as React.CSSProperties}>
       {nodes.map((n, i) => {
         const kind = str(n.kind), style = nodeStyle(n, columns);
-        if (kind === "divider") return <hr key={i} className={styles.divider} />;
+        // Blocks wider than two columns take the full row on tablets, where the layout has two columns.
+        const wide = Math.min(columns, Math.max(1, Number(n.span) || 1)) > 2 ? "wide" : undefined;
+        if (kind === "divider") return <hr key={i} className={styles.divider} data-span="wide" />;
         if (kind === "icon") return (
-          <span key={i} style={style} className={styles.accentText} aria-hidden="true">
+          <span key={i} style={style} data-span={wide} className={styles.accentText} aria-hidden="true">
             <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={symbolPath(n.symbol)} /></svg>
           </span>
         );
         if (kind === "illustration") return isIllustration(n.art) ? <Orbit key={i} style={style} /> : null;
         if (kind === "button") return (
-          <div key={i} style={{ gridColumn: style.gridColumn, textAlign: style.textAlign }}>
+          <div key={i} data-span={wide} style={{ gridColumn: style.gridColumn, textAlign: style.textAlign }}>
             <a className={styles.button} data-primary href={href(c, n.url)} style={{ fontSize: style.fontSize }}>
               <T c={c} path={["nodes", i, "text"]} placeholder="button text" />
             </a>
           </div>
         );
         if (kind === "menu") return (
-          <nav key={i} style={style} className={styles.nodeMenu}>
+          <nav key={i} style={style} data-span={wide} className={styles.nodeMenu}>
             <T c={c} path={["nodes", i, "text"]} tag="strong" placeholder="menu title" />
             {str(n.links).split(/\r?\n/).filter(Boolean).map((line, j) => {
               const [label, url] = line.split("|");
@@ -682,7 +684,7 @@ function Content({ c }: { c: Ctx }) {
           </nav>
         );
         return (
-          <div key={i} style={style} data-effect={n.effect === "lift" || n.effect === "gradient" ? n.effect : undefined}>
+          <div key={i} style={style} data-span={wide} data-effect={n.effect === "lift" || n.effect === "gradient" ? n.effect : undefined}>
             <T c={c} path={["nodes", i, "text"]} tag={kind === "heading" ? "h2" : "p"} className={styles.node} placeholder="text" multiline />
           </div>
         );

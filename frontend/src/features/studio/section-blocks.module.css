@@ -309,3 +309,15 @@
 :global([data-style=modern]) .video { box-shadow: 0 30px 70px #0f172a33; }
 :global([data-style=modern]) .footer { background: #070b1d; }
 @media (prefers-reduced-motion: reduce) { :global([data-style=modern]) :is(.card, .portrait, .logos li, .session) { transition: none; } :global([data-style=modern]) .card:hover { transform: none; } }
+
+/* =========================================================== One responsive rule for every repeating layout
+   Desktop: as designed. Tablet (641-1023 px): two per row. Phone (640 px and below): one per row.
+   Lists and single spotlights are already one per row. Written last and specific enough to override layout rules above. */
+@container sci-site (min-width: 641px) and (max-width: 1023px) {
+  .wrap .grid:not([data-design=list]):not([data-design=spotlight]), .wrap .count, .wrap .regTypes, .wrap.nodes[data-cols=multi] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wrap.nodes[data-cols=multi] > [data-span=wide] { grid-column: 1 / -1 !important; }
+}
+@container sci-site (max-width: 640px) {
+  .wrap .grid:not([data-design=list]):not([data-design=spotlight]), .wrap .count, .wrap .regTypes, .wrap.nodes { grid-template-columns: minmax(0, 1fr); }
+  .wrap.nodes > * { grid-column: 1 / -1 !important; }
+}
