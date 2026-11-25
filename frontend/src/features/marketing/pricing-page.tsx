@@ -1,7 +1,7 @@
 import { MotionEffects } from "./motion";
 import { BrandText } from "@/components/brand-text";
 import { Pricing } from "./pricing";
-import { PricingAddons, PricingCompare } from "./pricing-compare";
+import { PricingAddons, PricingCompare, PricingPrint } from "./pricing-compare";
 import type { PublicPlan } from "@/lib/plans";
 import s from "./landing.module.css";
 
@@ -13,7 +13,7 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
       <header className={s.nav}>
         <div className={`${s.wrap} ${s.navInner}`}>
           <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" /><BrandText /></a>
-          <nav className={s.links} aria-label="Pricing"><a href="#pricing">Pricing</a><a href="#comparison">Compare plans</a><a href="#addons">Add-ons</a></nav>
+          <nav className={s.links} aria-label="Pricing"><a href="#pricing">Pricing</a><a href="#comparison">Compare plans</a><a href="#print">Print tools</a><a href="#addons">Add-ons</a></nav>
           <div className={s.actions}>
             {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>
               <a className={s.btnGhost} href="/login">Log in</a>
@@ -35,6 +35,7 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
           </div>
         </section>
         <PricingCompare plans={plans} />
+        <PricingPrint />
         <PricingAddons />
       </main>
 

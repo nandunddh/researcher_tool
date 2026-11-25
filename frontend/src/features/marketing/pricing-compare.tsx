@@ -100,3 +100,45 @@ export function PricingAddons() {
     </section>
   );
 }
+
+const PLAN_NAMES = ["Basic", "Pro", "Ultra", "Custom"];
+const PRINT_TABLES: { title: string; rows: [string, ...Cell[]][] }[] = [
+  { title: "Event program (PDF)", rows: [
+    ["Programs per event", "1", "3", "Unlimited", "Unlimited"],
+    ["Templates", "Starter set", "All templates", "All templates", "All + your own"],
+    ["Speaker photos", YES, YES, YES, YES],
+    ["Schedule from the event website", YES, YES, YES, YES],
+    ["PDF exports per month", "20", "100", "Unlimited", "Unlimited"],
+  ] },
+  { title: "Badges and ID cards (PDF)", rows: [
+    ["Badges per event", "200", "1,000", "5,000", "Custom"],
+    ["Badge templates", "Starter set", "All templates", "All templates", "All + your own"],
+    ["Role colour bands", YES, YES, YES, YES],
+    ["People from registrations or CSV", YES, YES, YES, YES],
+    ["QR code on each badge", YES, YES, YES, YES],
+    ["Bulk PDF (many cards per sheet)", YES, YES, YES, YES],
+  ] },
+];
+
+/** Program and badge generators (stage 2). Shown as two tables with a "coming soon" tag; not on sale yet. */
+export function PricingPrint() {
+  return (
+    <section className={s.compare} id="print">
+      <div className={s.wrap}>
+        <h2>Print tools <span className={s.soon}>Coming soon</span></h2>
+        {PRINT_TABLES.map(t => (
+          <div className={s.matrix} style={{ marginBottom: 20 }} tabIndex={0} role="region" aria-label={t.title} key={t.title}>
+            <table>
+              <caption>{t.title} · limits are per event website</caption>
+              <thead><tr><th scope="col">Feature</th>{PLAN_NAMES.map(n => <th scope="col" key={n}>{n}</th>)}</tr></thead>
+              <tbody>{t.rows.map(([label, ...cells]) => (
+                <tr key={label}><th scope="row">{label}</th>{cells.map((c, i) => <td key={i}>{isMark(c) ? <Mark mark={c.mark} /> : c}</td>)}</tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ))}
+        <p className={s.tableNote}>Included in your plan at no extra cost once released. Free during the 7-day trial within the trial limits.</p>
+      </div>
+    </section>
+  );
+}
