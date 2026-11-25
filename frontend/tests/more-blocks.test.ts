@@ -62,3 +62,16 @@ test("each new entry starts in the layout its name promises, with nothing made u
   assert.equal(travel.type, "travel");
   assert.ok((travel.data.items as { title: string; description: string }[]).every(i => i.title && i.description === ""), "no invented travel advice");
 });
+
+test("the newsletter sign-up asks for an email and consent, and the panel shows the same fields", () => {
+  const def = sectionRegistry.newsletter;
+  assert.deepEqual(def.fields.map(f => f.key), ["btn_text", "success_message"]);
+  const defaults = def.lists[0].defaults!;
+  assert.deepEqual(defaults.map(f => [f.id, f.type, f.required]), [["email", "email", true], ["consent", "checkbox", true]]);
+  assert.match(String(defaults[1].label), /unsubscribe/i, "people are told they can leave the list");
+  assert.notEqual(sectionRegistry.contact.lists[0].defaults, defaults, "contact form defaults are not changed");
+  assert.equal(sectionRegistry.contact.lists[0].defaults![0].id, "name");
+  const instance = make("newsletter-signup");
+  assert.equal(instance.type, "newsletter");
+  assert.ok(String(instance.data.btn_text).trim() && String(instance.data.success_message).trim());
+});

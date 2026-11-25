@@ -12,7 +12,7 @@ from psycopg2.extras import Json
 
 import db
 
-FORM_TYPES = ("contact", "form_button", "registration", "submission")
+FORM_TYPES = ("contact", "form_button", "registration", "submission", "newsletter")
 FIELD_TYPES = ("text", "email", "phone", "textarea", "select", "checkbox")
 MAX_VALUE = 5000
 EMAIL = re.compile(r"^[^\s@<>\"']{1,64}@[^\s@<>\"']{1,190}\.[A-Za-z]{2,}$")
@@ -29,12 +29,21 @@ DEFAULT_CONTACT_FIELDS = [
 DEFAULT_SUBMISSION_FIELDS = [{"id": "email", "label": "Your email (for the confirmation)", "type": "email", "required": True}]
 
 
+# Must match defaultNewsletterFields in frontend/src/features/studio/section-blocks.tsx.
+DEFAULT_NEWSLETTER_FIELDS = [
+    {"id": "email", "label": "Email", "type": "email", "required": True},
+    {"id": "consent", "label": "I agree to receive emails about this event. I can unsubscribe at any time.", "type": "checkbox", "required": True},
+]
+
+
 def form_fields(section: dict) -> List[dict]:
     fields = (section.get("data") or {}).get("form_fields")
     if isinstance(fields, list) and fields:
         return [f for f in fields if isinstance(f, dict) and isinstance(f.get("id"), str)]
     if section.get("type") == "submission":
         return DEFAULT_SUBMISSION_FIELDS
+    if section.get("type") == "newsletter":
+        return DEFAULT_NEWSLETTER_FIELDS
     return DEFAULT_REGISTRATION_FIELDS if section.get("type") == "registration" else DEFAULT_CONTACT_FIELDS
 
 
@@ -100,6 +109,26 @@ def clean_submission(section: dict, payload: dict) -> Tuple[Optional[Dict[str, o
                     return None, f"Please choose an option for “{label}”."
         values[field["id"]] = {"label": label, "value": value}
     return values, None
+
+
+def first_email(values: dict) -> str:
+    """The first valid email among cleaned form values, lowercased; empty when there is none."""
+    for item in values.values():
+        value = str(item.get("value") or "") if isinstance(item, dict) else ""
+        if EMAIL.match(value):
+            return value.lower()
+    return ""
+
+
+def already_signed_up(site_id: str, form_id: str, email: str) -> bool:
+    """Whether this email is already on this sign-up form's list (so a second sign-up is not stored twice)."""
+    if not email:
+        return False
+    with db.transaction() as cur:
+        cur.execute("SELECT 1 FROM form_submissions s, jsonb_each(s.data) AS f(key, item) "
+                    "WHERE s.site_id = %s AND s.form_id = %s AND s.form_type = 'newsletter' AND lower(f.item->>'value') = %s LIMIT 1",
+                    (site_id, form_id, email))
+        return cur.fetchone() is not None
 
 
 def save_submission(site_id: str, form_id: str, form_type: str, page_id: Optional[str], values: dict) -> int:

@@ -27,7 +27,7 @@ test("saved sub-links load into the editor and save back unchanged", () => {
   assert.deepEqual(links[1].children!.map(c => c.label), ["Schedule", "Speakers"]);
   assert.equal(links[1].children![1].target, "_blank");
   assert.equal(links[0].children, undefined, "plain links stay plain");
-  assert.deepEqual(prepareSite(editorPayload(site)).schema_json[0].data.links, links, "loading the saved site again changes nothing");
+  assert.deepEqual(prepareSite({ ...site, ...editorPayload(site) }).schema_json[0].data.links, links, "loading the saved site again changes nothing");
 });
 
 test("sub-links can be added, edited, moved and removed without touching other links", () => {

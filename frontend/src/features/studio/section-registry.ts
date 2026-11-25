@@ -207,6 +207,17 @@ sectionRegistry.video = {
   lists: [],
 };
 
+sectionRegistry.newsletter = {
+  name: "Newsletter sign-up", header: true,
+  fields: [t("btn_text", "Button text", { placeholder: "Subscribe" }),
+    t("success_message", "Thank-you message", { placeholder: "Thank you! You are on the list." })],
+  // Shown until the organiser changes them; must match DEFAULT_NEWSLETTER_FIELDS in backend/forms.py.
+  lists: [{ ...sectionRegistry.contact.lists[0], defaults: [
+    { id: "email", label: "Email", type: "email", required: true },
+    { id: "consent", label: "I agree to receive emails about this event. I can unsubscribe at any time.", type: "checkbox", required: true },
+  ] }],
+};
+
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
 sectionRegistry.submission = {
   name: "Abstract submission", header: true,

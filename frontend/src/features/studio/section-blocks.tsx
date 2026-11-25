@@ -194,6 +194,11 @@ export const defaultContactFields: Rec[] = [
   { id: "email", label: "Email", type: "email", required: true },
   { id: "message", label: "Message", type: "textarea", required: true },
 ];
+/** Must match DEFAULT_NEWSLETTER_FIELDS in backend/forms.py. */
+export const defaultNewsletterFields: Rec[] = [
+  { id: "email", label: "Email", type: "email", required: true },
+  { id: "consent", label: "I agree to receive emails about this event. I can unsubscribe at any time.", type: "checkbox", required: true },
+];
 export const defaultSubmissionFields: Rec[] = [{ id: "email", label: "Your email (for the confirmation)", type: "email", required: true }];
 export const defaultRegistrationFields: Rec[] = [
   { id: "name", label: "Full name", type: "text", required: true },
@@ -213,7 +218,7 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
   onResult?: (body: Record<string, unknown>) => boolean;
 }) {
   const d = c.section.data;
-  const fields = list(d.form_fields).length ? list(d.form_fields) : c.section.type === "registration" ? defaultRegistrationFields : c.section.type === "submission" ? defaultSubmissionFields : defaultContactFields;
+  const fields = list(d.form_fields).length ? list(d.form_fields) : c.section.type === "registration" ? defaultRegistrationFields : c.section.type === "submission" ? defaultSubmissionFields : c.section.type === "newsletter" ? defaultNewsletterFields : defaultContactFields;
   const [state, setState] = useState<{ kind: "idle" | "sending" | "sent" | "error"; message?: string }>({ kind: "idle" });
   const editable = !!c.edit?.onFormFields && !c.edit.readOnly;
   const orderType = reorderMime + "-" + c.section.id.toLowerCase();
@@ -280,6 +285,19 @@ function WebsiteForm({ c, children, inline, top, extra, onResult }: {
       {state.kind === "sent" && <p role="status" className={styles.formSuccess}>{state.message}</p>}
       {state.kind === "error" && <p role="alert" className={styles.formError}>{state.message}</p>}
     </form>
+  );
+}
+
+function Newsletter({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  return (
+    <div className={`${styles.wrap} ${styles.narrow} ${styles.newsletter}`}>
+      <Header c={c} />
+      <WebsiteForm c={c}>
+        <T c={c} path={["btn_text"]} placeholder="button text" />
+        {!str(d.btn_text) && !c.edit && "Subscribe"}
+      </WebsiteForm>
+    </div>
   );
 }
 
@@ -882,7 +900,7 @@ function Submission({ c }: { c: Ctx }) {
 
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   submission: Submission,
-  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors, countdown: Countdown, venue: Venue, downloads: Downloads, video: Video, travel: Cards,
+  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors, countdown: Countdown, venue: Venue, downloads: Downloads, video: Video, travel: Cards, newsletter: Newsletter,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
   image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,

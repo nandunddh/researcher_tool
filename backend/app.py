@@ -1798,12 +1798,15 @@ async def submit_website_form(site_id: str, form_id: str, request: Request):
     values, problem = forms.clean_submission(section, payload)
     if problem:
         raise HTTPException(status_code=400, detail=problem)
+    message = (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."
+    # A second sign-up with the same email gets the same answer (nobody can test who is on the list) and is not stored twice.
+    if section["type"] == "newsletter" and forms.already_signed_up(site_id, form_id, forms.first_email(values)):
+        return {"status": "ok", "message": message}
     owner = (site or {}).get("user_email", "")
     plan = _plan_of_account(license_engine.account_for_email(owner)) if owner else None
     if plan:
         import plans
         _enforce_plan(plan, "submissions_month", plans.usage(owner)["submissions_month"] + 1)
-    message = (section.get("data") or {}).get("success_message") or "Thank you! Your message has been sent."
     if section["type"] == "submission":
         paper, problem = forms.clean_paper(section, payload, (site or {}).get("event"))
         if problem:
