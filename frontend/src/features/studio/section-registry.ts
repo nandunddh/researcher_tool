@@ -46,12 +46,13 @@ export const sectionRegistry: Record<string, SectionDef> = {
     }],
   },
   speakers: {
-    name: "Speakers", header: true, fields: [],
+    name: "Speakers", header: true,
+    fields: [{ key: "design", label: "Layout", kind: "select", options: [["cards", "Cards"], ["list", "List"], ["portraits", "Large portraits"]] }],
     lists: [{
       key: "speakers", label: "Speakers", itemLabel: "Speaker", max: 48,
-      fields: [t("name", "Name"), t("role", "Role or title"), t("affiliation", "Organization"),
+      fields: [t("name", "Name"), t("role", "Role or title"), t("affiliation", "Organization"), t("talk", "Talk title"),
         { key: "photo", label: "Photo", kind: "image" }, area("bio", "Short bio")],
-      newItem: () => ({ name: "New speaker", role: "Role / title", affiliation: "", photo: "", bio: "" }),
+      newItem: () => ({ name: "New speaker", role: "Role / title", affiliation: "", talk: "", photo: "", bio: "" }),
     }],
   },
   pricing: {
@@ -104,11 +105,17 @@ export const sectionRegistry: Record<string, SectionDef> = {
   },
   footer: {
     name: "Footer", header: false,
-    fields: [t("brand_name", "Name"), t("tagline", "Short description"), t("copyright", "Copyright line")],
+    fields: [t("brand_name", "Name"), t("tagline", "Short description"), t("copyright", "Copyright line"),
+      { key: "design", label: "Layout", kind: "select", options: [["simple", "One row of links"], ["columns", "Columns of links"]] }],
     lists: [{
-      key: "links", label: "Links", itemLabel: "Link", max: 12,
-      fields: [t("label", "Text"), { key: "url", label: "Link", kind: "link" }],
-      newItem: () => ({ label: "New link", url: "#" }),
+      key: "links", label: "Links", itemLabel: "Link", max: 24,
+      fields: [t("label", "Text"), { key: "url", label: "Link", kind: "link" },
+        t("group", "Column heading", { placeholder: "Event", hint: "For the column layout: links with the same heading share a column." })],
+      newItem: () => ({ label: "New link", url: "#", group: "" }),
+    }, {
+      key: "social", label: "Social links", itemLabel: "Social link", max: 8,
+      fields: [t("label", "Name", { placeholder: "LinkedIn" }), { key: "url", label: "Link", kind: "link" }],
+      newItem: () => ({ label: "Social network", url: "" }),
     }],
   },
   form_button: {

@@ -90,6 +90,8 @@ function Features({ c }: { c: Ctx }) {
   );
 }
 
+const SPEAKER_DESIGNS = ["cards", "list", "portraits"];
+
 function Speakers({ c: own }: { c: Ctx }) {
   // "From Event details": speakers are edited there, so the cards here are read-only.
   const fromEvent = own.section.data.source === "event";
@@ -98,18 +100,22 @@ function Speakers({ c: own }: { c: Ctx }) {
     ? list(own.ctx.event?.speakers).filter(p => !Array.isArray(chosen) || chosen.includes(p.id))
     : list(own.section.data.speakers);
   const c = fromEvent ? { ...own, edit: undefined } : own;
+  const design = SPEAKER_DESIGNS.includes(str(own.section.data.design)) ? str(own.section.data.design) : "cards";
   return (
     <div className={styles.wrap}>
-      <Header c={c} />
-      <div className={styles.grid}>
+      <Header c={c} center={design !== "list"} />
+      <div className={`${styles.grid} ${styles.people}`} data-design={design}>
         {people.map((p, i) => (
           <article key={i} className={`${styles.card} ${styles.person}`}>
             {safeImage(p.photo) ? <Img className={styles.portrait} src={p.photo} alt={str(p.name)} />
               : <span className={styles.avatar} aria-hidden="true"><Icon name="user" size={34} /></span>}
-            <T c={c} path={["speakers", i, "name"]} tag="h3" placeholder="name" />
-            <T c={c} path={["speakers", i, "role"]} tag="p" className={styles.accentText} placeholder="role" />
-            <T c={c} path={["speakers", i, "affiliation"]} tag="p" className={styles.muted} placeholder="organization" />
-            <T c={c} path={["speakers", i, "bio"]} tag="p" className={styles.small} placeholder="short bio" multiline />
+            <div className={styles.personBody}>
+              <T c={c} path={["speakers", i, "name"]} tag="h3" placeholder="name" />
+              <T c={c} path={["speakers", i, "role"]} tag="p" className={styles.accentText} placeholder="role" />
+              <T c={c} path={["speakers", i, "affiliation"]} tag="p" className={styles.muted} placeholder="organization" />
+              <T c={c} path={["speakers", i, "talk"]} tag="p" className={styles.talk} placeholder="talk title" />
+              <T c={c} path={["speakers", i, "bio"]} tag="p" className={styles.small} placeholder="short bio" multiline />
+            </div>
           </article>
         ))}
       </div>
@@ -452,17 +458,35 @@ function FormButton({ c }: { c: Ctx }) {
 }
 
 function Footer({ c }: { c: Ctx }) {
-  const links = list(c.section.data.links);
+  const links = list(c.section.data.links), social = list(c.section.data.social);
+  const columns = str(c.section.data.design) === "columns";
+  const link = (l: Rec, i: number) => <a href={href(c, l.url)}><T c={c} path={["links", i, "label"]} placeholder="link text" /></a>;
   return (
-    <footer className={styles.footer}>
+    <footer className={styles.footer} data-design={columns ? "columns" : undefined}>
       <div>
         <T c={c} path={["brand_name"]} tag="strong" className={styles.footerBrand} placeholder="name" />
         <T c={c} path={["tagline"]} tag="p" placeholder="short description" multiline />
+        {social.length > 0 && (
+          <ul className={styles.social} aria-label="Social media">
+            {social.map((s, i) => (
+              <li key={i}><a href={href(c, s.url)} target={c.edit ? undefined : "_blank"} rel="noopener noreferrer"><T c={c} path={["social", i, "label"]} placeholder="network" /></a></li>
+            ))}
+          </ul>
+        )}
         <T c={c} path={["copyright"]} tag="small" placeholder="copyright line" />
       </div>
-      <nav aria-label="Footer">
-        {links.map((l, i) => <a key={i} href={href(c, l.url)}><T c={c} path={["links", i, "label"]} placeholder="link text" /></a>)}
-      </nav>
+      {columns ? (
+        <div className={styles.footerColumns}>
+          {groupByField(links, "group").map(group => (
+            <nav key={group.label || "links"} aria-label={group.label || "Footer"}>
+              {group.label && <strong>{group.label}</strong>}
+              <ul>{group.rows.map(({ index, data }) => <li key={index}>{link(data, index)}</li>)}</ul>
+            </nav>
+          ))}
+        </div>
+      ) : (
+        <nav aria-label="Footer">{links.map((l, i) => <span key={i}>{link(l, i)}</span>)}</nav>
+      )}
     </footer>
   );
 }

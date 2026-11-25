@@ -194,3 +194,24 @@
 .venueImage { width: 100%; max-height: 380px; object-fit: cover; border-radius: 18px; }
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @container sci-site (max-width: 640px) { .count { grid-template-columns: repeat(2, minmax(0, 1fr)); } .venue[data-has-image] { grid-template-columns: 1fr; } }
+
+/* Speakers: cards (default), a list, or large portraits */
+.personBody { display: flex; flex-direction: column; align-items: inherit; gap: 6px; min-width: 0; }
+.talk { margin: 0; font-style: italic; font-size: 15px; }
+.people[data-design=list] { grid-template-columns: 1fr; gap: 0; }
+.people[data-design=list] .person { flex-direction: row; align-items: center; text-align: left; gap: 20px; padding: 18px 0; border-width: 0 0 1px; border-radius: 0; box-shadow: none; background: transparent; }
+.people[data-design=list] .personBody { align-items: flex-start; }
+.people[data-design=list] .portrait, .people[data-design=list] .avatar { flex: none; width: 84px; height: 84px; aspect-ratio: 1; border-radius: 50%; margin: 0; }
+.people[data-design=portraits] { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.people[data-design=portraits] .portrait { aspect-ratio: 3 / 4; }
+.people[data-design=portraits] .avatar { width: 100%; height: auto; aspect-ratio: 3 / 4; border-radius: 14px; }
+
+/* Footer with columns and social links */
+.social { display: flex; flex-wrap: wrap; gap: 8px 18px; margin: 10px 0; padding: 0; list-style: none; }
+.social a { text-decoration: underline; text-underline-offset: 3px; }
+.footer a:focus-visible { outline: 3px solid #fff; outline-offset: 3px; border-radius: 4px; }
+.footerColumns { display: flex; flex-wrap: wrap; gap: 28px 64px; }
+.footerColumns nav { display: block; }
+.footerColumns strong { display: block; margin-bottom: 10px; font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; }
+.footerColumns ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+@container sci-site (max-width: 640px) { .footerColumns { flex-direction: column; gap: 24px; } .people[data-design=list] .person { align-items: flex-start; } }
