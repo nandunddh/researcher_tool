@@ -5,7 +5,7 @@
  */
 import { paletteMime, reorderMime } from "./form-palette";
 import { currentPeriod, keyDates, priceIn, registrationData } from "./registration-pricing";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Json, Section } from "./document";
 import { linkHref, safeImage, type LinkContext } from "./site-schema";
 import { EditableText } from "./editable-text";
@@ -14,6 +14,7 @@ import { Icon } from "@/components/icon";
 import { isIllustration, symbolPath } from "./site-symbols";
 import { groupByDay } from "./schedule";
 import { groupByField } from "./grouping";
+import { longDate, mapLink, parseDay, remaining } from "./countdown";
 import styles from "./section-blocks.module.css";
 
 type Rec = Record<string, Json>;
@@ -570,6 +571,70 @@ function Content({ c }: { c: Ctx }) {
   );
 }
 
+const eventBasics = (c: Ctx): Rec => (isRec(c.ctx.event?.basics) ? c.ctx.event.basics as Rec : {});
+
+function Countdown({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  const target = parseDay(str(d.date) || str(eventBasics(c).starts));
+  // The numbers start after the page loads, so the server page and a downloaded copy show the date as plain text.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    if (target === null) return;
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [target]);
+  const left = target !== null && now !== null ? remaining(target, now) : null;
+  const units: [string, number][] = left ? [["Days", left.days], ["Hours", left.hours], ["Minutes", left.minutes], ["Seconds", left.seconds]] : [];
+  return (
+    <div className={`${styles.wrap} ${styles.narrow}`}>
+      <Header c={c} />
+      {target === null ? (
+        c.edit && <p className={styles.muted}>Choose the event date in the panel, or add the start date in Event details.</p>
+      ) : (
+        <>
+          <p className={styles.countDate}><time dateTime={new Date(target).toISOString().slice(0, 10)}>{longDate(target)}</time></p>
+          {units.length > 0 && (
+            <div className={styles.count} role="timer" aria-label="Time until the event">
+              {units.map(([label, value]) => <div key={label} className={styles.countTile}><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span></div>)}
+            </div>
+          )}
+          {now !== null && !left && <T c={c} path={["done_text"]} tag="p" className={styles.countDone} placeholder="message after the date" />}
+        </>
+      )}
+    </div>
+  );
+}
+
+function Venue({ c }: { c: Ctx }) {
+  const d = c.section.data;
+  // Like the speakers block: by default the place comes from Event details, so it is written once.
+  const fromEvent = str(d.source) !== "custom";
+  const basics = eventBasics(c);
+  const name = fromEvent ? str(basics.venue) : str(d.name);
+  const address = fromEvent ? str(basics.address) : str(d.address);
+  const map = mapLink(name, address);
+  const image = safeImage(d.image);
+  return (
+    <div className={`${styles.wrap} ${styles.venue}`} data-has-image={image || c.edit ? true : undefined}>
+      <div>
+        <Header c={c} center={false} />
+        {fromEvent ? <>
+          {name && <h3 className={styles.venueName}>{name}</h3>}
+          {address && <p className={styles.venueAddress}>{address}</p>}
+          {!name && !address && c.edit && <p className={styles.muted}>Add the venue and address in Event details, or choose “Write it here”.</p>}
+        </> : <>
+          <T c={c} path={["name"]} tag="h3" className={styles.venueName} placeholder="venue name" />
+          <T c={c} path={["address"]} tag="p" className={styles.venueAddress} placeholder="address" multiline />
+        </>}
+        <T c={c} path={["details"]} tag="p" className={styles.small} placeholder="getting there: transport, parking, accessibility" multiline />
+        {map && <a className={styles.button} data-primary href={map} target="_blank" rel="noopener noreferrer">Open in maps<span className={styles.srOnly}> (opens in a new tab)</span></a>}
+      </div>
+      {(image || c.edit) && <div>{image ? <Img className={styles.venueImage} src={image} alt={name || "The venue"} /> : <EmptyImage edit={c.edit} />}</div>}
+    </div>
+  );
+}
+
 function Sponsors({ c }: { c: Ctx }) {
   const groups = groupByField(list(c.section.data.sponsors), "tier");
   return (
@@ -727,7 +792,7 @@ function Submission({ c }: { c: Ctx }) {
 
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   submission: Submission,
-  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors,
+  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors, countdown: Countdown, venue: Venue,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
   image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,

@@ -167,6 +167,20 @@ sectionRegistry.sponsor_tiers = {
   }],
 };
 
+sectionRegistry.countdown = {
+  name: "Countdown", header: true,
+  fields: [{ key: "date", label: "Event date", kind: "date", hint: "Leave empty to use the start date from Event details." },
+    t("done_text", "Message after the date", { placeholder: "The event has started." })],
+  lists: [],
+};
+sectionRegistry.venue = {
+  name: "Venue", header: true,
+  fields: [{ key: "source", label: "Venue details", kind: "select", options: [["event", "From Event details"], ["custom", "Write it here"]] },
+    t("name", "Venue name (when written here)"), area("address", "Address (when written here)"),
+    { key: "image", label: "Photo of the venue", kind: "image" }, area("details", "Getting there", { hint: "Public transport, parking, accessibility." })],
+  lists: [],
+};
+
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
 sectionRegistry.submission = {
   name: "Abstract submission", header: true,

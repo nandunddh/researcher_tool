@@ -62,10 +62,14 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 
 ## 2a. Block library (our own original blocks)
 Ready-made sections people drag into a page. We write every block ourselves; free libraries (shadcn/ui, HyperUI, Flowbite, Magic UI, Aceternity free) are inspiration only, no code is copied, so no third-party notices are needed. Never copy Pro or paid designs; do not reuse their images, icons or fonts.
-- [ ] Read how existing blocks are defined (editor, preview, publish, ZIP) so new blocks fit the same format
-- [ ] Each block: editable text and image slots, theme colours and fonts, mobile layout, keyboard and contrast checks, light animation only
-- [ ] Categories: Hero, Speakers, Schedule, Pricing and registration, Cards and features, Gallery, FAQ, Sponsors, Contact, Footer (several styles each, for example 4 heroes)
-- [ ] First set: heroes and speaker grids, then schedule, registration and pricing blocks
+- [x] 🧪 Audit: `frontend/tests/component-audit.test.ts` checks every block (complete text, no dummy words, safe links, every promise backed by code). Run it with `npm test`
+- [x] 🧪 Headers: mobile menu without scripts, headers that stay at the top, Conference and Dark headers; false promises (dropdown, mega menu, search) removed
+- [x] 🧪 Effects and assets that were promised but missing: hover lift, animated gradient (respects reduced motion), 12 outline icons with a picker, orbit illustration, gradient band
+- [x] 🧪 Schedule by day (time, room, track, speaker), Sponsors by tier (logos that link out), Countdown (from Event details), Venue and directions (from Event details, Open in maps)
+- [ ] Header dropdown (sub-menus): needs sub-items in the menu schema, the editor and the mobile menu
+- [ ] Speakers in several styles (cards, list, large portraits, with talk title), Organising committee, Footer with columns, social links and newsletter, Video block, Logo strip, Testimonials with photo and role, Statistics with large numbers, Downloads (brochure), Travel and accommodation
+- [ ] More heroes: background image, video-free animated, with countdown or key dates
+- [ ] Look at every block in a browser (desktop, tablet, phone) and fix spacing; so far blocks are checked by test cases only
 - [ ] A few new blocks every week through the daily designs workflow
 - [ ] 💡 Catalog page with thumbnails and categories in the Design Library
 
