@@ -16,6 +16,13 @@ export function instantiateComponent(item:LibraryComponent,name="Your brand"):Co
  else if(type==="team"){type="speakers";data={...title,section_title:"Meet the people",speakers:[1,2,3].map(n=>({name:`Team member ${n}`,role:"Role / expertise",affiliation:"",photo:"",bio:"Add a short biography."}))}}
  else if(type==="pricing")data={...title,section_title:"Choose your plan",tiers:["Starter","Growth","Scale"].map((name,n)=>({name,price:`$${[19,49,99][n]}`,period:"/ month",description:"Sample pricing - edit before publishing",features:["Feature one","Feature two"],featured:n===1,btn_label:"Choose plan",btn_url:"#contact"}))};
  else if(type==="abstract-form"){type="submission";data={section_tag:"CALL FOR ABSTRACTS",section_title:"Submit your abstract",section_subtitle:"Share your research with the community.",word_limit:300,closes:"",file_mode:"optional",id_prefix:"ABS-",btn_text:"Submit abstract",success_message:""}}
+ else if(type==="schedule")data={section_tag:"PROGRAM",section_title:"Conference schedule",section_subtitle:"",sessions:[
+  {day:"Day 1",time:"08:30 – 09:30",title:"Registration and welcome",speaker:"",location:"Main hall",track:"",description:"Collect your badge and meet the organisers."},
+  {day:"Day 1",time:"09:30 – 10:30",title:"Opening keynote",speaker:"Keynote speaker",location:"Auditorium",track:"Plenary",description:""},
+  {day:"Day 1",time:"10:30 – 11:00",title:"Coffee break",speaker:"",location:"Foyer",track:"",description:""},
+  {day:"Day 2",time:"09:00 – 10:30",title:"Parallel sessions",speaker:"",location:"Rooms A and B",track:"Research talks",description:"Choose the session that fits your work."},
+  {day:"Day 2",time:"12:00 – 13:00",title:"Poster session",speaker:"",location:"Exhibition area",track:"Posters",description:""},
+  {day:"Day 2",time:"16:30 – 17:00",title:"Closing remarks",speaker:"",location:"Auditorium",track:"Plenary",description:""}]};
  else if(type==="key-dates"){type="key_dates";data={section_tag:"MARK YOUR CALENDAR",section_title:"Key dates",section_subtitle:"",show_prices:true,show_event:true}}
  else if(type==="faq")data={...title,section_title:"Frequently asked questions",faqs:[{q:"How does it work?",a:"Add your answer here."},{q:"How can I get in touch?",a:"Use our contact details below."}]};
  else if(type==="contact"||type.startsWith("contact-")){const layout=type.split("-")[1]||"split";type="contact";data={...title,section_title:"Start a conversation",email:"hello@example.com",phone:"",location:"",btn_text:"Send message",form_layout:layout}}

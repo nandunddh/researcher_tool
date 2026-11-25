@@ -153,3 +153,16 @@
   .nodes > [data-effect=gradient] { background-size: 200% 200%; animation: gradientDrift 14s ease-in-out infinite; }
 }
 @keyframes gradientDrift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+
+/* Schedule */
+.day { margin-bottom: 36px; }
+.dayTitle { margin: 0 0 6px; padding-bottom: 10px; font-size: 20px; border-bottom: 2px solid var(--accent); }
+.sessions { margin: 0; padding: 0; list-style: none; }
+.session { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 6px 24px; padding: 18px 0; border-bottom: 1px solid #e4e7f0; }
+.sessionTime { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.sessionBody { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sessionBody h4 { margin: 0; font-size: 18px; line-height: 1.3; }
+.sessionMeta { display: flex; flex-wrap: wrap; gap: 8px; }
+.sessionMeta:empty { display: none; }
+.chip { padding: 3px 10px; border-radius: 999px; background: #eeeaff; color: #4b3aa8; font-size: 12px; font-weight: 600; }
+@container sci-site (max-width: 640px) { .session { grid-template-columns: 1fr; } }

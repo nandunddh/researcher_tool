@@ -229,7 +229,7 @@ export function withSectionStyle(section: Section, style: Responsive<SectionStyl
 
 const legacyAnchors: Record<string, string> = {
   features: "features", speakers: "speakers", pricing: "pricing", gallery: "gallery", faq: "faq",
-  contact: "contact", about: "about", agenda: "agenda", sponsors: "sponsors",
+  contact: "contact", about: "about", agenda: "agenda", sponsors: "sponsors", schedule: "schedule",
 };
 /** The anchor visitors jump to for "Section on this page" links. */
 /** Styles for individual texts in content sections, keyed by the text's data path ("items.0.title"). */

@@ -146,6 +146,17 @@ export const sectionRegistry: Record<string, SectionDef> = {
   },
 };
 
+sectionRegistry.schedule = {
+  name: "Schedule", header: true, fields: [],
+  lists: [{
+    key: "sessions", label: "Sessions", itemLabel: "Session", max: 120,
+    fields: [t("day", "Day", { placeholder: "Day 1 · Monday 14 October", hint: "Sessions with the same day text are grouped under one heading." }),
+      t("time", "Time", { placeholder: "09:00 – 10:00" }), t("title", "Session title"), t("speaker", "Speaker"),
+      t("location", "Room or location"), t("track", "Track"), area("description", "Description")],
+    newItem: () => ({ day: "Day 1", time: "", title: "New session", speaker: "", location: "", track: "", description: "" }),
+  }],
+};
+
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
 sectionRegistry.submission = {
   name: "Abstract submission", header: true,

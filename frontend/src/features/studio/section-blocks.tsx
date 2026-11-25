@@ -12,6 +12,7 @@ import { EditableText } from "./editable-text";
 import type { EditHooks } from "./site-renderer";
 import { Icon } from "@/components/icon";
 import { isIllustration, symbolPath } from "./site-symbols";
+import { groupByDay } from "./schedule";
 import styles from "./section-blocks.module.css";
 
 type Rec = Record<string, Json>;
@@ -568,6 +569,37 @@ function Content({ c }: { c: Ctx }) {
   );
 }
 
+function Schedule({ c }: { c: Ctx }) {
+  const groups = groupByDay(list(c.section.data.sessions));
+  return (
+    <div className={`${styles.wrap} ${styles.narrow}`}>
+      <Header c={c} />
+      {!groups.length && c.edit && <p className={styles.muted}>Add sessions in the panel.</p>}
+      {groups.map(group => (
+        <section key={group.day || "no-day"} className={styles.day} aria-label={group.day || "Sessions"}>
+          {group.day && <h3 className={styles.dayTitle}>{group.day}</h3>}
+          <ol className={styles.sessions}>
+            {group.sessions.map(({ index }) => (
+              <li key={index} className={styles.session}>
+                <T c={c} path={["sessions", index, "time"]} tag="span" className={styles.sessionTime} placeholder="time" />
+                <div className={styles.sessionBody}>
+                  <T c={c} path={["sessions", index, "title"]} tag="h4" placeholder="session title" />
+                  <T c={c} path={["sessions", index, "speaker"]} tag="p" className={styles.accentText} placeholder="speaker" />
+                  <div className={styles.sessionMeta}>
+                    <T c={c} path={["sessions", index, "location"]} tag="span" className={styles.chip} placeholder="room" />
+                    <T c={c} path={["sessions", index, "track"]} tag="span" className={styles.chip} placeholder="track" />
+                  </div>
+                  <T c={c} path={["sessions", index, "description"]} tag="p" className={styles.small} placeholder="description" multiline />
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function KeyDates({ c }: { c: Ctx }) {
   const today = new Date().toISOString().slice(0, 10);
   const dates = keyDates(c.ctx.event, c.section.data);
@@ -664,7 +696,7 @@ function Submission({ c }: { c: Ctx }) {
 
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   submission: Submission,
-  key_dates: KeyDates,
+  key_dates: KeyDates, schedule: Schedule,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
   image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,
