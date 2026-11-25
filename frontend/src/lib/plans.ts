@@ -14,6 +14,11 @@ export const count = (v: unknown) => (num(v) < 0 ? "Unlimited" : num(v).toLocale
 const size = (mb: unknown) => (num(mb) < 0 ? "Unlimited" : num(mb) >= 1000 ? `${num(mb) / 1000} GB` : `${num(mb)} MB`);
 const plural = (n: unknown, word: string) => `${count(n)} ${word}${n === 1 ? "" : "s"}`;
 
+/** "120 MB of 4 GB" for a used amount and a limit, both in MB (limit below 0 = unlimited). */
+export function usedOf(usedMb: number, limitMb: number): string {
+  const size = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10} GB` : `${Math.round(n * 10) / 10} MB`);
+  return limitMb < 0 ? `${size(usedMb)} of unlimited` : `${size(usedMb)} of ${size(limitMb)}`;
+}
 export const usd = (n: number) => (Number.isInteger(n) ? `$${n.toLocaleString("en-US")}` : `$${n.toFixed(2)}`);
 export const priceFor = (plan: PublicPlan, interval: Interval) => (interval === "year" ? plan.price_year : plan.price_month);
 /** What a year costs less than twelve months, e.g. $78 for Basic. */

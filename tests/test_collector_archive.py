@@ -12,6 +12,18 @@ sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "backend/collector_sources")]
 
 @unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA","").startswith("test_") and os.environ.get("SCIPROSPECT_DB_HOST"), "requires an isolated PostgreSQL test schema")
 class CollectorArchiveTests(unittest.TestCase):
+    def test_data_storage_counts_the_workspaces_stored_records(self):
+        import collector_archive as store
+        import plans
+        email = f"{uuid.uuid4().hex}@fixture.test"
+        owner = "owner:" + email
+        self.assertEqual(plans.data_storage_mb(email), 0)
+        run = store.create(owner, "t", 3, 50, "2025-01-01", "2025-02-01")
+        store.Archive(owner, run).save({"email": "a@fixture.test", "researcher_name": os.urandom(400_000).hex()})  # random, so it does not compress away
+        store.stop(owner, run)
+        self.assertGreater(plans.data_storage_mb(email), 0)
+        self.assertEqual(plans.data_storage_mb("other-" + email), 0, "only this account's data")
+
     def test_daily_count_can_be_limited_to_one_team_member(self):
         import collector_archive as store
         owner = "test:" + uuid.uuid4().hex

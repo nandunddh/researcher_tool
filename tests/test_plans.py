@@ -34,7 +34,9 @@ class PlanRulesTests(unittest.TestCase):
         self.assertIsNone(plans.over_limit({"limits": {"websites": -1}}, "websites", 10**6), "-1 = unlimited")
         self.assertIsNone(plans.over_limit(None, "pages", 999), "no plan = no limit (root)")
         self.assertIn("10 MB", plans.over_limit(PRO, "storage_mb", 10.2))
-        for key in ("websites", "pages", "storage_mb"):
+        self.assertIn("10 MB", plans.over_limit({"limits": {"data_storage_mb": 10}}, "data_storage_mb", 10.5))
+        self.assertIsNone(plans.over_limit({"limits": {"data_storage_mb": 10}}, "data_storage_mb", 10))
+        for key in ("websites", "pages", "storage_mb", "data_storage_mb"):
             self.assertIn("Billing", plans.over_limit({"limits": {key: 1}}, key, 2), "customers upgrade themselves, no administrator to ask")
 
     def test_clean_plan(self):

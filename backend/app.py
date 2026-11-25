@@ -916,7 +916,8 @@ async def my_plan(request: Request):
     plan = _user_plan(user)
     if not plan:
         return {"plan": None, "usage": None}
-    return {"plan": plan, "usage": plans.usage(_workspace_email(user))}
+    email = _workspace_email(user)
+    return {"plan": plan, "usage": {**plans.usage(email), "data_storage_mb": plans.data_storage_mb(email)}}
 
 
 @app.get("/api/admin/mfa")
@@ -1976,7 +1977,17 @@ def _page_namespace(user):
 
 
 from collector_routes import collector_router
-app.include_router(collector_router(_require_authenticated_user, license_engine))
+def _data_storage_message(license_key: str) -> Optional[str]:
+    """A message when the account's data storage is over its plan, so a new collection should not start."""
+    import plans
+    account = license_engine.get_account(license_key) or {}
+    plan = _plan_of_account(account)
+    if not plan:
+        return None
+    return plans.over_limit(plan, "data_storage_mb", plans.data_storage_mb(account.get("client_email", "")))
+
+
+app.include_router(collector_router(_require_authenticated_user, license_engine, _data_storage_message))
 
 
 if __name__ == "__main__":

@@ -22,11 +22,11 @@ EDITOR = {"client_email": "ed@lab.org", "is_member": True, "member_id": "mem-1",
 VIEWER = {**EDITOR, "member_id": "mem-2", "role": "viewer"}
 
 
-def call(user, method, path, body=None):
+def call(user, method, path, body=None, storage_full=None):
     def auth(request):
         return json.loads(request.headers["X-Test-User"])
     app = FastAPI()
-    app.include_router(collector_routes.collector_router(auth, LICENSES))
+    app.include_router(collector_routes.collector_router(auth, LICENSES, storage_full))
     messages = []
 
     async def run():
@@ -83,6 +83,20 @@ class TeamCollectorTests(unittest.TestCase):
         self.assertEqual(seen, [("owner:owner@lab.org", ""), ("owner:owner@lab.org", "mem-1")])
         self.assertEqual(create.call_args.args[-1], "mem-1")  # the run remembers who started it
         self.assertEqual(create.call_args.args[0], "owner:owner@lab.org")
+
+    def test_full_data_storage_stops_new_collections(self):
+        asked = []
+
+        def full(license_key):
+            asked.append(license_key)
+            return "Your plan's data storage (10000 MB) is full."
+
+        with patch.object(collector_routes.archive, "stats", return_value={"total": 0, "today": 0, "datasets": 0}),              patch.object(collector_routes.archive, "create", return_value="run-1") as create,              patch.object(collector_routes.archive, "execute"), patch.object(collector_routes.archive, "history", return_value=[]):
+            status, body = call(EDITOR, "POST", "/api/collector/runs", START, storage_full=full)
+            self.assertEqual((status, "data storage" in body["detail"]), (403, True))
+            create.assert_not_called()
+            self.assertEqual(asked, [PARENT])  # the owner's license decides, also for a team member
+            self.assertEqual(call(EDITOR, "POST", "/api/collector/runs", START, storage_full=lambda key: None)[0], 202)
 
     def test_stats_show_the_callers_own_numbers(self):
         with patch.object(collector_routes.archive, "stats", return_value={"total": 5, "today": 30, "datasets": 1}) as stats:

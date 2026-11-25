@@ -62,7 +62,8 @@ def collector_owner_key(user, get_account=None):
     return "owner:" + email
 
 
-def collector_router(require_user, licenses):
+def collector_router(require_user, licenses, storage_full=None):
+    """storage_full(license_key) returns a message when the account's data storage is full, else None."""
     router = APIRouter(prefix="/api/collector")
     batch_limit = FormRateLimit(limit=60, seconds=60)
     limit_lock = Lock()
@@ -136,6 +137,9 @@ def collector_router(require_user, licenses):
             raise HTTPException(403, "An active license is required.")
         if not topic.strip() or from_date > to_date:
             raise HTTPException(400, "Enter a topic and a valid date range.")
+        full = None if is_admin or not storage_full else storage_full(license_key)
+        if full:
+            raise HTTPException(403, full)
         if limit is not None:
             remaining = max(0, limit - archive.stats(key, started_by)["today"])
             if remaining == 0:

@@ -5,6 +5,7 @@ import { LoadingIndicator } from "@/components/loading-indicator";
 import { Icon } from "@/components/icon";
 import { ClientShell } from "./shell";
 import { TeamPanel, type Member } from "./team-panel";
+import { usedOf } from "@/lib/plans";
 
 type Conference = {
   conference_id: string;
@@ -34,6 +35,8 @@ export function ClientDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [planName, setPlanName] = useState("");
+  const [plan, setPlan] = useState<{ plan: { limits: Record<string, number | boolean> } | null; usage: Record<string, number> | null } | null>(null);
+  useEffect(() => { api<NonNullable<typeof plan>>("/api/plan").then(setPlan).catch(() => undefined); }, []);
 
   // The plan the customer chose (Free, Pro, …), the same name Billing shows; the license tier is only the fallback.
   useEffect(() => {
@@ -87,6 +90,14 @@ export function ClientDashboard() {
               </strong>
               <small>{data.used_today || 0} extracted today</small>
             </article>
+
+            {plan?.plan && plan.usage && (
+              <article className="stat-card">
+                <span className="stat-label">Storage</span>
+                <strong className="stat-value" style={{ fontSize: "1rem" }}>Files: {usedOf(plan.usage.storage_mb, Number(plan.plan.limits.storage_mb))}</strong>
+                <small>Data: {usedOf(plan.usage.data_storage_mb, Number(plan.plan.limits.data_storage_mb))}</small>
+              </article>
+            )}
 
             <article className="stat-card">
               <span className="stat-label">Remaining Validity</span>

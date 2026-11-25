@@ -77,6 +77,15 @@ class TeamOwnerTests(unittest.TestCase):
             self.assertEqual(web_app._user_plan(member), {"id": "basic"})
         self.assertEqual(seen, [self.solo["license_key"]])
 
+    def test_data_storage_message_follows_the_plan(self):
+        plan = {"limits": {"data_storage_mb": 100}}
+        for used, expect_blocked in ((90.0, False), (100.0, False), (100.1, True)):
+            with patch.object(web_app, "license_engine", self.mgr), patch.object(web_app, "_plan_of_account", lambda account: plan),                  patch("plans.data_storage_mb", lambda email: used):
+                message = web_app._data_storage_message(self.solo["license_key"])
+            self.assertEqual(bool(message), expect_blocked, used)
+        with patch.object(web_app, "license_engine", self.mgr), patch.object(web_app, "_plan_of_account", lambda account: None):
+            self.assertIsNone(web_app._data_storage_message(self.solo["license_key"]), "root and unplanned accounts have no limit")
+
     def test_client_overview_lists_members_and_seats(self):
         self.add(self.solo, "mem@lab.org")
         with self.as_user(self.owner(self.solo)), patch.object(web_app.conference_engine, "list_conferences", return_value=[]):

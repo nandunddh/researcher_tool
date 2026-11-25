@@ -106,10 +106,26 @@ def usage(owner_email: str) -> dict:
     return {"websites": int(websites), "pages": int(pages), "storage_mb": round(int(storage) / 1_048_576, 1), "submissions_month": int(submissions)}
 
 
+def data_storage_mb(owner_email: str) -> float:
+    """Stored size of an account's data: contacts, source evidence, collection results, form responses and website pages.
+    shortcut: pg_column_size is the stored (compressed) size of each JSON value and ignores index overhead; fine for a plan limit, not for billing by the byte."""
+    email = (owner_email or "").strip().lower()
+    with db.transaction() as cur:
+        cur.execute("""SELECT
+            (SELECT coalesce(sum(pg_column_size(record)), 0) FROM collector_contacts WHERE owner_key = %(k)s)
+          + (SELECT coalesce(sum(pg_column_size(payload)), 0) FROM collector_evidence WHERE owner_key = %(k)s)
+          + (SELECT coalesce(sum(pg_column_size(record)), 0) FROM collector_results WHERE owner_key = %(k)s)
+          + (SELECT coalesce(sum(pg_column_size(s.data)), 0) FROM form_submissions s JOIN websites w ON w.site_id = s.site_id WHERE lower(w.owner_email) = %(e)s)
+          + (SELECT coalesce(sum(pg_column_size(document)), 0) FROM websites WHERE lower(owner_email) = %(e)s)""",
+                    {"k": "owner:" + email, "e": email})
+        return round(int(cur.fetchone()[0]) / 1_048_576, 1)
+
+
 MESSAGES = {
     "websites": "Your plan allows {limit} website(s). Delete one, or upgrade your plan on the Billing page.",
     "pages": "Your plan allows {limit} pages per website. Remove a page, or upgrade your plan on the Billing page.",
     "storage_mb": "Your plan's storage ({limit} MB) is full. Remove unused images, or upgrade your plan on the Billing page.",
+    "data_storage_mb": "Your plan's data storage ({limit} MB) is full, so new collections can't start. Delete old collections, or upgrade your plan on the Billing page.",
     "submissions_month": "This form has reached its monthly limit. Please contact the organiser.",
 }
 
