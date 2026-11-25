@@ -16,6 +16,9 @@ export function instantiateComponent(item:LibraryComponent,name="Your brand"):Co
  else if(type==="team"){type="speakers";data={...title,section_title:"Meet the people",speakers:[1,2,3].map(n=>({name:`Team member ${n}`,role:"Role / expertise",affiliation:"",photo:"",bio:"Add a short biography."}))}}
  else if(type==="pricing")data={...title,section_title:"Choose your plan",tiers:["Starter","Growth","Scale"].map((name,n)=>({name,price:`$${[19,49,99][n]}`,period:"/ month",description:"Sample pricing - edit before publishing",features:["Feature one","Feature two"],featured:n===1,btn_label:"Choose plan",btn_url:"#contact"}))};
  else if(type==="abstract-form"){type="submission";data={section_tag:"CALL FOR ABSTRACTS",section_title:"Submit your abstract",section_subtitle:"Share your research with the community.",word_limit:300,closes:"",file_mode:"optional",id_prefix:"ABS-",btn_text:"Submit abstract",success_message:""}}
+ else if(type==="sponsor_tiers")data={section_tag:"THANK YOU",section_title:"Our sponsors",section_subtitle:"",sponsors:[
+  {tier:"Platinum",name:"Platinum sponsor",logo:"",url:""},{tier:"Gold",name:"Gold sponsor one",logo:"",url:""},{tier:"Gold",name:"Gold sponsor two",logo:"",url:""},
+  {tier:"Supporters",name:"Supporter one",logo:"",url:""},{tier:"Supporters",name:"Supporter two",logo:"",url:""},{tier:"Supporters",name:"Supporter three",logo:"",url:""}]};
  else if(type==="schedule")data={section_tag:"PROGRAM",section_title:"Conference schedule",section_subtitle:"",sessions:[
   {day:"Day 1",time:"08:30 – 09:30",title:"Registration and welcome",speaker:"",location:"Main hall",track:"",description:"Collect your badge and meet the organisers."},
   {day:"Day 1",time:"09:30 – 10:30",title:"Opening keynote",speaker:"Keynote speaker",location:"Auditorium",track:"Plenary",description:""},

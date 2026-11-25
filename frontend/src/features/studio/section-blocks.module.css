@@ -166,3 +166,14 @@
 .sessionMeta:empty { display: none; }
 .chip { padding: 3px 10px; border-radius: 999px; background: #eeeaff; color: #4b3aa8; font-size: 12px; font-weight: 600; }
 @container sci-site (max-width: 640px) { .session { grid-template-columns: 1fr; } }
+
+/* Sponsors by tier: the first tier gets the largest logos. */
+.tierGroup { margin-bottom: 40px; text-align: center; }
+.tierTitle { margin: 0 0 18px; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+.logos { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 22px 44px; margin: 0; padding: 0; list-style: none; --logo-h: 64px; }
+.logos[data-rank="0"] { --logo-h: 96px; }
+.logos[data-rank="2"] { --logo-h: 44px; }
+.logos img { height: var(--logo-h); width: auto; max-width: 240px; object-fit: contain; }
+.logos a { display: block; border-radius: 8px; }
+.logos a:focus-visible { outline: 3px solid var(--accent); outline-offset: 4px; }
+.logoName { font-weight: 700; font-size: calc(var(--logo-h) * 0.3); color: var(--ink); }

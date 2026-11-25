@@ -157,6 +157,16 @@ sectionRegistry.schedule = {
   }],
 };
 
+sectionRegistry.sponsor_tiers = {
+  name: "Sponsors", header: true, fields: [],
+  lists: [{
+    key: "sponsors", label: "Sponsors", itemLabel: "Sponsor", max: 60,
+    fields: [t("tier", "Tier", { placeholder: "Platinum", hint: "Sponsors with the same tier are grouped. The first tier is shown largest." }),
+      t("name", "Name"), { key: "logo", label: "Logo", kind: "image" }, { key: "url", label: "Website", kind: "link" }],
+    newItem: () => ({ tier: "Gold", name: "New sponsor", logo: "", url: "" }),
+  }],
+};
+
 sectionRegistry.form_button.lists = sectionRegistry.contact.lists;
 sectionRegistry.submission = {
   name: "Abstract submission", header: true,

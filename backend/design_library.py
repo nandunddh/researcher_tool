@@ -11,7 +11,7 @@ FORMAT = "scistudio-design"
 # Section types the React renderer draws. "custom" (raw HTML) is left out on purpose.
 SECTION_TYPES = {
     "navbar", "hero", "features", "speakers", "pricing", "gallery", "faq", "contact", "footer", "about", "stats", "agenda",
-    "sponsors", "testimonials", "announcement", "image", "content", "form_button", "registration", "key_dates", "submission", "schedule",
+    "sponsors", "testimonials", "announcement", "image", "content", "form_button", "registration", "key_dates", "submission", "schedule", "sponsor_tiers",
 }
 LEVELS = {"basic", "medium", "pro"}
 MAX_BYTES = 200_000

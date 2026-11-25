@@ -4,6 +4,7 @@ import { componentCatalog } from "../src/features/studio/component-catalog";
 import { instantiateComponent } from "../src/features/studio/component-instance";
 import { sectionRegistry } from "../src/features/studio/section-registry";
 import { groupByDay } from "../src/features/studio/schedule";
+import { groupByField } from "../src/features/studio/grouping";
 
 const s = (day: unknown, title: string) => ({ day, title });
 
@@ -34,4 +35,18 @@ test("the schedule block is editable and starts with two complete days", () => {
   const sessions = instance.data.sessions as Record<string, string>[];
   assert.ok(sessions.every(x => x.day && x.time && x.title), "day, time and title on every starter session");
   assert.deepEqual(groupByDay(sessions).map(g => g.day), ["Day 1", "Day 2"]);
+});
+
+test("sponsors are grouped by tier and the block starts complete", () => {
+  const groups = groupByField([{ tier: "Gold", n: 1 }, { tier: "Platinum", n: 2 }, { tier: "Gold", n: 3 }], "tier");
+  assert.deepEqual(groups.map(g => [g.label, g.rows.map(r => r.index)]), [["Gold", [0, 2]], ["Platinum", [1]]]);
+  const def = sectionRegistry.sponsor_tiers;
+  const keys = def.lists[0].fields.map(f => f.key);
+  assert.deepEqual(keys, ["tier", "name", "logo", "url"]);
+  assert.deepEqual(Object.keys(def.lists[0].newItem()).sort(), [...keys].sort());
+  const instance = instantiateComponent(componentCatalog.find(c => c.id === "sponsors-tiers")!, "Brand");
+  assert.equal(instance.type, "sponsor_tiers");
+  const sponsors = instance.data.sponsors as Record<string, string>[];
+  assert.ok(sponsors.every(x => x.tier && x.name), "tier and name on every starter sponsor");
+  assert.deepEqual(groupByField(sponsors, "tier").map(g => g.label), ["Platinum", "Gold", "Supporters"], "the first tier is the largest");
 });

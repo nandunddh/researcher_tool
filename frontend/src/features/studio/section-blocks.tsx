@@ -13,6 +13,7 @@ import type { EditHooks } from "./site-renderer";
 import { Icon } from "@/components/icon";
 import { isIllustration, symbolPath } from "./site-symbols";
 import { groupByDay } from "./schedule";
+import { groupByField } from "./grouping";
 import styles from "./section-blocks.module.css";
 
 type Rec = Record<string, Json>;
@@ -569,6 +570,36 @@ function Content({ c }: { c: Ctx }) {
   );
 }
 
+function Sponsors({ c }: { c: Ctx }) {
+  const groups = groupByField(list(c.section.data.sponsors), "tier");
+  return (
+    <div className={styles.wrap}>
+      <Header c={c} />
+      {!groups.length && c.edit && <p className={styles.muted}>Add sponsors in the panel.</p>}
+      {groups.map((group, rank) => (
+        <section key={group.label || "no-tier"} className={styles.tierGroup} aria-label={group.label || "Sponsors"}>
+          {group.label && <h3 className={styles.tierTitle}>{group.label}</h3>}
+          <ul className={styles.logos} data-rank={Math.min(rank, 2)}>
+            {group.rows.map(({ index, data }) => {
+              const name = str(data.name), link = str(data.url);
+              const inner = safeImage(data.logo)
+                ? <Img src={data.logo} alt={name} />
+                : <T c={c} path={["sponsors", index, "name"]} tag="span" className={styles.logoName} placeholder="sponsor name" />;
+              return (
+                <li key={index}>
+                  {link && !c.edit
+                    ? <a href={href(c, link)} target="_blank" rel="noopener noreferrer" aria-label={name ? `${name} (opens in a new tab)` : "Sponsor website"}>{inner}</a>
+                    : inner}
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function Schedule({ c }: { c: Ctx }) {
   const groups = groupByDay(list(c.section.data.sessions));
   return (
@@ -696,7 +727,7 @@ function Submission({ c }: { c: Ctx }) {
 
 const blocks: Record<string, (props: { c: Ctx }) => ReactNode> = {
   submission: Submission,
-  key_dates: KeyDates, schedule: Schedule,
+  key_dates: KeyDates, schedule: Schedule, sponsor_tiers: Sponsors,
   features: Features, speakers: Speakers, pricing: Pricing, gallery: Gallery, faq: Faq, contact: Contact, footer: Footer,
   about: Cards, stats: Cards, agenda: Cards, sponsors: Cards, testimonials: Cards, announcement: Cards,
   image: ImageBlock, custom: Custom, content: Content, form_button: FormButton, registration: Registration,
