@@ -55,7 +55,7 @@ class ShortlistRouteTests(unittest.TestCase):
             with self.assertRaises(HTTPException) as ctx:
                 call(backend.builder_shortlist_add, SITE, Req(body))
             self.assertEqual(ctx.exception.status_code, 400)
-        with self.assertRaises(HTTPException) as ctx:  # team members have no collector archive
+        with self.assertRaises(HTTPException) as ctx:  # a member whose organisation can't be found has no archive
             call(backend.builder_shortlist_add, SITE, Req({"emails": ["a@x.edu"]}), user={**OWNER, "is_member": True})
         self.assertEqual(ctx.exception.status_code, 403)
         with self.assertRaises(HTTPException) as ctx:  # someone else's website

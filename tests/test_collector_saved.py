@@ -64,9 +64,10 @@ class SavedSearchTests(unittest.TestCase):
     def test_due_search_starts_a_run_and_counts_usage(self):
         licenses = Licenses()
         calls = self.run_pass([due()], licenses)
-        key, topic, target, score, start, end, country, inst, kind = calls["create"][0]
+        key, topic, target, score, start, end, country, inst, kind, started_by = calls["create"][0]
         self.assertEqual((key, topic, target, country, kind), ("owner:a@x.org", "protein folding", 50, "DE", "publications"))
         self.assertEqual((end - start).days, 30)
+        self.assertEqual(started_by, "")  # scheduled runs count as the owner's
         self.assertEqual(calls["execute"], ["22222222-2222-2222-2222-222222222222"])
         self.assertEqual(licenses.usage, [("LIC", 7)])
 

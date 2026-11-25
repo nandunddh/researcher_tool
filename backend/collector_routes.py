@@ -48,11 +48,13 @@ class CheckRequest(BaseModel):
     after: str = Field(default="", max_length=320)
 
 
-def collector_owner_key(user):
-    """The archive a signed-in user collects into: their workspace (owner email) or root's. Members have none."""
-    if user.get("is_member"):
-        raise HTTPException(403, "Collector access requires a workspace owner.")
+def collector_owner_key(user, get_account=None):
+    """The archive a signed-in user collects into: their workspace (owner email) or root's. Team members share their organisation owner's."""
     email = (user.get("client_email") or "").strip().lower()
+    if user.get("is_member"):
+        parent = user.get("parent_license_key") or ""
+        account = (get_account(parent) if parent and get_account else None) or {}
+        email = str(account.get("client_email") or "").strip().lower()
     if user.get("is_admin"):
         return "admin:" + (email or "root")
     if not email:
@@ -66,10 +68,20 @@ def collector_router(require_user, licenses):
     limit_lock = Lock()
 
     def owner(request: Request):
-        return collector_owner_key(require_user(request))
+        return collector_owner_key(require_user(request), lambda key: licenses.get_account(key))
+
+    def writer(request: Request):
+        """Like owner, but a viewer may look and not change anything."""
+        if require_user(request).get("role") == "viewer":
+            raise HTTPException(403, "Viewers can look at the collector but not change it. Ask an organization admin for editor access.")
+        return owner(request)
+
+    def collector_id(user):
+        """Who counts against the daily limit: a team member's id, or "" for the account owner."""
+        return str(user.get("member_id") or "") if user.get("is_member") else ""
 
     @router.post("/contacts/check")
-    def check_contacts(body: CheckRequest = CheckRequest(), key: str = Depends(owner)):
+    def check_contacts(body: CheckRequest = CheckRequest(), key: str = Depends(writer)):
         with limit_lock:
             if not batch_limit.allow(key):
                 raise HTTPException(429, "Email check limit reached. Try again in a minute.", headers={"Retry-After": "60"})
@@ -85,7 +97,7 @@ def collector_router(require_user, licenses):
 
     @router.get("/stats")
     def stats(request: Request, key: str = Depends(owner)):
-        counts = archive.stats(key)
+        counts = archive.stats(key, collector_id(require_user(request)))
         limit = daily_limit(request)
         return {**counts, "daily_limit": limit, "remaining_today": None if limit is None else max(0, limit - counts["today"])}
 
@@ -116,7 +128,7 @@ def collector_router(require_user, licenses):
         limit = info.get("daily_limit")
         return bool(info.get("valid")), (limit if isinstance(limit, int) and limit >= 0 else None)
 
-    def begin(key, license_key, is_admin, *, topic, target, min_score, from_date, to_date, country, institution, kind, clamp=False):
+    def begin(key, license_key, is_admin, *, started_by="", topic, target, min_score, from_date, to_date, country, institution, kind, clamp=False):
         """Starts a collection after the license and daily-limit checks. clamp=True (scheduled runs) lowers the target to
         what is left today instead of refusing. Returns the run id; raises HTTPException with a user-facing message."""
         valid, limit = license_limit(license_key, is_admin)
@@ -125,7 +137,7 @@ def collector_router(require_user, licenses):
         if not topic.strip() or from_date > to_date:
             raise HTTPException(400, "Enter a topic and a valid date range.")
         if limit is not None:
-            remaining = max(0, limit - archive.stats(key)["today"])
+            remaining = max(0, limit - archive.stats(key, started_by)["today"])
             if remaining == 0:
                 raise HTTPException(429, f"You've reached today's limit of {limit} contacts. It resets at midnight (UTC); upgrade your plan for unlimited collection.")
             if target > remaining:
@@ -133,14 +145,14 @@ def collector_router(require_user, licenses):
                     raise HTTPException(400, f"You can collect {remaining} more contacts today (your limit is {limit} a day).")
                 target = remaining
         try:
-            return archive.create(key, topic.strip(), target, min_score, from_date, to_date, country.upper(), institution.strip(), kind)
+            return archive.create(key, topic.strip(), target, min_score, from_date, to_date, country.upper(), institution.strip(), kind, started_by)
         except UniqueViolation:
             raise HTTPException(409, "A collection is already running in this workspace.")
 
     @router.post("/runs", status_code=202)
-    def start(body: CollectionRequest, tasks: BackgroundTasks, request: Request, key: str = Depends(owner)):
+    def start(body: CollectionRequest, tasks: BackgroundTasks, request: Request, key: str = Depends(writer)):
         user = require_user(request)
-        run_id = begin(key, user.get("license_key") or "", bool(user.get("is_admin")), topic=body.topic, target=body.target,
+        run_id = begin(key, user.get("license_key") or "", bool(user.get("is_admin")), started_by=collector_id(user), topic=body.topic, target=body.target,
                        min_score=body.min_score, from_date=body.from_date, to_date=body.to_date, country=body.country,
                        institution=body.institution, kind=body.kind)
         tasks.add_task(run_and_record, key, run_id, user.get("license_key") or "")
@@ -154,7 +166,7 @@ def collector_router(require_user, licenses):
             licenses.record_usage(license_key, int(collected))
 
     @router.delete("/runs/{run_id}", status_code=204)
-    def delete_run(run_id: UUID, key: str = Depends(owner)):
+    def delete_run(run_id: UUID, key: str = Depends(writer)):
         try:
             archive.delete_run(key, str(run_id))
         except KeyError:
@@ -164,7 +176,7 @@ def collector_router(require_user, licenses):
         return Response(status_code=204)
 
     @router.patch("/runs/{run_id}")
-    def rename_run(run_id: UUID, body: RenameRequest, key: str = Depends(owner)):
+    def rename_run(run_id: UUID, body: RenameRequest, key: str = Depends(writer)):
         if not body.topic.strip():
             raise HTTPException(400, "Enter a name.")
         try:
@@ -174,7 +186,7 @@ def collector_router(require_user, licenses):
         return {"status": "ok"}
 
     @router.post("/runs/{run_id}/stop")
-    def stop(run_id: UUID, key: str = Depends(owner)):
+    def stop(run_id: UUID, key: str = Depends(writer)):
         if not archive.stop(key, str(run_id)):
             raise HTTPException(404, "Active collection not found.")
         return {"status": "stopped"}
@@ -206,7 +218,7 @@ def collector_router(require_user, licenses):
         return saved.list_searches(key)
 
     @router.post("/searches", status_code=201)
-    def save_search(body: SaveSearchRequest, request: Request, key: str = Depends(owner)):
+    def save_search(body: SaveSearchRequest, request: Request, key: str = Depends(writer)):
         if not body.topic.strip() or body.from_date > body.to_date:
             raise HTTPException(400, "Enter a topic and a valid date range.")
         user = require_user(request)
@@ -217,7 +229,7 @@ def collector_router(require_user, licenses):
         return {"id": search_id}
 
     @router.patch("/searches/{search_id}")
-    def update_search(search_id: UUID, body: UpdateSearchRequest, request: Request, key: str = Depends(owner)):
+    def update_search(search_id: UUID, body: UpdateSearchRequest, request: Request, key: str = Depends(writer)):
         user = require_user(request)
         try:
             # Turning a schedule on runs it under the license of whoever did it, so a renewed license is picked up.
@@ -228,7 +240,7 @@ def collector_router(require_user, licenses):
         return {"status": "ok"}
 
     @router.delete("/searches/{search_id}", status_code=204)
-    def delete_search(search_id: UUID, key: str = Depends(owner)):
+    def delete_search(search_id: UUID, key: str = Depends(writer)):
         try:
             saved.delete(key, str(search_id))
         except KeyError:
@@ -236,14 +248,14 @@ def collector_router(require_user, licenses):
         return Response(status_code=204)
 
     @router.post("/searches/{search_id}/run", status_code=202)
-    def run_search(search_id: UUID, tasks: BackgroundTasks, request: Request, key: str = Depends(owner)):
+    def run_search(search_id: UUID, tasks: BackgroundTasks, request: Request, key: str = Depends(writer)):
         try:
             item = saved.get(key, str(search_id))
         except KeyError:
             raise HTTPException(404, "Saved search not found.")
         user = require_user(request)
         start_day, end_day = saved.run_window(item["window_days"])
-        run_id = begin(key, user.get("license_key") or "", bool(user.get("is_admin")), topic=item["topic"], target=item["target"],
+        run_id = begin(key, user.get("license_key") or "", bool(user.get("is_admin")), started_by=collector_id(user), topic=item["topic"], target=item["target"],
                        min_score=item["min_score"], from_date=start_day, to_date=end_day, country=item["country"],
                        institution=item["institution"], kind=item["kind"])
         saved.record(key, str(search_id), run_id)

@@ -26,12 +26,12 @@ def expire(cur, owner):
                    AND status='running' AND updated_at < now()-interval '3 minutes'""", (owner,))
 
 
-def create(owner, topic, target, score, start, end, country="", institution="", kind="publications"):
+def create(owner, topic, target, score, start, end, country="", institution="", kind="publications", started_by=""):
     run_id = str(uuid.uuid4())
     with db.transaction() as cur:
         expire(cur, owner)
-        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,kind,status)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution,kind))
+        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,kind,started_by,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution,kind,started_by))
     return run_id
 
 
@@ -43,13 +43,14 @@ def history(owner):
             return rows.fetchall()
 
 
-def stats(owner):
-    """Counts for the collector page's summary cards."""
+def stats(owner, started_by=None):
+    """Counts for the collector page's summary cards. With started_by, "today" counts only that user's collections ("" = the owner)."""
     with db.transaction() as cur:
         cur.execute("SELECT count(*) FROM collector_contacts WHERE owner_key=%s", (owner,))
         total = cur.fetchone()[0]
         cur.execute("SELECT count(*) FROM collector_results r JOIN collector_runs u ON u.owner_key=r.owner_key AND u.id=r.run_id "
-                    "WHERE r.owner_key=%s AND u.started_at >= date_trunc('day', now())", (owner,))
+                    "WHERE r.owner_key=%s AND u.started_at >= date_trunc('day', now()) AND (%s::text IS NULL OR u.started_by=%s)",
+                    (owner, started_by, started_by))
         today = cur.fetchone()[0]
         cur.execute("SELECT count(*) FROM collector_runs WHERE owner_key=%s", (owner,))
         datasets = cur.fetchone()[0]

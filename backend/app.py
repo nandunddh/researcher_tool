@@ -1538,7 +1538,7 @@ async def builder_shortlist_add(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
     _require_owned_site(site_id, user, "edit")
-    key = collector_owner_key(user)
+    key = collector_owner_key(user, lambda key: license_engine.get_account(key))
     body = await request.json()
     emails = body.get("emails") if isinstance(body, dict) else None
     if not isinstance(emails, list) or not emails or not all(isinstance(e, str) for e in emails) or len(emails) > event_shortlist.MAX_PER_REQUEST:

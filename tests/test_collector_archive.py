@@ -12,6 +12,18 @@ sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "backend/collector_sources")]
 
 @unittest.skipUnless(os.environ.get("SCIPROSPECT_DB_SCHEMA","").startswith("test_") and os.environ.get("SCIPROSPECT_DB_HOST"), "requires an isolated PostgreSQL test schema")
 class CollectorArchiveTests(unittest.TestCase):
+    def test_daily_count_can_be_limited_to_one_team_member(self):
+        import collector_archive as store
+        owner = "test:" + uuid.uuid4().hex
+        for who, email in (("", "own@fixture.test"), ("mem-1", "mem@fixture.test")):
+            run = store.create(owner, "t", 3, 50, "2025-01-01", "2025-02-01", started_by=who)
+            store.Archive(owner, run).save({"email": email, "researcher_name": who or "owner"})
+            store.stop(owner, run)
+        self.assertEqual(store.stats(owner)["today"], 2)
+        self.assertEqual(store.stats(owner, "")["today"], 1)
+        self.assertEqual(store.stats(owner, "mem-1")["today"], 1)
+        self.assertEqual(store.stats(owner, "mem-9")["today"], 0)
+
     def test_fallback_dedup_evidence_and_restart(self):
         import collector_archive as store
         import db
