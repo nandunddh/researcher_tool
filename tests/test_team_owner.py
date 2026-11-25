@@ -70,6 +70,13 @@ class TeamOwnerTests(unittest.TestCase):
             self.add(trial, "mem@lab.org")
         self.assertIn("seat limit reached", err.exception.detail.lower())
 
+    def test_team_member_is_held_to_the_owners_plan(self):
+        seen = []
+        member = {"license_key": self.solo["license_key"], "is_member": True, "is_admin": False}
+        with patch.object(web_app, "license_engine", self.mgr),              patch.object(web_app, "_plan_of_account", lambda account: seen.append(account["license_key"]) or {"id": "basic"}):
+            self.assertEqual(web_app._user_plan(member), {"id": "basic"})
+        self.assertEqual(seen, [self.solo["license_key"]])
+
     def test_client_overview_lists_members_and_seats(self):
         self.add(self.solo, "mem@lab.org")
         with self.as_user(self.owner(self.solo)), patch.object(web_app.conference_engine, "list_conferences", return_value=[]):

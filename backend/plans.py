@@ -107,9 +107,9 @@ def usage(owner_email: str) -> dict:
 
 
 MESSAGES = {
-    "websites": "Your plan allows {limit} website(s). Delete one or ask your administrator to upgrade your plan.",
-    "pages": "Your plan allows {limit} pages per website. Remove a page or ask your administrator to upgrade your plan.",
-    "storage_mb": "Your plan's storage ({limit} MB) is full. Remove unused images or ask your administrator to upgrade your plan.",
+    "websites": "Your plan allows {limit} website(s). Delete one, or upgrade your plan on the Billing page.",
+    "pages": "Your plan allows {limit} pages per website. Remove a page, or upgrade your plan on the Billing page.",
+    "storage_mb": "Your plan's storage ({limit} MB) is full. Remove unused images, or upgrade your plan on the Billing page.",
     "submissions_month": "This form has reached its monthly limit. Please contact the organiser.",
 }
 
