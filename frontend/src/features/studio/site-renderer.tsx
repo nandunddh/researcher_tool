@@ -4,14 +4,14 @@
  * and in-place text editing; without it the output is the visitor-facing page.
  */
 import { themeVariables } from "./studio-theme";
-import { useMemo, type CSSProperties, type MouseEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import { EditableText } from "./editable-text";
 import { Icon } from "@/components/icon";
 import { SectionBlock, hasBlock } from "./section-blocks";
 import type { Section } from "./document";
 import {
   buildSiteCss, getElements, linkHref, safeImage, sectionAnchor,
-  type LinkContext, type PageRef, type SiteElement,
+  type LinkContext, type MenuItem, type PageRef, type SiteElement,
 } from "./site-schema";
 import styles from "./site-renderer.module.css";
 
@@ -96,9 +96,23 @@ function ElementView({ element, section, ctx, edit, mirror = false }: { element:
         <nav className={styles.menu} aria-label={mirror ? "Menu" : "Main navigation"} {...common}>
           <ul>
             {(element.items ?? []).map(item => {
-              const itemHref = linkHref(item.link, ctx);
-              const itemTab = item.link?.type === "url" && item.link.newTab;
-              return <li key={item.id}><a href={edit ? undefined : itemHref} {...(itemTab && !edit ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{item.label || (edit ? "Untitled link" : "")}</a></li>;
+              const anchor = (entry: MenuItem, label = entry.label) => {
+                const entryTab = entry.link?.type === "url" && entry.link.newTab;
+                return <a href={edit ? undefined : linkHref(entry.link, ctx)} {...(entryTab && !edit ? { target: "_blank", rel: "noopener noreferrer" } : {})}>{label || (edit ? "Untitled link" : "")}</a>;
+              };
+              if (!item.children?.length) return <li key={item.id}>{anchor(item)}</li>;
+              return (
+                <li key={item.id}>
+                  {/* A small menu that opens on click or Enter without scripts; the page script closes it on outside click or Escape. */}
+                  <details data-submenu>
+                    <summary>{item.label || (edit ? "Untitled link" : "Menu")}</summary>
+                    <ul className={styles.submenu}>
+                      {item.link && <li>{anchor(item)}</li>}
+                      {item.children.map(child => <li key={child.id}>{anchor(child)}</li>)}
+                    </ul>
+                  </details>
+                </li>
+              );
             })}
             {edit && !element.items?.length && <li className={styles.muted}>Add links in the panel</li>}
           </ul>
@@ -197,10 +211,31 @@ export function SiteRenderer({ themeConfig, sections, pages, siteSlug, siteId, e
   pagePath?: (page: PageRef) => string;
 }) {
   const css = useMemo(() => buildSiteCss(sections), [sections]);
+  const root = useRef<HTMLDivElement>(null);
+  // Open sub-menus close on a click elsewhere, after following a link, and with Escape (focus returns to the menu name).
+  useEffect(() => {
+    const site = root.current;
+    if (!site) return;
+    const openMenus = () => site.querySelectorAll<HTMLDetailsElement>("details[data-submenu][open]");
+    const onClick = (event: Event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const keep = target && !target.closest("a") ? target.closest("details[data-submenu]") : null;
+      openMenus().forEach(menu => { if (menu !== keep) menu.open = false; });
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const current = document.activeElement instanceof Element ? document.activeElement.closest<HTMLDetailsElement>("details[data-submenu][open]") : null;
+      openMenus().forEach(menu => { menu.open = false; });
+      current?.querySelector("summary")?.focus();
+    };
+    document.addEventListener("click", onClick);
+    site.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("click", onClick); site.removeEventListener("keydown", onKey); };
+  }, []);
   const ctx = useMemo(() => ({ sections, pages, siteSlug, siteId, pagePath, event: event && typeof event === "object" ? event as Record<string, unknown> : undefined }),
     [sections, pages, siteSlug, siteId, pagePath, event]);
   return (
-    <div className={styles.site} style={themeVariables(themeConfig) as CSSProperties} data-editing={edit ? true : undefined}>
+    <div ref={root} className={styles.site} style={themeVariables(themeConfig) as CSSProperties} data-editing={edit ? true : undefined}>
       <style>{css}</style>
       {sections.map(section => <SectionView key={section.id} section={section} ctx={ctx} edit={edit} fallback={fallback} />)}
       {edit?.dragging && (

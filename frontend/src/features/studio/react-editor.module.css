@@ -399,3 +399,4 @@
 .layerList > li { position: relative; }
 .editor .layerList > li > .layerDelete { position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; margin: 0; padding: 0; justify-content: center; color: var(--danger); opacity: 0; }
 .layerList > li:hover > .layerDelete, .layerList > li > button[aria-pressed=true] ~ .layerDelete, .layerList > li > .layerDelete:focus-visible { opacity: 1; }
+.subItem { margin: 8px 0 8px 12px; background: var(--panel, transparent); }

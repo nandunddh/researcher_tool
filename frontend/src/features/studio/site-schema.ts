@@ -41,7 +41,10 @@ export type Style = {
 export type SectionStyle = { background?: string; gradient?: Gradient; color?: string; paddingY?: number };
 export type Responsive<T> = { desktop: T; tablet?: T; mobile?: T };
 
-export type MenuItem = { id: string; label: string; link?: Link; meta?: Record<string, Json> };
+/** A navigation link. A top-level link may have sub-links (one level), shown in a small menu. */
+export type MenuItem = { id: string; label: string; link?: Link; meta?: Record<string, Json>; children?: MenuItem[] };
+export const MAX_MENU_ITEMS = 40;
+export const MAX_SUB_ITEMS = 12;
 export type ElementKind = "logo" | "heading" | "text" | "button" | "image" | "menu";
 export type SiteElement = {
   id: string;
@@ -159,14 +162,16 @@ function cleanResponsive<T>(v: unknown, clean: (x: unknown) => T): Responsive<T>
   return out;
 }
 
-function cleanItems(v: unknown): MenuItem[] {
+function cleanItems(v: unknown, nested = false): MenuItem[] {
   if (!Array.isArray(v)) return [];
-  return v.slice(0, 40).flatMap(item => {
+  return v.slice(0, nested ? MAX_SUB_ITEMS : MAX_MENU_ITEMS).flatMap(item => {
     if (!isRecord(item)) return [];
     const id = typeof item.id === "string" && ID.test(item.id) ? item.id : newId("item");
     const link = cleanLink(item.link);
     const meta = isRecord(item.meta) ? (structuredClone(item.meta) as Record<string, Json>) : undefined;
-    return [{ id, label: str(item.label, 200), ...(link ? { link } : {}), ...(meta ? { meta } : {}) }];
+    // Only one level: sub-links of sub-links are dropped.
+    const children = nested ? [] : cleanItems(item.children, true);
+    return [{ id, label: str(item.label, 200), ...(link ? { link } : {}), ...(meta ? { meta } : {}), ...(children.length ? { children } : {}) }];
   });
 }
 
@@ -302,18 +307,21 @@ export function upgradeSection(section: Section, ctx: LinkContext): Section {
   const d = section.data;
   if (section.type === "navbar") {
     const links = Array.isArray(d.links) ? d.links : [];
-    const items: MenuItem[] = links.flatMap(raw => {
+    const toItems = (list: unknown[], nested: boolean): MenuItem[] => list.slice(0, nested ? MAX_SUB_ITEMS : MAX_MENU_ITEMS).flatMap(raw => {
       if (!isRecord(raw)) return [];
-      const { label, url, ...meta } = raw;
+      const { label, url, children: rawChildren, ...meta } = raw;
       const link = hrefToLink(url, ctx);
       const target = meta.target === "_blank";
+      const children = !nested && Array.isArray(rawChildren) ? toItems(rawChildren, true) : [];
       return [{
         id: newId("item"),
         label: text(label),
         ...(link ? { link: link.type === "url" && target ? { ...link, newTab: true } : link } : {}),
         ...(Object.keys(meta).length ? { meta: structuredClone(meta) as Record<string, Json> } : {}),
+        ...(children.length ? { children } : {}),
       }];
     });
+    const items = toItems(links, false);
     const logoSrc = safeImage(d.logo_url);
     return withElements(section, [
       el("logo", "brand", "logo", { text: text(d.brand_name), mode: d.brand_mode === "image" && logoSrc ? "image" : "text", ...(logoSrc ? { src: logoSrc } : {}), alt: text(d.brand_name) }),
@@ -341,12 +349,14 @@ export function syncLegacy(section: Section, ctx: LinkContext): Section {
   if (section.type === "navbar") {
     const logo = by("logo"), menu = by("menu"), cta = by("cta");
     if (logo) Object.assign(data, { brand_name: logo.text ?? "", brand_mode: logo.mode === "image" && logo.src ? "image" : "text", logo_url: logo.src ?? "" });
-    if (menu) data.links = (menu.items ?? []).map(item => ({
+    const legacyLink = (item: MenuItem): Record<string, Json> => ({
       ...(item.meta ?? {}),
       label: item.label,
       url: linkHref(item.link, ctx),
       ...(item.link?.type === "url" && item.link.newTab ? { target: "_blank" } : {}),
-    }));
+      ...(item.children?.length ? { children: item.children.map(legacyLink) } : {}),
+    });
+    if (menu) data.links = (menu.items ?? []).map(legacyLink);
     if (cta) Object.assign(data, { cta_label: cta.text ?? "", cta_link: linkHref(cta.link, ctx) });
   } else if (section.type === "hero") {
     const set = (role: string, key: string) => { const e = by(role); if (e) data[key] = e.text ?? ""; };

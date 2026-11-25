@@ -2,7 +2,7 @@ import { readDocument, type Json, type Section } from "./document";
 import {
   cleanLink, cleanSectionStyle, cleanStyle, getElements, getTextStyles, TEXT_PATH, getSectionStyle, newId, safeImage, syncLegacy,
   upgradeSection, withElements, withSectionStyle,
-  type Link, type LinkContext, type MenuItem, type PageRef, type SectionStyle, type SiteElement, type Style, type Viewport,
+  type Link, type LinkContext, type MenuItem, MAX_MENU_ITEMS, MAX_SUB_ITEMS, type PageRef, type SectionStyle, type SiteElement, type Style, type Viewport,
 } from "./site-schema";
 
 export type EditorSite = {
@@ -197,11 +197,29 @@ function mapItems(site: EditorSite, sectionId: string, elementId: string, fn: (i
     return { ...e, items: fn([...(e.items ?? [])]) };
   });
 }
-export function addMenuItem(site: EditorSite, sectionId: string, elementId: string): EditorSite {
-  return mapItems(site, sectionId, elementId, items => items.length >= 40 ? items : [...items, { id: newId("item"), label: "New link" }]);
+/** Runs fn on the top-level links, or on one link's sub-links when parentId is given. */
+function withinList(items: MenuItem[], parentId: string | undefined, fn: (list: MenuItem[]) => MenuItem[]): MenuItem[] {
+  if (!parentId) return fn(items);
+  return items.map(item => {
+    if (item.id !== parentId) return item;
+    const children = fn([...(item.children ?? [])]);
+    const { children: _old, ...rest } = item;
+    return children.length ? { ...rest, children } : rest;
+  });
+}
+/** The list (top level or one link's sub-links) that holds itemId. */
+function parentOf(items: MenuItem[], itemId: string): string | undefined {
+  return items.find(item => item.children?.some(child => child.id === itemId))?.id;
+}
+export function addMenuItem(site: EditorSite, sectionId: string, elementId: string, parentId?: string): EditorSite {
+  return mapItems(site, sectionId, elementId, items => {
+    if (parentId && !items.some(item => item.id === parentId)) throw new Error("That link no longer exists.");
+    return withinList(items, parentId, list => list.length >= (parentId ? MAX_SUB_ITEMS : MAX_MENU_ITEMS) ? list
+      : [...list, { id: newId("item"), label: parentId ? "New sub-link" : "New link" }]);
+  });
 }
 export function updateMenuItem(site: EditorSite, sectionId: string, elementId: string, itemId: string, patch: { label?: string; link?: Link | null }): EditorSite {
-  return mapItems(site, sectionId, elementId, items => items.map(item => {
+  return mapItems(site, sectionId, elementId, items => withinList(items, parentOf(items, itemId), list => list.map(item => {
     if (item.id !== itemId) return item;
     const next = { ...item };
     if (patch.label !== undefined) next.label = String(patch.label).slice(0, 200);
@@ -212,19 +230,19 @@ export function updateMenuItem(site: EditorSite, sectionId: string, elementId: s
       next.link = link;
     }
     return next;
-  }));
+  })));
 }
 export function removeMenuItem(site: EditorSite, sectionId: string, elementId: string, itemId: string): EditorSite {
-  return mapItems(site, sectionId, elementId, items => items.filter(item => item.id !== itemId));
+  return mapItems(site, sectionId, elementId, items => withinList(items, parentOf(items, itemId), list => list.filter(item => item.id !== itemId)));
 }
 export function moveMenuItem(site: EditorSite, sectionId: string, elementId: string, itemId: string, delta: number): EditorSite {
-  return mapItems(site, sectionId, elementId, items => {
-    const index = items.findIndex(i => i.id === itemId), target = index + delta;
-    if (index < 0 || target < 0 || target >= items.length) return items;
-    const [item] = items.splice(index, 1);
-    items.splice(target, 0, item);
-    return items;
-  });
+  return mapItems(site, sectionId, elementId, items => withinList(items, parentOf(items, itemId), list => {
+    const index = list.findIndex(i => i.id === itemId), target = index + delta;
+    if (index < 0 || target < 0 || target >= list.length) return list;
+    const [item] = list.splice(index, 1);
+    list.splice(target, 0, item);
+    return list;
+  }));
 }
 
 // ---------------------------------------------------------------- section content

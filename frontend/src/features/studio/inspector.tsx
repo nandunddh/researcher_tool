@@ -16,6 +16,7 @@ import { hasBlock } from "./section-blocks";
 import { PriceInput } from "./registration-prices";
 import { RegistrationPicker, SpeakersPicker } from "./event-details";
 import styles from "./react-editor.module.css";
+import { MAX_SUB_ITEMS } from "./site-schema";
 
 export type Change = (fn: (site: EditorSite) => EditorSite, coalesceKey?: string) => void;
 /** A question shown in the app's own confirmation popup (never the browser's). */
@@ -249,6 +250,23 @@ function ElementPanel({ site, sectionId, element, viewport, readOnly, change, on
                 <button type="button" disabled={index === all.length - 1} onClick={() => change(s => moveMenuItem(s, sectionId, element.id, item.id, 1))} aria-label={`Move link ${index + 1} down`}>↓</button>
                 <button type="button" onClick={() => change(s => removeMenuItem(s, sectionId, element.id, item.id))}>Remove</button>
               </div>
+              {(item.children ?? []).map((child, childIndex, siblings) => (
+                <fieldset key={child.id} className={`${styles.menuItem} ${styles.subItem}`}>
+                  <legend>Sub-link {childIndex + 1}</legend>
+                  <Field label="Text"><input value={child.label} onChange={e => change(s => updateMenuItem(s, sectionId, element.id, child.id, { label: e.target.value }), key(`item:${child.id}`))} /></Field>
+                  <LinkChooser site={site} link={child.link} disabled={readOnly} excludeSection={sectionId}
+                    onChange={link => change(s => updateMenuItem(s, sectionId, element.id, child.id, { link }))} />
+                  <div className={styles.buttonRow}>
+                    <button type="button" disabled={childIndex === 0} onClick={() => change(s => moveMenuItem(s, sectionId, element.id, child.id, -1))} aria-label={`Move sub-link ${childIndex + 1} up`}>↑</button>
+                    <button type="button" disabled={childIndex === siblings.length - 1} onClick={() => change(s => moveMenuItem(s, sectionId, element.id, child.id, 1))} aria-label={`Move sub-link ${childIndex + 1} down`}>↓</button>
+                    <button type="button" onClick={() => change(s => removeMenuItem(s, sectionId, element.id, child.id))}>Remove</button>
+                  </div>
+                </fieldset>
+              ))}
+              {(item.children?.length ?? 0) < MAX_SUB_ITEMS && (
+                <button type="button" className={styles.addButton} onClick={() => change(s => addMenuItem(s, sectionId, element.id, item.id))}>+ Add sub-link</button>
+              )}
+              {!!item.children?.length && <p className={styles.hint}>Sub-links open in a small menu. {item.link ? "This link is shown as the first entry." : ""}</p>}
             </fieldset>
           ))}
           <button type="button" className={styles.addButton} disabled={readOnly} onClick={() => change(s => addMenuItem(s, sectionId, element.id))}>+ Add link</button>
