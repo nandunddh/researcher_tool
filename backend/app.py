@@ -1449,6 +1449,68 @@ async def builder_list_sites(request: Request, conference_id: Optional[str] = No
     return {"sites": sites}
 
 
+def _domain_view(site_id: str, plan: Optional[dict], pointing: bool = False) -> dict:
+    """What the Domain dialog shows: whether the plan allows it, and the site's domain with the DNS records to add."""
+    import custom_domains
+    import plans
+    domain = custom_domains.get(site_id)
+    return {"allowed": plans.feature_message(plan, "custom_domain") is None, "message": plans.feature_message(plan, "custom_domain"),
+            "domain": domain and {"hostname": domain["hostname"], "verified": domain["verified"], "pointing": pointing,
+                                  "records": custom_domains.records(domain["hostname"], domain["token"])}}
+
+
+def _domain_site(request: Request, site_id: str, need: str) -> tuple[dict, Optional[dict]]:
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user, need)
+    return user, _user_plan(user)
+
+
+@app.get("/api/builder/sites/{site_id}/domain")
+async def builder_domain(site_id: str, request: Request):
+    _, plan = _domain_site(request, site_id, "view")
+    return _domain_view(site_id, plan)
+
+
+@app.put("/api/builder/sites/{site_id}/domain")
+async def builder_domain_set(site_id: str, request: Request):
+    import custom_domains
+    import plans
+    _, plan = _domain_site(request, site_id, "manage")
+    message = plans.feature_message(plan, "custom_domain")
+    if message:
+        raise HTTPException(status_code=403, detail=message)
+    body = await request.json()
+    try:
+        hostname = custom_domains.normalize(str(body.get("hostname") or "") if isinstance(body, dict) else "")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    custom_domains.claim(site_id, hostname)
+    return _domain_view(site_id, plan)
+
+
+@app.post("/api/builder/sites/{site_id}/domain/verify")
+async def builder_domain_verify(site_id: str, request: Request):
+    from starlette.concurrency import run_in_threadpool
+    import custom_domains
+    _, plan = _domain_site(request, site_id, "manage")
+    try:
+        result = await run_in_threadpool(custom_domains.verify, site_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+    if not result:
+        raise HTTPException(status_code=404, detail="Add a domain first.")
+    return _domain_view(site_id, plan, pointing=result["pointing"])
+
+
+@app.delete("/api/builder/sites/{site_id}/domain")
+async def builder_domain_remove(site_id: str, request: Request):
+    import custom_domains
+    _domain_site(request, site_id, "manage")
+    custom_domains.release(site_id)
+    return {"status": "ok"}
+
+
 def _plan_of_account(account: Optional[dict]) -> Optional[dict]:
     """The website plan for an account; None (no limits) for root, or when the database is not configured (tests)."""
     import db as database

@@ -130,6 +130,18 @@ MESSAGES = {
 }
 
 
+FEATURE_MESSAGES = {
+    "custom_domain": "Your own domain is included in the Pro and Ultra plans. Upgrade your plan on the Billing page.",
+}
+
+
+def feature_message(plan: Optional[dict], key: str) -> Optional[str]:
+    """A message when the plan does not include an on/off feature (like custom_domain), else None. No plan = included."""
+    if plan is None or ((plan.get("limits") or {}).get(key) is True):
+        return None
+    return FEATURE_MESSAGES[key]
+
+
 def over_limit(plan: Optional[dict], key: str, new_total: float) -> Optional[str]:
     """A message when new_total would go past the plan's limit for key, else None. No plan = no limit."""
     limit = ((plan or {}).get("limits") or {}).get(key, UNLIMITED)

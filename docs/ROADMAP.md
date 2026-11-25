@@ -112,7 +112,8 @@ Ready-made sections people drag into a page. We write every block ourselves; fre
 ## 7. Publishing
 - [x] Published sites rendered by React, ZIP export
 - [x] 🧪 Publish / Unpublish buttons, Draft / Live status, "not available" page
-- [ ] Custom domains (DNS instructions and checks)
+- [x] 🧪 Custom domains: the Domain dialog on each website (Pro and Ultra) shows the DNS records, checks ownership (TXT token) and whether the name points to us
+- [ ] Serve a verified domain: Apache virtual host, HTTPS certificate and host-to-site routing (server-side, needs a decision on certificates)
 
 ## 7a. Print tools — STAGE 2 (v2, after the current version is finished and live)
 One PDF engine: Program, Badges, Certificates, Abstract book.

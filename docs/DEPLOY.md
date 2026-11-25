@@ -25,6 +25,7 @@ Migrations only add columns, so older code keeps working with the newer database
 2. **Code:** `git clone https://github.com/nandunddh/researcher_tool.git ~/researcher_tool`.
 3. **Settings:** copy your `backend/.env` from your PC to `~/researcher_tool/backend/.env` (with `scp`, never through git).
    On the server also set `SCIPROSPECT_APP_URL=https://your-domain.com`.
+   Customers' own domains point at the host in `SCIPROSPECT_APP_URL` (a CNAME). For root domains, where a CNAME is not allowed, also set `SCIPROSPECT_SERVER_IP=<the server's public IPv4 address>` so the Domain dialog offers an A record too.
    Add `OPENALEX_API_KEY=<your key>` too (free at openalex.org/settings/api, $1 a day included). Without it every collection shares a tiny no-key budget.
    Also add `SCIPROSPECT_SCHEDULER=on` there: it turns on scheduled collector searches. Leave it off on your PC, because your PC shares the same database and would run production jobs.
 4. **Services:**
