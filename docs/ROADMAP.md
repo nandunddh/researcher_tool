@@ -60,6 +60,15 @@ Legend: ✅ done · 🔜 next · 💡 idea · 🧪 built but not tested in the b
 - [ ] 💡 Preview a design before importing
 - [ ] 💡 "Top rated" list from usage counts
 
+## 2a. Block library (our own original blocks)
+Ready-made sections people drag into a page. We write every block ourselves; free libraries (shadcn/ui, HyperUI, Flowbite, Magic UI, Aceternity free) are inspiration only, no code is copied, so no third-party notices are needed. Never copy Pro or paid designs; do not reuse their images, icons or fonts.
+- [ ] Read how existing blocks are defined (editor, preview, publish, ZIP) so new blocks fit the same format
+- [ ] Each block: editable text and image slots, theme colours and fonts, mobile layout, keyboard and contrast checks, light animation only
+- [ ] Categories: Hero, Speakers, Schedule, Pricing and registration, Cards and features, Gallery, FAQ, Sponsors, Contact, Footer (several styles each, for example 4 heroes)
+- [ ] First set: heroes and speaker grids, then schedule, registration and pricing blocks
+- [ ] A few new blocks every week through the daily designs workflow
+- [ ] 💡 Catalog page with thumbnails and categories in the Design Library
+
 ## 3. Event details (one place for event facts)
 - [x] 🧪 Basics: name, dates, venue, currency, organiser, address, tax number
 - [x] 🧪 Price periods, ticket types, price grid (blank = not sold then)
