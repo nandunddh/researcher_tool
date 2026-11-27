@@ -6,7 +6,7 @@ export const LINES = ["name", "organization", "detail"] as const;
 export type Line = (typeof LINES)[number];
 export const SIZE_KEYS = ["title", "subtitle", "name", "organization", "detail", "role"] as const;
 export type SizeKey = (typeof SIZE_KEYS)[number];
-export const SHOW_KEYS = ["title", "subtitle", "logo", "photo", "organization", "detail", "role", "qr"] as const;
+export const SHOW_KEYS = ["title", "subtitle", "logo", "photo", "organization", "detail", "role", "qr", "sponsors"] as const;
 export type ShowKey = (typeof SHOW_KEYS)[number];
 
 export const CHOICES = {
@@ -43,7 +43,7 @@ export const DEFAULT_DESIGN: BadgeDesign = {
   roleColors: { ...ROLE_COLORS }, labels: Object.fromEntries(ROLES.map(r => [r, r])),
   fonts: { heading: "modern", body: "modern" },
   sizes: { title: 100, subtitle: 100, name: 100, organization: 100, detail: 100, role: 100 },
-  show: { title: true, subtitle: true, logo: true, photo: true, organization: true, detail: true, role: true, qr: true },
+  show: { title: true, subtitle: true, logo: true, photo: true, organization: true, detail: true, role: true, qr: true, sponsors: false },
   order: ["name", "organization", "detail"], logo: "", backgroundImage: "",
 };
 
@@ -62,7 +62,7 @@ export const TEMPLATES: { id: string; name: string; description: string; patch: 
   { id: "night", name: "Night", description: "Dark background with a bright role line.", patch: { header: "plain", band: "line", colors: { background: "#0b1220", text: "#f8fafc", muted: "#94a3b8", headerText: "#f8fafc" } } },
   { id: "lanyard", name: "Lanyard", description: "An extra-large name and the QR code at the bottom.", patch: { header: "solid", qr: "bottom", sizes: { name: 135, organization: 110 }, show: { detail: false } } },
   { id: "elegant", name: "Elegant", description: "Serif type on warm paper, aligned left.", patch: { header: "plain", band: "line", align: "left", fonts: { heading: "elegant", body: "classic" }, colors: { background: "#fbf7f0", text: "#2b2118", muted: "#6b5a4a", headerText: "#2b2118" } } },
-  { id: "blank", name: "Blank", description: "Plain white with everything off but the name. Build your own.", patch: { header: "plain", band: "none", qr: "corner", colors: { headerText: "#18223b" }, show: { title: true, subtitle: false, logo: false, photo: false, organization: true, detail: false, role: false, qr: false } } },
+  { id: "blank", name: "Blank", description: "Plain white with everything off but the name. Build your own.", patch: { header: "plain", band: "none", qr: "corner", colors: { headerText: "#18223b" }, show: { title: true, subtitle: false, logo: false, photo: false, organization: true, detail: false, role: false, qr: false, sponsors: false } } },
 ];
 
 /** A template's design, keeping the texts and pictures the organiser already set. */

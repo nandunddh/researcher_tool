@@ -9,7 +9,9 @@
 .bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 18px; padding: 14px 24px; background: white; border-bottom: 1px solid #dfe3ee; }
 .bar h1 { margin: 0; font-size: 18px; }
 .bar p { margin: 0; color: #5d6b82; font-size: 13px; }
-.bar > div { flex: 1; min-width: 0; }
+.bar { flex-wrap: wrap; row-gap: 10px; }
+.bar > div { flex: 1; min-width: 180px; }
+.bar h1, .bar p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .back { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; font-weight: 600; font-size: 14px; }
 .back svg { transform: rotate(180deg); }
 .layout { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; padding: 24px; align-items: start; }
@@ -77,6 +79,9 @@
 .qr { position: absolute; right: 4cqw; bottom: 4cqw; width: 22cqw; height: 22cqw; padding: 1cqw; border-radius: 1.5cqw; background: #ffffff; image-rendering: pixelated; }
 .badge[data-band=bottom] .qr { bottom: calc(12cqh + 3cqw); }
 .badge[data-qr=bottom] .qr { position: static; justify-self: center; margin: 0 0 4cqw; }
+.sponsors { display: flex; justify-content: center; align-items: center; gap: 4cqw; padding: 2cqw 6cqw 3cqw; background: rgb(255 255 255 / 0.92); }
+.sponsors img { height: 7cqw; width: auto; max-width: 18cqw; object-fit: contain; }
+.badge[data-hasqr][data-qr=corner] .sponsors { padding-right: 30cqw; justify-content: flex-start; }
 .badge footer { padding: 3cqh 7cqw; background: var(--role); color: #ffffff; text-align: center; font-weight: 800; font-size: calc(6.5cqw * var(--s-role)); letter-spacing: 0.14em; text-transform: uppercase; }
 /* Landscape badges (4 x 3 in): smaller type, text on the left, QR on the right. */
 @container (orientation: landscape) {
@@ -137,3 +142,13 @@
   .sheet { box-shadow: none; break-after: page; page-break-after: always; }
   .sheet:last-child { break-after: auto; page-break-after: auto; }
 }
+
+/* Steps: template, design one badge, then everyone */
+.steps { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: #eef1f7; }
+.steps button { border: 0; background: transparent; padding: 7px 12px; border-radius: 9px; font-size: 13px; font-weight: 600; color: #5d6b82; }
+.steps button[aria-current=step] { background: white; color: #18223b; box-shadow: 0 1px 4px #18223b1f; }
+.single { display: grid; justify-items: center; gap: 16px; padding: 12px 0 32px; }
+.single > div { box-shadow: 0 24px 60px #18223b2e; border-radius: 4px; }
+.single .row { justify-content: center; }
+.primaryCta { display: grid; gap: 6px; }
+@media print { .steps, .saveState { display: none !important; } }

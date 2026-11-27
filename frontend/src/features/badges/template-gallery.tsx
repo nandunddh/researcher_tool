@@ -1,12 +1,10 @@
 import { Badge } from "./badge";
-import { BADGE_SIZES, type Person } from "./badges";
+import { BADGE_SIZES, SAMPLE_PERSON, type SponsorLogo } from "./badges";
 import { TEMPLATES, applyTemplate, type BadgeDesign } from "./design";
 import styles from "./badges.module.css";
 
-const SAMPLE: Person = { code: "SAMPLE", name: "Alex Morgan", organization: "University of Lisbon", role: "Speaker", source: "manual", detail: "Keynote" };
-
 /** Pick a starting design. Each template is drawn with the event's own texts and a sample person. */
-export function TemplateGallery({ current, onPick, onCancel }: { current: BadgeDesign; onPick: (design: BadgeDesign) => void; onCancel?: () => void }) {
+export function TemplateGallery({ current, sponsors, onPick, onCancel }: { current: BadgeDesign; sponsors: SponsorLogo[]; onPick: (design: BadgeDesign) => void; onCancel?: () => void }) {
   const size = BADGE_SIZES[0];
   return (
     <section className={styles.gallery} aria-label="Badge templates">
@@ -20,7 +18,7 @@ export function TemplateGallery({ current, onPick, onCancel }: { current: BadgeD
           const design = applyTemplate(t.id, current);
           return (
             <button key={t.id} type="button" className={styles.template} data-current={current.template === t.id || undefined} onClick={() => onPick(design)}>
-              <div className={styles.thumb} aria-hidden="true"><div><Badge design={design} person={SAMPLE} size={size} /></div></div>
+              <div className={styles.thumb} aria-hidden="true"><div><Badge design={design} person={SAMPLE_PERSON} size={size} sponsors={sponsors} /></div></div>
               <strong>{t.name}</strong>
               <small>{t.description}</small>
             </button>

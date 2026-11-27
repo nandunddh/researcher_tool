@@ -4,7 +4,8 @@ import { api } from "@/lib/api";
 import { Icon } from "@/components/icon";
 import { LoadingIndicator } from "@/components/loading-indicator";
 import { longDate, parseDay } from "@/features/studio/countdown";
-import { BADGE_SIZES, PAPERS, ROLES, fit, fromCsv, fromRegistrations, fromSpeakers, randomCode, sheets, type Person } from "./badges";
+import { safeImage } from "@/features/studio/site-schema";
+import { BADGE_SIZES, PAPERS, ROLES, SAMPLE_PERSON, fit, fromCsv, fromRegistrations, fromSpeakers, randomCode, sheets, sponsorLogos, type Person } from "./badges";
 import { DEFAULT_DESIGN, cleanDesign, type BadgeDesign } from "./design";
 import { Badge } from "./badge";
 import { DesignPanel } from "./design-panel";
@@ -12,7 +13,8 @@ import { TemplateGallery } from "./template-gallery";
 import styles from "./badges.module.css";
 
 type EventDetails = { basics?: Record<string, unknown>; speakers?: unknown; badge_design?: unknown } & Record<string, unknown>;
-type Site = { site_id: string; name: string; event?: EventDetails };
+type Site = { site_id: string; name: string; event?: EventDetails; schema_json?: unknown; pages?: unknown };
+type Step = "template" | "design" | "people";
 type SiteSummary = { site_id: string; name: string };
 type Submission = Parameters<typeof fromRegistrations>[0][number];
 type SaveState = "saved" | "saving" | "unsaved" | "error";
@@ -38,7 +40,8 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
   const [note, setNote] = useState("");
   const [attempt, setAttempt] = useState(0);
   const [design, setDesign] = useState<BadgeDesign | null>(null);
-  const [choosing, setChoosing] = useState(false);
+  const [step, setStep] = useState<Step>("template");
+  const [previewCode, setPreviewCode] = useState("");
   const [saveState, setSaveState] = useState<SaveState>("saved");
   const [useRegistrations, setUseRegistrations] = useState(true);
   const [includeUnpaid, setIncludeUnpaid] = useState(false);
@@ -66,8 +69,9 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
       setSite(s);
       eventRef.current = s.event ?? {};
       const saved = s.event?.badge_design;
-      if (saved) setDesign(cleanDesign(saved));
-      else { setDesign({ ...DEFAULT_DESIGN, ...eventTexts(s) }); setChoosing(true); }
+      // First time: pick a template. Afterwards: open on the one-badge designer, never straight on the sheets.
+      if (saved) { setDesign(cleanDesign(saved)); setStep("design"); }
+      else { setDesign({ ...DEFAULT_DESIGN, ...eventTexts(s) }); setStep("template"); }
     }).catch(e => {
       if (cancelled) return;  // the page was left or reloaded; not an error
       setError(timedOut ? "The server is taking too long to answer. Please try again." : e instanceof Error ? e.message : "Could not load the website.");
@@ -113,6 +117,7 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
     return all.map(p => ({ ...p, role: changes[p.code]?.role ?? p.role, skip: changes[p.code]?.skip === true }));
   }, [submissions, site, useRegistrations, includeUnpaid, useSpeakers, extra, changes]);
   const printed = useMemo(() => people.filter(p => !p.skip), [people]);
+  const sponsors = useMemo(() => (site ? sponsorLogos(site, safeImage) : []), [site]);
   const size = BADGE_SIZES.find(s => s.id === sizeId)!, paper = PAPERS.find(p => p.id === paperId)!;
   const layout = fit(paper, size);
   const pages = sheets(printed, layout.perSheet);
@@ -138,7 +143,7 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
     const observer = new ResizeObserver(update);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [paper.width, site, choosing]);
+  }, [paper.width, site, step]);
 
   function change(code: string, patch: { role?: string; skip?: boolean }) {
     setChanges(prev => ({ ...prev, [code]: { ...prev[code], ...patch } }));
@@ -192,21 +197,69 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
   if (!site || !design) return <main className={`${styles.page} ${styles.center}`}><LoadingIndicator label="Loading your event…" /></main>;
 
   const saveText = { saved: "All changes saved", saving: "Saving…", unsaved: "Saving soon…", error: "Not saved. Check your connection; your next change will try again." }[saveState];
+  const stepNames: [Step, string][] = [["template", "1. Template"], ["design", "2. Design one badge"], ["people", "3. Everyone and print"]];
   const bar = (
     <header className={styles.bar}>
       <a href={backHref} className={styles.back}><Icon name="arrow" size={16} /> SciStudio</a>
       <div><h1>Name badges</h1><p>{site.name}</p></div>
-      {!choosing && <span className={styles.saveState} data-error={saveState === "error" || undefined} role="status">{saveText}</span>}
-      {!choosing && <button type="button" className="primary" disabled={!printed.length} onClick={() => window.print()}><Icon name="doc" size={16} /> Print or save as PDF</button>}
+      <nav className={styles.steps} aria-label="Steps">
+        {stepNames.map(([id, label]) => <button key={id} type="button" aria-current={step === id ? "step" : undefined} onClick={() => setStep(id)}>{label}</button>)}
+      </nav>
+      {step !== "template" && <span className={styles.saveState} data-error={saveState === "error" || undefined} role="status">{saveText}</span>}
+      {step === "people" && <button type="button" className="primary" disabled={!printed.length} onClick={() => window.print()}><Icon name="doc" size={16} /> Print or save as PDF</button>}
     </header>
   );
-  if (choosing) return (
+  if (step === "template") return (
     <main className={styles.page}>
       {bar}
-      <TemplateGallery current={design} onPick={next => { updateDesign(next); setChoosing(false); }}
-        onCancel={site.event?.badge_design ? () => setChoosing(false) : undefined} />
+      <TemplateGallery current={design} sponsors={sponsors} onPick={next => { updateDesign(next); setStep("design"); }}
+        onCancel={site.event?.badge_design ? () => setStep("design") : undefined} />
     </main>
   );
+
+  if (step === "design") {
+    // One badge, large, for one person (or a sample). Every change applies to all badges.
+    const preview = printed.find(p => p.code === previewCode) ?? printed[0] ?? SAMPLE_PERSON;
+    const px = (mm: number) => (mm / 25.4) * 96;
+    const zoom = Math.min(1.8, 560 / px(size.height), 520 / px(size.width));
+    return (
+      <main className={styles.page}>
+        {bar}
+        <div className={styles.layout}>
+          <aside className={styles.panel} aria-label="Badge design">
+            <section>
+              <h2>Badge size</h2>
+              <label>Size<select value={sizeId} onChange={e => setSizeId(e.target.value)}>{BADGE_SIZES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
+            </section>
+            <DesignPanel design={design} siteId={siteId} sponsorCount={sponsors.length} onChange={updateDesign} onPickTemplate={() => setStep("template")} />
+            <section>
+              <h2>Use a design from another event</h2>
+              {otherSites === null
+                ? <button type="button" onClick={() => void listOtherSites()}>Choose a website…</button>
+                : otherSites.length === 0 ? <p className={styles.hint}>You have no other websites yet.</p>
+                  : <select defaultValue="" onChange={e => void copyFrom(e.target.value)} aria-label="Copy the badge design from">
+                      <option value="" disabled>Copy the badge design from…</option>
+                      {otherSites.map(s => <option key={s.site_id} value={s.site_id}>{s.name}</option>)}
+                    </select>}
+              {note && <p className={styles.note} role="status">{note}</p>}
+            </section>
+          </aside>
+          <section className={styles.single} aria-label="Badge preview">
+            <div style={{ zoom }}><Badge design={design} person={preview} size={size} qr={qr[preview.code]} sponsors={sponsors} /></div>
+            {printed.length > 0 && (
+              <label className={styles.row}>Preview with
+                <select value={preview.code} onChange={e => setPreviewCode(e.target.value)}>{printed.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}</select>
+              </label>
+            )}
+            <div className={styles.primaryCta}>
+              <button type="button" className="primary" onClick={() => setStep("people")}>Use this design for everyone →</button>
+              <span className={styles.hint}>{printed.length ? `${printed.length} badges will use this design.` : "Next, choose who gets a badge."}</span>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className={styles.page}>
@@ -214,7 +267,10 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
       <style>{`@page { size: ${paper.width}mm ${paper.height}mm; margin: 0; }`}</style>
       {bar}
       <div className={styles.layout}>
-        <aside className={styles.panel} aria-label="Badge settings">
+        <aside className={styles.panel} aria-label="People and printing">
+          <section>
+            <button type="button" onClick={() => setStep("design")}>← Edit the design</button>
+          </section>
           <section>
             <h2>People</h2>
             <label className={styles.check}><input type="checkbox" checked={useRegistrations} onChange={e => setUseRegistrations(e.target.checked)} />Registrations{submissions ? ` (${fromRegistrations(submissions, includeUnpaid).length})` : ""}</label>
@@ -241,19 +297,6 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
             <p className={styles.hint}>{layout.perSheet} badges per sheet · {pages.length} {pages.length === 1 ? "sheet" : "sheets"} · cut along the dashed lines</p>
           </section>
 
-          <DesignPanel design={design} siteId={siteId} onChange={updateDesign} onPickTemplate={() => setChoosing(true)} />
-
-          <section>
-            <h2>Use a design from another event</h2>
-            {otherSites === null
-              ? <button type="button" onClick={() => void listOtherSites()}>Choose a website…</button>
-              : otherSites.length === 0 ? <p className={styles.hint}>You have no other websites yet.</p>
-                : <select defaultValue="" onChange={e => void copyFrom(e.target.value)} aria-label="Copy the badge design from">
-                    <option value="" disabled>Copy the badge design from…</option>
-                    {otherSites.map(s => <option key={s.site_id} value={s.site_id}>{s.name}</option>)}
-                  </select>}
-          </section>
-
           <section>
             <h2>{people.length} {people.length === 1 ? "person" : "people"}</h2>
             {!people.length && <p className={styles.hint}>Turn on registrations or speakers, upload a CSV, or add people above.</p>}
@@ -275,7 +318,7 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
           <div className={styles.print} style={{ "--fit": scale } as CSSProperties}>
             {pages.map((page, n) => (
               <div key={n} className={styles.sheet} style={{ width: `${paper.width}mm`, height: `${paper.height}mm`, gridTemplateColumns: `repeat(${layout.cols}, ${size.width}mm)`, gridAutoRows: `${size.height}mm` }}>
-                {page.map(p => <Badge key={p.code} design={design} person={p} size={size} qr={qr[p.code]} />)}
+                {page.map(p => <Badge key={p.code} design={design} person={p} size={size} qr={qr[p.code]} sponsors={sponsors} />)}
               </div>
             ))}
           </div>

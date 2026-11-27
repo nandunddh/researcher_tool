@@ -6,15 +6,15 @@ import { ROLES } from "./badges";
 import { CHOICES, SIZE_KEYS, SIZE_RANGE, TEMPLATES, moveLine, type BadgeDesign, type Line, type ShowKey } from "./design";
 import styles from "./badges.module.css";
 
-const SHOW_LABELS: Record<ShowKey, string> = { title: "Event name", subtitle: "Line under it", logo: "Logo", photo: "Photos", organization: "Organization", detail: "Ticket type or note", role: "Role", qr: "QR code for check-in" };
+const SHOW_LABELS: Record<ShowKey, string> = { title: "Event name", subtitle: "Line under it", logo: "Logo", photo: "Photos", organization: "Organization", detail: "Ticket type or note", role: "Role", qr: "QR code for check-in", sponsors: "Sponsor logos" };
 const SIZE_LABELS: Record<(typeof SIZE_KEYS)[number], string> = { title: "Event name", subtitle: "Line under it", name: "Name", organization: "Organization", detail: "Note", role: "Role" };
 const LINE_LABELS: Record<Line, string> = { name: "Name", organization: "Organization", detail: "Ticket type or note" };
 const COLOR_LABELS: Record<keyof BadgeDesign["colors"], string> = { background: "Background", text: "Name text", muted: "Other text", header: "Header", headerText: "Header text" };
 const fontName = (key: string) => key[0].toUpperCase() + key.slice(1);
 
 /** Every part of a badge design, grouped the way people think about it. Changes are applied immediately. */
-export function DesignPanel({ design, siteId, onChange, onPickTemplate }: {
-  design: BadgeDesign; siteId: string; onChange: (next: BadgeDesign) => void; onPickTemplate: () => void;
+export function DesignPanel({ design, siteId, sponsorCount, onChange, onPickTemplate }: {
+  design: BadgeDesign; siteId: string; sponsorCount: number; onChange: (next: BadgeDesign) => void; onPickTemplate: () => void;
 }) {
   const [uploading, setUploading] = useState("");
   const [problem, setProblem] = useState("");
@@ -68,6 +68,7 @@ export function DesignPanel({ design, siteId, onChange, onPickTemplate }: {
             <label key={key}><input type="checkbox" checked={design.show[key]} onChange={e => set("show", { ...design.show, [key]: e.target.checked })} />{SHOW_LABELS[key]}</label>
           ))}
         </div>
+        {design.show.sponsors && !sponsorCount && <p className={styles.hint}>Add sponsor logos in a Sponsors section of your website; they appear here.</p>}
         <span className={styles.hint}>Order of the lines</span>
         {design.order.map((line, i) => (
           <div key={line} className={styles.orderRow}>

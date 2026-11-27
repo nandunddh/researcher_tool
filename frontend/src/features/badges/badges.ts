@@ -112,6 +112,34 @@ export function fromCsv(input: string, newCode: () => string): { people: Person[
   return { people };
 }
 
+/** Shown while designing when there is nobody on the list yet. */
+export const SAMPLE_PERSON: Person = { code: "SAMPLE", name: "Alex Morgan", organization: "University of Lisbon", role: "Speaker", source: "manual", detail: "Keynote" };
+
+export type SponsorLogo = { name: string; logo: string; tier: string };
+
+/** Sponsor logos from the website's Sponsors sections (every page), in page order, each logo once. */
+export function sponsorLogos(site: { schema_json?: unknown; pages?: unknown }, isImage: (v: unknown) => string | undefined): SponsorLogo[] {
+  const pages = Array.isArray(site.pages) && site.pages.length ? site.pages.map(p => (p && typeof p === "object" ? (p as { schema_json?: unknown }).schema_json : [])) : [site.schema_json];
+  const seen = new Set<string>(), out: SponsorLogo[] = [];
+  for (const sections of pages) {
+    if (!Array.isArray(sections)) continue;
+    for (const section of sections) {
+      if (!section || typeof section !== "object" || (section as { type?: unknown }).type !== "sponsor_tiers") continue;
+      const sponsors = ((section as { data?: { sponsors?: unknown } }).data?.sponsors);
+      if (!Array.isArray(sponsors)) continue;
+      for (const raw of sponsors) {
+        if (!raw || typeof raw !== "object") continue;
+        const s = raw as Record<string, unknown>;
+        const logo = isImage(s.logo);
+        if (!logo || seen.has(logo)) continue;
+        seen.add(logo);
+        out.push({ name: text(s.name), logo, tier: text(s.tier) });
+      }
+    }
+  }
+  return out;
+}
+
 /** A short random badge code for people without a registration, e.g. "B7F3A9C21". */
 export function randomCode(): string {
   const bytes = new Uint8Array(5);

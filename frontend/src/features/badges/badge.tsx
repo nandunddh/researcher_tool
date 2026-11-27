@@ -1,12 +1,15 @@
 import type { CSSProperties } from "react";
 import { FONT_STACKS, safeImage } from "@/features/studio/site-schema";
-import { ROLE_COLORS, type BadgeSize, type Person } from "./badges";
+import { ROLE_COLORS, type BadgeSize, type Person, type SponsorLogo } from "./badges";
 import type { BadgeDesign } from "./design";
 import { initials } from "@/features/studio/people";
 import styles from "./badges.module.css";
 
 /** One badge at real size (millimetres), drawn entirely from the design. Used for the gallery, the editor preview and printing. */
-export function Badge({ design, person, size, qr }: { design: BadgeDesign; person: Person; size: BadgeSize; qr?: string }) {
+/** Up to this many sponsor logos fit along the bottom of a badge. */
+const MAX_SPONSORS = 5;
+
+export function Badge({ design, person, size, qr, sponsors = [] }: { design: BadgeDesign; person: Person; size: BadgeSize; qr?: string; sponsors?: SponsorLogo[] }) {
   const role = design.roleColors[person.role] ?? ROLE_COLORS[person.role] ?? ROLE_COLORS.Attendee;
   const photo = design.show.photo ? safeImage(person.photo) : undefined;
   const logo = design.show.logo ? safeImage(design.logo) : undefined;
@@ -45,6 +48,9 @@ export function Badge({ design, person, size, qr }: { design: BadgeDesign; perso
         {design.show.role && design.band !== "bottom" && <span className={styles.rolePill}>{label}</span>}
       </div>
       {design.show.qr && qr && <img className={styles.qr} src={qr} alt="" />}
+      {design.show.sponsors && sponsors.length > 0 && (
+        <div className={styles.sponsors}>{sponsors.slice(0, MAX_SPONSORS).map(s => <img key={s.logo} src={s.logo} alt={s.name} />)}</div>
+      )}
       {design.show.role && design.band === "bottom" && <footer>{label}</footer>}
     </article>
   );

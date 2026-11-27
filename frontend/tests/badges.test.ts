@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { BADGE_SIZES, PAPERS, fit, fromCsv, fromRegistrations, fromSpeakers, parseCsv, randomCode, sheets } from "../src/features/badges/badges";
+import { BADGE_SIZES, PAPERS, SAMPLE_PERSON, fit, fromCsv, fromRegistrations, fromSpeakers, parseCsv, randomCode, sheets, sponsorLogos } from "../src/features/badges/badges";
+import { safeImage } from "../src/features/studio/site-schema";
 
 const size = (id: string) => BADGE_SIZES.find(s => s.id === id)!;
 const paper = (id: string) => PAPERS.find(p => p.id === id)!;
@@ -59,4 +60,24 @@ test("random badge codes are valid QR codes for the server", () => {
   const codes = new Set(Array.from({ length: 200 }, randomCode));
   assert.equal(codes.size, 200);
   for (const c of codes) assert.match(c, /^B[0-9A-F]{10}$/);
+});
+
+test("sponsor logos come from every page's Sponsors section, each logo once, only real images", () => {
+  const sponsors = (list: unknown[]) => ({ type: "sponsor_tiers", data: { sponsors: list } });
+  const site = { pages: [
+    { schema_json: [{ type: "hero", data: {} }, sponsors([{ tier: "Gold", name: "Qubitworks", logo: "/api/builder/media/site_x/q.png" }, { name: "No logo", logo: "" }, { name: "Bad", logo: "javascript:alert(1)" }])] },
+    { schema_json: [sponsors([{ tier: "Silver", name: "Lumen", logo: "https://cdn.example.org/l.png" }, { name: "Again", logo: "/api/builder/media/site_x/q.png" }, null, "x"])] },
+    { schema_json: "broken" },
+  ] };
+  assert.deepEqual(sponsorLogos(site, safeImage), [
+    { name: "Qubitworks", logo: "/api/builder/media/site_x/q.png", tier: "Gold" },
+    { name: "Lumen", logo: "https://cdn.example.org/l.png", tier: "Silver" },
+  ]);
+  assert.deepEqual(sponsorLogos({ schema_json: [sponsors([{ name: "Solo", logo: "/a.png" }])] }, safeImage).map(s => s.name), ["Solo"], "single-page sites");
+  assert.deepEqual(sponsorLogos({}, safeImage), []);
+});
+
+test("the design preview has a sample person when nobody is on the list yet", () => {
+  assert.ok(SAMPLE_PERSON.name && SAMPLE_PERSON.organization && SAMPLE_PERSON.role);
+  assert.match(SAMPLE_PERSON.code, /^[A-Za-z0-9_-]{1,40}$/);
 });
