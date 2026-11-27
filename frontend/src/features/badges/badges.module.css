@@ -42,30 +42,90 @@
 
 /* One sheet = one printed page, real size in millimetres; the badge grid is centred. */
 .sheet { display: grid; justify-content: center; align-content: center; background: white; box-shadow: 0 10px 30px #18223b1f; }
-.badge { position: relative; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; outline: 0.25mm dashed #b8bfcc; outline-offset: -0.125mm; background: white; container-type: size;
-  -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-.badge header { display: grid; gap: 1cqh; padding: 6cqw 7cqw 4cqw; background: linear-gradient(135deg, var(--role), color-mix(in oklab, var(--role) 55%, #0b1220)); color: white; }
-.badge header strong { font-size: 6cqw; line-height: 1.15; letter-spacing: -0.01em; }
-.badge header span { font-size: 3.6cqw; opacity: 0.85; }
-.who { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqh; padding: 4cqw 7cqw; text-align: center; min-height: 0; }
-.who img { width: 26cqw; height: 26cqw; border-radius: 50%; object-fit: cover; }
-.who h3 { margin: 0; font-size: 11cqw; line-height: 1.08; letter-spacing: -0.02em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.who p { margin: 0; font-size: 5cqw; color: #475569; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-.who .detail { font-size: 4cqw; font-weight: 600; color: var(--role); text-transform: uppercase; letter-spacing: 0.08em; }
-.qr { position: absolute; right: 4cqw; bottom: calc(11cqh + 3cqw); width: 22cqw; height: 22cqw; image-rendering: pixelated; }
-.badge footer { padding: 3cqh 7cqw; background: var(--role); color: white; text-align: center; font-weight: 800; font-size: 6.5cqw; letter-spacing: 0.14em; text-transform: uppercase; }
-/* Landscape badges (4 × 3 in): smaller type, QR in the right corner of the body. */
+/* A badge is drawn from its design: colours, fonts and sizes arrive as CSS variables, layout choices as data attributes.
+   All lengths are relative to the badge (cqw/cqh), so one design works at every badge size. */
+.badge { position: relative; display: grid; grid-template-rows: auto 1fr auto auto; overflow: hidden; outline: 0.25mm dashed #b8bfcc; outline-offset: -0.125mm;
+  background: var(--bg) center / cover no-repeat; color: var(--ink); container-type: size; font-family: var(--body-font);
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.badge[data-fill=role] { background-color: var(--role); background-image: linear-gradient(160deg, var(--role), color-mix(in oklab, var(--role) 55%, #0b1220)); }
+.badge[data-band=line]::before { content: ""; position: absolute; inset: 0 0 auto; height: 2.4cqh; background: var(--role); }
+.badge header { display: flex; align-items: center; gap: 3cqw; padding: 6cqw 7cqw 4cqw; color: var(--head-ink); }
+.badge[data-header=gradient] header { background: linear-gradient(135deg, var(--head), color-mix(in oklab, var(--head) 55%, #0b1220)); }
+.badge[data-header=solid] header { background: var(--head); }
+.badge[data-band=line] header { padding-top: calc(6cqw + 2.4cqh); }
+.badge header[data-empty] { padding: 3cqw; }
+.badge header > div { display: grid; gap: 1cqh; min-width: 0; }
+.badge[data-align=center] header { justify-content: center; text-align: center; }
+.badge header strong { font-family: var(--heading-font); font-size: calc(6cqw * var(--s-title)); line-height: 1.15; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.badge header span { font-size: calc(3.6cqw * var(--s-subtitle)); opacity: 0.85; }
+.logo { height: 11cqw; width: auto; max-width: 32cqw; object-fit: contain; flex: none; }
+.who { display: flex; flex-direction: column; justify-content: center; gap: 2cqh; padding: 4cqw 7cqw; min-height: 0; }
+.badge[data-align=center] .who { align-items: center; text-align: center; }
+.badge[data-align=left] .who { align-items: flex-start; text-align: left; }
+.badge[data-hasqr][data-qr=corner] .who { padding-bottom: 26cqw; }
+.who h3 { margin: 0; font-family: var(--heading-font); font-size: calc(11cqw * var(--s-name)); line-height: 1.08; letter-spacing: -0.02em; color: var(--ink);
+  overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.org { margin: 0; font-size: calc(5cqw * var(--s-org)); color: var(--muted); overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.detail { margin: 0; font-size: calc(4cqw * var(--s-detail)); font-weight: 700; color: var(--role); text-transform: uppercase; letter-spacing: 0.08em; }
+.badge[data-fill=role] .detail { color: var(--ink); }
+.photo { width: 26cqw; height: 26cqw; border-radius: 50%; object-fit: cover; flex: none; }
+.badge[data-photo=square] .photo { border-radius: 3cqw; }
+.badge[data-photo=large] .photo { width: 100%; height: 36cqh; border-radius: 3cqw; }
+.initials { display: grid; place-items: center; background: linear-gradient(135deg, color-mix(in oklab, var(--role) 22%, #ffffff), color-mix(in oklab, var(--role) 45%, #ffffff)); color: var(--role); font-family: var(--heading-font); font-weight: 800; font-size: 14cqw; letter-spacing: 0.02em; }
+.rolePill { padding: 1.2cqh 4cqw; border-radius: 999px; background: var(--role); color: #ffffff; font-weight: 800; font-size: calc(4.2cqw * var(--s-role)); letter-spacing: 0.12em; text-transform: uppercase; }
+.badge[data-fill=role] .rolePill { background: rgb(255 255 255 / 0.2); }
+.qr { position: absolute; right: 4cqw; bottom: 4cqw; width: 22cqw; height: 22cqw; padding: 1cqw; border-radius: 1.5cqw; background: #ffffff; image-rendering: pixelated; }
+.badge[data-band=bottom] .qr { bottom: calc(12cqh + 3cqw); }
+.badge[data-qr=bottom] .qr { position: static; justify-self: center; margin: 0 0 4cqw; }
+.badge footer { padding: 3cqh 7cqw; background: var(--role); color: #ffffff; text-align: center; font-weight: 800; font-size: calc(6.5cqw * var(--s-role)); letter-spacing: 0.14em; text-transform: uppercase; }
+/* Landscape badges (4 x 3 in): smaller type, text on the left, QR on the right. */
 @container (orientation: landscape) {
-  .badge header strong { font-size: 4.4cqw; }
-  .badge header span { font-size: 2.8cqw; }
-  .who { align-items: flex-start; text-align: left; padding-right: 28cqw; }
-  .who h3 { font-size: 7.5cqw; }
-  .who p { font-size: 3.6cqw; }
-  .who .detail { font-size: 3cqw; }
-  .who img { width: 14cqw; height: 14cqw; }
-  .qr { width: 18cqw; height: 18cqw; bottom: calc(14cqh + 2cqw); }
-  .badge footer { font-size: 4.4cqw; }
+  .badge header strong { font-size: calc(4.4cqw * var(--s-title)); }
+  .badge header span { font-size: calc(2.8cqw * var(--s-subtitle)); }
+  .logo { height: 7cqw; }
+  .who { align-items: flex-start !important; text-align: left !important; }
+  .badge[data-hasqr][data-qr=corner] .who { padding-bottom: 4cqw; padding-right: 28cqw; }
+  .who h3 { font-size: calc(7.5cqw * var(--s-name)); }
+  .org { font-size: calc(3.6cqw * var(--s-org)); }
+  .detail { font-size: calc(3cqw * var(--s-detail)); }
+  .photo { width: 14cqw; height: 14cqw; }
+  .badge[data-photo=large] .photo { width: 22cqw; height: 22cqw; }
+  .qr { width: 18cqw; height: 18cqw; }
+  .badge footer { font-size: calc(4.4cqw * var(--s-role)); }
+  .rolePill { font-size: calc(3cqw * var(--s-role)); }
 }
+
+/* Template gallery */
+.gallery { display: grid; gap: 22px; padding: 28px 24px 48px; max-width: 1200px; margin: 0 auto; }
+.gallery > header { display: grid; gap: 6px; }
+.gallery > header h2 { margin: 0; font-size: 26px; }
+.gallery > header p { margin: 0; color: #5d6b82; }
+.templates { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; }
+.template { display: grid; gap: 10px; padding: 16px; border: 2px solid transparent; border-radius: 16px; background: white; box-shadow: 0 6px 20px #18223b12; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+.template:hover, .template:focus-visible { border-color: #5a45d6; outline: none; }
+.template[data-current] { border-color: #5a45d6; }
+.template strong { font-size: 15px; }
+.template small { color: #5d6b82; font-size: 13px; line-height: 1.4; }
+.thumb { display: grid; place-items: center; height: 250px; overflow: hidden; border-radius: 10px; background: #eef1f7; }
+.thumb > div { zoom: 0.42; }
+
+/* Design editor groups */
+.group { display: grid; gap: 8px; }
+.group h3 { margin: 6px 0 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #5d6b82; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.swatches { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 10px; }
+.swatches label { display: flex !important; flex-direction: row !important; align-items: center; gap: 6px; font-weight: 500 !important; }
+.swatches input[type=color] { width: 28px; height: 28px; padding: 0; border: 0; background: none; flex: none; }
+.slider { display: grid !important; grid-template-columns: 90px 1fr 42px; align-items: center; gap: 8px; font-weight: 500 !important; }
+.slider input { width: 100%; }
+.slider output { font-size: 12px; color: #5d6b82; text-align: right; }
+.orderRow { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.orderRow span { flex: 1; }
+.orderRow button { padding: 2px 8px; }
+.imageRow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.imageRow img { height: 32px; width: auto; max-width: 80px; object-fit: contain; border: 1px solid #dfe3ee; border-radius: 6px; background: white; }
+.saveState { font-size: 12.5px; color: #5d6b82; }
+.saveState[data-error] { color: #b91c1c; }
 
 @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .panel { position: static; max-height: none; } }
 
