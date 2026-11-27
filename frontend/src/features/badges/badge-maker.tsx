@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
 import { api } from "@/lib/api";
 import { Icon } from "@/components/icon";
+import { LoadingIndicator } from "@/components/loading-indicator";
 import { safeImage } from "@/features/studio/site-schema";
 import { longDate, parseDay } from "@/features/studio/countdown";
 import { BADGE_SIZES, PAPERS, ROLE_COLORS, ROLES, fit, fromCsv, fromRegistrations, fromSpeakers, randomCode, sheets, type Person } from "./badges";
@@ -10,6 +11,7 @@ import styles from "./badges.module.css";
 type Site = { site_id: string; name: string; event?: { basics?: Record<string, unknown>; speakers?: unknown } };
 type Submission = Parameters<typeof fromRegistrations>[0][number];
 
+const LOAD_TIMEOUT_MS = 30_000;
 const CSV_TEMPLATE = "Name,Organization,Role\nAda Lovelace,Analytical Society,Speaker\nAlan Turing,University of Manchester,Attendee\n";
 const str = (v: unknown) => (typeof v === "string" ? v : "");
 
@@ -36,21 +38,33 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
   const fileInput = useRef<HTMLInputElement>(null);
   const stage = useRef<HTMLElement>(null);
   const [scale, setScale] = useState(1);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     const id = encodeURIComponent(siteId);
-    api<Site>(`/api/builder/sites/${id}`).then(s => {
+    // A slow or unreachable server ends in a clear message with Try again, never an endless spinner.
+    const abort = new AbortController();
+    let timedOut = false, cancelled = false;
+    const timer = setTimeout(() => { timedOut = true; abort.abort(); }, LOAD_TIMEOUT_MS);
+    setError("");
+    api<Site>(`/api/builder/sites/${id}`, { signal: abort.signal }).then(s => {
+      if (cancelled) return;
       setSite(s);
       const basics = s.event?.basics ?? {};
       setTitle(str(basics.name) || s.name);
       const start = parseDay(basics.starts), end = parseDay(basics.ends);
       const when = start === null ? "" : end !== null && end !== start ? `${longDate(start)} – ${longDate(end)}` : longDate(start);
       setSubtitle([when, str(basics.venue)].filter(Boolean).join(" · "));
-    }).catch(e => setError(e instanceof Error ? e.message : "Could not load the website."));
+    }).catch(e => {
+      if (cancelled) return;  // the page was left or reloaded; not an error
+      setError(timedOut ? "The server is taking too long to answer. Please try again." : e instanceof Error ? e.message : "Could not load the website.");
+    })
+      .finally(() => clearTimeout(timer));
     // Registrations are owner-only; a team member without access still gets speakers and CSV.
-    api<{ submissions: Submission[] }>(`/api/builder/sites/${id}/submissions`).then(r => setSubmissions(r.submissions))
-      .catch(() => { setSubmissions([]); setNote("Registrations are only available to the account owner and admins."); });
-  }, [siteId]);
+    api<{ submissions: Submission[] }>(`/api/builder/sites/${id}/submissions`, { signal: abort.signal }).then(r => { if (!cancelled) setSubmissions(r.submissions); })
+      .catch(() => { if (!cancelled && !timedOut) { setSubmissions([]); setNote("Registrations are only available to the account owner and admins."); } });
+    return () => { cancelled = true; clearTimeout(timer); abort.abort(); };
+  }, [siteId, attempt]);
 
   const people = useMemo(() => {
     const all = [
@@ -114,8 +128,16 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
     URL.revokeObjectURL(url);
   }
 
-  if (error) return <main className={styles.page}><p role="alert" className="alert">{error}</p><a href={backHref}>Back to SciStudio</a></main>;
-  if (!site) return <main className={styles.page}><p role="status">Loading…</p></main>;
+  if (error) return (
+    <main className={`${styles.page} ${styles.center}`}>
+      <div className={styles.message}>
+        <h1>Badges could not be opened</h1>
+        <p role="alert">{error}</p>
+        <div className={styles.row}><button type="button" className="primary" onClick={() => setAttempt(n => n + 1)}>Try again</button><a className="button" href={backHref}>Back to SciStudio</a></div>
+      </div>
+    </main>
+  );
+  if (!site) return <main className={`${styles.page} ${styles.center}`}><LoadingIndicator label="Loading your event…" /></main>;
   const rolesInUse = ROLES.filter(r => printed.some(p => p.role === r));
 
   return (

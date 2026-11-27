@@ -1,5 +1,11 @@
 /* Badge maker: settings on the left, real-size sheets on the right. Printing shows only the sheets. */
 .page { min-height: 100vh; background: #eef1f7; color: #18223b; }
+/* Loading and error states sit in the middle of the screen. */
+.center { display: grid; place-items: center; padding: 24px; }
+.message { display: grid; gap: 12px; max-width: 440px; padding: 28px; text-align: center; background: white; border: 1px solid #dfe3ee; border-radius: 16px; box-shadow: 0 10px 30px #18223b14; }
+.message h1 { margin: 0; font-size: 20px; }
+.message p { margin: 0; color: #5d6b82; }
+.message .row { justify-content: center; }
 .bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 18px; padding: 14px 24px; background: white; border-bottom: 1px solid #dfe3ee; }
 .bar h1 { margin: 0; font-size: 18px; }
 .bar p { margin: 0; color: #5d6b82; font-size: 13px; }
