@@ -10,12 +10,12 @@ export const SHOW_KEYS = ["title", "subtitle", "logo", "photo", "organization", 
 export type ShowKey = (typeof SHOW_KEYS)[number];
 
 export const CHOICES = {
-  fill: [["white", "Plain colour"], ["role", "Role colour"]],
-  header: [["gradient", "Colour gradient"], ["solid", "Solid colour"], ["plain", "No background"]],
-  band: [["bottom", "Band at the bottom"], ["line", "Thin line at the top"], ["none", "No band"]],
-  align: [["center", "Centred"], ["left", "Left"]],
-  qr: [["corner", "Corner"], ["bottom", "Bottom centre"]],
-  photo: [["circle", "Circle"], ["square", "Square"], ["large", "Large picture"]],
+  fill: [["white", "Plain"], ["role", "Role colour"]],
+  header: [["gradient", "Gradient"], ["solid", "Solid"], ["plain", "None"]],
+  band: [["bottom", "Band"], ["line", "Top line"], ["none", "Pill"]],
+  align: [["center", "Centre"], ["left", "Left"]],
+  qr: [["corner", "Corner"], ["bottom", "Bottom"]],
+  photo: [["circle", "Circle"], ["square", "Square"], ["large", "Large"]],
 } as const satisfies Record<string, readonly (readonly [string, string])[]>;
 type Choice<K extends keyof typeof CHOICES> = (typeof CHOICES)[K][number][0];
 

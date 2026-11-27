@@ -5,6 +5,7 @@ FastAPI backend for SciProspect Scientific Lead Prospecting & Outreach Suite.
 Supports both Unrestricted Full Production Mode and Evaluation Trial Mode.
 """
 
+import json
 import os
 import re
 import sys
@@ -1593,16 +1594,54 @@ async def builder_get_site(site_id: str, request: Request):
 async def builder_update_site(site_id: str, request: Request):
     user = _require_authenticated_user(request)
     _require_scistudio_access(user)
-    _require_owned_site(site_id, user, "edit")
+    current = _require_owned_site(site_id, user, "edit")
     body = await request.json()
+    if not isinstance(body, dict):
+        raise HTTPException(status_code=400, detail="Invalid website data.")
     if "conference_id" in body and body["conference_id"]:
         _require_owned_conference(body["conference_id"], user)
     if isinstance(body.get("pages"), list):
         _enforce_plan(_user_plan(user), "pages", len(body["pages"]))
+    if isinstance(body.get("event"), dict):
+        body["event"] = _keep_badge_design(body["event"], current)
     ok, msg, site = builder_engine.update_site(site_id, body)
     if not ok:
         raise HTTPException(status_code=400, detail=msg)
     return {"status": "ok", "message": msg, "site": site}
+
+
+def _keep_badge_design(event: dict, site: dict) -> dict:
+    """Event details saved by the website editor never touch the badge design: an editor tab opened earlier
+    would otherwise put back an old design. The badge design is changed only through its own route."""
+    clean = {k: v for k, v in event.items() if k != "badge_design"}
+    saved = (site.get("event") or {}).get("badge_design") if isinstance(site.get("event"), dict) else None
+    if saved is not None:
+        clean["badge_design"] = saved
+    return clean
+
+
+BADGE_DESIGN_MAX_BYTES = 50_000
+
+
+@app.put("/api/builder/sites/{site_id}/badge-design")
+async def builder_badge_design(site_id: str, request: Request):
+    """Saves only the badge design, merged into the latest Event details, so it never overwrites ticket, date or speaker edits."""
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user, "edit")
+    if int(request.headers.get("content-length") or 0) > BADGE_DESIGN_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="This badge design is too large.")
+    body = await request.json()
+    design = body.get("design") if isinstance(body, dict) else None
+    if not isinstance(design, dict) or len(json.dumps(design)) > BADGE_DESIGN_MAX_BYTES:
+        raise HTTPException(status_code=400, detail="Send the badge design as an object.")
+    latest = builder_engine.get_site(site_id) or {}
+    event = dict(latest.get("event") or {}) if isinstance(latest.get("event"), dict) else {}
+    event["badge_design"] = design
+    ok, msg, _site = builder_engine.update_site(site_id, {"event": event})
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok"}
 
 
 # ---------- Invited speakers: a private shortlist per event website ----------

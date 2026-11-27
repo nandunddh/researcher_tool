@@ -10,6 +10,7 @@ import { DEFAULT_DESIGN, cleanDesign, type BadgeDesign } from "./design";
 import { Badge } from "./badge";
 import { DesignPanel } from "./design-panel";
 import { TemplateGallery } from "./template-gallery";
+import { Chip, Panel } from "./controls";
 import styles from "./badges.module.css";
 
 type EventDetails = { basics?: Record<string, unknown>; speakers?: unknown; badge_design?: unknown } & Record<string, unknown>;
@@ -55,7 +56,6 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
   const [scale, setScale] = useState(1);
   const fileInput = useRef<HTMLInputElement>(null);
   const stage = useRef<HTMLElement>(null);
-  const eventRef = useRef<EventDetails>({});
 
   useEffect(() => {
     const id = encodeURIComponent(siteId);
@@ -67,7 +67,6 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
     api<Site>(`/api/builder/sites/${id}`, { signal: abort.signal }).then(s => {
       if (cancelled) return;
       setSite(s);
-      eventRef.current = s.event ?? {};
       const saved = s.event?.badge_design;
       // First time: pick a template. Afterwards: open on the one-badge designer, never straight on the sheets.
       if (saved) { setDesign(cleanDesign(saved)); setStep("design"); }
@@ -82,13 +81,11 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
     return () => { cancelled = true; clearTimeout(timer); abort.abort(); };
   }, [siteId, attempt]);
 
-  // The design is saved with the website's Event details a moment after the last change.
+  // Saved a moment after the last change, through its own route: it never overwrites Event details edited in another tab.
   const save = useCallback(async (next: BadgeDesign) => {
     setSaveState("saving");
-    const event = { ...eventRef.current, badge_design: next };
     try {
-      await api(`/api/builder/sites/${encodeURIComponent(siteId)}`, { method: "PUT", body: JSON.stringify({ event }) });
-      eventRef.current = event;
+      await api(`/api/builder/sites/${encodeURIComponent(siteId)}/badge-design`, { method: "PUT", body: JSON.stringify({ design: next }) });
       setSaveState("saved");
     } catch { setSaveState("error"); }
   }, [siteId]);
@@ -227,13 +224,16 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
         {bar}
         <div className={styles.layout}>
           <aside className={styles.panel} aria-label="Badge design">
-            <section>
-              <h2>Badge size</h2>
-              <label>Size<select value={sizeId} onChange={e => setSizeId(e.target.value)}>{BADGE_SIZES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
-            </section>
+            <div className={styles.sizeCards} role="radiogroup" aria-label="Badge size">
+              {BADGE_SIZES.map(s => (
+                <button key={s.id} type="button" role="radio" aria-checked={sizeId === s.id} onClick={() => setSizeId(s.id)}>
+                  <span className={styles.sizeShape} style={{ aspectRatio: `${s.width} / ${s.height}` }} aria-hidden="true" />
+                  <small>{s.label.split(" (")[0]}</small>
+                </button>
+              ))}
+            </div>
             <DesignPanel design={design} siteId={siteId} sponsorCount={sponsors.length} onChange={updateDesign} onPickTemplate={() => setStep("template")} />
-            <section>
-              <h2>Use a design from another event</h2>
+            <Panel title="Use a design from another event">
               {otherSites === null
                 ? <button type="button" onClick={() => void listOtherSites()}>Choose a website…</button>
                 : otherSites.length === 0 ? <p className={styles.hint}>You have no other websites yet.</p>
@@ -242,7 +242,7 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
                       {otherSites.map(s => <option key={s.site_id} value={s.site_id}>{s.name}</option>)}
                     </select>}
               {note && <p className={styles.note} role="status">{note}</p>}
-            </section>
+            </Panel>
           </aside>
           <section className={styles.single} aria-label="Badge preview">
             <div style={{ zoom }}><Badge design={design} person={preview} size={size} qr={qr[preview.code]} sponsors={sponsors} /></div>
@@ -268,14 +268,13 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
       {bar}
       <div className={styles.layout}>
         <aside className={styles.panel} aria-label="People and printing">
-          <section>
-            <button type="button" onClick={() => setStep("design")}>← Edit the design</button>
-          </section>
-          <section>
-            <h2>People</h2>
-            <label className={styles.check}><input type="checkbox" checked={useRegistrations} onChange={e => setUseRegistrations(e.target.checked)} />Registrations{submissions ? ` (${fromRegistrations(submissions, includeUnpaid).length})` : ""}</label>
-            {useRegistrations && <label className={`${styles.check} ${styles.indent}`}><input type="checkbox" checked={includeUnpaid} onChange={e => setIncludeUnpaid(e.target.checked)} />Include unpaid</label>}
-            <label className={styles.check}><input type="checkbox" checked={useSpeakers} onChange={e => setUseSpeakers(e.target.checked)} />Speakers from Event details ({fromSpeakers(site.event?.speakers).length})</label>
+          <button type="button" className={styles.backButton} onClick={() => setStep("design")}>← Edit the design</button>
+          <Panel title="Who gets a badge" open>
+            <div className={styles.chips}>
+              <Chip on={useRegistrations} onChange={setUseRegistrations}>Registrations{submissions ? ` · ${fromRegistrations(submissions, includeUnpaid).length}` : ""}</Chip>
+              <Chip on={useSpeakers} onChange={setUseSpeakers}>Speakers · {fromSpeakers(site.event?.speakers).length}</Chip>
+              {useRegistrations && <Chip on={includeUnpaid} onChange={setIncludeUnpaid}>Include unpaid</Chip>}
+            </div>
             <div className={styles.row}>
               <button type="button" onClick={() => fileInput.current?.click()}>Upload CSV</button>
               <button type="button" className="text-button" onClick={downloadTemplate}>CSV template</button>
@@ -288,17 +287,24 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
               <button type="submit">Add</button>
             </form>
             {note && <p className={styles.note} role="status">{note}</p>}
-          </section>
+          </Panel>
 
-          <section>
-            <h2>Size and paper</h2>
-            <label>Badge size<select value={sizeId} onChange={e => setSizeId(e.target.value)}>{BADGE_SIZES.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}</select></label>
-            <label>Paper<select value={paperId} onChange={e => setPaperId(e.target.value)}>{PAPERS.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}</select></label>
+          <Panel title="Size and paper" open>
+            <div className={styles.sizeCards} role="radiogroup" aria-label="Badge size">
+              {BADGE_SIZES.map(s => (
+                <button key={s.id} type="button" role="radio" aria-checked={sizeId === s.id} onClick={() => setSizeId(s.id)}>
+                  <span className={styles.sizeShape} style={{ aspectRatio: `${s.width} / ${s.height}` }} aria-hidden="true" />
+                  <small>{s.label.split(" (")[0]}</small>
+                </button>
+              ))}
+            </div>
+            <div className={styles.seg} role="radiogroup" aria-label="Paper">
+              {PAPERS.map(p => <button key={p.id} type="button" role="radio" aria-checked={paperId === p.id} onClick={() => setPaperId(p.id)}>{p.label}</button>)}
+            </div>
             <p className={styles.hint}>{layout.perSheet} badges per sheet · {pages.length} {pages.length === 1 ? "sheet" : "sheets"} · cut along the dashed lines</p>
-          </section>
+          </Panel>
 
-          <section>
-            <h2>{people.length} {people.length === 1 ? "person" : "people"}</h2>
+          <Panel title={`${people.length} ${people.length === 1 ? "person" : "people"}`} open>
             {!people.length && <p className={styles.hint}>Turn on registrations or speakers, upload a CSV, or add people above.</p>}
             <ul className={styles.people}>
               {people.map(p => (
@@ -310,7 +316,7 @@ export function BadgeMaker({ siteId, backHref }: { siteId: string; backHref: str
                 </li>
               ))}
             </ul>
-          </section>
+          </Panel>
         </aside>
 
         <section ref={stage} className={styles.stage} aria-label="Badge sheets">

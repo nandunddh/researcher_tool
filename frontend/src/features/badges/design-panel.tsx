@@ -4,15 +4,16 @@ import { FONT_STACKS } from "@/features/studio/site-schema";
 import { imageProblem, imageTypes, uploadImage } from "@/features/studio/media";
 import { ROLES } from "./badges";
 import { CHOICES, SIZE_KEYS, SIZE_RANGE, TEMPLATES, moveLine, type BadgeDesign, type Line, type ShowKey } from "./design";
+import { Chip, Panel, Segmented, Swatch } from "./controls";
 import styles from "./badges.module.css";
 
-const SHOW_LABELS: Record<ShowKey, string> = { title: "Event name", subtitle: "Line under it", logo: "Logo", photo: "Photos", organization: "Organization", detail: "Ticket type or note", role: "Role", qr: "QR code for check-in", sponsors: "Sponsor logos" };
-const SIZE_LABELS: Record<(typeof SIZE_KEYS)[number], string> = { title: "Event name", subtitle: "Line under it", name: "Name", organization: "Organization", detail: "Note", role: "Role" };
-const LINE_LABELS: Record<Line, string> = { name: "Name", organization: "Organization", detail: "Ticket type or note" };
-const COLOR_LABELS: Record<keyof BadgeDesign["colors"], string> = { background: "Background", text: "Name text", muted: "Other text", header: "Header", headerText: "Header text" };
+const SHOW_LABELS: Record<ShowKey, string> = { title: "Event name", subtitle: "Date line", logo: "Logo", photo: "Photos", organization: "Organization", detail: "Ticket type", role: "Role", qr: "QR code", sponsors: "Sponsor logos" };
+const SIZE_LABELS: Record<(typeof SIZE_KEYS)[number], string> = { title: "Event name", subtitle: "Date line", name: "Name", organization: "Organization", detail: "Ticket type", role: "Role" };
+const LINE_LABELS: Record<Line, string> = { name: "Name", organization: "Organization", detail: "Ticket type" };
+const COLOR_LABELS: Record<keyof BadgeDesign["colors"], string> = { background: "Background", text: "Name", muted: "Other text", header: "Header", headerText: "Header text" };
 const fontName = (key: string) => key[0].toUpperCase() + key.slice(1);
 
-/** Every part of a badge design, grouped the way people think about it. Changes are applied immediately. */
+/** Every part of a badge design, in folding sections. Changes apply immediately to all badges. */
 export function DesignPanel({ design, siteId, sponsorCount, onChange, onPickTemplate }: {
   design: BadgeDesign; siteId: string; sponsorCount: number; onChange: (next: BadgeDesign) => void; onPickTemplate: () => void;
 }) {
@@ -33,106 +34,84 @@ export function DesignPanel({ design, siteId, sponsorCount, onChange, onPickTemp
     finally { setUploading(""); }
   }
 
-  const choice = <K extends keyof typeof CHOICES>(key: K, label: string) => (
-    <label>{label}
-      <select value={design[key]} onChange={e => set(key, e.target.value as BadgeDesign[K])}>
-        {CHOICES[key].map(([value, text]) => <option key={value} value={value}>{text}</option>)}
-      </select>
-    </label>
-  );
-
   return (
-    <section>
-      <h2>Design</h2>
-      <div className={styles.row}>
-        <span className={styles.hint}>{template ? `Template: ${template.name}` : "Your own design"}</span>
-        <button type="button" onClick={onPickTemplate}>Change template</button>
+    <>
+      <div className={styles.templateBar}>
+        <span><small>Template</small><strong>{template ? template.name : "Your own design"}</strong></span>
+        <button type="button" onClick={onPickTemplate}>Change</button>
       </div>
 
-      <div className={styles.group}>
-        <h3>Texts</h3>
-        <label>Event name<input value={design.title} maxLength={80} onChange={e => set("title", e.target.value)} /></label>
-        <label>Line under it<input value={design.subtitle} maxLength={120} onChange={e => set("subtitle", e.target.value)} /></label>
-        <details>
-          <summary className={styles.hint}>Role names printed on badges</summary>
-          <div className={styles.pair}>
-            {ROLES.map(role => <label key={role}>{role}<input value={design.labels[role]} maxLength={30} onChange={e => set("labels", { ...design.labels, [role]: e.target.value })} /></label>)}
-          </div>
-        </details>
-      </div>
+      <Panel title="Texts" open>
+        <label className={styles.field}><span className={styles.fieldLabel}>Event name</span><input value={design.title} maxLength={80} onChange={e => set("title", e.target.value)} /></label>
+        <label className={styles.field}><span className={styles.fieldLabel}>Date line</span><input value={design.subtitle} maxLength={120} onChange={e => set("subtitle", e.target.value)} /></label>
+      </Panel>
 
-      <div className={styles.group}>
-        <h3>Show on the badge</h3>
-        <div className={styles.swatches}>
+      <Panel title="What shows" open>
+        <div className={styles.chips}>
           {(Object.keys(SHOW_LABELS) as ShowKey[]).map(key => (
-            <label key={key}><input type="checkbox" checked={design.show[key]} onChange={e => set("show", { ...design.show, [key]: e.target.checked })} />{SHOW_LABELS[key]}</label>
+            <Chip key={key} on={design.show[key]} onChange={on => set("show", { ...design.show, [key]: on })}>{SHOW_LABELS[key]}</Chip>
           ))}
         </div>
         {design.show.sponsors && !sponsorCount && <p className={styles.hint}>Add sponsor logos in a Sponsors section of your website; they appear here.</p>}
-        <span className={styles.hint}>Order of the lines</span>
-        {design.order.map((line, i) => (
-          <div key={line} className={styles.orderRow}>
-            <span>{LINE_LABELS[line]}</span>
-            <button type="button" disabled={i === 0} aria-label={`Move ${LINE_LABELS[line]} up`} onClick={() => set("order", moveLine(design.order, line, -1))}>↑</button>
-            <button type="button" disabled={i === design.order.length - 1} aria-label={`Move ${LINE_LABELS[line]} down`} onClick={() => set("order", moveLine(design.order, line, 1))}>↓</button>
-          </div>
-        ))}
-      </div>
+        <span className={styles.fieldLabel}>Order of the lines</span>
+        <ol className={styles.order}>
+          {design.order.map((line, i) => (
+            <li key={line}>
+              <span>{LINE_LABELS[line]}</span>
+              <button type="button" disabled={i === 0} aria-label={`Move ${LINE_LABELS[line]} up`} onClick={() => set("order", moveLine(design.order, line, -1))}>↑</button>
+              <button type="button" disabled={i === design.order.length - 1} aria-label={`Move ${LINE_LABELS[line]} down`} onClick={() => set("order", moveLine(design.order, line, 1))}>↓</button>
+            </li>
+          ))}
+        </ol>
+      </Panel>
 
-      <div className={styles.group}>
-        <h3>Layout</h3>
-        <div className={styles.pair}>
-          {choice("fill", "Badge colour")}
-          {choice("header", "Header")}
-          {choice("band", "Role")}
-          {choice("align", "Alignment")}
-          {choice("qr", "QR code position")}
-          {choice("photo", "Photo shape")}
-        </div>
-      </div>
+      <Panel title="Layout">
+        <Segmented label="Badge colour" options={CHOICES.fill} value={design.fill} onChange={v => set("fill", v)} />
+        <Segmented label="Header" options={CHOICES.header} value={design.header} onChange={v => set("header", v)} />
+        <Segmented label="Role" options={CHOICES.band} value={design.band} onChange={v => set("band", v)} />
+        <Segmented label="Alignment" options={CHOICES.align} value={design.align} onChange={v => set("align", v)} />
+        <Segmented label="QR code" options={CHOICES.qr} value={design.qr} onChange={v => set("qr", v)} />
+        <Segmented label="Photo" options={CHOICES.photo} value={design.photo} onChange={v => set("photo", v)} />
+      </Panel>
 
-      <div className={styles.group}>
-        <h3>Colours</h3>
+      <Panel title="Colours">
         <div className={styles.swatches}>
           {(Object.keys(COLOR_LABELS) as (keyof BadgeDesign["colors"])[]).map(key => (
-            <label key={key}>
-              <input type="color" value={design.colors[key] || design.roleColors.Attendee} onChange={e => set("colors", { ...design.colors, [key]: e.target.value })} />
-              {COLOR_LABELS[key]}
-            </label>
+            <Swatch key={key} label={COLOR_LABELS[key]} value={design.colors[key] || design.roleColors.Attendee} onChange={v => set("colors", { ...design.colors, [key]: v })} />
           ))}
         </div>
         {design.colors.header && <button type="button" className="text-button" onClick={() => set("colors", { ...design.colors, header: "" })}>Header in each person’s role colour</button>}
-        <span className={styles.hint}>Role colours</span>
+        <span className={styles.fieldLabel}>Role colours</span>
         <div className={styles.swatches}>
-          {ROLES.map(role => <label key={role}><input type="color" value={design.roleColors[role]} onChange={e => set("roleColors", { ...design.roleColors, [role]: e.target.value })} />{role}</label>)}
+          {ROLES.map(role => <Swatch key={role} label={role} value={design.roleColors[role]} onChange={v => set("roleColors", { ...design.roleColors, [role]: v })} />)}
         </div>
-      </div>
+      </Panel>
 
-      <div className={styles.group}>
-        <h3>Type</h3>
-        <div className={styles.pair}>
-          {(["heading", "body"] as const).map(key => (
-            <label key={key}>{key === "heading" ? "Headings" : "Other text"}
-              <select value={design.fonts[key]} onChange={e => set("fonts", { ...design.fonts, [key]: e.target.value })}>
-                {Object.keys(FONT_STACKS).map(font => <option key={font} value={font}>{fontName(font)}</option>)}
-              </select>
-            </label>
-          ))}
-        </div>
+      <Panel title="Type">
+        {(["heading", "body"] as const).map(key => (
+          <div key={key} className={styles.field}>
+            <span className={styles.fieldLabel}>{key === "heading" ? "Headings" : "Other text"}</span>
+            <div className={styles.fonts} role="radiogroup" aria-label={key === "heading" ? "Heading font" : "Text font"}>
+              {Object.entries(FONT_STACKS).map(([font, stack]) => (
+                <button key={font} type="button" role="radio" aria-checked={design.fonts[key] === font} onClick={() => set("fonts", { ...design.fonts, [key]: font })}>
+                  <span style={{ fontFamily: stack }}>Aa</span><small>{fontName(font)}</small>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
         {SIZE_KEYS.map(key => (
-          <label key={key} className={styles.slider}>{SIZE_LABELS[key]}
+          <label key={key} className={styles.slider}><span>{SIZE_LABELS[key]}</span>
             <input type="range" min={SIZE_RANGE.min} max={SIZE_RANGE.max} step={5} value={design.sizes[key]} onChange={e => set("sizes", { ...design.sizes, [key]: e.target.valueAsNumber })} />
             <output>{design.sizes[key]}%</output>
           </label>
         ))}
-      </div>
+      </Panel>
 
-      <div className={styles.group}>
-        <h3>Pictures</h3>
+      <Panel title="Logo and pictures">
         {(["logo", "backgroundImage"] as const).map(key => (
           <div key={key} className={styles.imageRow}>
-            <span>{key === "logo" ? "Logo" : "Background picture"}</span>
-            {design[key] && <img src={design[key]} alt="" />}
+            <div className={styles.imageBox}>{design[key] ? <img src={design[key]} alt="" /> : <span>{key === "logo" ? "Logo" : "Background"}</span>}</div>
             <label className="button">{uploading === key ? "Uploading…" : design[key] ? "Replace" : "Upload"}
               <input type="file" accept={imageTypes.join(",")} hidden disabled={!!uploading} onChange={e => void upload(key, e)} />
             </label>
@@ -140,7 +119,13 @@ export function DesignPanel({ design, siteId, sponsorCount, onChange, onPickTemp
           </div>
         ))}
         {problem && <p className={styles.note} role="alert">{problem}</p>}
-      </div>
-    </section>
+      </Panel>
+
+      <Panel title="Role names on badges">
+        <div className={styles.pair}>
+          {ROLES.map(role => <label key={role} className={styles.field}><span className={styles.fieldLabel}>{role}</span><input value={design.labels[role]} maxLength={30} onChange={e => set("labels", { ...design.labels, [role]: e.target.value })} /></label>)}
+        </div>
+      </Panel>
+    </>
   );
 }

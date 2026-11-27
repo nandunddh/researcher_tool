@@ -3,6 +3,7 @@ import asyncio
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from fastapi import HTTPException
@@ -18,7 +19,7 @@ SITE = "site_0000000a"
 
 class _Req:
     def __init__(self, payload):
-        self._payload = payload
+        self._payload, self.headers = payload, {}
 
     async def json(self):
         return self._payload
@@ -66,6 +67,53 @@ class BadgeQrRouteTests(unittest.TestCase):
     def test_the_real_qr_is_an_svg_image(self):
         import mfa
         self.assertTrue(mfa.qr_svg(f"SCIP:{SITE}:R7").startswith("data:image/svg+xml"))
+
+
+class BadgeDesignSavingTests(unittest.TestCase):
+    """Two tabs (the website editor and the badge page) save Event details; neither may undo the other's work."""
+    def setUp(self):
+        self.store = {"site_id": SITE, "event": {"basics": {"name": "QH"}, "tickets": [{"id": "a"}], "badge_design": {"template": "night"}}}
+
+    def engine(self):
+        def update(site_id, payload):
+            self.store = {**self.store, **payload}
+            return True, "ok", self.store
+        return SimpleNamespace(get_site=lambda site_id: self.store, update_site=update)
+
+    def patches(self):
+        return patch.multiple(web_app, builder_engine=self.engine(), _require_authenticated_user=lambda request: {}, _require_scistudio_access=lambda user: None,
+                              _require_owned_site=lambda site_id, user, need="view": self.store, _user_plan=lambda user: None)
+
+    def test_an_old_editor_tab_cannot_put_back_an_old_badge_design(self):
+        stale = {"basics": {"name": "QH renamed"}, "tickets": [{"id": "a"}, {"id": "b"}], "badge_design": {"template": "classic"}}
+        with self.patches():
+            asyncio.run(web_app.builder_update_site(SITE, _Req({"event": stale})))
+        self.assertEqual(self.store["event"]["badge_design"], {"template": "night"}, "the badge design is kept")
+        self.assertEqual(self.store["event"]["basics"]["name"], "QH renamed", "the editor's own changes are saved")
+        self.assertEqual(len(self.store["event"]["tickets"]), 2)
+
+    def test_editor_saves_without_a_design_keep_it_and_sites_without_one_stay_without(self):
+        with self.patches():
+            asyncio.run(web_app.builder_update_site(SITE, _Req({"event": {"basics": {}}})))
+        self.assertEqual(self.store["event"]["badge_design"], {"template": "night"})
+        self.store["event"] = {"basics": {}}
+        with self.patches():
+            asyncio.run(web_app.builder_update_site(SITE, _Req({"event": {"basics": {}, "badge_design": {"template": "x"}}})))
+        self.assertNotIn("badge_design", self.store["event"], "only the badge page sets a design")
+
+    def test_the_badge_page_saves_only_the_design_into_the_latest_event(self):
+        self.store["event"]["tickets"] = [{"id": "a"}, {"id": "new-from-editor"}]
+        with self.patches():
+            out = asyncio.run(web_app.builder_badge_design(SITE, _Req({"design": {"template": "elegant"}})))
+        self.assertEqual(out, {"status": "ok"})
+        self.assertEqual(self.store["event"]["badge_design"], {"template": "elegant"})
+        self.assertEqual(self.store["event"]["tickets"][-1]["id"], "new-from-editor", "Event details edited elsewhere are untouched")
+
+    def test_bad_designs_are_refused(self):
+        for body in ({}, {"design": "x"}, {"design": [1]}, {"design": {"t": "x" * 60_000}}, []):
+            with self.patches(), self.assertRaises(HTTPException) as ctx:
+                asyncio.run(web_app.builder_badge_design(SITE, _Req(body)))
+            self.assertEqual(ctx.exception.status_code, 400)
 
 
 if __name__ == "__main__":
