@@ -1,0 +1,73 @@
+/* Badge maker: settings on the left, real-size sheets on the right. Printing shows only the sheets. */
+.page { min-height: 100vh; background: #eef1f7; color: #18223b; }
+.bar { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 18px; padding: 14px 24px; background: white; border-bottom: 1px solid #dfe3ee; }
+.bar h1 { margin: 0; font-size: 18px; }
+.bar p { margin: 0; color: #5d6b82; font-size: 13px; }
+.bar > div { flex: 1; min-width: 0; }
+.back { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; font-weight: 600; font-size: 14px; }
+.back svg { transform: rotate(180deg); }
+.layout { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 24px; padding: 24px; align-items: start; }
+.panel { display: grid; gap: 16px; position: sticky; top: 80px; max-height: calc(100vh - 100px); overflow: auto; }
+.panel section { display: grid; gap: 10px; padding: 18px; background: white; border: 1px solid #dfe3ee; border-radius: 14px; }
+.panel h2 { margin: 0; font-size: 15px; }
+.panel label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; }
+.panel label.check { display: flex; flex-direction: row; justify-content: flex-start; align-items: center; gap: 8px; text-align: left; font-weight: 500; }
+.panel label.check input { width: auto; margin: 0; }
+.indent { margin-left: 24px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.addForm { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.addForm button { grid-column: span 2; }
+.note { margin: 0; font-size: 13px; color: #334155; }
+.hint { margin: 0; font-size: 12.5px; color: #5d6b82; }
+.colors { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.colors label { display: flex; align-items: center; gap: 6px; font-weight: 500; }
+.colors input { width: 28px; height: 28px; padding: 0; border: 0; background: none; }
+.people { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; max-height: 340px; overflow: auto; }
+.people li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid #eef0f5; }
+.people li[data-skip] { opacity: 0.5; }
+.people span { display: grid; min-width: 0; }
+.people strong, .people small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.people small { color: #5d6b82; }
+.people select { width: auto; font-size: 12px; padding: 4px; }
+.stage { min-width: 0; overflow: auto; }
+.empty { padding: 60px; text-align: center; color: #5d6b82; }
+/* On screen the real-size sheets are scaled to fit the space; printing uses the real size. */
+.print { display: grid; gap: 24px; justify-content: center; zoom: var(--fit, 1); }
+
+/* One sheet = one printed page, real size in millimetres; the badge grid is centred. */
+.sheet { display: grid; justify-content: center; align-content: center; background: white; box-shadow: 0 10px 30px #18223b1f; }
+.badge { position: relative; display: grid; grid-template-rows: auto 1fr auto; overflow: hidden; outline: 0.25mm dashed #b8bfcc; outline-offset: -0.125mm; background: white; container-type: size;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.badge header { display: grid; gap: 1cqh; padding: 6cqw 7cqw 4cqw; background: linear-gradient(135deg, var(--role), color-mix(in oklab, var(--role) 55%, #0b1220)); color: white; }
+.badge header strong { font-size: 6cqw; line-height: 1.15; letter-spacing: -0.01em; }
+.badge header span { font-size: 3.6cqw; opacity: 0.85; }
+.who { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2cqh; padding: 4cqw 7cqw; text-align: center; min-height: 0; }
+.who img { width: 26cqw; height: 26cqw; border-radius: 50%; object-fit: cover; }
+.who h3 { margin: 0; font-size: 11cqw; line-height: 1.08; letter-spacing: -0.02em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.who p { margin: 0; font-size: 5cqw; color: #475569; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.who .detail { font-size: 4cqw; font-weight: 600; color: var(--role); text-transform: uppercase; letter-spacing: 0.08em; }
+.qr { position: absolute; right: 4cqw; bottom: calc(11cqh + 3cqw); width: 22cqw; height: 22cqw; image-rendering: pixelated; }
+.badge footer { padding: 3cqh 7cqw; background: var(--role); color: white; text-align: center; font-weight: 800; font-size: 6.5cqw; letter-spacing: 0.14em; text-transform: uppercase; }
+/* Landscape badges (4 × 3 in): smaller type, QR in the right corner of the body. */
+@container (orientation: landscape) {
+  .badge header strong { font-size: 4.4cqw; }
+  .badge header span { font-size: 2.8cqw; }
+  .who { align-items: flex-start; text-align: left; padding-right: 28cqw; }
+  .who h3 { font-size: 7.5cqw; }
+  .who p { font-size: 3.6cqw; }
+  .who .detail { font-size: 3cqw; }
+  .who img { width: 14cqw; height: 14cqw; }
+  .qr { width: 18cqw; height: 18cqw; bottom: calc(14cqh + 2cqw); }
+  .badge footer { font-size: 4.4cqw; }
+}
+
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } .panel { position: static; max-height: none; } }
+
+@media print {
+  .page { background: white; }
+  .bar, .panel, .empty { display: none !important; }
+  .layout { display: block; padding: 0; }
+  .print { display: block; zoom: 1; }
+  .sheet { box-shadow: none; break-after: page; page-break-after: always; }
+  .sheet:last-child { break-after: auto; page-break-after: auto; }
+}

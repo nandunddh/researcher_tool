@@ -1996,6 +1996,23 @@ async def builder_submission_file(site_id: str, submission_id: int, request: Req
     return FileResponse(path, filename=meta.get("value") or meta["id"])
 
 
+BADGE_CODE = re.compile(r"[A-Za-z0-9_-]{1,40}")
+
+
+@app.post("/api/builder/sites/{site_id}/badges/qr")
+async def builder_badge_qr(site_id: str, request: Request):
+    """QR codes for name badges: each encodes "SCIP:<site>:<badge code>" (no personal data), for check-in later."""
+    import mfa
+    user = _require_authenticated_user(request)
+    _require_scistudio_access(user)
+    _require_owned_site(site_id, user, "edit")
+    body = await request.json()
+    codes = body.get("codes") if isinstance(body, dict) else None
+    if not isinstance(codes, list) or not codes or len(codes) > 2000 or not all(isinstance(c, str) and BADGE_CODE.fullmatch(c) for c in codes):
+        raise HTTPException(status_code=400, detail="Send between 1 and 2000 badge codes (letters, digits, - and _).")
+    return {"qr": {code: mfa.qr_svg(f"SCIP:{site_id}:{code}") for code in dict.fromkeys(codes)}}
+
+
 @app.get("/api/builder/sites/{site_id}/submissions")
 async def builder_list_submissions(site_id: str, request: Request):
     """Owner only: all form submissions for one website, newest first."""

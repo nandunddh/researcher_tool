@@ -150,8 +150,18 @@ def list_submissions(site_id: str, limit: int = 500) -> List[dict]:
         return [{
             "id": r[0], "form_id": r[1], "form_type": r[2], "page_id": r[3],
             "data": {k: v for k, v in (r[4] or {}).items() if not k.startswith("_payment")},
-            "status": r[5], "created_at": r[6].isoformat(),
+            "status": r[5], "created_at": r[6].isoformat(), "ticket": ticket_name(r[4] or {}),
         } for r in cur.fetchall()]
+
+
+def ticket_name(data: dict) -> str:
+    """The registration type a person bought ("Academic"), for badges. Older registrations only have the line label."""
+    order = data.get("_payment_order") if isinstance(data.get("_payment_order"), dict) else {}
+    if order.get("category_name"):
+        return str(order["category_name"])[:80]
+    lines = order.get("lines") if isinstance(order.get("lines"), list) else []
+    label = str(lines[0].get("label") or "") if lines and isinstance(lines[0], dict) else ""
+    return re.sub(r"\s*\([^)]*\)\s*$", "", label)[:80]
 
 
 # ---------------------------------------------------------------- registration pricing
@@ -242,6 +252,7 @@ def quote(section: dict, payload: dict, today: Optional[date] = None) -> Tuple[O
         discount = min(subtotal, fixed) if fixed else round(subtotal * min(100.0, _money(match.get("percent"))) / 100, 2)
     return {
         "currency": str(data.get("currency") or "USD")[:3].upper(), "period": period["id"], "lines": lines,
+        "category": str(category.get("id") or ""), "category_name": str(category.get("name") or ""),
         "subtotal": subtotal, "discount": discount, "discount_code": code if discount else "", "total": round(subtotal - discount, 2),
     }, None
 
