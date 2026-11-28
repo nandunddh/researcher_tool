@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { session } from "@/lib/session";
 import { BookDemo } from "@/features/marketing/book-demo";
 
 export const metadata: Metadata = {
@@ -18,5 +19,6 @@ async function captchaKey(): Promise<string> {
 }
 
 export default async function Page() {
-  return <BookDemo captchaSiteKey={await captchaKey()} />;
+  const [key, current] = await Promise.all([captchaKey(), session()]);
+  return <BookDemo captchaSiteKey={key} signedInHref={current ? `/${current.user.workspace_namespace}/dashboard` : null} />;
 }

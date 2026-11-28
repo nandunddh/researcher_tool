@@ -76,6 +76,7 @@ GOOD = {"name": "Ada", "email": "ada@lab.org"}
 
 class DemoRouteTests(unittest.TestCase):
     def setUp(self):
+        self.addCleanup(setattr, web_app, "_demo_limit", web_app._demo_limit)
         web_app._demo_limit = web_app.FormRateLimit(limit=50, seconds=900)
 
     def send(self, payload, confirmed):

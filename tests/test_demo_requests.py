@@ -53,10 +53,22 @@ class CleanTests(unittest.TestCase):
 
 
 class RouteTests(unittest.TestCase):
-    def setUp(self):
-        web_app._demo_limit = web_app.FormRateLimit(limit=5, seconds=900)
+    def test_each_address_gets_five_tries_a_day(self):
+        self.assertEqual((self.real_limit.limit, self.real_limit.seconds), (5, 86400))
+        for _ in range(5):  # setUp swapped in a fresh copy of the real limit
+            self.send(GOOD)
+        with self.assertRaises(HTTPException) as ctx:
+            self.send(GOOD)
+        self.assertEqual(ctx.exception.status_code, 429)
+        self.assertIn("5 demo requests a day", ctx.exception.detail)
+        self.assertTrue(web_app._demo_limit.allow("10.0.0.2"), "another address is not affected")
 
-    def send(self, payload, team=""):
+    def setUp(self):
+        self.real_limit = web_app._demo_limit
+        web_app._demo_limit = web_app.FormRateLimit(limit=self.real_limit.limit, seconds=self.real_limit.seconds)
+        self.addCleanup(setattr, web_app, "_demo_limit", self.real_limit)
+
+    def send(self, payload, team="", contact=""):
         sent, saved = [], []
         threads = []
 
@@ -68,7 +80,7 @@ class RouteTests(unittest.TestCase):
                 pass
 
         with patch.object(demo_requests, "save", side_effect=lambda v: saved.append(v) or 42), \
-             patch.object(web_app.threading, "Thread", Thread), patch.dict(os.environ, {"SCIPROSPECT_DEMO_EMAIL": team}), \
+             patch.object(web_app.threading, "Thread", Thread), patch.dict(os.environ, {"SCIPROSPECT_DEMO_EMAIL": team, "SCIPROSPECT_CONTACT_EMAIL": contact, "SCIPROSPECT_TURNSTILE_SECRET_KEY": ""}), \
              patch.object(web_app, "run_in_threadpool", _inline):
             out = asyncio.run(web_app.public_demo_request(_Req(payload)))
         return out, saved, threads
@@ -85,6 +97,18 @@ class RouteTests(unittest.TestCase):
     def test_without_a_team_address_only_the_visitor_gets_a_confirmation(self):
         _, _, mails = self.send(GOOD)
         self.assertEqual([m[0] for m in mails], ["ada@lab.org"])
+
+    def test_the_contact_address_hears_about_requests_when_no_team_address_is_set(self):
+        _, _, mails = self.send(GOOD, contact="hello@sciprospect.example")
+        self.assertEqual([m[0] for m in mails], ["hello@sciprospect.example", "ada@lab.org"])
+        _, _, mails = self.send(GOOD, team="sales@sciprospect.example", contact="hello@sciprospect.example")
+        self.assertEqual(mails[0][0], "sales@sciprospect.example")
+
+    def test_both_mails_get_the_shared_sign_off_once(self):
+        _, _, mails = self.send(GOOD, team="t@x.org")
+        for mail in mails:
+            self.assertEqual(mail[4:], ())  # default sign=True: send_mail adds the signature
+            self.assertNotIn("SciProspect team", mail[2])  # so the body must not carry its own
 
     def test_names_are_escaped_in_the_team_email(self):
         _, _, mails = self.send({**GOOD, "name": "<script>alert(1)</script>"}, team="t@x.org")

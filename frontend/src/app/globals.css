@@ -261,4 +261,13 @@
 /* Forms on the sign-in style screens: two fields per row when there is room. */
 .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
 @media (max-width:640px){.form-row{grid-template-columns:1fr}}
-.turnstile{display:flex;justify-content:center;min-height:65px;margin:4px 0 14px}
+.turnstile{display:flex;min-height:65px}
+/* The person check and the send button side by side; the button matches the check's 65px height. */
+.submit-row{display:flex;align-items:flex-start;gap:14px;margin-top:6px}
+.submit-row .login-submit{flex:1;margin-top:0;min-height:65px}
+@media (max-width:640px){.submit-row{flex-direction:column;align-items:stretch}.submit-row .turnstile{justify-content:center}}
+.field-help,.login-card .field-help{margin:6px 0 0;font-size:13px;color:#ff8a8a}
+.input-wrapper [aria-invalid="true"]{border-color:#ff8a8a}
+.form-note,.login-card .form-note{margin:14px 0 0;padding:12px 14px;border-radius:10px;font-size:14px;text-align:center}
+.form-note.ok{background:rgba(200,255,77,.1);border:1px solid rgba(200,255,77,.35);color:#c8ff4d}
+.form-note.error{background:rgba(255,138,138,.1);border:1px solid rgba(255,138,138,.35);color:#ff8a8a}

@@ -2,25 +2,44 @@
 import { useState, type FormEvent } from "react";
 import { Turnstile, resetTurnstile } from "@/components/turnstile";
 import { AuthBackdrop } from "@/features/marketing/auth-backdrop";
-import { BrandText } from "@/components/brand-text";
+import { MarketingFooter, MarketingHeader } from "./site-chrome";
+import { MotionEffects } from "./motion";
+import s from "./landing.module.css";
 
 const INTERESTS: [string, string][] = [["both", "Both"], ["collect", "Collecting researcher contacts"], ["studio", "Event websites (SciStudio)"], ["custom", "A custom plan"]];
 
+type Note = { kind: "ok" | "error"; text: string } | null;
+
+/** Help text under a field; the input points to it with aria-describedby. */
+function Help({ id, text }: { id: string; text?: string }) {
+  return text ? <p id={id} className="field-help" role="alert">{text}</p> : null;
+}
+
 /** Public "Book a demo" form. The team gets an email and sees the request in Root; the visitor gets a confirmation. */
-export function BookDemo({ captchaSiteKey }: { captchaSiteKey: string }) {
+export function BookDemo({ captchaSiteKey, signedInHref }: { captchaSiteKey: string; signedInHref: string | null }) {
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [done, setDone] = useState("");
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [note, setNote] = useState<Note>(null);
   const [captcha, setCaptcha] = useState("");
+
+  function fresh() {
+    // A Turnstile token works once; get a new one for the next send.
+    if (captchaSiteKey) { setCaptcha(""); resetTurnstile(); }
+  }
 
   async function send(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    const formEl = e.currentTarget;
+    const form = new FormData(formEl);
     const value = (key: string) => String(form.get(key) ?? "");
-    if (!value("name").trim()) { setError("Please enter your name."); return; }
-    if (!/^\S+@\S+\.\S{2,}$/.test(value("email").trim())) { setError("Please enter a valid email address."); return; }
-    if (captchaSiteKey && !captcha) { setError("Please complete the check that you are a person."); return; }
-    setBusy(true); setError("");
+    const found: Record<string, string> = {};
+    if (!value("name").trim()) found.name = "Please enter your name.";
+    if (!/^\S+@\S+\.\S{2,}$/.test(value("email").trim())) found.email = "Please enter a valid email address.";
+    if (captchaSiteKey && !captcha) found.captcha = "Please complete the check that you are a person.";
+    setErrors(found);
+    setNote(null);
+    if (Object.keys(found).length) return;
+    setBusy(true);
     try {
       const response = await fetch("/api/public/demo", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -29,42 +48,50 @@ export function BookDemo({ captchaSiteKey }: { captchaSiteKey: string }) {
       });
       const body = await response.json().catch(() => null);
       if (!response.ok) throw new Error(typeof body?.detail === "string" ? body.detail : "Your request could not be sent. Please try again.");
-      setDone(body?.message ?? "Thank you! We will be in touch soon.");
+      setNote({ kind: "ok", text: body?.message ?? "Thank you! We will be in touch soon." });
+      formEl.reset();
+      fresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Your request could not be sent. Please try again.");
-      // A Turnstile token works once; get a fresh one for the next try.
-      if (captchaSiteKey) { setCaptcha(""); resetTurnstile(); }
+      setNote({ kind: "error", text: err instanceof Error ? err.message : "Your request could not be sent. Please try again." });
+      fresh();
     } finally {
       setBusy(false);
     }
   }
 
+  /** Clears a field's help text as soon as the visitor edits that field. */
+  function edited(e: FormEvent<HTMLFormElement>) {
+    const name = (e.target as HTMLInputElement).name;
+    if (errors[name]) setErrors(({ [name]: _, ...rest }) => rest);
+  }
+
+  const invalid = (key: string) => (errors[key] ? { "aria-invalid": true, "aria-describedby": `demo-${key}-help` } : {});
+
   return (
-    <main className="login-screen">
-      <AuthBackdrop />
-      <section className="login-card" style={{ maxWidth: 780, width: "100%" }}>
-        <div className="login-header">
-          <a className="login-brand" aria-label="SciProspect home" href="/">
-            <img src="/branding/sciprospect-a-icon-lime.png" alt="" width="56" height="56" />
-            <BrandText />
-          </a>
-          <h1>{done ? "Request received" : "Book a demo"}</h1>
-          <p>{done || "See SciProspect with your own topic and event. A 30-minute call with our team, at a time that suits you."}</p>
-        </div>
-        {error && <div className="alert login-alert" role="alert" style={{ marginTop: 20 }}><span>{error}</span></div>}
-        {done ? (
-          <p style={{ textAlign: "center", marginTop: 24 }}><a href="/">Back to the home page</a> · <a href="/signup">Start the free trial meanwhile</a></p>
-        ) : (
-          <form onSubmit={send} noValidate>
+    <div className={s.page}>
+      <MotionEffects />{/* gives the sticky header its solid background once the page scrolls */}
+      <MarketingHeader label="Main" signedInHref={signedInHref} showDemo={false}
+        links={[["/#story", "Product"], ["/#features", "Features"], ["/pricing", "Pricing"], ["/#faq", "FAQ"]]} />
+      {/* The sign-in style card, sized to its content between the site header and footer. */}
+      <main className="login-screen" style={{ minHeight: "auto", padding: "40px 24px 72px" }}>
+        <AuthBackdrop />
+        <section className="login-card" style={{ maxWidth: 780, width: "100%" }}>
+          <div className="login-header">
+            <h1>Book a demo</h1>
+            <p>See SciProspect with your own topic and event. A 30-minute call with our team, at a time that suits you.</p>
+          </div>
+          <form onSubmit={send} onInput={edited} noValidate>
             {/* Two fields per row on wide screens, one per row on phones (.form-row in globals.css). */}
             <div className="form-row">
               <div className="form-group">
                 <label htmlFor="demo-name">Your name</label>
-                <div className="input-wrapper"><input id="demo-name" name="name" autoComplete="name" required maxLength={120} /></div>
+                <div className="input-wrapper"><input id="demo-name" name="name" autoComplete="name" required maxLength={120} {...invalid("name")} /></div>
+                <Help id="demo-name-help" text={errors.name} />
               </div>
               <div className="form-group">
                 <label htmlFor="demo-email">Work email</label>
-                <div className="input-wrapper"><input id="demo-email" name="email" type="email" autoComplete="email" required maxLength={254} placeholder="you@organization.org" /></div>
+                <div className="input-wrapper"><input id="demo-email" name="email" type="email" autoComplete="email" required maxLength={254} placeholder="you@organization.org" {...invalid("email")} /></div>
+                <Help id="demo-email-help" text={errors.email} />
               </div>
             </div>
             <div className="form-row">
@@ -93,12 +120,22 @@ export function BookDemo({ captchaSiteKey }: { captchaSiteKey: string }) {
             </div>
             {/* spam trap: hidden from people, bots fill it */}
             <input name="_hp" tabIndex={-1} autoComplete="off" readOnly aria-hidden="true" style={{ position: "absolute", left: -9999, width: 1, height: 1, opacity: 0 }} />
-            {captchaSiteKey && <Turnstile siteKey={captchaSiteKey} onToken={setCaptcha} />}
-            <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Sending…" : "Request a demo"}</button>
+            {/* The check and the button share one row (stacked on phones, .submit-row in globals.css). */}
+            <div className="submit-row">
+              {captchaSiteKey && (
+                <div>
+                  <Turnstile siteKey={captchaSiteKey} onToken={(token) => { setCaptcha(token); if (token) setErrors(({ captcha: _, ...rest }) => rest); }} />
+                  <Help id="demo-captcha-help" text={errors.captcha} />
+                </div>
+              )}
+              <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Sending…" : "Request a demo"}</button>
+            </div>
+            {note && <p className={`form-note ${note.kind}`} role={note.kind === "ok" ? "status" : "alert"}>{note.text}</p>}
             <p style={{ textAlign: "center", marginTop: 16, fontSize: 14 }}>Prefer to explore first? <a href="/signup">Start the 7-day free trial</a></p>
           </form>
-        )}
-      </section>
-    </main>
+        </section>
+      </main>
+      <MarketingFooter links={[["/", "Home"], ["/pricing", "Pricing"], ["/terms", "Terms"], ["/privacy", "Privacy"], ["/login", "Log in"]]} />
+    </div>
   );
 }

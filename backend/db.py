@@ -19,6 +19,7 @@ import re
 import threading
 from contextlib import contextmanager
 from pathlib import Path
+from time import monotonic
 from typing import Iterator
 
 ENV_FILE = Path(__file__).resolve().with_name(".env")
@@ -80,10 +81,42 @@ def _get_pool():
                 user=os.environ["SCIPROSPECT_DB_USER"],
                 password=os.environ.get("SCIPROSPECT_DB_PASSWORD", ""),
                 connect_timeout=10,
+                # TCP keepalives stop firewalls and the server from silently dropping idle connections.
+                keepalives=1, keepalives_idle=60, keepalives_interval=10, keepalives_count=3,
                 application_name="sciprospect-backend",
                 options=f"-c search_path={SCHEMA}",
             )
     return _pool
+
+
+# A connection idle longer than this is pinged before use: a dropped one still reports closed == 0 until it is used.
+IDLE_CHECK_SECONDS = 60
+_last_used: dict[int, float] = {}
+
+
+def _usable(conn) -> bool:
+    if conn.closed:
+        return False
+    if monotonic() - _last_used.get(id(conn), 0.0) < IDLE_CHECK_SECONDS:
+        return True
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+        conn.rollback()
+        return True
+    except Exception:
+        return False
+
+
+def _checkout(pool):
+    """A live connection from the pool; dead ones are closed and replaced (each pooled one is tried at most once)."""
+    for _ in range(pool.maxconn):
+        conn = pool.getconn()
+        if _usable(conn):
+            return conn
+        _last_used.pop(id(conn), None)
+        pool.putconn(conn, close=True)
+    return pool.getconn()  # every pooled connection was dead, so this one is newly opened
 
 
 @contextmanager
@@ -91,19 +124,19 @@ def transaction() -> Iterator["psycopg2.extensions.cursor"]:  # type: ignore[nam
     """Yields a cursor inside one transaction: committed on success, rolled back on error."""
     ensure_migrated()
     pool = _get_pool()
-    conn = pool.getconn()
+    conn = _checkout(pool)
     try:
-        if conn.closed:
-            pool.putconn(conn, close=True)
-            conn = pool.getconn()
         with conn:
             with conn.cursor() as cur:
                 yield cur
     except Exception:
         # A broken connection must not go back into the pool.
+        if conn.closed:
+            _last_used.pop(id(conn), None)
         pool.putconn(conn, close=bool(conn.closed))
         raise
     else:
+        _last_used[id(conn)] = monotonic()
         pool.putconn(conn)
 
 

@@ -1918,19 +1918,21 @@ async def pay_registration_test(site_id: str, form_id: str, submission_id: int, 
     return {"status": "ok", "message": message, "receipt": {"number": number, "url": link}}
 
 
-def _send_quietly(to: str, subject: str, text: str, html: str) -> None:
+def _send_quietly(to: str, subject: str, text: str, html: str, sign: bool = True) -> None:
     """Background email that never breaks the request that triggered it."""
     if not os.environ.get("SCIPROSPECT_SMTP_HOST"):
         return
     try:
         from mailer import send_mail
-        send_mail(to, subject, text, html)
+        send_mail(to, subject, text, html, sign=sign)
     except Exception as exc:
         print(f"[MAIL] Not sent: {type(exc).__name__}")
 
 
 # ---------- Book a demo ----------
-_demo_limit = FormRateLimit(limit=5, seconds=900)
+# Every attempt counts (failed checks too), so one address can try at most 5 times a day.
+# shortcut: kept in memory (one worker), so a backend restart starts the count again; move to the database if abuse survives restarts.
+_demo_limit = FormRateLimit(limit=5, seconds=24 * 3600)
 INTEREST_LABELS = {"collect": "Collecting researcher contacts", "studio": "Event websites (SciStudio)", "both": "Both", "custom": "A custom plan"}
 
 
@@ -1940,7 +1942,10 @@ async def public_demo_request(request: Request):
     import demo_requests
     client = getattr(request, "client", None)
     if not _demo_limit.allow(client.host if client else "unknown"):
-        raise HTTPException(status_code=429, detail="You've sent several requests in a short time. Please try again in a few minutes.")
+        from mailer import contact
+        email = contact()["email"]
+        reach = f" at {email}" if email else ""
+        raise HTTPException(status_code=429, detail=f"You can send up to 5 demo requests a day. Please try again tomorrow, or email us{reach}.")
     if int(request.headers.get("content-length") or 0) > 16_000:
         raise HTTPException(status_code=413, detail="This request is too long.")
     try:
@@ -1954,15 +1959,16 @@ async def public_demo_request(request: Request):
     if not await run_in_threadpool(captcha.verify, payload.get("captcha"), client.host if client else None):
         raise HTTPException(status_code=400, detail="Please complete the check that you are a person, then send again.")
     request_id = demo_requests.save(values)
-    team = os.environ.get("SCIPROSPECT_DEMO_EMAIL", "").strip()
+    # Where the team hears about new requests: SCIPROSPECT_DEMO_EMAIL, else the public contact address.
+    team = os.environ.get("SCIPROSPECT_DEMO_EMAIL", "").strip() or os.environ.get("SCIPROSPECT_CONTACT_EMAIL", "").strip()
     lines = [f"Name: {values['name']}", f"Email: {values['email']}", f"Organization: {values['organization'] or '-'}",
              f"Interested in: {INTEREST_LABELS[values['interest']]}", f"Preferred times: {values['times'] or '-'}", "", values["message"] or "(no message)"]
     if team:
         threading.Thread(target=_send_quietly, daemon=True, args=(team, f"Demo request #{request_id}: {values['name']}", "\n".join(lines),
             "<p>" + "<br>".join(html_escape(line) for line in lines) + "</p>")).start()
     threading.Thread(target=_send_quietly, daemon=True, args=(values["email"], "We received your demo request",
-        f"Hi {values['name']},\n\nThank you for your interest in SciProspect. We will email you within one working day to arrange a time.\n\nThe SciProspect team",
-        f"<p>Hi {html_escape(values['name'])},</p><p>Thank you for your interest in SciProspect. We will email you within one working day to arrange a time.</p><p>The SciProspect team</p>")).start()
+        f"Hi {values['name']},\n\nThank you for your interest in SciProspect. We will email you within one working day to arrange a time.",
+        f"<p>Hi {html_escape(values['name'])},</p><p>Thank you for your interest in SciProspect. We will email you within one working day to arrange a time.</p>")).start()
     return {"status": "ok", "message": "Thank you! We will email you within one working day to arrange your demo."}
 
 
@@ -2054,7 +2060,7 @@ def _email_receipt(site: dict, submission_id: int, token: str, link: str) -> Non
         html = (f"<p>Thank you for registering for <strong>{escape(event['name'])}</strong>.</p>"
                 f"<p>Receipt <strong>{escape(receipt['number'])}</strong> · Total <strong>{escape(total)}</strong></p>"
                 f"<p><a href=\"{escape(url, quote=True)}\" style=\"background:#5a45d6;color:#fff;padding:12px 20px;border-radius:8px;text-decoration:none\">View or download receipt</a></p>")
-        send_mail(to, f"Your receipt {receipt['number']} · {event['name']}", text, html)
+        send_mail(to, f"Your receipt {receipt['number']} · {event['name']}", text, html, sign=False)  # sent for the organiser
     except Exception as exc:  # the payment is already confirmed; a mail problem must not surface as a failure
         print(f"[RECEIPT] Email not sent: {type(exc).__name__}")
 

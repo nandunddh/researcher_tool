@@ -1,5 +1,5 @@
 import { MotionEffects } from "./motion";
-import { BrandText } from "@/components/brand-text";
+import { MarketingFooter, MarketingHeader } from "./site-chrome";
 import { Pricing } from "./pricing";
 import { PricingAddons, PricingCompare, PricingPrint } from "./pricing-compare";
 import type { PublicPlan } from "@/lib/plans";
@@ -10,19 +10,8 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
   return (
     <div className={s.page}>
       <MotionEffects />
-      <header className={s.nav}>
-        <div className={`${s.wrap} ${s.navInner}`}>
-          <a className={s.brand} href="/"><img src="/branding/sciprospect-a-icon-lime.png" alt="" /><BrandText /></a>
-          <nav className={s.links} aria-label="Pricing"><a href="#pricing">Pricing</a><a href="#comparison">Compare plans</a><a href="#print">Print tools</a><a href="#addons">Add-ons</a></nav>
-          <div className={s.actions}>
-            {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>
-              <a className={s.btnGhost} href="/login">Log in</a>
-              <a className={`${s.btnGhost} ${s.demoLink}`} href="/demo">Book a demo</a>
-              <a className={s.btn} href="/signup">Start free trial <span className={s.arrow}>→</span></a>
-            </>}
-          </div>
-        </div>
-      </header>
+      <MarketingHeader label="Pricing" signedInHref={signedInHref}
+        links={[["#pricing", "Pricing"], ["#comparison", "Compare plans"], ["#print", "Print tools"], ["#addons", "Add-ons"]]} />
 
       <main>
         <section id="pricing" className={s.section}>
@@ -40,12 +29,7 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
         <PricingAddons />
       </main>
 
-      <footer className={s.footer}>
-        <div className={s.wrap}>
-          <span>© {new Date().getFullYear()} SciProspect</span>
-          <span><a href="/">Home</a><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/login">Log in</a></span>
-        </div>
-      </footer>
+      <MarketingFooter links={[["/", "Home"], ["/terms", "Terms"], ["/privacy", "Privacy"], ["/login", "Log in"]]} />
     </div>
   );
 }
