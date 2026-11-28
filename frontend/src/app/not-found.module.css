@@ -1,0 +1,7 @@
+/* 404 page, on the public site's dark look. */
+.wrap { position: relative; z-index: 2; display: grid; justify-items: center; gap: 14px; max-width: 640px; margin: 0 auto; padding: 96px 24px 120px; text-align: center; }
+.code { font-family: var(--display); font-size: clamp(96px, 18vw, 168px); font-weight: 800; line-height: .9; letter-spacing: -.06em; color: var(--lime); }
+.wrap h1 { margin: 0; font-family: var(--display); font-size: clamp(30px, 5vw, 44px); font-weight: 800; letter-spacing: -.03em; color: #fff; }
+.wrap p { margin: 0; max-width: 480px; font-size: 17px; color: var(--muted); }
+.actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 12px; }
+@media (max-width: 640px) { .wrap { padding: 64px 16px 88px; } .actions a { width: 100%; } }

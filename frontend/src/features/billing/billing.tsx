@@ -144,7 +144,7 @@ export function Billing({ highlight, workspace }: { highlight: string; workspace
             </div>
           </section>
 
-          <section className={styles.card}>
+          <section className={styles.card} id="invoices">
             <h2>Invoices</h2>
             {data.invoices.length ? (
               <table className={styles.table}>

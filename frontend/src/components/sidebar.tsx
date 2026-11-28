@@ -7,6 +7,8 @@ interface NavItem {
   label: string;
   url: string;
   icon: IconName;
+  /** Opens in a new tab (pages without the workspace sidebar, like Billing). */
+  newTab?: boolean;
 }
 
 const ROOT_LINKS: NavItem[] = [
@@ -20,13 +22,13 @@ const ROOT_LINKS: NavItem[] = [
 
 const ORG_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/dashboard", icon: "bolt" },
-  { label: "Billing & plan", url: "/billing", icon: "doc" },
+  { label: "Billing & plan", url: "/billing", icon: "doc", newTab: true },
   { label: "Account", url: "/account", icon: "user" },
 ];
 
 const CLIENT_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/dashboard", icon: "bolt" },
-  { label: "Billing & plan", url: "/billing", icon: "doc" },
+  { label: "Billing & plan", url: "/billing", icon: "doc", newTab: true },
   { label: "Account", url: "/account", icon: "user" },
 ];
 
@@ -96,6 +98,7 @@ export function Sidebar({
               className={`nav-tab ${currentPath === item.url ? "active" : ""}`}
               href={item.url}
               title={item.label}
+              {...(item.newTab ? { target: "_blank", rel: "noopener noreferrer" } : {})}
             >
               <Icon name={item.icon} size={18} />
               <span className="nav-label">{item.label}</span>

@@ -23,14 +23,9 @@ const config: NextConfig = {
     ];
   },
   async rewrites() {
-    return {
-      // Browser requests stay on one origin; FastAPI owns authorization and sessions.
-      beforeFiles: [
-        { source: "/api/:path*", destination: `${backend}/api/:path*` },
-      ],
-      // Existing editor/admin/collector remain functional during incremental migration.
-      fallback: [{ source: "/:path*", destination: `${backend}/:path*` }],
-    };
+    // Browser requests stay on one origin; FastAPI owns authorization and sessions. Every backend route lives under /api,
+    // so any other unknown address gets the app's own "Page not found" page (src/app/not-found.tsx).
+    return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
   },
 };
 export default config;

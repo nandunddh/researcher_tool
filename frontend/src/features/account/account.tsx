@@ -115,7 +115,7 @@ export function Account({ namespace }: { namespace: "client" | "organization" })
           </div>
         </Card>
 
-        <Card icon="receipt" title="Billing" action={<a className={s.linkBtn} href="/billing/invoices">All invoices</a>}>
+        <Card icon="receipt" title="Billing" action={<a className={s.linkBtn} href="/billing#invoices">All invoices</a>}>
           {billing?.invoices.length ? (
             <ul className={s.invoices}>
               {billing.invoices.slice(0, 4).map((inv) => (
