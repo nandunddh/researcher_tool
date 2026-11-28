@@ -63,7 +63,7 @@ class TeamCollectorTests(unittest.TestCase):
              patch.object(collector_routes.archive, "create") as create:
             self.assertEqual(call(VIEWER, "GET", "/api/collector/runs")[0], 200)
             history.assert_called_once_with("owner:owner@lab.org")
-            for method, path, body in (("POST", "/api/collector/runs", START), ("POST", "/api/collector/contacts/check", {}),
+            for method, path, body in (("POST", "/api/collector/runs", START),
                                        ("DELETE", "/api/collector/runs/00000000-0000-0000-0000-000000000001", None)):
                 self.assertEqual(call(VIEWER, method, path, body)[0], 403, path)
             create.assert_not_called()

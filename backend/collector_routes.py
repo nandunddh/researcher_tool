@@ -2,7 +2,7 @@ import logging
 import os
 import time
 from datetime import date
-from threading import Lock, Thread
+from threading import Thread
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
@@ -13,7 +13,6 @@ from psycopg2.errors import UniqueViolation
 import collector_archive as archive
 import collector_saved as saved
 from email_check import STATUSES
-from public_site import FormRateLimit
 
 
 class CollectionRequest(BaseModel):
@@ -44,10 +43,6 @@ class RenameRequest(BaseModel):
     topic: str = Field(min_length=1, max_length=200)
 
 
-class CheckRequest(BaseModel):
-    after: str = Field(default="", max_length=320)
-
-
 def collector_owner_key(user, get_account=None):
     """The archive a signed-in user collects into: their workspace (owner email) or root's. Team members share their organisation owner's."""
     email = (user.get("client_email") or "").strip().lower()
@@ -65,8 +60,6 @@ def collector_owner_key(user, get_account=None):
 def collector_router(require_user, licenses, storage_full=None):
     """storage_full(license_key) returns a message when the account's data storage is full, else None."""
     router = APIRouter(prefix="/api/collector")
-    batch_limit = FormRateLimit(limit=60, seconds=60)
-    limit_lock = Lock()
 
     def owner(request: Request):
         return collector_owner_key(require_user(request), lambda key: licenses.get_account(key))
@@ -80,13 +73,6 @@ def collector_router(require_user, licenses, storage_full=None):
     def collector_id(user):
         """Who counts against the daily limit: a team member's id, or "" for the account owner."""
         return str(user.get("member_id") or "") if user.get("is_member") else ""
-
-    @router.post("/contacts/check")
-    def check_contacts(body: CheckRequest = CheckRequest(), key: str = Depends(writer)):
-        with limit_lock:
-            if not batch_limit.allow(key):
-                raise HTTPException(429, "Email check limit reached. Try again in a minute.", headers={"Retry-After": "60"})
-        return archive.recheck_contacts(key, body.after)
 
     def daily_limit(request: Request):
         """The license's contacts-per-day limit, or None when unlimited (root, Pro)."""

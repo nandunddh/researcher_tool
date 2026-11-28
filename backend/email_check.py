@@ -1,7 +1,5 @@
 """Domain-level delivery checks for public contact addresses."""
 import re
-from collections import defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from functools import lru_cache
 from pathlib import Path
@@ -86,16 +84,3 @@ class EmailChecker:
 
 def check(email: str, resolver=None) -> dict:
     return EmailChecker(resolver).check(email)
-
-
-def check_batch(emails, resolver=None):
-    groups = defaultdict(list)
-    for email in emails:
-        groups[email.rpartition("@")[2].lower()].append(email)
-
-    def check_group(group):
-        checker = EmailChecker(resolver)
-        return [(email, checker.check(email)) for email in group]
-
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        return dict(pair for group in pool.map(check_group, groups.values()) for pair in group)

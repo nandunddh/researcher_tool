@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { api, ApiError } from "@/lib/api";
+import { api } from "@/lib/api";
 import { Icon } from "@/components/icon";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SavedSearches } from "./saved-searches";
@@ -19,7 +19,6 @@ const statusLabels = {
   invalid_format: "Invalid format", no_domain: "Domain missing", no_mail_server: "No mail server", unknown: "Unknown",
 };
 type Contact = { researcher_name:string; professional_email:string; affiliation:string; data_source:string; email_confidence:string; delivery_status?:keyof typeof statusLabels };
-type CheckBatch = {checked:number; next_after:string | null};
 type Stats = { total:number; today:number; datasets:number; daily_limit:number | null; remaining_today:number | null };
 type LogLine = { at:string; text:string; level:"info"|"ok"|"warn"|"error" };
 const endpoint = "/api/collector/runs";
@@ -80,8 +79,6 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
   const [error,setError] = useState("");
   const [revision,refresh] = useState(0);
   const [deliveryFilter, setDeliveryFilter] = useState("");
-  const [checking, setChecking] = useState(false);
-  const [checkNote, setCheckNote] = useState("");
   const [target, setTarget] = useState(100);
   const [pageSize, setPageSize] = useState(50);
   const [search, setSearch] = useState("");
@@ -99,10 +96,8 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
   const [log, setLog] = useState<LogLine[]>([]);
   const [autoScroll, setAutoScroll] = useState(true);
   const [now, setNow] = useState(Date.now());
-  const checkRequest = useRef<AbortController | null>(null);
   const seen = useRef<Record<string, { status:string; source:string; collected:number; errors:number }>>({});
   const logBox = useRef<HTMLDivElement>(null);
-  useEffect(() => () => checkRequest.current?.abort(), []);
   const allMode = selected === "all";
   const current = allMode ? undefined : runs.find(run => run.id === selected) ?? runs[0];
   const id = allMode ? "all" : current?.id;
@@ -172,37 +167,6 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
     return () => controller.abort();
   }, [id,count,offset,deliveryFilter,revision,query,sort,pageSize]);
 
-  async function checkEmails() {
-    if (checkRequest.current) return;
-    const controller = new AbortController();
-    checkRequest.current = controller;
-    setChecking(true); setError("");
-    setCheckNote("Checking workspace contacts…");
-    let after: string | null = "";
-    let checked = 0;
-    try {
-      do {
-        let batch: CheckBatch;
-        try {
-          batch = await api<CheckBatch>("/api/collector/contacts/check", { method:"POST", body:JSON.stringify({after}), signal:controller.signal });
-        } catch (e) {
-          if (!(e instanceof ApiError && e.status === 429)) throw e;
-          setCheckNote(`Checked ${checked} workspace contacts. Continuing in a minute…`);
-          await new Promise(resolve => setTimeout(resolve, 60_000));
-          continue;
-        }
-        checked += batch.checked;
-        after = batch.next_after;
-        setCheckNote(`Checked ${checked} workspace contacts${after ? "…" : "."}`);
-        refresh(v => v+1);
-      } while (after !== null && !controller.signal.aborted);
-    } catch (e) {
-      if (!controller.signal.aborted) { setError(message(e)); setCheckNote(`Check stopped after ${checked} contacts.`); }
-    } finally {
-      checkRequest.current = null;
-      if (!controller.signal.aborted) setChecking(false);
-    }
-  }
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -411,7 +375,6 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
 
     {(current || allMode) && <section className={styles.card} id="leads">
       <div className={styles.cardTop}><h3 className={styles.h3}>Leads Explorer{allMode && <small className={styles.scope}> · all contacts</small>}</h3>
-        <button type="button" className={styles.ghost} onClick={() => void checkEmails()} disabled={checking} title="Checks mail domains across all your datasets">{checking ? "Checking…" : "Check emails"}</button>
       </div>
       <div className={styles.toolbar}>
         <label className={styles.search}><Icon name="search" size={16} /><input type="search" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, email or affiliation" aria-label="Search leads" /></label>
@@ -423,7 +386,6 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
           {PAGE_SIZES.map(n => <option key={n} value={n}>{n} per page</option>)}
         </select>
       </div>
-      {checkNote && <p className={styles.muted} role="status">{checkNote}</p>}
       <div className={styles.selection} data-on={picked.size > 0 || undefined}>
         <span>{picked.size ? `${picked.size} selected` : `${pageRows.length} on this page`}</span>
         <button type="button" className={styles.ghost} onClick={() => void copyEmails()} disabled={!pageRows.length}>Copy emails</button>

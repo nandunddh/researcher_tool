@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "backend"), str(ROOT / "backend/collector_sources")]
 import dns.exception
 import dns.resolver
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 import collector_archive as archive
 from collector_routes import collector_router
 from email_check import EmailChecker, check
@@ -33,29 +33,6 @@ class FixtureResolver:
         if isinstance(result, Exception):
             raise result
         return [SimpleNamespace(exchange=result)] if kind == "MX" else [result]
-
-
-def collector_api():
-    def auth(request):
-        identity = request.headers.get("X-Test-Identity")
-        if not identity:
-            raise HTTPException(401)
-        return {"client_email": identity, "is_member": identity == "member"}
-
-    app = FastAPI()
-    app.include_router(collector_router(auth, None))
-    async def post(identity, body):
-        messages = []
-        async def receive():
-            return {"type": "http.request", "body": json.dumps(body or {}).encode()}
-        async def send(message):
-            messages.append(message)
-        scope = {"type": "http", "method": "POST", "path": "/api/collector/contacts/check",
-                 "query_string": b"", "headers": [(b"x-test-identity", identity.encode()),
-                                                   (b"content-type", b"application/json")]}
-        await app(scope, receive, send)
-        return messages[0]["status"], json.loads(messages[-1]["body"])
-    return lambda identity, body=None: asyncio.run(post(identity, body))
 
 
 class EmailCheckTests(unittest.TestCase):
@@ -90,20 +67,9 @@ class EmailCheckTests(unittest.TestCase):
                 self.assertEqual(check("person@lab.test", resolver)["delivery_status"], status)
                 self.assertEqual([kind for _, kind in resolver.calls], list(answers))
 
-    def test_recheck_auth_and_rate_limit(self):
-        post = collector_api()
-        with patch.object(archive, "recheck_contacts", return_value={"checked": 0}) as run:
-            for identity, code in [("", 401), ("member", 403)]:
-                self.assertEqual(post(identity)[0], code)
-            run.assert_not_called()
-            with patch("collector_routes.FormRateLimit.allow", return_value=False):
-                self.assertEqual(post("a@lab.test")[0], 429)
-            post("a@lab.test", {"owner": "other", "after": "cursor"})
-            run.assert_called_once_with("owner:a@lab.test", "cursor")
-
     @unittest.skipUnless(os.getenv("SCIPROSPECT_DB_SCHEMA", "").startswith("test_") and os.getenv("SCIPROSPECT_DB_HOST"),
                          "requires an isolated PostgreSQL test schema")
-    def test_saved_rechecked_filtered_and_exported(self):
+    def test_checked_when_saved_filtered_and_exported(self):
         identity = uuid.uuid4().hex + "@fixture.test"
         owner = "owner:" + identity
         other = owner + ".other"
@@ -113,20 +79,15 @@ class EmailCheckTests(unittest.TestCase):
             for address in ["a@lab.test", "office@lab.test"]:
                 writer.save({"email": address})
             return run
-        with patch("email_check.default_resolver", return_value=FixtureResolver(MX=dns.exception.Timeout())):
+        # Each contact is checked as it is collected; there is no separate re-check.
+        with patch("email_check.default_resolver", return_value=FixtureResolver(MX="mail.lab.test.")):
             run = seed(owner)
+        with patch("email_check.default_resolver", return_value=FixtureResolver(MX=dns.exception.Timeout())):
             other_run = seed(other)
-        self.assertEqual(len(archive.results(owner, run, delivery_status="unknown")), 2)
-        resolver = FixtureResolver(MX="mail.lab.test.")
-        post = collector_api()
-        with patch("email_check.default_resolver", return_value=resolver):
-            first = archive.recheck_contacts(owner, batch_size=1)
-            self.assertEqual(first, {"checked": 1, "next_after": "a@lab.test"})
-            self.assertEqual(post(identity, {"after": first["next_after"]}), (200, {"checked": 1, "next_after": None}))
         filtered = archive.results(owner, run, limit=1, delivery_status="role")
         self.assertEqual(filtered[0]["professional_email"], "office@lab.test")
         self.assertTrue(filtered[0]["checks"]["role"])
-        self.assertEqual(len(archive.results(other, other_run, delivery_status="unknown")), 2)
+        self.assertEqual(len(archive.results(other, other_run, delivery_status="unknown")), 2, "other workspaces keep their own results")
         exported = csv.DictReader(io.StringIO(archive.csv_export(owner, run).decode("utf-8-sig")))
         self.assertEqual([r["delivery_status"] for r in exported], ["deliverable_domain", "role"])
 

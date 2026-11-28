@@ -142,22 +142,6 @@ def csv_export(owner, run_id):
     return stream.getvalue().encode("utf-8-sig")
 
 
-def recheck_contacts(owner, after="", batch_size=24, resolver=None):
-    with db.transaction() as cur:
-        cur.execute("""SELECT email FROM collector_contacts WHERE owner_key=%s AND email>%s
-                       ORDER BY email LIMIT %s""", (owner, after, batch_size + 1))
-        emails = [row[0] for row in cur]
-    batch = emails[:batch_size]
-    checked = email_check.check_batch(batch, resolver)
-    with db.transaction() as cur:
-        for email in batch:
-            cur.execute("""UPDATE collector_contacts SET record=record || %s::jsonb
-                           WHERE owner_key=%s AND email=%s
-                             AND COALESCE(record->>'checked_at','') <= %s""",
-                        (Json(checked[email]), owner, email, checked[email]["checked_at"]))
-    return {"checked": len(batch), "next_after": batch[-1] if len(emails) > batch_size else None}
-
-
 class Archive:
     def __init__(self, owner, run_id):
         self.key = (owner, run_id)
