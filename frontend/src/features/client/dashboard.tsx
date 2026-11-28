@@ -5,7 +5,8 @@ import { LoadingIndicator } from "@/components/loading-indicator";
 import { Icon } from "@/components/icon";
 import { ClientShell } from "./shell";
 import { TeamPanel, type Member } from "./team-panel";
-import { usedOf } from "@/lib/plans";
+import { share, usedOf } from "@/lib/plans";
+import { EmptyState, LaunchCard, LaunchGrid, SectionTitle, Welcome } from "@/features/workspace/dashboard-parts";
 
 type Conference = {
   conference_id: string;
@@ -62,87 +63,36 @@ export function ClientDashboard() {
         <LoadingIndicator label="Loading your workspace…" />
       ) : data ? (
         <>
-          {/* KPI Summary Cards */}
-          <section className="stats-grid" aria-label="Client Account Summary">
-            <article className="stat-card">
-              <span className="stat-label">Researcher</span>
-              <strong className="stat-value">{data.client_name}</strong>
-              <small>{data.client_email}</small>
-            </article>
+          <Welcome
+            name={data.client_name}
+            subtitle={data.client_email}
+            chips={[
+              { text: (planName || data.tier).toUpperCase(), tone: "lime" },
+              { text: data.status === "active" ? `${data.days_left} left` : data.status, tone: data.status === "active" ? undefined : "red" },
+              { text: data.scistudio_access ? "SciStudio on" : "SciStudio off" },
+            ]}
+            upgrade={data.tier === "trial" || data.status !== "active"}
+            stats={[
+              { label: "Contacts today",
+                value: data.daily_limit < 0 ? "Unlimited" : `${(data.used_today || 0).toLocaleString()} / ${data.daily_limit.toLocaleString()}`,
+                hint: data.daily_limit < 0 ? `${data.used_today || 0} collected today` : `${Math.max(0, data.daily_limit - (data.used_today || 0)).toLocaleString()} left today`,
+                progress: data.daily_limit < 0 ? null : share(data.used_today, data.daily_limit) },
+              ...(plan?.plan && plan.usage ? [{ label: "File storage", value: usedOf(plan.usage.storage_mb, Number(plan.plan.limits.storage_mb)),
+                hint: `Data: ${usedOf(plan.usage.data_storage_mb, Number(plan.plan.limits.data_storage_mb))}`,
+                progress: share(plan.usage.storage_mb, Number(plan.plan.limits.storage_mb)) }] : []),
+              { label: "Plan validity", value: data.days_left,
+                hint: data.expires_at && data.expires_at !== "never" ? `Until ${data.expires_at.slice(0, 10)}` : "No end date" },
+              { label: "Conferences", value: data.conferences.length, hint: data.scistudio_access ? "Build websites in SciStudio" : "SciStudio is not in your plan" },
+            ]}
+          />
 
-            <article className="stat-card">
-              <span className="stat-label">Plan &amp; Status</span>
-              <strong className="stat-value">
-                <span className="badge">{(planName || data.tier).toUpperCase()}</span>
-              </strong>
-              <small>
-                Account:{" "}
-                <span className={data.status === "stopped" ? "badge status-stopped" : "badge"}>
-                  {data.status}
-                </span>
-              </small>
-            </article>
-
-            <article className="stat-card">
-              <span className="stat-label">Daily Contact Quota</span>
-              <strong className="stat-value">
-                {data.daily_limit < 0 ? "Unlimited" : data.daily_limit.toLocaleString()}
-              </strong>
-              <small>{data.used_today || 0} extracted today</small>
-            </article>
-
-            {plan?.plan && plan.usage && (
-              <article className="stat-card">
-                <span className="stat-label">Storage</span>
-                <strong className="stat-value" style={{ fontSize: "1rem" }}>Files: {usedOf(plan.usage.storage_mb, Number(plan.plan.limits.storage_mb))}</strong>
-                <small>Data: {usedOf(plan.usage.data_storage_mb, Number(plan.plan.limits.data_storage_mb))}</small>
-              </article>
-            )}
-
-            <article className="stat-card">
-              <span className="stat-label">Remaining Validity</span>
-              <strong className="stat-value">{data.days_left}</strong>
-              <small>SciStudio: {data.scistudio_access ? "Active" : "Disabled"}</small>
-            </article>
-          </section>
-
-          {/* Quick Launch Cards */}
-          <section className="account-panel" style={{ marginTop: "1.5rem" }}>
-            <h2 style={{ fontSize: "1.1rem", margin: "0 0 1rem", fontWeight: 600 }}>
-              Quick Launch Workspaces
-            </h2>
-            <div className="stats-grid">
-              <article className="stat-card" style={{ padding: "1.5rem" }}>
-                <span className="stat-label">PROSPECTING &amp; DISCOVERY</span>
-                <strong className="stat-value" style={{ fontSize: "1.2rem", marginTop: "0.25rem" }}>
-                  Data Collector
-                </strong>
-                <p style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.88rem", margin: "0.5rem 0 1rem" }}>
-                  Run live researcher discovery pipelines, search NIH grants, and export curated datasets.
-                </p>
-                <a className="button primary" href="/client/collector">
-                  <Icon name="bolt" size={16} /> Open Data Collector
-                </a>
-              </article>
-
-              <article className="stat-card" style={{ padding: "1.5rem" }}>
-                <span className="stat-label">WEBSITE BUILDER</span>
-                <strong className="stat-value" style={{ fontSize: "1.2rem", marginTop: "0.25rem" }}>
-                  SciStudio
-                </strong>
-                <p style={{ color: "var(--text-secondary, #64748b)", fontSize: "0.88rem", margin: "0.5rem 0 1rem" }}>
-                  Design, preview, and publish customized conference and event websites.
-                </p>
-                <a
-                  className="button"
-                  href="/client/scistudio"
-                  style={{ opacity: data.scistudio_access ? 1 : 0.6 }}
-                >
-                  <Icon name="layers" size={16} /> Open SciStudio
-                </a>
-              </article>
-            </div>
-          </section>
+          <SectionTitle title="Your workspaces" note="Jump straight into your tools" />
+          <LaunchGrid>
+            <LaunchCard icon="search" tone="violet" eyebrow="Prospecting & discovery" title="Data Collector"
+              text="Find researchers by topic, search NIH grants and export verified contacts." href="/client/collector" cta="Open Data Collector" />
+            <LaunchCard icon="layers" tone="blue" eyebrow="Website builder" title="SciStudio"
+              text="Design, preview and publish conference and event websites." href="/client/scistudio" cta="Open SciStudio" disabled={!data.scistudio_access} />
+          </LaunchGrid>
 
           <TeamPanel members={data.members ?? []} seatLimit={data.seat_limit ?? 0} onChanged={load} />
 
@@ -162,6 +112,9 @@ export function ClientDashboard() {
               </a>
             </div>
 
+            {data.conferences.length === 0 ? (
+              <EmptyState icon="layers" title="No conferences yet" text="Create your first conference website in SciStudio. It will show up here." />
+            ) : (
             <div className="table-wrap">
               <table>
                 <thead>
@@ -185,16 +138,10 @@ export function ClientDashboard() {
                       </td>
                     </tr>
                   ))}
-                  {data.conferences.length === 0 && (
-                    <tr>
-                      <td colSpan={3} style={{ textAlign: "center", color: "#64748b", padding: "2rem" }}>
-                        No conferences created yet. Launch SciStudio to create your first conference.
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
+            )}
           </section>
         </>
       ) : null}

@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { MarketingFooter, MarketingHeader } from "./site-chrome";
+import { Icon } from "@/components/icon";
 import { MotionEffects, RotatingWords, ScrollStory } from "./motion";
 import { HeroDemo } from "./hero-demo";
 import { Pricing } from "./pricing";
@@ -27,7 +28,7 @@ const LEADS = [["Dr. Aisha Rao", "Single-cell genomics", "Univ. of Toronto", tru
 function CollectScreen() {
   return (
     <Chrome url="app.sciprospect.com/collector">
-      <div className={s.search}><span>🔎</span>single-cell genomics<b>Searching OpenAlex…</b></div>
+      <div className={s.search}><Icon name="search" size={16} />single-cell genomics<b>Searching OpenAlex…</b></div>
       <div className={s.progress}><i /></div>
       <div className={s.leads}>
         {LEADS.map(([name, field, org, ok], i) => (
@@ -85,7 +86,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
   return (
     <div className={s.page}>
       <MotionEffects />
-      <div className={s.spotlight} aria-hidden="true" />
+      <div className={s.spotlight} data-spotlight="" aria-hidden="true" />
 
       <MarketingHeader label="Main" signedInHref={signedInHref} links={[["#story", "Product"], ["#features", "Features"], ["#pricing", "Pricing"], ["#faq", "FAQ"]]} />
 
@@ -100,8 +101,8 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
               <span className={s.line}>Build the event.</span>
             </h1>
             <p className={s.lead}>
-              SciProspect finds the researchers your event needs, then gives you a{" "}
-              <RotatingWords className={s.rotate} words={["conference website", "registration desk", "abstract portal", "speaker line-up"]} />
+              SciProspect finds the researchers your event needs, then gives you{" "}
+              <RotatingWords article className={s.rotate} words={["conference website", "registration desk", "abstract portal", "speaker line-up"]} />
               {" "}in minutes. No code.
             </p>
             <div className={s.ctas}>
@@ -125,7 +126,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.wrap}>
             <div className={s.head} data-reveal=""><span className={s.kicker}>One flow, start to finish</span><h2>From a blank page to a sold-out conference</h2></div>
             <ScrollStory
-              classes={{ wrap: s.story, sticky: s.storySticky, screen: s.storyScreen, steps: s.storySteps, step: s.storyStep, dots: s.storyDots }}
+              classes={{ wrap: s.story, sticky: s.storySticky, screen: s.storyScreen, steps: s.storySteps, step: s.storyStep, dots: s.storyDots, inline: s.storyInline }}
               screens={[<CollectScreen key="c" />, <BuildScreen key="b" />, <PayScreen key="p" />]}
               steps={[
                 { kicker: "01 · SciProspect", title: "Collect the right researchers", text: "Search publications by topic. SciProspect gathers the authors and keeps an email only when it matches the person, using ORCID, Crossref and Europe PMC. Remove duplicates and export in one click." },
@@ -141,12 +142,13 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.wrap}>
             <div className={s.head} data-reveal=""><span className={s.kicker}>Everything in one place</span><h2>Built for people who run research events</h2></div>
             <div className={s.bento}>
-              <article className={`${s.tile} ${s.tileWide}`} data-reveal=""><span className={s.tileIcon}>🧬</span><h3>Verified researcher contacts</h3><p>Emails are matched to the author before they are kept, and each lead shows its source and review status.</p><div className={s.miniChart} aria-hidden="true">{[38, 62, 48, 80, 66, 92, 74].map((v, i) => <i key={i} style={{ height: `${v}%`, ...delay(i * .08) }} />)}</div></article>
-              <article className={s.tile} data-reveal="" style={delay(.08)}><span className={s.tileIcon}>🗓️</span><h3>Event details, once</h3><p>Dates, tickets, prices, codes and speakers in one place. Every page updates.</p></article>
-              <article className={s.tile} data-reveal="" style={delay(.16)}><span className={s.tileIcon}>📄</span><h3>Abstract submission</h3><p>Authors, tracks, word limits, PDF uploads and IDs like ABS-0001, with review status.</p></article>
-              <article className={s.tile} data-reveal="" style={delay(.08)}><span className={s.tileIcon}>🧾</span><h3>Receipts that send themselves</h3><p>Numbered, with your tax details, ready to print as PDF.</p></article>
-              <article className={`${s.tile} ${s.tileWide}`} data-reveal="" style={delay(.16)}><span className={s.tileIcon}>🎨</span><h3>A design library that grows every day</h3><p>New sections and multi-page templates are added all the time. Use them with one click and make them yours.</p><div className={s.swatches} aria-hidden="true"><i /><i /><i /><i /><i /></div></article>
-              <article className={s.tile} data-reveal=""><span className={s.tileIcon}>🔐</span><h3>Secure by default</h3><p>Two-step sign-in, private uploads and server-side prices.</p></article>
+              {/* 3 columns: [wide, 1] [1, wide] [1, wide] fill every slot; tablets show 3 rows of 2 (CSS). */}
+              <article className={`${s.tile} ${s.tileWide}`} data-reveal=""><span className={s.tileIcon}><Icon name="users" size={22} /></span><h3>Verified researcher contacts</h3><p>Emails are matched to the author before they are kept, and each lead shows its source and review status.</p><div className={s.miniChart} aria-hidden="true">{[38, 62, 48, 80, 66, 92, 74].map((v, i) => <i key={i} style={{ height: `${v}%`, ...delay(i * .08) }} />)}</div></article>
+              <article className={s.tile} data-reveal="" style={delay(.08)}><span className={s.tileIcon}><Icon name="calendar" size={22} /></span><h3>Event details, once</h3><p>Dates, tickets, prices, codes and speakers in one place. Every page updates.</p></article>
+              <article className={s.tile} data-reveal="" style={delay(.16)}><span className={s.tileIcon}><Icon name="doc" size={22} /></span><h3>Abstract submission</h3><p>Authors, tracks, word limits, PDF uploads and IDs like ABS-0001, with review status.</p></article>
+              <article className={`${s.tile} ${s.tileWide}`} data-reveal="" style={delay(.16)}><span className={s.tileIcon}><Icon name="palette" size={22} /></span><h3>A design library that grows every day</h3><p>New sections and multi-page templates are added all the time. Use them with one click and make them yours.</p><div className={s.swatches} aria-hidden="true"><i /><i /><i /><i /><i /></div></article>
+              <article className={s.tile} data-reveal="" style={delay(.08)}><span className={s.tileIcon}><Icon name="receipt" size={22} /></span><h3>Receipts that send themselves</h3><p>Numbered, with your tax details, ready to print as PDF.</p></article>
+              <article className={`${s.tile} ${s.tileWide}`} data-reveal="" style={delay(.08)}><span className={s.tileIcon}><Icon name="lock" size={22} /></span><h3>Secure by default</h3><p>Two-step sign-in, private uploads and server-side prices.</p></article>
             </div>
           </div>
         </section>

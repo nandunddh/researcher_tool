@@ -306,6 +306,8 @@ async def api_signup_verify(request: Request):
             license_engine.set_plan(created["license_key"], "trial", int(trial["limits"].get("members", 0)))
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))
+    # Welcome email in the background: a mail problem never blocks the new account.
+    threading.Thread(target=_send_quietly, daemon=True, args=(details["email"], *signup.welcome(details["name"], TRIAL_DAYS))).start()
     ok, user, msg = license_engine.authenticate(details["email"], str(body.get("password") or ""))
     if not ok:  # e.g. the page was reloaded and the password is gone: the account exists, they just sign in
         return {"status": "ok", "signed_in": False, "message": "Your account is ready. Please sign in."}
@@ -1970,6 +1972,13 @@ async def public_demo_request(request: Request):
         f"Hi {values['name']},\n\nThank you for your interest in SciProspect. We will email you within one working day to arrange a time.",
         f"<p>Hi {html_escape(values['name'])},</p><p>Thank you for your interest in SciProspect. We will email you within one working day to arrange a time.</p>")).start()
     return {"status": "ok", "message": "Thank you! We will email you within one working day to arrange your demo."}
+
+
+@app.get("/api/public/contact")
+async def public_contact():
+    """The team's public email and phone (SCIPROSPECT_CONTACT_EMAIL / _PHONE), shown on the legal pages; blank when not set."""
+    from mailer import contact
+    return contact()
 
 
 @app.get("/api/public/captcha")

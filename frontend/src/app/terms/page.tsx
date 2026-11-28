@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { COMPANY, LegalPage } from "@/features/marketing/legal";
+import { COMPANY, ContactDetails, ContactLink, LegalPage, publicContact } from "@/features/marketing/legal";
 
 export const metadata: Metadata = { title: "Terms of service · SciProspect", description: "The terms for using SciProspect and SciStudio." };
 
 // Draft terms written for how SciProspect works. Have them reviewed by a lawyer before launch.
-export default function Page() {
+export default async function Page() {
+  const contact = await publicContact();
   return (
     <LegalPage title="Terms of service" intro={`These terms are an agreement between you and ${COMPANY.name} for using SciProspect (the research data collector) and SciStudio (the website builder). By creating an account you accept them.`}>
       <h2>1. Your account</h2>
@@ -16,7 +17,7 @@ export default function Page() {
 
       <h2>2. Plans, payments and cancellation</h2>
       <ul>
-        <li>Paid plans are billed monthly in advance, at the price shown when you subscribe. Prices may change with 30 days&apos; notice; the new price applies from your next period.</li>
+        <li>Paid plans are billed in advance, monthly or yearly as you choose, at the price shown when you subscribe. Prices may change with 30 days&apos; notice; the new price applies from your next period.</li>
         <li>You can upgrade, switch or cancel at any time from Billing. If you cancel, your plan stays active until the end of the paid period and then moves to Free.</li>
         <li>Payments are handled by our payment provider. We do not store your full card details.</li>
         <li>Fees already paid are not refunded, except where the law requires it.</li>
@@ -50,7 +51,7 @@ export default function Page() {
       <p>You can close your account at any time. We may suspend or close accounts that break these terms. After closing, you can ask us to export your data within 30 days; after that we may delete it.</p>
 
       <h2>9. Contact</h2>
-      <p>{COMPANY.name}, {COMPANY.address}. Email: <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>.</p>
+      <ContactDetails contact={contact} />
     </LegalPage>
   );
 }

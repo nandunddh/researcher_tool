@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import s from "./hero-demo.module.css";
 
 const QUERY = "single-cell genomics";
@@ -7,18 +7,19 @@ const ROWS = [["Dr. Aisha Rao", "Univ. of Toronto", true], ["Prof. Lin Chen", "T
   ["Dr. Sara Müller", "ETH Zürich", true], ["Dr. Kofi Mensah", "University of Ghana", true]] as const;
 
 type Phase = "type" | "search" | "rows" | "build" | "site" | "paid";
-const STEPS: { id: Phase; label: string }[] = [{ id: "type", label: "Collect" }, { id: "build", label: "Build" }, { id: "paid", label: "Get paid" }];
+// Each tab shows its step at its finished state (the phase it jumps to when clicked).
+const STEPS: { id: Phase; label: string; shows: Phase }[] = [{ id: "type", label: "Collect", shows: "rows" }, { id: "build", label: "Build", shows: "site" }, { id: "paid", label: "Get paid", shows: "paid" }];
 
 /** Self-playing product demo in the hero: search → results → website → payment, on a loop. */
 export function HeroDemo() {
   const [phase, setPhase] = useState<Phase>("type");
   const [typed, setTyped] = useState(0);
   const [rows, setRows] = useState(0);
+  const timers = useRef<number[]>([]);
 
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) { setTyped(QUERY.length); setRows(ROWS.length); setPhase("paid"); return; }
-    const timers: number[] = [];
-    const at = (ms: number, fn: () => void) => timers.push(window.setTimeout(fn, ms));
+    const at = (ms: number, fn: () => void) => timers.current.push(window.setTimeout(fn, ms));
     const run = () => {
       setPhase("type"); setTyped(0); setRows(0);
       for (let i = 1; i <= QUERY.length; i++) at(i * 55, () => setTyped(i));
@@ -31,8 +32,13 @@ export function HeroDemo() {
       at(QUERY.length * 55 + 9200, run);
     };
     run();
-    return () => timers.forEach(t => window.clearTimeout(t));
+    return stop;
   }, []);
+
+  function stop() { timers.current.forEach(t => window.clearTimeout(t)); timers.current = []; }
+
+  /** A visitor picked a tab: stop the loop and show that step, finished. */
+  function show(target: Phase) { stop(); setTyped(QUERY.length); setRows(ROWS.length); setPhase(target); }
 
   const active = phase === "type" || phase === "search" || phase === "rows" ? "type" : phase === "build" || phase === "site" ? "build" : "paid";
   const showSite = phase === "site" || phase === "paid";
@@ -40,7 +46,7 @@ export function HeroDemo() {
     <div className={s.demo} aria-label="Product demo: collect researchers, build the event website, take payments">
       <div className={s.bar}>
         <span className={s.dots}><i /><i /><i /></span>
-        <div className={s.tabs}>{STEPS.map(t => <span key={t.id} data-on={t.id === active || undefined}>{t.label}</span>)}</div>
+        <div className={s.tabs} role="group" aria-label="Demo steps">{STEPS.map(t => <button key={t.id} type="button" aria-pressed={t.id === active} onClick={() => show(t.shows)}>{t.label}</button>)}</div>
         <span className={s.url}>{showSite ? "ai-ml-summit.sciprospect.site" : "app.sciprospect.com"}</span>
       </div>
 
@@ -50,7 +56,7 @@ export function HeroDemo() {
           <div className={s.search}>
             <span className={s.icon}>⌕</span>
             <span>{QUERY.slice(0, typed)}<i className={s.caret} /></span>
-            <b data-on={phase === "search" || undefined}>{phase === "search" ? "Searching OpenAlex…" : rows ? `${rows} researchers` : ""}</b>
+            <b data-on={phase === "search" || undefined}>{phase === "search" ? "Searching OpenAlex…" : rows ? `${rows} researcher${rows === 1 ? "" : "s"}` : ""}</b>
           </div>
           <div className={s.table}>
             <div className={s.th}><span>Researcher</span><span>Institution</span><span>Email</span></div>
@@ -70,7 +76,7 @@ export function HeroDemo() {
             <div className={s.siteNav}><b>AI&amp;ML Summit</b><span>Program</span><span>Speakers</span><span className={s.reg}>Register</span></div>
             <div className={s.siteHero}>
               <small>LISBON · 12–14 JUNE 2027</small>
-              <h4>Where ideas<br />meet people.</h4>
+              <p className={s.headline}>Where ideas<br />meet people.</p>
               <div className={s.tickets}>
                 <div data-on><span>Academic</span><b>$699</b></div>
                 <div><span>Student</span><b>$499</b></div>

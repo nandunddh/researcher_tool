@@ -1,7 +1,9 @@
 """Self sign-up: details are held (password hashed) until the person enters the 6-digit code we email them."""
 import hmac
+import os
 import re
 import secrets
+from datetime import date, timedelta
 from html import escape
 from typing import Optional, Tuple
 
@@ -74,3 +76,21 @@ def verify(email: str, code: str) -> Tuple[Optional[dict], Optional[str]]:
             return None, "Too many wrong codes. Please sign up again to get a new code."
         cur.execute("UPDATE signup_requests SET attempts = attempts + 1 WHERE email = %s", (email,))
     return None, "That code is not right. Check the email and try again."
+
+
+def welcome(name: str, trial_days: int, today: Optional[date] = None, app_url: Optional[str] = None) -> Tuple[str, str, str]:
+    """The welcome email sent once the account exists: (subject, text, html). The shared signature is added by send_mail."""
+    ends = (today or date.today()) + timedelta(days=trial_days)
+    when = f"{ends.day} {ends:%B %Y}"
+    url = (app_url or os.environ.get("SCIPROSPECT_APP_URL") or "http://127.0.0.1:3000").rstrip("/") + "/login"
+    steps = ["Collect: search a research topic and gather verified researcher contacts.",
+             "Studio: build your event website with registration, abstracts and payments.",
+             "Security: set up two-step sign-in when you first sign in (it keeps your data safe)."]
+    text = (f"Hi {name},\n\nWelcome to SciProspect! Your {trial_days}-day free trial has started and runs until {when}.\n\n"
+            + "\n".join(f"- {s}" for s in steps) + f"\n\nOpen your workspace: {url}\n\nChoose a plan any time from Billing to keep everything after the trial.")
+    html = (f"<p>Hi {escape(name)},</p><p>Welcome to <strong>SciProspect</strong>! Your {trial_days}-day free trial has started and runs until "
+            f"<strong>{when}</strong>.</p><ul>" + "".join(f"<li>{escape(s)}</li>" for s in steps) + "</ul>"
+            f'<p><a href="{escape(url, quote=True)}" style="display:inline-block;background:#c8ff4d;color:#0a0a0a;padding:12px 20px;border-radius:999px;'
+            'font-weight:700;text-decoration:none">Open your workspace</a></p>'
+            "<p>Choose a plan any time from Billing to keep everything after the trial.</p>")
+    return "Welcome to SciProspect: your free trial has started", text, html

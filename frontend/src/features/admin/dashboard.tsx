@@ -4,6 +4,7 @@ import { LoadingIndicator } from "@/components/loading-indicator";
 import { api } from "@/lib/api";
 import type { Account } from "@/lib/contracts";
 import { Modal } from "@/components/modal";
+import { Icon, type IconName } from "@/components/icon";
 import { AdminShell } from "./shell";
 
 export function RootDashboard() {
@@ -30,11 +31,15 @@ export function RootDashboard() {
   }, []);
 
   const clients = accounts.filter((account) => !account.is_root);
-  const metrics = [
-    ["Client accounts", clients.length],
-    ["Organizations", clients.filter((a) => a.account_type === "org").length],
-    ["Team members", clients.reduce((sum, a) => sum + a.members.length, 0)],
-    ["Active client accounts", clients.filter((a) => a.status === "active").length],
+  const orgs = clients.filter((a) => a.account_type === "org");
+  const count = (state: string) => clients.filter((a) => a.status === state).length;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  // Each card: what it counts, the number, an icon, a colour and one line of context.
+  const metrics: { label: string; value: number; icon: IconName; tone: string; hint: string }[] = [
+    { label: "Client accounts", value: clients.length, icon: "users", tone: "violet", hint: `${clients.filter((a) => a.tier === "trial").length} on trial` },
+    { label: "Organizations", value: orgs.length, icon: "layers", tone: "blue", hint: `${plural(clients.length - orgs.length, "solo account")}` },
+    { label: "Team members", value: clients.reduce((sum, a) => sum + a.members.length, 0), icon: "user", tone: "teal", hint: `across ${plural(orgs.length, "organization")}` },
+    { label: "Active accounts", value: count("active"), icon: "check", tone: "green", hint: `${count("expired")} expired · ${count("stopped")} stopped` },
   ];
   const visible = accounts.filter(
     (account) =>
@@ -52,10 +57,12 @@ export function RootDashboard() {
           ) : (
             <>
               <div className="metrics">
-                {metrics.map(([label, count]) => (
-                  <article key={label} className="metric">
-                    <strong>{count}</strong>
-                    <span>{label}</span>
+                {metrics.map((m) => (
+                  <article key={m.label} className="metric" data-tone={m.tone}>
+                    <span className="metric-icon"><Icon name={m.icon} size={20} /></span>
+                    <span className="metric-label">{m.label}</span>
+                    <strong>{m.value}</strong>
+                    <small>{m.hint}</small>
                   </article>
                 ))}
               </div>

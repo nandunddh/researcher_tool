@@ -23,6 +23,27 @@
 .links a:hover { color: #fff; }
 .actions { display: flex; gap: 10px; align-items: center; }
 
+/* Menu button (tablets and phones). */
+.menu { display: none; position: relative; }
+.menu > summary { list-style: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18); cursor: pointer; user-select: none; }
+.menu > summary::-webkit-details-marker { display: none; }
+.menu > summary:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.burger, .burger::before, .burger::after { display: block; width: 18px; height: 2px; border-radius: 2px; background: #fff; transition: transform .2s, background .2s; }
+.burger { position: relative; }
+.burger::before, .burger::after { content: ""; position: absolute; left: 0; }
+.burger::before { top: -6px; }
+.burger::after { top: 6px; }
+.menu[open] .burger { background: transparent; }
+.menu[open] .burger::before { top: 0; transform: rotate(45deg); }
+.menu[open] .burger::after { top: 0; transform: rotate(-45deg); }
+.menuPanel { position: absolute; right: 0; top: calc(100% + 10px); width: min(280px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 2px; padding: 10px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); }
+.menuPanel a:not(.btn) { padding: 12px 14px; border-radius: 10px; color: var(--ink); font-size: 15px; font-weight: 500; text-decoration: none; }
+.menuPanel a:not(.btn):hover, .menuPanel a:not(.btn):focus-visible { background: rgba(255, 255, 255, .06); outline: none; }
+.menuPanel hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; }
+.menuPanel .btn { width: 100%; margin-top: 6px; }
+.menuPhone { display: none; }
+
 .btn, .btnGhost, .btnLight { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 24px; border-radius: 999px; font-weight: 600; font-size: 15px; text-decoration: none; white-space: nowrap; transition: transform .15s, background .2s, border-color .2s, box-shadow .2s; }
 .btn { background: var(--lime); color: #0a0a0a; }
 .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(200, 255, 77, .25); }
@@ -64,7 +85,7 @@
 .app { border-radius: 20px; overflow: hidden; background: #0c0c0e; border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 40px 100px rgba(0, 0, 0, .6); color: var(--ink); text-align: left; }
 .appBar { display: flex; align-items: center; gap: 7px; padding: 12px 14px; border-bottom: 1px solid var(--line); background: #101013; }
 .appBar i { width: 11px; height: 11px; border-radius: 50%; background: #2a2a30; }
-.appBar span { margin-left: 12px; padding: 4px 12px; border-radius: 8px; background: rgba(255, 255, 255, .05); font-size: 12px; color: var(--dim); }
+.appBar span { margin-left: 12px; padding: 4px 12px; border-radius: 8px; background: rgba(255, 255, 255, .05); font-size: 12px; color: var(--muted); }
 .appBody { padding: 22px; min-height: 340px; }
 .search { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 12px; background: var(--panel2); border: 1px solid var(--line); font-size: 14px; }
 .search b { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--lime); }
@@ -112,10 +133,10 @@
 
 /* ---------- Sources ---------- */
 .sources { position: relative; z-index: 2; padding: 30px 0 10px; }
-.sources p { text-align: center; margin: 0 0 18px; font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+.sources p { text-align: center; margin: 0 0 18px; font-size: 12px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); }
 .marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
 .track { display: flex; gap: 72px; width: max-content; animation: scroll 32s linear infinite; }
-.track span { font-family: var(--display); font-size: 26px; font-weight: 700; color: #3f3f46; white-space: nowrap; letter-spacing: -.02em; }
+.track span { font-family: var(--display); font-size: 26px; font-weight: 700; color: #71717a; white-space: nowrap; letter-spacing: -.02em; }
 @keyframes scroll { to { transform: translateX(-50%); } }
 
 /* ---------- Sections ---------- */
@@ -141,12 +162,13 @@
 .storyStep span { font-size: 13px; font-weight: 600; color: var(--lime); }
 .storyStep h3 { margin: 10px 0 12px; font-family: var(--display); font-weight: 800; font-size: clamp(30px, 3.4vw, 44px); line-height: 1; letter-spacing: -.035em; color: #fff; }
 .storyStep p { margin: 0; font-size: 17px; color: var(--muted); }
+.storyInline { display: none; }
 
 .bento { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
 .tile { position: relative; padding: 30px; border-radius: 24px; background: var(--panel); border: 1px solid var(--line); overflow: hidden; transition: transform .3s, border-color .3s; color: var(--ink); }
 .tile:hover { transform: translateY(-4px); border-color: rgba(255, 255, 255, .22); }
 .tileWide { grid-column: span 2; }
-.tileIcon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; font-size: 21px; background: #1a1a1f; border: 1px solid var(--line); }
+.tileIcon { display: grid; place-items: center; width: 46px; height: 46px; border-radius: 14px; background: #1a1a1f; border: 1px solid var(--line); color: var(--lime); }
 .tile h3 { margin: 18px 0 8px; font-family: var(--display); font-weight: 700; font-size: 23px; letter-spacing: -.025em; color: #fff; }
 .tile p { margin: 0; color: var(--muted); font-size: 15px; max-width: 520px; }
 .miniChart { display: flex; align-items: flex-end; gap: 8px; height: 90px; margin-top: 22px; }
@@ -159,7 +181,7 @@
 .swatches i:nth-child(2) { background: #f4f4f5; animation-delay: -1s; }
 .swatches i:nth-child(3) { background: #27272a; animation-delay: -2s; }
 .swatches i:nth-child(4) { background: #52525b; animation-delay: -3s; }
-.swatches i:nth-child(5) { background: #0a0a0a; animation-delay: -4s; }
+.swatches i:nth-child(5) { background: #0a0a0a; animation-delay: -4s; border-color: rgba(255, 255, 255, .3); }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
 .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; align-items: stretch; }
@@ -171,6 +193,8 @@
 .popular { position: absolute; top: -13px; left: 32px; padding: 4px 12px; border-radius: 999px; background: var(--lime); color: #0a0a0a; font-size: 12px; font-weight: 700; }
 .plan h3 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 22px; color: #fff; }
 .price { font-family: var(--display); font-size: 56px; font-weight: 800; letter-spacing: -.05em; line-height: 1; color: #fff; }
+/* A price in words ("Let's talk") stays on one line, the same height as the numbers beside it. */
+.priceWords { display: flex; align-items: flex-end; height: 56px; font-size: clamp(30px, 2.6vw, 40px); white-space: nowrap; }
 .price small { font-family: var(--font-body), sans-serif; font-size: 15px; font-weight: 500; letter-spacing: 0; color: var(--dim); }
 .plan ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; flex: 1; font-size: 15px; }
 .plan li { display: flex; gap: 10px; color: var(--ink); }
@@ -184,7 +208,7 @@
 .faq { max-width: 820px; margin: 0 auto; display: grid; gap: 10px; }
 .faq details { padding: 4px 24px; border-radius: 18px; background: var(--panel); border: 1px solid var(--line); transition: border-color .25s; color: var(--ink); }
 .faq details[open] { border-color: rgba(255, 255, 255, .25); }
-.faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; padding: 20px 0; font-family: var(--display); font-weight: 600; font-size: 19px; letter-spacing: -.01em; color: #fff; }
+.faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; gap: 16px; padding: 20px 0; font-family: var(--display); font-weight: 600; font-size: 19px; letter-spacing: -.01em; color: #fff; user-select: none; }
 .faq summary::-webkit-details-marker { display: none; }
 .faq summary::after { content: "+"; display: grid; place-items: center; flex: none; width: 28px; height: 28px; border-radius: 50%; background: #1d1d22; font-size: 18px; line-height: 1; color: var(--lime); transition: transform .25s, background .25s, color .25s; }
 .faq details[open] summary::after { transform: rotate(45deg); background: var(--lime); color: #0a0a0a; }
@@ -196,6 +220,9 @@
 .ctaBox h2 { position: relative; z-index: 1; margin: 0 0 14px; font-family: var(--display); font-weight: 800; font-size: clamp(40px, 6vw, 84px); letter-spacing: -.055em; line-height: .95; color: #0a0a0a; }
 .ctaBox p { position: relative; z-index: 1; margin: 0 0 32px; font-size: 18px; color: #27272a; }
 .ctaBox a { position: relative; z-index: 1; }
+/* The outline button is white-on-dark elsewhere; on the lime banner it needs dark text and a dark outline. */
+.ctaBox .btnGhost { color: #0a0a0a; border-color: rgba(10, 10, 10, .35); }
+.ctaBox .btnGhost:hover { border-color: #0a0a0a; }
 
 .footer { position: relative; z-index: 2; border-top: 1px solid var(--line); padding: 32px 0; color: var(--dim); font-size: 14px; }
 .footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
@@ -204,13 +231,22 @@
 
 @media (max-width: 1000px) {
   .story { grid-template-columns: 1fr; gap: 24px; }
-  .storySticky { top: 80px; height: 420px; z-index: 3; }
-  .storyStep { min-height: 46vh; }
+  /* No pinned screen here: each step shows its own screen above its text. */
+  .storySticky { display: none; }
+  .storyInline { display: block; margin-bottom: 22px; }
+  .storyStep { min-height: 0; opacity: 1; padding: 0 0 56px; border-left: 0; }
   .bento { grid-template-columns: 1fr 1fr; }
+  .tileWide { grid-column: auto; } /* 6 equal tiles: 3 full rows of 2 */
   .links { display: none; }
+  .menu { display: block; }
+  .actions { margin-left: auto; }
 }
 @media (max-width: 640px) {
-  .actions .btnGhost { display: none; }
+  /* Phones: logo and menu only; log in and the buttons live in the menu. */
+  .actions { display: none; }
+  .menuPhone { display: block; }
+  .brand { font-size: 20px; gap: 10px; }
+  .brand img { width: 44px; height: 44px; }
   .hero { padding-top: 120px; }
   .heroScreen { margin-top: 48px; }
   .bento { grid-template-columns: 1fr; }
@@ -219,7 +255,6 @@
   .editor aside { display: none; }
   .ticketList div:not([data-on]) { display: none; }
   .appBody { min-height: 0; padding: 16px; }
-  .storySticky { height: 380px; }
   .section { padding: 80px 0; }
   .ctaBox { padding: 56px 20px; border-radius: 26px; }
 }
@@ -271,3 +306,7 @@
 /* The header's Book a demo button gives way on small screens; the hero keeps its own. */
 .links a { white-space: nowrap; }
 @media (max-width: 1080px) { .demoLink { display: none; } }
+
+/* Keyboard focus: a clear lime ring on the dark page, a dark one on the lime banner. */
+.page a:focus-visible, .page button:focus-visible, .page summary:focus-visible { outline: 2px solid var(--lime); outline-offset: 3px; }
+.ctaBox a:focus-visible { outline-color: #0a0a0a; }

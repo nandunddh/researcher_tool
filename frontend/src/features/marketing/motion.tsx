@@ -12,25 +12,29 @@ export function MotionEffects() {
       // The hero app screen starts tilted and flattens as you scroll (0 → 1 over the first 500px).
       root.style.setProperty("--tilt", String(Math.min(1, window.scrollY / 500)));
     };
+    // The cursor spotlight: only its own layer gets the position, once per frame, and only on pages that have one.
+    const lights = document.querySelectorAll<HTMLElement>("[data-spotlight]");
+    let frame = 0, x = 0, y = 0;
     const onMove = (e: PointerEvent) => {
-      root.style.setProperty("--mx", `${e.clientX}px`);
-      root.style.setProperty("--my", `${e.clientY}px`);
+      x = e.clientX; y = e.clientY;
+      frame ||= requestAnimationFrame(() => { frame = 0; lights.forEach(el => { el.style.setProperty("--mx", `${x}px`); el.style.setProperty("--my", `${y}px`); }); });
     };
     onScroll();
     window.addEventListener("scroll", onScroll, { passive: true });
-    window.addEventListener("pointermove", onMove, { passive: true });
+    if (lights.length) window.addEventListener("pointermove", onMove, { passive: true });
     const items = document.querySelectorAll<HTMLElement>("[data-reveal]");
     let io: IntersectionObserver | undefined;
     if ("IntersectionObserver" in window && !reducedMotion()) {
       io = new IntersectionObserver(entries => {
         for (const e of entries) if (e.isIntersecting) { e.target.setAttribute("data-shown", ""); io?.unobserve(e.target); }
-      }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
+      }, { threshold: 0, rootMargin: "0px 0px -40px 0px" }); // reveal as soon as an item peeks in, so tall cards at the fold never sit empty
       items.forEach(el => io!.observe(el));
     } else items.forEach(el => el.setAttribute("data-shown", ""));
     return () => {
       io?.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("pointermove", onMove);
+      cancelAnimationFrame(frame);
       root.removeAttribute("data-scrolled");
     };
   }, []);
@@ -38,14 +42,15 @@ export function MotionEffects() {
 }
 
 /** Cycles through words in the headline (static for reduced motion). */
-export function RotatingWords({ words, className }: { words: string[]; className?: string }) {
+/** article: put "a" or "an" before the current word (by its first letter; fine for these words, not for "hour"/"user"). */
+export function RotatingWords({ words, className, article = false }: { words: string[]; className?: string; article?: boolean }) {
   const [i, setI] = useState(0);
   useEffect(() => {
     if (reducedMotion()) return;
     const t = window.setInterval(() => setI(n => (n + 1) % words.length), 2600);
     return () => window.clearInterval(t);
   }, [words.length]);
-  return <span className={className} key={i}>{words[i]}</span>;
+  return <>{article && (/^[aeiou]/i.test(words[i]) ? "an " : "a ")}<span className={className} key={i}>{words[i]}</span></>;
 }
 
 /** A live network of "researchers": drifting nodes that link when close and lean towards the cursor. */
@@ -117,7 +122,7 @@ export function NetworkCanvas({ className, accent = "#c8ff4d" }: { className?: s
 /** Scroll story: the screen on the left stays in place and changes with the step you are reading. */
 export function ScrollStory({ steps, screens, classes }: {
   steps: { title: string; text: string; kicker: string }[]; screens: ReactNode[];
-  classes: { wrap: string; sticky: string; screen: string; steps: string; step: string; dots: string };
+  classes: { wrap: string; sticky: string; screen: string; steps: string; step: string; dots: string; inline: string };
 }) {
   const [active, setActive] = useState(0);
   const refs = useRef<(HTMLDivElement | null)[]>([]);
@@ -137,6 +142,8 @@ export function ScrollStory({ steps, screens, classes }: {
       <div className={classes.steps}>
         {steps.map((s, i) => (
           <div key={s.title} ref={el => { refs.current[i] = el; }} data-index={i} className={classes.step} data-active={i === active || undefined}>
+            {/* Tablets and phones: the step's own screen above its text (CSS hides the pinned one), so nothing covers the copy. */}
+            <div className={classes.inline} aria-hidden="true">{screens[i]}</div>
             <span>{s.kicker}</span><h3>{s.title}</h3><p>{s.text}</p>
           </div>
         ))}

@@ -58,6 +58,16 @@ class SignatureTests(unittest.TestCase):
         self.assertNotIn("<script>", html)
 
 
+class PublicContactTests(unittest.TestCase):
+    def test_the_legal_pages_get_the_same_details_the_emails_show(self):
+        import asyncio
+        import app as web_app
+        with patch.dict(os.environ, BOTH):
+            self.assertEqual(asyncio.run(web_app.public_contact()), {"email": "hello@sciprospect.example", "phone": "+91 98765 43210"})
+        with patch.dict(os.environ, NONE):
+            self.assertEqual(asyncio.run(web_app.public_contact()), {"email": "", "phone": ""})
+
+
 class SendTests(unittest.TestCase):
     def send(self, **kwargs):
         FakeSMTP.sent.clear()

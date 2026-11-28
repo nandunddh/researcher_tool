@@ -8,6 +8,8 @@ import { Modal } from "@/components/modal";
 import { PasswordInput } from "@/components/password-input";
 import { Icon } from "@/components/icon";
 import { OrgShell } from "./shell";
+import { share } from "@/lib/plans";
+import { LaunchCard, LaunchGrid, SectionTitle, Welcome } from "@/features/workspace/dashboard-parts";
 
 type Member = {
   member_id: string;
@@ -206,54 +208,39 @@ export function OrgDashboard() {
         <LoadingIndicator label="Loading organization workspace…" />
       ) : data ? (
         <>
-          {/* KPI Summary Cards */}
-          <section className="stats-grid" aria-label="Organization Summary">
-            <article className="stat-card">
-              <span className="stat-label">Plan</span>
-              <strong className="stat-value">{plan?.plan?.name ?? "—"}</strong>
-              <small>
-                {plan?.plan && plan.usage
-                  ? `${plan.usage.websites} of ${Number(plan.plan.limits.websites) < 0 ? "unlimited" : plan.plan.limits.websites} websites used · `
-                  : ""}
-                <a href="/billing">Billing &amp; plan →</a>
-              </small>
-            </article>
+          <Welcome
+            name={data.client_name}
+            subtitle={`${data.org_name} · ${data.client_email}`}
+            chips={[
+              { text: (plan?.plan?.name || data.tier).toUpperCase(), tone: "lime" },
+              { text: data.status === "active" ? `${data.days_left} left` : data.status, tone: data.status === "active" ? undefined : "red" },
+              { text: data.scistudio_access ? "SciStudio on" : "SciStudio off" },
+            ]}
+            upgrade={data.tier === "trial" || data.status !== "active"}
+            stats={[
+              { label: "Team seats", value: `${data.members.length} / ${data.seat_limit}`,
+                hint: data.seat_limit - data.members.length > 0 ? `${data.seat_limit - data.members.length} seats free` : "All seats in use",
+                progress: share(data.members.length, data.seat_limit) },
+              { label: "Contacts today",
+                value: data.daily_limit < 0 ? "Unlimited" : `${(data.used_today || 0).toLocaleString()} / ${data.daily_limit.toLocaleString()}`,
+                hint: data.daily_limit < 0 ? `${data.used_today || 0} collected today` : `${Math.max(0, data.daily_limit - (data.used_today || 0)).toLocaleString()} left today`,
+                progress: data.daily_limit < 0 ? null : share(data.used_today, data.daily_limit) },
+              ...(plan?.plan && plan.usage ? [{ label: "Websites",
+                value: Number(plan.plan.limits.websites) < 0 ? `${plan.usage.websites}` : `${plan.usage.websites} / ${plan.plan.limits.websites}`,
+                hint: Number(plan.plan.limits.websites) < 0 ? "Unlimited websites" : "Websites in your plan",
+                progress: share(plan.usage.websites, Number(plan.plan.limits.websites)) }] : []),
+              { label: "Plan validity", value: data.days_left,
+                hint: data.expires_at && data.expires_at !== "never" ? `Until ${data.expires_at.slice(0, 10)}` : "No end date" },
+            ]}
+          />
 
-            <article className="stat-card">
-              <span className="stat-label">Organization</span>
-              <strong className="stat-value">{data.org_name}</strong>
-              <small>
-                <span className={data.status === "stopped" ? "badge status-stopped" : "badge status-active"}>{data.status}</span>
-                {" "}Collector license: {data.tier === "pro" ? "Pro" : "Trial"}
-              </small>
-            </article>
-
-            <article className="stat-card">
-              <span className="stat-label">Team Seats</span>
-              <strong className="stat-value">
-                {data.members.length} / {data.seat_limit}
-              </strong>
-              <small>
-                {data.seat_limit - data.members.length > 0
-                  ? `${data.seat_limit - data.members.length} available seats`
-                  : "Seat limit reached"}
-              </small>
-            </article>
-
-            <article className="stat-card">
-              <span className="stat-label">Collector daily limit</span>
-              <strong className="stat-value">
-                {data.daily_limit < 0 ? "Unlimited" : data.daily_limit.toLocaleString()}
-              </strong>
-              <small>{data.used_today || 0} extracted today</small>
-            </article>
-
-            <article className="stat-card">
-              <span className="stat-label">License valid for</span>
-              <strong className="stat-value">{data.days_left}</strong>
-              <small>SciStudio: {data.scistudio_access ? "Active" : "Disabled"}</small>
-            </article>
-          </section>
+          <SectionTitle title="Your workspaces" note="Jump straight into your tools" />
+          <LaunchGrid>
+            <LaunchCard icon="search" tone="violet" eyebrow="Prospecting & discovery" title="Data Collector"
+              text="Find researchers by topic, search NIH grants and export verified contacts." href="/organization/collector" cta="Open Data Collector" />
+            <LaunchCard icon="layers" tone="blue" eyebrow="Website builder" title="SciStudio"
+              text="Design, preview and publish conference and event websites." href="/organization/scistudio" cta="Open SciStudio" disabled={!data.scistudio_access} />
+          </LaunchGrid>
 
           {/* Team Members Management Section */}
           <section className="account-panel" style={{ marginTop: "1.5rem" }}>

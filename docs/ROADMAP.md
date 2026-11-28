@@ -162,6 +162,9 @@ Same editor feel as websites: pick a template, drag and drop blocks, upload imag
 - [x] 🧪 "Change password" in the profile menu
 - [x] 🧪 Admin button: reset two-step sign-in for a client
 - [ ] One-click client creation (organization + admin user)
+- [x] 🧪 Modern client and organization dashboards: welcome card with plan chips, key figures and Upgrade; workspace cards; empty states
+- [x] 🧪 Account page (/account): profile, plan and validity, usage meters, two-step sign-in and password, recent invoices; "Upgrade plan" box in the sidebar
+- [ ] 🔜 NEXT: simpler workspace names. Page titles "Client Dashboard" / "Organization Dashboard" → "Dashboard"; sidebar heading "CLIENT WORKSPACE" / "ORGANIZATION" → "WORKSPACE"; URLs `/client/dashboard` and `/organization/dashboard` → `/dashboard` (also `/{namespace}/collector`, `/{namespace}/scistudio`), with redirects from the old URLs so saved links and emails keep working. The account type still decides what each page shows
 - [x] 🧪 Plans with limits (websites, pages, members, storage, submissions), usage in Manage Accounts, root Plans page
 
 ## 9. Housekeeping

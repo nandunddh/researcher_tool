@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { COMPANY, LegalPage } from "@/features/marketing/legal";
+import { COMPANY, ContactDetails, ContactLink, LegalPage, publicContact } from "@/features/marketing/legal";
 
 export const metadata: Metadata = { title: "Privacy policy · SciProspect", description: "How SciProspect collects, uses and protects personal data." };
 
 // Draft policy written for how SciProspect works. Have it reviewed by a lawyer before launch.
-export default function Page() {
+export default async function Page() {
+  const contact = await publicContact();
   return (
     <LegalPage title="Privacy policy" intro={`This policy explains what personal data ${COMPANY.name} handles, why, and the choices you have.`}>
       <h2>1. Data about our customers</h2>
@@ -19,7 +20,7 @@ export default function Page() {
       <p>When a SciStudio website collects registrations, payments, messages or abstracts, the website&apos;s owner decides what is collected and why. They are the controller; we store and process that data on their behalf. Visitors should contact the website&apos;s organiser about their data. Attendees receive receipts and confirmations by email.</p>
 
       <h2>3. Researcher data (SciProspect)</h2>
-      <p>The data collector processes professional information about researchers (such as name, affiliation, field and a professional email address) from public scholarly sources, so that organisers can find relevant speakers and participants. The basis is legitimate interest in professional, research-related contact. Researchers can ask us to remove their data or stop it being collected by writing to <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>.</p>
+      <p>The data collector processes professional information about researchers (such as name, affiliation, field and a professional email address) from public scholarly sources, so that organisers can find relevant speakers and participants. The basis is legitimate interest in professional, research-related contact. Researchers can ask us to remove their data or stop it being collected by writing to <ContactLink contact={contact} />.</p>
 
       <h2>4. Service providers</h2>
       <p>We use trusted providers to run the service, under contracts that protect your data:</p>
@@ -44,10 +45,10 @@ export default function Page() {
       <p>Passwords are hashed, two-step sign-in is required for every account, connections are encrypted, uploaded files are private, and prices and payments are checked on our servers.</p>
 
       <h2>8. Your rights</h2>
-      <p>Depending on where you live, you can ask to access, correct, export or delete your personal data, or object to some uses. Write to <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>. You can also complain to your local data protection authority.</p>
+      <p>Depending on where you live, you can ask to access, correct, export or delete your personal data, or object to some uses. Write to <ContactLink contact={contact} />. You can also complain to your local data protection authority.</p>
 
       <h2>9. Contact</h2>
-      <p>{COMPANY.name}, {COMPANY.address}. Email: <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>.</p>
+      <ContactDetails contact={contact} />
     </LegalPage>
   );
 }

@@ -54,14 +54,14 @@ export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[];
         {custom && (
           <article className={s.plan} data-reveal="" style={{ "--d": `${paid.length * .1}s` } as React.CSSProperties}>
             <h3>{custom.name}</h3>
-            <div className={s.price}>Let&apos;s talk</div>
+            <div className={`${s.price} ${s.priceWords}`}>Let&apos;s talk</div>
             <p className={s.priceNote}>Priced by quote</p>
             <ul>{cardLines(custom).map(line => <li key={line}>{line}</li>)}</ul>
             <a className={s.btnGhost} href="/demo">Book a demo</a>
           </article>
         )}
       </div>
-      {compareHref && <p className={s.jump}><a href={compareHref}>Compare all features ↓</a></p>}
+      {compareHref && <p className={s.jump}><a href={compareHref}>Compare all features {compareHref.startsWith("#") ? "↓" : "→"}</a></p>}
     </>
   );
 }

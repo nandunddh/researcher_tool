@@ -1,15 +1,20 @@
 .demo { --lime: #c8ff4d; position: relative; border-radius: 22px; background: #0c0c0e; border: 1px solid rgba(255, 255, 255, .1); box-shadow: 0 50px 120px rgba(0, 0, 0, .7), 0 0 0 1px rgba(255, 255, 255, .03) inset; overflow: hidden; text-align: left; color: #f4f4f5; font-family: var(--font-body), system-ui, sans-serif; }
-.demo :where(span, b, small, em, h4, div) { color: inherit; }
+.demo :where(span, b, small, em, p, div) { color: inherit; }
 .bar { display: flex; align-items: center; gap: 16px; padding: 12px 16px; border-bottom: 1px solid rgba(255, 255, 255, .08); background: #101013; }
 .dots { display: flex; gap: 7px; }
 .dots i { width: 11px; height: 11px; border-radius: 50%; background: #2a2a30; }
 .tabs { display: flex; gap: 4px; margin: 0 auto; padding: 3px; border-radius: 10px; background: rgba(255, 255, 255, .04); }
-.tabs span { padding: 5px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; color: #8b8b95; transition: background .35s, color .35s; }
-.tabs span[data-on] { background: var(--lime); color: #0a0a0a; }
+.tabs button { padding: 5px 14px; border: 0; border-radius: 8px; background: transparent; font: inherit; font-size: 12.5px; font-weight: 600; color: #b4b4bd; cursor: pointer; transition: background .35s, color .35s; }
+.tabs button:hover { color: #fff; }
+.tabs button:focus-visible { outline: 2px solid var(--lime); outline-offset: 2px; }
+.tabs button[aria-pressed="true"] { background: var(--lime); color: #0a0a0a; }
 .url { font-size: 12px; color: #6f6f7a; min-width: 190px; text-align: right; }
-.body { position: relative; height: 430px; }
-.pane { position: absolute; inset: 0; padding: 22px; opacity: 0; transform: translateY(14px) scale(.985); transition: opacity .5s ease, transform .5s ease; pointer-events: none; }
-.pane[data-on] { opacity: 1; transform: none; }
+/* Both screens share one grid cell, so the box is as tall as the taller screen and nothing overflows. */
+.body { display: grid; min-height: 430px; }
+/* The old screen fades out first and the new one fades in after it, so the two never show through each other. */
+.pane { grid-area: 1 / 1; position: relative; display: flex; flex-direction: column; padding: 22px; opacity: 0; visibility: hidden; transform: translateY(14px) scale(.985);
+  transition: opacity .25s ease, transform .25s ease, visibility 0s linear .25s; pointer-events: none; }
+.pane[data-on] { opacity: 1; visibility: visible; transform: none; transition: opacity .45s ease .25s, transform .45s ease .25s, visibility 0s; }
 
 .search { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 16px; border-radius: 14px; background: #141418; border: 1px solid rgba(255, 255, 255, .1); font-size: 16px; }
 .icon { font-size: 20px; color: #8b8b95; }
@@ -27,17 +32,17 @@
 .tr em { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-style: normal; font-size: 12px; font-weight: 800; background: #1d1d22; color: #f4f4f5; border: 1px solid rgba(255, 255, 255, .1); }
 .ok { color: var(--lime) !important; font-weight: 700; font-size: 12.5px; }
 .review { color: #a1a1aa !important; font-size: 12.5px; }
-.cta { position: absolute; right: 22px; bottom: 22px; height: 44px; padding: 0 18px; border: 0; border-radius: 12px; background: var(--lime); color: #0a0a0a; font-weight: 700; font-size: 14px; font-family: inherit; transition: transform .15s; }
+.cta { align-self: flex-end; margin-top: 16px; height: 44px; padding: 0 18px; border: 0; border-radius: 12px; background: var(--lime); color: #0a0a0a; font-weight: 700; font-size: 14px; font-family: inherit; transition: transform .15s; }
 .cta[data-press] { transform: scale(.94); box-shadow: 0 0 0 6px rgba(200, 255, 77, .2); }
 
-.site { height: 100%; border-radius: 16px; overflow: hidden; background: #f6f6f3; color: #0a0a0a; display: flex; flex-direction: column; }
-.site :where(span, b, small, h4, div) { color: #0a0a0a; }
+.site { flex: 1; border-radius: 16px; overflow: hidden; background: #f6f6f3; color: #0a0a0a; display: flex; flex-direction: column; }
+.site :where(span, b, small, p, div) { color: #0a0a0a; }
 .siteNav { display: flex; align-items: center; gap: 18px; padding: 14px 20px; font-size: 13px; border-bottom: 1px solid #e4e4df; }
 .siteNav b { margin-right: auto; font-family: var(--font-display), sans-serif; font-size: 16px; }
 .reg { padding: 6px 12px; border-radius: 8px; background: #0a0a0a; color: var(--lime) !important; font-weight: 700; }
-.siteHero { flex: 1; padding: 28px 28px; display: flex; flex-direction: column; justify-content: center; gap: 12px; }
+.siteHero { flex: 1; padding: 28px 28px 92px; /* room under the tickets for the payment message */ display: flex; flex-direction: column; justify-content: center; gap: 12px; }
 .siteHero small { font-size: 11.5px; letter-spacing: .14em; font-weight: 700; color: #52525b; }
-.siteHero h4 { margin: 0; font-family: var(--font-display), sans-serif; font-size: 44px; line-height: .98; letter-spacing: -.03em; font-weight: 800; }
+.headline { margin: 0; font-family: var(--font-display), sans-serif; font-size: 44px; line-height: .98; letter-spacing: -.03em; font-weight: 800; }
 .tickets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
 .tickets div { padding: 12px 14px; border-radius: 12px; border: 1.5px solid #e1e1da; background: #fff; display: grid; gap: 2px; }
 .tickets div[data-on] { border-color: #0a0a0a; box-shadow: 4px 4px 0 #0a0a0a; }
@@ -54,7 +59,11 @@
   .body { height: 400px; }
   .th, .tr { grid-template-columns: 1.4fr .7fr; }
   .th span:nth-child(2), .tr span:nth-child(2) { display: none; }
-  .siteHero h4 { font-size: 32px; }
+  .headline { font-size: 32px; }
+  .siteNav span:not(.reg) { display: none; }
+  /* Room under the tickets for the payment message. */
+  .siteHero { padding-bottom: 96px; }
+  .toast { left: 16px; right: 16px; bottom: 16px; }
   .tickets div:nth-child(3) { display: none; }
   .tickets { grid-template-columns: 1fr 1fr; }
 }

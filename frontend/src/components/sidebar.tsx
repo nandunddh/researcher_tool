@@ -18,11 +18,13 @@ const ROOT_LINKS: NavItem[] = [
 const ORG_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/organization/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
+  { label: "Account", url: "/account", icon: "user" },
 ];
 
 const CLIENT_LINKS: NavItem[] = [
   { label: "Dashboard", url: "/client/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
+  { label: "Account", url: "/account", icon: "user" },
 ];
 
 const CONFERENCE_LINKS: NavItem[] = [
@@ -98,6 +100,14 @@ export function Sidebar({
           ))}
         </nav>
       </div>
+
+      {/* Workspaces that pay for a plan get a clear way to upgrade, pinned to the bottom of the sidebar. */}
+      {(effectiveNamespace === "client" || effectiveNamespace === "organization") && (
+        <a className={`sidebar-upgrade ${currentPath === "/billing" ? "active" : ""}`} href="/billing">
+          <span className="sidebar-upgrade-icon"><Icon name="bolt" size={18} /></span>
+          <span><b>Upgrade plan</b><small>More contacts, websites and team seats</small></span>
+        </a>
+      )}
     </aside>
   );
 }

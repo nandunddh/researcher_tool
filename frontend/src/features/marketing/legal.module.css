@@ -1,14 +1,6 @@
 .page :where(h1, h2, h3, p, li, a, span, strong) { color: inherit; }
-.page { min-height: 100vh; background: #09090b; color: #d4d4d8; font-family: var(--font-body), system-ui, sans-serif; line-height: 1.75; }
+.page { position: relative; z-index: 2; background: #09090b; color: #d4d4d8; font-family: var(--font-body), system-ui, sans-serif; line-height: 1.75; }
 .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
-.nav { position: sticky; top: 0; z-index: 5; background: rgba(9, 9, 11, .85); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(255, 255, 255, .08); }
-.nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 68px; max-width: 1100px; }
-.brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display), sans-serif; font-weight: 700; font-size: 20px; color: #fff; text-decoration: none; }
-.brand img { width: 30px; height: 30px; }
-.nav nav { display: flex; align-items: center; gap: 22px; font-size: 14px; }
-.nav nav a { color: #a1a1aa; text-decoration: none; }
-.nav nav a:hover { color: #fff; }
-.nav .cta { padding: 9px 18px; border-radius: 999px; background: #c8ff4d; color: #0a0a0a !important; font-weight: 600; }
 .doc { padding: 64px 0 80px; }
 .kicker { font-size: 13px; color: #c8ff4d; font-weight: 600; margin: 0; }
 .doc h1 { margin: 10px 0 14px; font-family: var(--font-display), sans-serif; font-weight: 800; font-size: clamp(38px, 6vw, 64px); line-height: 1; letter-spacing: -.045em; color: #fff; }
@@ -20,7 +12,3 @@
 .doc li { margin: 4px 0; }
 .doc a { color: #c8ff4d; }
 .doc strong { color: #f4f4f5; }
-.footer { border-top: 1px solid rgba(255, 255, 255, .08); padding: 28px 0; font-size: 14px; color: #71717a; }
-.footer .wrap { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; max-width: 1100px; }
-.footer a { color: #71717a; margin-left: 18px; text-decoration: none; }
-.footer a:hover { color: #fff; }

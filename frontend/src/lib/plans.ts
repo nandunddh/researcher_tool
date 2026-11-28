@@ -19,6 +19,12 @@ export function usedOf(usedMb: number, limitMb: number): string {
   const size = (n: number) => (n >= 1000 ? `${Math.round(n / 100) / 10} GB` : `${Math.round(n * 10) / 10} MB`);
   return limitMb < 0 ? `${size(usedMb)} of unlimited` : `${size(usedMb)} of ${size(limitMb)}`;
 }
+/** Share of a limit used, 0..1, for the progress bars; null when there is no bar (unlimited or no limit). */
+export function share(used: number, limit: number): number | null {
+  if (!(limit > 0)) return null;
+  return Math.max(0, Math.min(1, (used || 0) / limit));
+}
+
 export const usd = (n: number) => (Number.isInteger(n) ? `$${n.toLocaleString("en-US")}` : `$${n.toFixed(2)}`);
 export const priceFor = (plan: PublicPlan, interval: Interval) => (interval === "year" ? plan.price_year : plan.price_month);
 /** What a year costs less than twelve months, e.g. $78 for Basic. */

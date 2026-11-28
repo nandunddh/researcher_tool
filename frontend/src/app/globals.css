@@ -271,3 +271,21 @@
 .form-note,.login-card .form-note{margin:14px 0 0;padding:12px 14px;border-radius:10px;font-size:14px;text-align:center}
 .form-note.ok{background:rgba(200,255,77,.1);border:1px solid rgba(200,255,77,.35);color:#c8ff4d}
 .form-note.error{background:rgba(255,138,138,.1);border:1px solid rgba(255,138,138,.35);color:#ff8a8a}
+/* Root dashboard cards: icon, label, big number, one line of context; one colour per card. */
+.metric{--tone:#5543b5;--tone-bg:#efedff;display:grid;grid-template-columns:auto 1fr;grid-template-areas:"icon label" "value value" "hint hint";align-items:center;column-gap:12px;row-gap:6px;padding:22px 24px;border-radius:18px;background:#fff;border:1px solid var(--line);box-shadow:0 1px 2px rgba(16,24,40,.04);position:relative;overflow:hidden;transition:transform .2s,box-shadow .2s}
+.metric::before{content:"";position:absolute;inset:0 0 auto;height:3px;background:var(--tone)}
+.metric:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,24,40,.08)}
+.metric[data-tone=blue]{--tone:#2f6fe4;--tone-bg:#e8f0ff}
+.metric[data-tone=teal]{--tone:#0e8f8a;--tone-bg:#e0f6f4}
+.metric[data-tone=green]{--tone:#1f9d55;--tone-bg:#e3f6ea}
+.metric .metric-icon{grid-area:icon;display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:var(--tone-bg);color:var(--tone)}
+.metric .metric-label{grid-area:label;font-size:13px;font-weight:600;color:#3b4660}
+.metric strong{grid-area:value;display:block;margin-top:8px;font-size:36px;line-height:1;font-weight:800;letter-spacing:-.02em;color:#101828}
+.metric small{grid-area:hint;font-size:12.5px;color:var(--muted)}
+/* "Upgrade plan" box at the bottom of client and organization sidebars. */
+.sidebar-upgrade{margin:auto 12px 18px;display:flex;align-items:center;gap:12px;padding:14px;border-radius:14px;background:linear-gradient(135deg,rgba(200,255,77,.16),rgba(200,255,77,.05));border:1px solid rgba(200,255,77,.35);color:#fff;text-decoration:none;transition:border-color .2s,transform .2s}
+.sidebar-upgrade:hover,.sidebar-upgrade.active{border-color:#c8ff4d;transform:translateY(-1px)}
+.sidebar-upgrade:focus-visible{outline:2px solid #c8ff4d;outline-offset:3px}
+.sidebar-upgrade-icon{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#c8ff4d;color:#0a0a0a}
+.sidebar-upgrade b{display:block;font-size:14px;color:#fff}
+.sidebar-upgrade small{display:block;font-size:11.5px;line-height:1.35;color:rgba(255,255,255,.7)}

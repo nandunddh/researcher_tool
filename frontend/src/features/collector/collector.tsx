@@ -294,13 +294,23 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
   const monitorStatus = m ? RUN_LABEL[m.status] ?? m.status : "Idle";
 
   return <div className={styles.page}>
-    <section className={styles.kpis} aria-label="Collector summary">
-      <article><header><span>Collected master leads</span><i><Icon name="user" size={18} /></i></header><strong>{stats?.total.toLocaleString() ?? "–"}</strong><p><b>Central archive</b> Lifetime deduplicated contacts</p></article>
-      <article><header><span>Today&apos;s collected leads</span><i><Icon name="check" size={18} /></i></header><strong>{stats?.today.toLocaleString() ?? "–"}{stats?.daily_limit != null && <small className={styles.of}> / {stats.daily_limit}</small>}</strong><p><b>{today}</b> {stats?.daily_limit != null ? `Daily limit ${stats.daily_limit} contacts` : "Unlimited daily collection"}</p></article>
-      <article><header><span>Datasets</span><i><Icon name="layers" size={18} /></i></header><strong>{stats?.datasets.toLocaleString() ?? "–"}</strong><p><b>Collections</b> Each one is a downloadable CSV</p></article>
+    {/* Header card: what this page does and the three figures that matter, like the workspace dashboard. */}
+    <section className={styles.hero} aria-label="Collector summary">
+      <div className={styles.heroText}>
+        <h2>{nih ? "NIH grant researchers" : "Collect research contacts"}</h2>
+        <p>{nih ? "Principal investigators with NIH grants on your topic, with their public emails." : "Search a topic. We find the researchers and keep only verified emails."}</p>
+      </div>
+      <div className={styles.tiles}>
+        <div className={styles.tile}><span>Contacts in your archive</span><strong>{stats?.total.toLocaleString() ?? "–"}</strong><small>Unique, across all collections</small></div>
+        <div className={styles.tile}><span>Collected today</span>
+          <strong>{stats?.today.toLocaleString() ?? "–"}{stats?.daily_limit != null && <em> / {stats.daily_limit.toLocaleString()}</em>}</strong>
+          <small>{stats?.daily_limit != null ? (left === 0 ? "Today's limit reached" : `${(left ?? 0).toLocaleString()} left today`) : "Unlimited daily collection"}</small>
+          {stats?.daily_limit != null && stats.daily_limit > 0 && <div className={styles.tileBar} role="progressbar" aria-label="Collected today" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(Math.min(1, stats.today / stats.daily_limit) * 100)}><i style={{ width: `${Math.min(100, (stats.today / stats.daily_limit) * 100)}%` }} /></div>}
+        </div>
+        <div className={styles.tile}><span>Datasets</span><strong>{stats?.datasets.toLocaleString() ?? "–"}</strong><small>Each one downloads as a CSV</small></div>
+      </div>
     </section>
 
-    <div className={styles.sectionHead}><h2>Collect research contacts</h2><span>Search a topic. Get a contact list.</span></div>
     {error && <p className={styles.alert} role="alert">{error}</p>}
 
     <div className={styles.grid}>
@@ -316,7 +326,7 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
           <div className={styles.quick}><span>Quick select</span>{[50, 100, 250, 500].map(n => <button key={n} type="button" data-on={target === n || undefined} disabled={left !== null && n > left} onClick={() => setTarget(n)}>{n}</button>)}
             {left !== null && <em className={styles.left} data-empty={left === 0 || undefined}>{left === 0 ? "Today's limit reached" : `${left.toLocaleString()} left today`}</em>}</div>
           <details className={styles.settings}>
-            <summary><span>Collection settings</span><small>{nih ? "Fiscal years · Institution" : "Score · Dates · Country · Institution"}</small></summary>
+            <summary><span className={styles.summaryTitle}><Icon name="settings" size={16} />Collection settings</span><small>{nih ? "Fiscal years · Institution" : "Score · Dates · Country · Institution"}</small><span className={styles.chevron} aria-hidden="true" /></summary>
             <div className={styles.filters}>
               <label>From<input name="from" type="date" defaultValue={today.slice(0,4)+"-01-01"} required /></label>
               <label>Through<input name="to" type="date" defaultValue={today} required /></label>
@@ -338,19 +348,19 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
 
       <aside className={styles.monitor}>
         <div className={styles.monTop}>
-          <div className={styles.monTitle}><i data-live={m?.status === "running" || undefined} /><strong>Live Execution Monitor</strong><span className={styles.state} data-state={m?.status ?? "idle"}>{monitorStatus}</span></div>
+          <div className={styles.monTitle}><i data-live={m?.status === "running" || undefined} /><strong>Live monitor</strong><span className={styles.state} data-state={m?.status ?? "idle"}>{monitorStatus}</span></div>
           <div className={styles.monTools}>
             <label><input type="checkbox" checked={autoScroll} onChange={e => setAutoScroll(e.target.checked)} />Auto-scroll</label>
             <button type="button" onClick={() => setLog([])}>Clear</button>
-            <button type="button" onClick={() => void navigator.clipboard?.writeText(log.map(l => `[${l.at}] ${l.text}`).join("\n"))}>Copy Logs</button>
+            <button type="button" onClick={() => void navigator.clipboard?.writeText(log.map(l => `[${l.at}] ${l.text}`).join("\n"))}>Copy log</button>
           </div>
         </div>
         <div className={styles.monStats}>
-          <div className={styles.monHead}><span className={styles.pct}>{pct.toFixed(1)}%</span><strong>{m ? `${m.collected} / ${m.target} Contacts` : "0 Leads Discovered"}</strong></div>
+          <div className={styles.monHead}><span className={styles.pct}>{pct.toFixed(1)}%</span><strong>{m ? `${m.collected} / ${m.target} contacts` : "No collection running"}</strong></div>
           <div className={styles.chips}>
-            <span>⚡ Speed: {speed ? `${speed.toFixed(1)} leads/min` : "-- leads/min"}</span>
-            <span>⏱ Elapsed: {mmss(elapsed)}</span>
-            <span>{m && m.status !== "running" ? `✓ ${monitorStatus}` : `⌛ ETA: ${eta === null ? "Ready" : mmss(eta)}`}</span>
+            <span><Icon name="bolt" size={13} />Speed: {speed ? `${speed.toFixed(1)} leads/min` : "-- leads/min"}</span>
+            <span><Icon name="calendar" size={13} />Elapsed: {mmss(elapsed)}</span>
+            <span>{m && m.status !== "running" ? <><Icon name="check" size={13} />{monitorStatus}</> : <><Icon name="next" size={13} />ETA: {eta === null ? "Ready" : mmss(eta)}</>}</span>
           </div>
           <div className={styles.bar} data-done={m?.status === "completed" || undefined}><i style={{ width:`${pct}%` }} /></div>
         </div>
