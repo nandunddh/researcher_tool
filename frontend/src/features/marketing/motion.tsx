@@ -24,6 +24,8 @@ export function MotionEffects() {
     if (lights.length) window.addEventListener("pointermove", onMove, { passive: true });
     const items = document.querySelectorAll<HTMLElement>("[data-reveal]");
     let io: IntersectionObserver | undefined;
+    // Whatever is already on screen (or above it) shows at once; only content further down waits to fade in on scroll.
+    items.forEach(el => { if (el.getBoundingClientRect().top < window.innerHeight) el.setAttribute("data-shown", ""); });
     if ("IntersectionObserver" in window && !reducedMotion()) {
       io = new IntersectionObserver(entries => {
         for (const e of entries) if (e.isIntersecting) { e.target.setAttribute("data-shown", ""); io?.unobserve(e.target); }

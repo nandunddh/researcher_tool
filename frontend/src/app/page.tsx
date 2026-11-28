@@ -3,10 +3,13 @@ import { redirect } from "next/navigation";
 import { session } from "@/lib/session";
 import { safeReturnPath } from "@/lib/contracts";
 import { Landing, type PublicPlan } from "@/features/marketing/landing";
+import { siteUrl } from "@/lib/site-url";
+import { homeStructuredData, jsonLd } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "SciProspect · Researcher data and event websites",
   description: "Collect verified researcher contacts and build your conference website with registration, payments and abstract submissions. No code needed.",
+  alternates: { canonical: "/" },
 };
 
 async function loadPlans(): Promise<PublicPlan[]> {
@@ -24,5 +27,9 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   const next = safeReturnPath((await searchParams).next);
   // Sign-in redirects still pass through here with ?next=…
   if (next) redirect(current ? next : `/login?next=${encodeURIComponent(next)}`);
-  return <Landing plans={await loadPlans()} signedInHref={current ? "/dashboard" : null} />;
+  const [plans, base] = await Promise.all([loadPlans(), siteUrl()]);
+  return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(homeStructuredData(base, plans)) }} />
+    <Landing plans={plans} signedInHref={current ? "/dashboard" : null} />
+  </>;
 }

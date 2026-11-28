@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { COMPANY, ContactDetails, ContactLink, LegalPage, publicContact } from "@/features/marketing/legal";
 
-export const metadata: Metadata = { title: "Privacy policy · SciProspect", description: "How SciProspect collects, uses and protects personal data." };
+export const metadata: Metadata = { title: "Privacy policy · SciProspect", description: "How SciProspect collects, uses and protects personal data.", alternates: { canonical: "/privacy" } };
 
 // Draft policy written for how SciProspect works. Have it reviewed by a lawyer before launch.
 export default async function Page() {

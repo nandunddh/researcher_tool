@@ -5,6 +5,7 @@ import { BookDemo } from "@/features/marketing/book-demo";
 export const metadata: Metadata = {
   title: "Book a demo · SciProspect",
   description: "See SciProspect with your own research topic and event in a 30-minute call with our team.",
+  alternates: { canonical: "/demo" },
 };
 
 /** The Cloudflare Turnstile site key, or "" when the check is off (local development). */

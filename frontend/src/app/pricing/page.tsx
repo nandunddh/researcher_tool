@@ -6,6 +6,7 @@ import { PricingPage } from "@/features/marketing/pricing-page";
 export const metadata: Metadata = {
   title: "Pricing · SciProspect",
   description: "Basic, Pro and Ultra plans with a 7-day free trial. Collect verified researcher contacts and build your conference website.",
+  alternates: { canonical: "/pricing" },
 };
 
 async function loadPlans(): Promise<PublicPlan[]> {

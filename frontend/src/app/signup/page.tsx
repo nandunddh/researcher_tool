@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { session } from "@/lib/session";
 import { Signup } from "@/features/auth/signup";
 
-export const metadata: Metadata = { title: "Create your account · SciProspect" };
+export const metadata: Metadata = { title: "Create your account · SciProspect", alternates: { canonical: "/signup" } };
 
 export default async function Page({ searchParams }: { searchParams: Promise<{ plan?: string }> }) {
   const current = await session();

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { COMPANY, ContactDetails, ContactLink, LegalPage, publicContact } from "@/features/marketing/legal";
 
-export const metadata: Metadata = { title: "Terms of service · SciProspect", description: "The terms for using SciProspect and SciStudio." };
+export const metadata: Metadata = { title: "Terms of service · SciProspect", description: "The terms for using SciProspect and SciStudio.", alternates: { canonical: "/terms" } };
 
 // Draft terms written for how SciProspect works. Have them reviewed by a lawyer before launch.
 export default async function Page() {
