@@ -8,5 +8,5 @@ export default async function Page() {
   const current = await session();
   if (!current) redirect("/login");
   if (current.user.mfa_setup_required) redirect("/setup-2fa");
-  return <Billing highlight="" workspace={`/${current.user.workspace_namespace}/dashboard`} />;
+  return <Billing highlight="" workspace={"/dashboard"} />;
 }

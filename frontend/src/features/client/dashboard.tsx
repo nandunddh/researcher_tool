@@ -52,7 +52,7 @@ export function ClientDashboard() {
   useEffect(() => { void load(); }, []);
 
   return (
-    <ClientShell title="Client Dashboard" clientName={data?.client_name}
+    <ClientShell title="Dashboard" clientName={data?.client_name}
       actions={data ? <TopActions upgrade={data.tier === "trial" || data.status !== "active"} /> : undefined}>
       {error && (
         <p className="alert" role="alert">
@@ -89,9 +89,9 @@ export function ClientDashboard() {
           <SectionTitle title="Your workspaces" note="Jump straight into your tools" />
           <LaunchGrid>
             <LaunchCard icon="search" tone="violet" eyebrow="Prospecting & discovery" title="Data Collector"
-              text="Find researchers by topic, search NIH grants and export verified contacts." href="/client/collector" cta="Open Data Collector" />
+              text="Find researchers by topic, search NIH grants and export verified contacts." href="/collector" cta="Open Data Collector" />
             <LaunchCard icon="layers" tone="blue" eyebrow="Website builder" title="SciStudio"
-              text="Design, preview and publish conference and event websites." href="/client/scistudio" cta="Open SciStudio" disabled={!data.scistudio_access} />
+              text="Design, preview and publish conference and event websites." href="/scistudio" cta="Open SciStudio" disabled={!data.scistudio_access} />
           </LaunchGrid>
 
           <TeamPanel members={data.members ?? []} seatLimit={data.seat_limit ?? 0} onChanged={load} />
@@ -107,7 +107,7 @@ export function ClientDashboard() {
                   Conferences linked to your individual researcher license.
                 </small>
               </div>
-              <a className="button primary" href="/client/scistudio">
+              <a className="button primary" href="/scistudio">
                 <Icon name="plus" size={16} /> Manage in SciStudio
               </a>
             </div>
@@ -132,7 +132,7 @@ export function ClientDashboard() {
                       </td>
                       <td data-label="Description">{c.description || "—"}</td>
                       <td data-label="Actions">
-                        <a className="button" href="/client/scistudio">
+                        <a className="button" href="/scistudio">
                           Open in Studio
                         </a>
                       </td>

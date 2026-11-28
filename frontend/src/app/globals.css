@@ -289,3 +289,12 @@
 .sidebar-upgrade-icon{display:grid;place-items:center;flex:none;width:34px;height:34px;border-radius:10px;background:#c8ff4d;color:#0a0a0a}
 .sidebar-upgrade b{display:block;font-size:14px;color:#fff}
 .sidebar-upgrade small{display:block;font-size:11.5px;line-height:1.35;color:rgba(255,255,255,.7)}
+/* Workspace footer and the version line at the bottom of the sidebar. */
+.admin-content{display:flex;flex-direction:column;min-height:100vh}
+.admin-main{flex:1}
+.workspace-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 32px;border-top:1px solid var(--line);background:#fff;font-size:13px;color:#6b7690}
+.workspace-footer time{font-variant-numeric:tabular-nums;color:#3b4660;font-weight:500}
+.sidebar-version{margin-top:auto;padding:12px 18px 16px;font-size:11.5px;color:rgba(255,255,255,.45);letter-spacing:.02em}
+.sidebar-upgrade~.sidebar-version{margin-top:0}
+.sidebar-upgrade{margin-bottom:6px}
+@media(max-width:600px){.workspace-footer{padding:14px 16px;justify-content:center;text-align:center}}

@@ -233,7 +233,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
   // Preview opens the saved website on its own page (same renderer as the canvas).
   const openPage = site?.pages?.find(pg => pg.id === site.active_page_id);
   const openSlug = openPage && !openPage.is_home ? (openPage.slug || "").replace(/^\/+|\/+$/g, "") : "";
-  const previewUrl = `/${namespace}/scistudio/${encodeURIComponent(siteId)}/preview${openSlug ? `/${encodeURIComponent(openSlug)}` : ""}`;
+  const previewUrl = `/scistudio/${encodeURIComponent(siteId)}/preview${openSlug ? `/${encodeURIComponent(openSlug)}` : ""}`;
   async function setLive(on: boolean) {
     if (!site) return;
     if (on && dirty && !(await save())) return;
@@ -269,7 +269,7 @@ export function ReactEditor({ siteId, namespace }: { siteId: string; namespace: 
     <main className={styles.editor} data-theme={theme}>
       <header className={styles.toolbar}>
         <div className={styles.toolbarStart}>
-          <a className={styles.back} href={`/${namespace}/scistudio`} title="All websites" aria-label="All websites"
+          <a className={styles.back} href="/scistudio" title="All websites" aria-label="All websites"
             onClick={e => {
               if (!dirty) return;
               e.preventDefault();

@@ -16,12 +16,23 @@ export async function session(): Promise<Session | null> {
   if (!isNamespace(data.user?.workspace_namespace)) throw new Error("Restart FastAPI to load the frontend session contract.");
   return data;
 }
-/** returnTo: where to come back after signing in (defaults to SciStudio). */
-export async function requireSession(namespace: Namespace, returnTo = `/${namespace}/scistudio`) {
+/** Signed in, two-step set up and a live plan, or sent where that gets fixed. returnTo: where to come back after signing in. */
+async function signedIn(returnTo: string) {
   const current = await session();
   if (!current) redirect(`/login?next=${encodeURIComponent(returnTo)}`);
   if (current.user.mfa_setup_required) redirect("/setup-2fa");
   if (current.user.license_expired) redirect("/billing");  // an ended trial or plan can only reach Billing
-  if (current.user.workspace_namespace !== namespace) redirect(`/${current.user.workspace_namespace}/dashboard`);
   return current.user;
+}
+
+/** Workspace pages (/dashboard, /collector, /scistudio …): any account type; the user's workspace_namespace says which. */
+export async function requireWorkspace(returnTo: string) {
+  return signedIn(returnTo);
+}
+
+/** Pages for one account type only (the root admin pages). */
+export async function requireSession(namespace: Namespace, returnTo = "/dashboard") {
+  const user = await signedIn(returnTo);
+  if (user.workspace_namespace !== namespace) redirect("/dashboard");
+  return user;
 }

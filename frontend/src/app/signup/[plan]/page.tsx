@@ -9,6 +9,6 @@ export const metadata: Metadata = { title: "Create your account · SciProspect" 
 export default async function Page({ params }: { params: Promise<{ plan: string }> }) {
   const plan = (await params).plan;
   const current = await session();
-  if (current) redirect(plan !== "free" && plan !== "trial" ?`/billing/upgrade/${encodeURIComponent(plan)}` : `/${current.user.workspace_namespace}/dashboard`);
+  if (current) redirect(plan !== "free" && plan !== "trial" ?`/billing/upgrade/${encodeURIComponent(plan)}` : "/dashboard");
   return <Signup initialPlan={plan} />;
 }

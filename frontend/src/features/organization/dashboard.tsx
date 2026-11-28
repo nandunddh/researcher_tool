@@ -197,7 +197,7 @@ export function OrgDashboard() {
   }
 
   return (
-    <OrgShell title="Organization Dashboard" orgName={data?.org_name}
+    <OrgShell title="Dashboard" orgName={data?.org_name}
       actions={data ? <TopActions upgrade={data.tier === "trial" || data.status !== "active"} /> : undefined}>
       {error && (
         <p className="alert" role="alert">
@@ -237,9 +237,9 @@ export function OrgDashboard() {
           <SectionTitle title="Your workspaces" note="Jump straight into your tools" />
           <LaunchGrid>
             <LaunchCard icon="search" tone="violet" eyebrow="Prospecting & discovery" title="Data Collector"
-              text="Find researchers by topic, search NIH grants and export verified contacts." href="/organization/collector" cta="Open Data Collector" />
+              text="Find researchers by topic, search NIH grants and export verified contacts." href="/collector" cta="Open Data Collector" />
             <LaunchCard icon="layers" tone="blue" eyebrow="Website builder" title="SciStudio"
-              text="Design, preview and publish conference and event websites." href="/organization/scistudio" cta="Open SciStudio" disabled={!data.scistudio_access} />
+              text="Design, preview and publish conference and event websites." href="/scistudio" cta="Open SciStudio" disabled={!data.scistudio_access} />
           </LaunchGrid>
 
           {/* Team Members Management Section */}

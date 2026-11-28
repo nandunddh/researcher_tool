@@ -24,5 +24,5 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   const next = safeReturnPath((await searchParams).next);
   // Sign-in redirects still pass through here with ?next=…
   if (next) redirect(current ? next : `/login?next=${encodeURIComponent(next)}`);
-  return <Landing plans={await loadPlans()} signedInHref={current ? `/${current.user.workspace_namespace}/dashboard` : null} />;
+  return <Landing plans={await loadPlans()} signedInHref={current ? "/dashboard" : null} />;
 }

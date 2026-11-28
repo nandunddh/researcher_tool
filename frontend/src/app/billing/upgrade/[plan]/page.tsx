@@ -9,5 +9,5 @@ export default async function Page({ params }: { params: Promise<{ plan: string 
   const current = await session();
   if (!current) redirect("/login");
   if (current.user.mfa_setup_required) redirect("/setup-2fa");
-  return <Billing highlight={(await params).plan} workspace={`/${current.user.workspace_namespace}/dashboard`} />;
+  return <Billing highlight={(await params).plan} workspace={"/dashboard"} />;
 }

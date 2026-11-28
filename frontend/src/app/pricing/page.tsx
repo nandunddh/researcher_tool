@@ -20,5 +20,5 @@ async function loadPlans(): Promise<PublicPlan[]> {
 
 export default async function Page() {
   const current = await session();
-  return <PricingPage plans={await loadPlans()} signedInHref={current ? `/${current.user.workspace_namespace}/dashboard` : null} />;
+  return <PricingPage plans={await loadPlans()} signedInHref={current ? "/dashboard" : null} />;
 }

@@ -2,11 +2,12 @@ import type { ReactNode } from "react";
 import { Sidebar } from "@/components/sidebar";
 import { Icon } from "@/components/icon";
 import { SignOut } from "@/components/sign-out";
+import { WorkspaceFooter } from "@/components/workspace-footer";
 
 export function OrgShell({
   title,
   orgName,
-  path = "/organization/dashboard",
+  path = "/dashboard",
   actions,
   children,
 }: {
@@ -33,7 +34,7 @@ export function OrgShell({
           </div>
           <div className="header-actions">{actions}<SignOut /></div>
         </header>
-        <main className="admin-main">{children}</main>
+        <main className="admin-main">{children}</main><WorkspaceFooter />
       </div>
     </div>
   );

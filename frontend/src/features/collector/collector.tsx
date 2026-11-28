@@ -38,23 +38,23 @@ export function CollectorApp({ namespace, userName, tier, kind = "publications" 
   return (
     <div className={styles.app}>
       <aside className={styles.side}>
-        <a className={styles.brand} href={`/${namespace}/collector`}>
+        <a className={styles.brand} href="/collector">
           <span className={styles.logo}><img src="/branding/sciprospect-a-icon-white.png" alt="" /></span>
           <span><strong>SciProspect</strong><small>Research intelligence</small></span>
         </a>
         <div className={styles.switch} role="group" aria-label="SciProspect products">
-          <a href={`/${namespace}/collector`} data-active=""><Icon name="bolt" size={16} />Collect</a>
-          <a href={`/${namespace}/scistudio`}><Icon name="layers" size={16} />Studio</a>
+          <a href="/collector" data-active=""><Icon name="bolt" size={16} />Collect</a>
+          <a href="/scistudio"><Icon name="layers" size={16} />Studio</a>
         </div>
         <nav className={styles.nav} aria-label="Data collector">
           <p>Data collector</p>
-          <a href={`/${namespace}/collector`} data-active={nih ? undefined : ""} aria-current={nih ? undefined : "page"}><Icon name="bolt" size={18} />Dashboard</a>
-          <a href={`/${namespace}/collector/nih`} data-active={nih ? "" : undefined} aria-current={nih ? "page" : undefined}><Icon name="doc" size={18} />NIH Grant PIs</a>
+          <a href="/collector" data-active={nih ? undefined : ""} aria-current={nih ? undefined : "page"}><Icon name="bolt" size={18} />Dashboard</a>
+          <a href="/collector/nih" data-active={nih ? "" : undefined} aria-current={nih ? "page" : undefined}><Icon name="doc" size={18} />NIH Grant PIs</a>
           <a href="#leads"><Icon name="grid" size={18} />Leads Explorer</a>
           <a href="#datasets"><Icon name="layers" size={18} />Datasets Archive</a>
         </nav>
         <div className={styles.sideFoot}>
-          <a className={styles.back} href={`/${namespace}/dashboard`}>← Workspace</a>
+          <a className={styles.back} href="/dashboard">← Workspace</a>
         </div>
       </aside>
       <div className={styles.body}>

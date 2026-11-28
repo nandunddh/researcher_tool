@@ -1,5 +1,8 @@
 import { Icon, type IconName } from "@/components/icon";
 
+const VERSION = process.env.NEXT_PUBLIC_APP_VERSION ?? "";
+const COMMIT = process.env.NEXT_PUBLIC_APP_COMMIT ?? "";
+
 interface NavItem {
   label: string;
   url: string;
@@ -16,19 +19,19 @@ const ROOT_LINKS: NavItem[] = [
 ];
 
 const ORG_LINKS: NavItem[] = [
-  { label: "Dashboard", url: "/organization/dashboard", icon: "bolt" },
+  { label: "Dashboard", url: "/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
   { label: "Account", url: "/account", icon: "user" },
 ];
 
 const CLIENT_LINKS: NavItem[] = [
-  { label: "Dashboard", url: "/client/dashboard", icon: "bolt" },
+  { label: "Dashboard", url: "/dashboard", icon: "bolt" },
   { label: "Billing & plan", url: "/billing", icon: "doc" },
   { label: "Account", url: "/account", icon: "user" },
 ];
 
 const CONFERENCE_LINKS: NavItem[] = [
-  { label: "Dashboard", url: "/conference/dashboard", icon: "bolt" },
+  { label: "Dashboard", url: "/dashboard", icon: "bolt" },
 ];
 
 export function Sidebar({
@@ -60,19 +63,19 @@ export function Sidebar({
 
   const heading =
     effectiveNamespace === "organization"
-      ? "ORGANIZATION"
+      ? "WORKSPACE"
       : effectiveNamespace === "client"
-      ? "CLIENT WORKSPACE"
+      ? "WORKSPACE"
       : effectiveNamespace === "conference"
       ? "CONFERENCE TEAM"
       : "ROOT ADMIN";
 
-  const studioUrl = `/${effectiveNamespace}/scistudio`;
-  const collectUrl = `/${effectiveNamespace}/collector`;
+  const studioUrl = "/scistudio";
+  const collectUrl = "/collector";
 
   return (
     <aside className="app-sidebar">
-      <a className="sidebar-brand" href={`/${effectiveNamespace}/dashboard`} aria-label="SciProspect dashboard">
+      <a className="sidebar-brand" href={effectiveNamespace === "root" ? "/root/dashboard" : "/dashboard"} aria-label="SciProspect dashboard">
         <span className="sciprospect-original-mark" aria-hidden="true" />
         <div className="collector-brand-name">
           SciProspect
@@ -108,6 +111,11 @@ export function Sidebar({
           <span><b>Upgrade plan</b><small>More contacts, websites and team seats</small></span>
         </a>
       )}
+
+      {/* Version and build, set when the app is built (next.config.ts). */}
+      <div className="sidebar-version" title={COMMIT ? `Build ${COMMIT}` : undefined}>
+        SciProspect v{VERSION}{COMMIT && <> · build {COMMIT}</>}
+      </div>
     </aside>
   );
 }

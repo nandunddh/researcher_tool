@@ -45,7 +45,7 @@ export function AddToEvent({ emails, namespace, onClose }: { emails: string[]; n
           <p role="status"><strong>{done.added} added</strong> to the Invited speakers of “{eventName}”.
             {done.already_listed > 0 && ` ${done.already_listed} already on the list.`}{done.not_found > 0 && ` ${done.not_found} not found in your archive.`}</p>
           <p className={styles.muted}>They are private. Open the event in SciStudio, then Event details → Speakers, to add the ones who accept to the website.</p>
-          <div className={styles.dialogActions}><a className="primary" href={`/${namespace}/scistudio`}>Open SciStudio</a><button type="button" onClick={onClose}>Close</button></div>
+          <div className={styles.dialogActions}><a className="primary" href="/scistudio">Open SciStudio</a><button type="button" onClick={onClose}>Close</button></div>
         </div>
       ) : (
         <div className={styles.dialogBody}>

@@ -14,5 +14,5 @@ export default async function Page() {
   const ns = current.user.workspace_namespace;
   if (ns === "organization") return <OrgShell title="Account" path="/account"><Account namespace="organization" /></OrgShell>;
   if (ns === "client") return <ClientShell title="Account" clientName={current.user.client_name} path="/account"><Account namespace="client" /></ClientShell>;
-  redirect(`/${ns}/dashboard`); // root and conference teams manage accounts elsewhere
+  redirect("/dashboard"); // root and conference teams manage accounts elsewhere
 }

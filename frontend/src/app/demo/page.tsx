@@ -20,5 +20,5 @@ async function captchaKey(): Promise<string> {
 
 export default async function Page() {
   const [key, current] = await Promise.all([captchaKey(), session()]);
-  return <BookDemo captchaSiteKey={key} signedInHref={current ? `/${current.user.workspace_namespace}/dashboard` : null} />;
+  return <BookDemo captchaSiteKey={key} signedInHref={current ? "/dashboard" : null} />;
 }

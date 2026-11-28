@@ -27,11 +27,14 @@ export type ClientBrief = {
   conference_name: string; start_date: string; end_date: string;
   venue_format: string; contact_email: string;
 };
-export function studioPath(namespace: Namespace, siteId?: string, action: "edit" | "preview" = "edit") {
+/** Workspace pages have one address for every account type; the session decides what each shows. */
+export const WORKSPACE_PATHS = ["/dashboard", "/collector", "/scistudio", "/account", "/billing"] as const;
+export function studioPath(siteId?: string, action: "edit" | "preview" = "edit") {
   // "edit" opens the React editor; the classic editor stays reachable from its toolbar.
-  return `/${namespace}/scistudio${siteId ? `/${encodeURIComponent(siteId)}/${action === "edit" ? "react-edit" : action}` : ""}`;
+  return `/scistudio${siteId ? `/${encodeURIComponent(siteId)}/${action === "edit" ? "react-edit" : action}` : ""}`;
 }
 export function safeReturnPath(path: string | undefined): string | null {
   if (!path || !path.startsWith("/") || path.startsWith("//") || /[\\\r\n]/.test(path)) return null;
-  return namespaces.some(namespace => path.startsWith(`/${namespace}/`)) ? path : null;
+  const inWorkspace = WORKSPACE_PATHS.some(p => path === p || path.startsWith(p + "/") || path.startsWith(p + "?"));
+  return inWorkspace || namespaces.some(namespace => path.startsWith(`/${namespace}/`)) ? path : null;
 }

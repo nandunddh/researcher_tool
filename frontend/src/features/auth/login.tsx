@@ -28,7 +28,7 @@ export function Login({ returnPath }: { returnPath: string | null }) {
   async function finishSignIn() {
     const current = await api<Session>("/api/auth/me");
     if (current.user.mfa_setup_required) { window.location.assign("/setup-2fa"); return; }
-    window.location.assign(returnPath || `/${current.user.workspace_namespace}/dashboard`);
+    window.location.assign(returnPath || "/dashboard");
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
