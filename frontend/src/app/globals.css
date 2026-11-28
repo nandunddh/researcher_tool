@@ -298,3 +298,16 @@
 .sidebar-upgrade~.sidebar-version{margin-top:0}
 .sidebar-upgrade{margin-bottom:6px}
 @media(max-width:600px){.workspace-footer{padding:14px 16px;justify-content:center;text-align:center}}
+/* Profile menu: one clean list (the global button style made each item a separate bordered box). */
+.profile-dropdown-panel{width:240px;padding:6px;border-radius:14px;box-shadow:0 18px 40px rgba(16,24,40,.14)}
+.profile-dropdown-panel .profile-item{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;padding:9px 10px;border:0;border-radius:10px;background:transparent;color:#1f2a44;font-size:14px;font-weight:500;text-align:left;text-decoration:none;cursor:pointer}
+.profile-dropdown-panel .profile-item:hover,.profile-dropdown-panel .profile-item:focus-visible{background:#f4f2ff;color:#4f46e5;outline:none}
+.profile-item-icon{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;background:#f4f5fa;color:#5b6680}
+.profile-item:hover .profile-item-icon{background:#e8e4ff;color:#4f46e5}
+.profile-divider{margin:6px 4px;border:0;border-top:1px solid #eceff5}
+.profile-dropdown-panel .profile-item-danger{color:#b42318}
+.profile-dropdown-panel .profile-item-danger:hover{background:#fef3f2;color:#b42318}
+.profile-item-danger .profile-item-icon{background:#fef3f2;color:#b42318}
+/* Template thumbnails: the page is drawn at (card width / 0.27) and scaled down, so it fills the card exactly (no side gap). */
+.thumbnail{--thumb-scale:.27}
+.thumbnail iframe{width:calc(100% / var(--thumb-scale));height:calc(100% / var(--thumb-scale));transform:scale(var(--thumb-scale))}

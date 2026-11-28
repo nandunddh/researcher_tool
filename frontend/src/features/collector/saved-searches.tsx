@@ -6,7 +6,7 @@ import styles from "./collector.module.css";
 
 export type SavedSearch = { id: string; name: string; kind: "publications" | "nih"; topic: string; target: number; min_score: number;
   window_days: number; country: string; institution: string; frequency: "off" | "daily" | "weekly";
-  next_run_at: string | null; last_run_at: string | null; last_error: string };
+  next_run_at: string | null; last_run_at: string | null; last_error: string; sources?: string[] };
 
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleString([], { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "";
 const message = (error: unknown) => error instanceof Error ? error.message : "Please try again.";
@@ -51,6 +51,7 @@ export function SavedSearches({ kind, revision, busy, onStarted, onError }: {
               <small>
                 {item.target} contacts · last {item.window_days} days{item.kind === "nih" ? " · NIH grants" : ` · score ${item.min_score}+`}
                 {item.country ? ` · ${item.country}` : ""}{item.institution ? ` · ${item.institution}` : ""}
+                {item.kind !== "nih" && item.sources?.length ? ` · ${item.sources.join(" + ")} only` : ""}
               </small>
               <small className={item.last_error ? styles.savedError : undefined}>
                 {item.last_error ? `Last scheduled run didn't start: ${item.last_error}`

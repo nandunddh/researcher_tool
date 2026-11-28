@@ -8,7 +8,7 @@ import db
 FREQUENCIES = ("off", "daily", "weekly")
 _STEP = {"daily": "1 day", "weekly": "7 days"}
 COLUMNS = ("id,name,kind,topic,target,min_score,window_days,country,institution,frequency,"
-           "next_run_at,last_run_id,last_run_at,last_error,created_at")
+           "next_run_at,last_run_id,last_run_at,last_error,created_at,sources")
 
 
 def _next(frequency):
@@ -22,14 +22,14 @@ def list_searches(owner):
         return rows.fetchall()
 
 
-def save(owner, *, name, kind, topic, target, min_score, window_days, country, institution, frequency, license_key):
+def save(owner, *, name, kind, topic, target, min_score, window_days, country, institution, frequency, license_key, sources=()):
     if frequency not in FREQUENCIES:
         raise ValueError("Unknown frequency.")
     search_id = str(uuid.uuid4())
     with db.transaction() as cur:
         cur.execute(f"""INSERT INTO collector_saved_searches(owner_key,id,name,kind,topic,target,min_score,window_days,country,
-                        institution,frequency,license_key,next_run_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,{_next(frequency)})""",
-                    (owner, search_id, name, kind, topic, target, min_score, window_days, country, institution, frequency, license_key))
+                        institution,frequency,license_key,sources,next_run_at) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,{_next(frequency)})""",
+                    (owner, search_id, name, kind, topic, target, min_score, window_days, country, institution, frequency, license_key, list(sources)))
     return search_id
 
 

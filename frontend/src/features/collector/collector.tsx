@@ -13,7 +13,7 @@ const COUNTRY_NAMES: Record<string, string> = { US:"United States", GB:"United K
 const countryName = (code: string) => COUNTRY_NAMES[code] ?? code;
 const COUNTRIES = Object.entries(COUNTRY_NAMES).sort((a, b) => a[1].localeCompare(b[1], "en"));
 type Kind = "publications" | "nih";
-type Run = { id:string; kind?:Kind; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; country?:string; institution?:string; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
+type Run = { id:string; kind?:Kind; topic:string; status:string; source:string; collected:number; target:number; shortfall:number; min_score?:number; from_date?:string; to_date?:string; country?:string; institution?:string; sources?:string[]; updated_at:string; started_at:string; source_errors:{source:string; message:string}[] };
 const statusLabels = {
   deliverable_domain: "Mail domain ready", role: "Role address", disposable: "Disposable",
   invalid_format: "Invalid format", no_domain: "Domain missing", no_mail_server: "No mail server", unknown: "Unknown",
@@ -22,6 +22,13 @@ type Contact = { researcher_name:string; professional_email:string; affiliation:
 type Stats = { total:number; today:number; datasets:number; daily_limit:number | null; remaining_today:number | null };
 type LogLine = { at:string; text:string; level:"info"|"ok"|"warn"|"error" };
 const endpoint = "/api/collector/runs";
+/** Publication sources the user can choose from (the backend searches them in this order). */
+const SOURCES: [name: string, label: string, note: string][] = [
+  ["OpenAlex", "OpenAlex", "Papers in every field · supports the country filter"],
+  ["PubMed", "PubMed", "Medicine and life sciences"],
+  ["bioRxiv", "bioRxiv / medRxiv", "Preprints in biology and medicine"],
+];
+const ALL_SOURCES = SOURCES.map(([name]) => name);
 const PAGE_SIZES = [50, 100, 250];
 const COLUMNS: [keyof Contact | "status", string, string][] = [["researcher_name","Researcher","name"],["professional_email","Public email","email"],
   ["affiliation","Affiliation","affiliation"],["data_source","Source","source"],["email_confidence","Email confidence","confidence"],["status","Delivery status","status"]];
@@ -80,6 +87,13 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
   const [revision,refresh] = useState(0);
   const [deliveryFilter, setDeliveryFilter] = useState("");
   const [target, setTarget] = useState(100);
+  const [sources, setSources] = useState<string[]>(ALL_SOURCES);
+  /** The choice in the usual order; at least one source always stays on. */
+  const toggleSource = (name: string) => setSources(on => on.includes(name) ? (on.length > 1 ? on.filter(n => n !== name) : on) : ALL_SOURCES.filter(n => n === name || on.includes(n)));
+  // Sends [] when all are on, which the backend reads as "all sources" (new sources then join automatically).
+  const sourcesBody = () => (nih || sources.length === ALL_SOURCES.length ? [] : sources);
+  /** The country filter needs OpenAlex; returns the message to show, or "". */
+  const sourceProblem = (country: string) => (!nih && country && !sources.includes("OpenAlex") ? "The country filter works with OpenAlex only. Select OpenAlex or choose Any country." : "");
   const [pageSize, setPageSize] = useState(50);
   const [search, setSearch] = useState("");
   const [query, setQuery] = useState("");
@@ -170,10 +184,12 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
   async function start(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const problem = sourceProblem(String(form.get("country") ?? ""));
+    if (problem) { setError(problem); return; }
     setError(""); setBusy(true);
     try {
       const {id} = await api<{id:string}>(endpoint,{method:"POST",body:JSON.stringify({
-        topic:form.get("topic"), target, min_score:Number(form.get("score")), from_date:form.get("from"), to_date:form.get("to"), country:form.get("country") ?? "", institution:form.get("institution"), kind,
+        topic:form.get("topic"), target, min_score:Number(form.get("score")), from_date:form.get("from"), to_date:form.get("to"), country:form.get("country") ?? "", institution:form.get("institution"), kind, sources:sourcesBody(),
       })});
       setLog(lines => [...lines, { at:clock(), level:"info", text:`Queued collection for "${String(form.get("topic"))}" (${target} contacts)…` }]);
       select(id); setRows([]); setOffset(0); refresh(v => v+1);
@@ -184,11 +200,13 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
     if (!form) return;
     if (!form.reportValidity()) return;
     const data = new FormData(form);
+    const problem = sourceProblem(String(data.get("country") ?? ""));
+    if (problem) { setError(problem); return; }
     setError(""); setSavedNote("");
     try {
       await api("/api/collector/searches", { method:"POST", body:JSON.stringify({
         topic:data.get("topic"), target, min_score:Number(data.get("score")), from_date:data.get("from"), to_date:data.get("to"),
-        country:data.get("country") ?? "", institution:data.get("institution") ?? "", kind,
+        country:data.get("country") ?? "", institution:data.get("institution") ?? "", kind, sources:sourcesBody(),
       })});
       setSavedRev(v => v + 1);
       setSavedNote(`Saved "${String(data.get("topic")).trim()}". Run it again or schedule it under Saved searches.`);
@@ -208,6 +226,7 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
     const set = (name: string, value: unknown) => { const el = form.elements.namedItem(name) as HTMLInputElement | null; if (el && value !== undefined && value !== null) el.value = String(value); };
     set("topic", run.topic); set("score", run.min_score); set("from", run.from_date); set("to", run.to_date); set("country", run.country ?? ""); set("institution", run.institution ?? "");
     setTarget(run.target);
+    setSources(run.sources?.length ? ALL_SOURCES.filter(n => run.sources!.includes(n)) : ALL_SOURCES);
     form.scrollIntoView({ behavior: "smooth", block: "start" });
     (form.elements.namedItem("topic") as HTMLInputElement | null)?.focus();
   }
@@ -279,7 +298,7 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
 
     <div className={styles.grid}>
       <form className={styles.card} onSubmit={start} ref={formRef}>
-        <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>{nih ? "NIH RePORTER" : "OpenAlex + PubMed + bioRxiv"}</span></div>
+        <div className={styles.cardTop}><span className={styles.kicker}>New collection</span><span className={styles.pill}>{nih ? "NIH RePORTER" : sources.join(" + ")}</span></div>
         <h3>{nih ? "Which NIH-funded researchers?" : "Who are you looking for?"}</h3>
         <p className={styles.muted}>{nih ? "Find principal investigators with NIH grants on a topic. We find their public email from their papers and ORCID." : "Find research contacts by topic. We take care of discovery, enrichment and duplicates."}</p>
         <fieldset disabled={loading || busy || !!active}>
@@ -290,7 +309,19 @@ export function Collector({ kind = "publications", namespace = "client" }: { kin
           <div className={styles.quick}><span>Quick select</span>{[50, 100, 250, 500].map(n => <button key={n} type="button" data-on={target === n || undefined} disabled={left !== null && n > left} onClick={() => setTarget(n)}>{n}</button>)}
             {left !== null && <em className={styles.left} data-empty={left === 0 || undefined}>{left === 0 ? "Today's limit reached" : `${left.toLocaleString()} left today`}</em>}</div>
           <details className={styles.settings}>
-            <summary><span className={styles.summaryTitle}><Icon name="settings" size={16} />Collection settings</span><small>{nih ? "Fiscal years · Institution" : "Score · Dates · Country · Institution"}</small><span className={styles.chevron} aria-hidden="true" /></summary>
+            <summary><span className={styles.summaryTitle}><Icon name="settings" size={16} />Collection settings</span><small>{nih ? "Fiscal years · Institution" : "Sources · Score · Dates · Country · Institution"}</small><span className={styles.chevron} aria-hidden="true" /></summary>
+            {!nih && (
+              <fieldset className={styles.sources}>
+                <legend>Sources to search</legend>
+                {SOURCES.map(([name, label, note]) => (
+                  <label key={name} className={styles.source} data-on={sources.includes(name) || undefined}>
+                    <input type="checkbox" checked={sources.includes(name)} onChange={() => toggleSource(name)}
+                      disabled={sources.length === 1 && sources.includes(name)} />
+                    <span><b>{label}</b><small>{note}</small></span>
+                  </label>
+                ))}
+              </fieldset>
+            )}
             <div className={styles.filters}>
               <label>From<input name="from" type="date" defaultValue={today.slice(0,4)+"-01-01"} required /></label>
               <label>Through<input name="to" type="date" defaultValue={today} required /></label>

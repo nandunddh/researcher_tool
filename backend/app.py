@@ -1321,15 +1321,22 @@ async def builder_list_templates():
 
 @app.get("/api/builder/templates/{template_id}")
 async def builder_template_document(template_id: str):
-    from builder_manager import build_template_components
-    templates = builder_engine.list_templates()
-    template = next((item for item in templates if item["id"] == template_id), None)
-    if not template and template_id != "blank":
-        raise HTTPException(status_code=404, detail="Template not found")
-    name = template["name"] if template else "Your conference"
-    components, theme = build_template_components(template_id, name)
-    if template_id == "blank":
-        components = []
+    """One template as a site document for the gallery preview. Built-in templates need no database; an imported one is one query."""
+    import design_library
+    from builder_manager import TEMPLATES_CATALOG, build_template_components
+    if template_id.startswith(design_library.TEMPLATE_PREFIX):
+        found = design_library.template_preview(template_id)
+        if not found:
+            raise HTTPException(status_code=404, detail="Template not found")
+        name, components, theme = found
+    else:
+        template = next((item for item in TEMPLATES_CATALOG if item["id"] == template_id), None)
+        if not template and template_id != "blank":
+            raise HTTPException(status_code=404, detail="Template not found")
+        name = template["name"] if template else "Your conference"
+        components, theme = build_template_components(template_id, name)
+        if template_id == "blank":
+            components = []
     return {"site_id": "", "name": name, "theme_config": theme, "schema_json": components}
 
 

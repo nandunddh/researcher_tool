@@ -140,7 +140,7 @@
 @keyframes scroll { to { transform: translateX(-50%); } }
 
 /* ---------- Sections ---------- */
-.section { position: relative; z-index: 2; padding: 120px 0; }
+.section { position: relative; z-index: 2; padding: 50px 0; }
 .head { text-align: center; max-width: 780px; margin: 0 auto 64px; }
 .head h2 { margin: 18px 0 14px; font-family: var(--display); font-weight: 800; font-size: clamp(36px, 5.2vw, 68px); line-height: .98; letter-spacing: -.045em; color: #fff; }
 .head p { margin: 0; font-size: 18px; color: var(--muted); }
@@ -255,7 +255,7 @@
   .editor aside { display: none; }
   .ticketList div:not([data-on]) { display: none; }
   .appBody { min-height: 0; padding: 16px; }
-  .section { padding: 80px 0; }
+  .section { padding: 40px 0; }
   .ctaBox { padding: 56px 20px; border-radius: 26px; }
 }
 @media (prefers-reduced-motion: reduce) {

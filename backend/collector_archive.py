@@ -18,7 +18,8 @@ log = logging.getLogger(__name__)
 SOURCES = (("OpenAlex", "03_unified_lead_pipeline.py"), ("PubMed", "07_extract_pubmed_researchers.py"), ("bioRxiv", "06_extract_biorxiv_researchers.py"))
 NIH_SOURCES = (("NIH RePORTER", "04_extract_nih_researchers.py"),)
 COUNTRY_SOURCES = {"OpenAlex", "NIH RePORTER"}  # sources that know the institution country
-COLUMNS = "id,kind,topic,target,min_score,from_date,to_date,country,institution,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at"
+SOURCE_NAMES = tuple(name for name, _ in SOURCES)  # the publication sources a user can choose from
+COLUMNS = "id,kind,topic,target,min_score,from_date,to_date,country,institution,status,source,collected,target-collected AS shortfall,source_errors,started_at,updated_at,sources"
 
 
 def expire(cur, owner):
@@ -26,12 +27,18 @@ def expire(cur, owner):
                    AND status='running' AND updated_at < now()-interval '3 minutes'""", (owner,))
 
 
-def create(owner, topic, target, score, start, end, country="", institution="", kind="publications", started_by=""):
+def chosen_sources(names):
+    """The chosen publication sources in their usual order; empty or None means all of them."""
+    wanted = set(names or ())
+    return [n for n in SOURCE_NAMES if n in wanted]
+
+
+def create(owner, topic, target, score, start, end, country="", institution="", kind="publications", started_by="", sources=()):
     run_id = str(uuid.uuid4())
     with db.transaction() as cur:
         expire(cur, owner)
-        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,kind,started_by,status)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution,kind,started_by))
+        cur.execute("""INSERT INTO collector_runs(owner_key,id,topic,target,min_score,from_date,to_date,country,institution,kind,started_by,sources,status)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'running')""", (owner,run_id,topic,target,score,start,end,country,institution,kind,started_by,chosen_sources(sources)))
     return run_id
 
 
@@ -212,10 +219,12 @@ def execute(owner, run_id, sources=SOURCES, loader=load_source):
     try:
         if sources is SOURCES:
             with db.transaction() as cur:
-                cur.execute("SELECT kind FROM collector_runs WHERE owner_key=%s AND id=%s", archive.key)
+                cur.execute("SELECT kind, sources FROM collector_runs WHERE owner_key=%s AND id=%s", archive.key)
                 row = cur.fetchone()
             if row and row[0] == "nih":
                 sources = NIH_SOURCES
+            elif row and row[1]:  # the user picked some publication sources
+                sources = tuple(s for s in SOURCES if s[0] in row[1])
         with archive.heartbeat():
             for name, filename in sources:
                 with db.transaction() as cur:

@@ -288,3 +288,15 @@ th[aria-sort="ascending"] .sortBtn span, th[aria-sort="descending"] .sortBtn spa
 .monFoot { border-top: 0; padding: 12px 22px 16px; }
 @media (max-width: 800px) { .monTop { grid-template-columns: 1fr; } .terminal { margin: 0 12px; } }
 @media (max-width: 800px) { .hero { padding: 22px 18px; } .tiles { grid-template-columns: 1fr; } }
+
+/* Sources to search: one card per source, the chosen ones highlighted. At least one stays on. */
+.sources { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 14px 0 0; padding: 0; border: 0; min-width: 0; }
+.sources legend { padding: 0; margin-bottom: 8px; font-size: 14px; font-weight: 600; color: #1e293b; }
+.card .source { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid #dbe1ee; border-radius: 14px; background: #fff; cursor: pointer; font-weight: 400; transition: border-color .15s, background .15s; }
+.card .source:hover { border-color: #4f46e5; }
+.card .source[data-on] { border-color: #4f46e5; background: #f6f5ff; }
+.card .source input { width: 16px; height: 16px; margin-top: 2px; flex: none; accent-color: #4f46e5; }
+.card .source input:disabled { cursor: not-allowed; }
+.source b { display: block; font-size: 14px; color: #101828; }
+.source small { display: block; font-size: 12px; line-height: 1.4; color: #6b7690; }
+@media (max-width: 800px) { .sources { grid-template-columns: 1fr; } }

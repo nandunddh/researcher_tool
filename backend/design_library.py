@@ -188,6 +188,16 @@ def template_site(template_id: str, site_slug: str = ""):
     return pages, dict(design.get("theme") or {})
 
 
+def template_preview(template_id: str):
+    """(name, home page components, theme) of an imported template for its gallery preview, from one query; None if missing."""
+    design = _load_template(template_id)
+    if not design:
+        return None
+    pages = _pages_of(design)
+    home = [fresh_ids(_resolve_links(sec, "", {p.get("slug", "") for p in pages})) for sec in (pages[0].get("sections") or [])] if pages else []
+    return design.get("name") or "Template", home, dict(design.get("theme") or {})
+
+
 def template_components(template_id: str):
     """(home page components, theme) for previews and the template gallery, or None."""
     found = template_site(template_id)

@@ -24,6 +24,8 @@ class CollectionRequest(BaseModel):
     country: str = Field(default="", pattern=r"^([A-Za-z]{2})?$")  # ISO 3166-1 alpha-2, e.g. US
     institution: str = Field(default="", max_length=120)
     kind: Literal["publications", "nih"] = "publications"
+    # Publication sources to search; empty means all. Ignored for NIH collections.
+    sources: list[Literal["OpenAlex", "PubMed", "bioRxiv"]] = Field(default_factory=list, max_length=3)
 
 
 class SaveSearchRequest(CollectionRequest):
@@ -37,6 +39,12 @@ class UpdateSearchRequest(BaseModel):
 
 
 log = logging.getLogger(__name__)
+
+
+def check_sources(sources, country):
+    """The country filter needs OpenAlex (the only publication source with country data)."""
+    if country and sources and "OpenAlex" not in sources:
+        raise HTTPException(400, "The country filter works with OpenAlex only. Select OpenAlex or choose Any country.")
 
 
 class RenameRequest(BaseModel):
@@ -115,7 +123,7 @@ def collector_router(require_user, licenses, storage_full=None):
         limit = info.get("daily_limit")
         return bool(info.get("valid")), (limit if isinstance(limit, int) and limit >= 0 else None)
 
-    def begin(key, license_key, is_admin, *, started_by="", topic, target, min_score, from_date, to_date, country, institution, kind, clamp=False):
+    def begin(key, license_key, is_admin, *, started_by="", topic, target, min_score, from_date, to_date, country, institution, kind, sources=(), clamp=False):
         """Starts a collection after the license and daily-limit checks. clamp=True (scheduled runs) lowers the target to
         what is left today instead of refusing. Returns the run id; raises HTTPException with a user-facing message."""
         valid, limit = license_limit(license_key, is_admin)
@@ -123,6 +131,8 @@ def collector_router(require_user, licenses, storage_full=None):
             raise HTTPException(403, "An active license is required.")
         if not topic.strip() or from_date > to_date:
             raise HTTPException(400, "Enter a topic and a valid date range.")
+        sources = [] if kind == "nih" else archive.chosen_sources(sources)
+        check_sources(sources, country)
         full = None if is_admin or not storage_full else storage_full(license_key)
         if full:
             raise HTTPException(403, full)
@@ -135,7 +145,7 @@ def collector_router(require_user, licenses, storage_full=None):
                     raise HTTPException(400, f"You can collect {remaining} more contacts today (your limit is {limit} a day).")
                 target = remaining
         try:
-            return archive.create(key, topic.strip(), target, min_score, from_date, to_date, country.upper(), institution.strip(), kind, started_by)
+            return archive.create(key, topic.strip(), target, min_score, from_date, to_date, country.upper(), institution.strip(), kind, started_by, sources=sources)
         except UniqueViolation:
             raise HTTPException(409, "A collection is already running in this workspace.")
 
@@ -144,7 +154,7 @@ def collector_router(require_user, licenses, storage_full=None):
         user = require_user(request)
         run_id = begin(key, user.get("license_key") or "", bool(user.get("is_admin")), started_by=collector_id(user), topic=body.topic, target=body.target,
                        min_score=body.min_score, from_date=body.from_date, to_date=body.to_date, country=body.country,
-                       institution=body.institution, kind=body.kind)
+                       institution=body.institution, kind=body.kind, sources=body.sources)
         tasks.add_task(run_and_record, key, run_id, user.get("license_key") or "")
         return {"id": run_id}
 
@@ -211,11 +221,13 @@ def collector_router(require_user, licenses, storage_full=None):
     def save_search(body: SaveSearchRequest, request: Request, key: str = Depends(writer)):
         if not body.topic.strip() or body.from_date > body.to_date:
             raise HTTPException(400, "Enter a topic and a valid date range.")
+        sources = [] if body.kind == "nih" else archive.chosen_sources(body.sources)
+        check_sources(sources, body.country)
         user = require_user(request)
         search_id = saved.save(key, name=(body.name.strip() or body.topic.strip())[:200], kind=body.kind, topic=body.topic.strip(),
                                target=body.target, min_score=body.min_score, window_days=(body.to_date - body.from_date).days,
                                country=body.country.upper(), institution=body.institution.strip(), frequency=body.frequency,
-                               license_key=user.get("license_key") or "")
+                               license_key=user.get("license_key") or "", sources=sources)
         return {"id": search_id}
 
     @router.patch("/searches/{search_id}")
@@ -247,7 +259,7 @@ def collector_router(require_user, licenses, storage_full=None):
         start_day, end_day = saved.run_window(item["window_days"])
         run_id = begin(key, user.get("license_key") or "", bool(user.get("is_admin")), started_by=collector_id(user), topic=item["topic"], target=item["target"],
                        min_score=item["min_score"], from_date=start_day, to_date=end_day, country=item["country"],
-                       institution=item["institution"], kind=item["kind"])
+                       institution=item["institution"], kind=item["kind"], sources=item.get("sources") or ())
         saved.record(key, str(search_id), run_id)
         tasks.add_task(run_and_record, key, run_id, user.get("license_key") or "")
         return {"id": run_id}
@@ -260,7 +272,7 @@ def collector_router(require_user, licenses, storage_full=None):
             try:
                 run_id = begin(key, item["license_key"], key.startswith("admin:"), topic=item["topic"], target=item["target"],
                                min_score=item["min_score"], from_date=start_day, to_date=end_day, country=item["country"],
-                               institution=item["institution"], kind=item["kind"], clamp=True)
+                               institution=item["institution"], kind=item["kind"], sources=item.get("sources") or (), clamp=True)
             except HTTPException as exc:
                 if exc.status_code == 409:
                     saved.retry_soon(key, sid)

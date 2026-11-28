@@ -45,9 +45,10 @@ class SavedSearchTests(unittest.TestCase):
 
     def run_pass(self, items, licenses, created=None, stats_today=0):
         router = collector_routes.collector_router(lambda request: {}, licenses)
-        calls = {"create": [], "record": [], "retry": [], "execute": []}
-        def create(*args):
+        calls = {"create": [], "record": [], "retry": [], "execute": [], "sources": []}
+        def create(*args, sources=()):
             calls["create"].append(args)
+            calls["sources"].append(sources)
             if created is UniqueViolation:
                 raise UniqueViolation()
             return "22222222-2222-2222-2222-222222222222"
@@ -70,6 +71,11 @@ class SavedSearchTests(unittest.TestCase):
         self.assertEqual(started_by, "")  # scheduled runs count as the owner's
         self.assertEqual(calls["execute"], ["22222222-2222-2222-2222-222222222222"])
         self.assertEqual(licenses.usage, [("LIC", 7)])
+
+    def test_a_scheduled_search_keeps_its_chosen_sources(self):
+        calls = self.run_pass([{**due(), "sources": ["bioRxiv", "OpenAlex"]}, ], Licenses())
+        self.assertEqual(calls["sources"], [["OpenAlex", "bioRxiv"]])
+        self.assertEqual(self.run_pass([due()], Licenses())["sources"], [[]], "older saved searches use all sources")
 
     def test_scheduled_target_is_clamped_to_what_is_left_today(self):
         calls = self.run_pass([due(target=50)], Licenses(limit=100), stats_today=80)
