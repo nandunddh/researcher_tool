@@ -268,3 +268,6 @@
 .addons h3 { margin: 0 0 8px; font-family: var(--display); font-size: 20px; color: #fff; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .addons p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.7; }
 @media (max-width: 640px) { .addons { grid-template-columns: 1fr; } .compare { padding-top: 40px; } }
+/* The header's Book a demo button gives way on small screens; the hero keeps its own. */
+.links a { white-space: nowrap; }
+@media (max-width: 1080px) { .demoLink { display: none; } }

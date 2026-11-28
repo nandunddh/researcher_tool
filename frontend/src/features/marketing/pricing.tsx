@@ -25,7 +25,10 @@ export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[];
             <strong>Start your 7-day free trial</strong>
             <p>One account, one user, up to {trial.limits.daily_contacts?.toLocaleString("en-US")} new research contacts a day. No card needed. To continue after the 7 days, choose a plan.</p>
           </div>
-          <a className={s.btn} href="/signup">Start your free trial <span className={s.arrow}>→</span></a>
+          <div className={s.ctas}>
+            <a className={s.btn} href="/signup">Start your free trial <span className={s.arrow}>→</span></a>
+            <a className={s.btnGhost} href="/demo">Book a demo</a>
+          </div>
         </div>
       )}
 
@@ -54,7 +57,7 @@ export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[];
             <div className={s.price}>Let&apos;s talk</div>
             <p className={s.priceNote}>Priced by quote</p>
             <ul>{cardLines(custom).map(line => <li key={line}>{line}</li>)}</ul>
-            <a className={s.btnGhost} href="mailto:hello@sciprospect.com?subject=SciProspect%20Custom%20plan">Contact sales</a>
+            <a className={s.btnGhost} href="/demo">Book a demo</a>
           </article>
         )}
       </div>

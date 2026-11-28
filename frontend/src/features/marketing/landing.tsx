@@ -94,6 +94,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.actions}>
             {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>
               <a className={s.btnGhost} href="/login">Log in</a>
+              <a className={`${s.btnGhost} ${s.demoLink}`} href="/demo">Book a demo</a>
               <a className={s.btn} href="/signup">Start free trial <span className={s.arrow}>→</span></a>
             </>}
           </div>
@@ -117,7 +118,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
             </p>
             <div className={s.ctas}>
               <a className={s.btn} href={start}>{signedInHref ? "Open workspace" : "Start free trial"} <span className={s.arrow}>→</span></a>
-              <a className={s.btnGhost} href="#story">See how it works</a>
+              <a className={s.btnGhost} href={signedInHref ? "#story" : "/demo"}>{signedInHref ? "See how it works" : "Book a demo"}</a>
             </div>
             <ul className={s.facts}><li>7-day free trial, no card</li><li>Verified researcher emails</li><li>Payments &amp; receipts</li></ul>
           </div>
@@ -167,7 +168,7 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.wrap}>
             <div className={s.head} data-reveal=""><span className={s.kicker}>Pricing</span><h2>Simple plans that grow with you</h2><p>Start with a 7-day free trial. Change or cancel your plan at any time.</p></div>
             <Pricing plans={plans} signedIn={!!signedInHref} compareHref="/pricing#comparison" />
-            <p className={s.note}>Prices in USD. Running something bigger? <a href="mailto:hello@sciprospect.com">Talk to us</a>.</p>
+            <p className={s.note}>Prices in USD. Running something bigger? <a href="/demo">Book a demo</a>.</p>
           </div>
         </section>
 
@@ -189,8 +190,11 @@ export function Landing({ plans, signedInHref }: { plans: PublicPlan[]; signedIn
           <div className={s.wrap}>
             <div className={s.ctaBox} data-reveal="">
               <h2>Your next event starts here.</h2>
-              <p>Start your 7-day free trial in a minute. No card needed.</p>
-              <a className={s.btnLight} href={start}>{signedInHref ? "Open workspace" : "Start free trial"} <span className={s.arrow}>→</span></a>
+              <p>Start your 7-day free trial in a minute. No card needed. Or see it first with our team.</p>
+              <div className={s.ctas}>
+                <a className={s.btnLight} href={start}>{signedInHref ? "Open workspace" : "Start free trial"} <span className={s.arrow}>→</span></a>
+                {!signedInHref && <a className={s.btnGhost} href="/demo">Book a demo</a>}
+              </div>
             </div>
           </div>
         </section>

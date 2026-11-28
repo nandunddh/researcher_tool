@@ -113,6 +113,7 @@ export function Signup({ initialPlan }: { initialPlan: string }) {
             </label>
             <button className="primary login-submit" type="submit" disabled={busy}>{busy ? "Sending code…" : "Create account"}</button>
             <p style={{ textAlign: "center", marginTop: 16, fontSize: 14 }}>Already have an account? <a href="/login">Log in</a></p>
+            <p style={{ textAlign: "center", marginTop: 6, fontSize: 14 }}>Prefer a guided tour? <a href="/demo">Book a demo</a></p>
           </form>
         ) : (
           <form onSubmit={e => e.preventDefault()} noValidate>

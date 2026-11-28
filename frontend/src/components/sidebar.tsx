@@ -11,6 +11,7 @@ const ROOT_LINKS: NavItem[] = [
   { label: "Add Account", url: "/root/add-account", icon: "doc" },
   { label: "Manage Accounts", url: "/root/accounts", icon: "doc" },
   { label: "Plans", url: "/root/plans", icon: "grid" },
+  { label: "Demo requests", url: "/root/demo-requests", icon: "user" },
   { label: "Design Library", url: "/root/designs", icon: "layers" },
 ];
 

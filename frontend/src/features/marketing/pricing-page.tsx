@@ -17,6 +17,7 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
           <div className={s.actions}>
             {signedInHref ? <a className={s.btn} href={signedInHref}>Open workspace <span className={s.arrow}>→</span></a> : <>
               <a className={s.btnGhost} href="/login">Log in</a>
+              <a className={`${s.btnGhost} ${s.demoLink}`} href="/demo">Book a demo</a>
               <a className={s.btn} href="/signup">Start free trial <span className={s.arrow}>→</span></a>
             </>}
           </div>

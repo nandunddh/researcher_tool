@@ -10,7 +10,7 @@ const LIMITS: [string, string, string][] = [
   ["websites", "Websites", ""], ["pages", "Pages per website", ""],
   ["members", "Team members besides the owner", "Users on the pricing page = this + 1. Becomes the account's seat limit."],
   ["daily_contacts", "Contacts per day, per user", "Becomes the account's daily contact limit once the plan is paid (trial: while the trial runs)."],
-  ["storage_mb", "File storage (MB)", "1 GB = 1000 MB."], ["data_storage_mb", "Data storage (MB)", "Shown on the pricing page. Not measured yet."], ["submissions_month", "Form submissions per month", "-1 = unlimited (recommended). Spam is blocked by a limit of 10 per 10 minutes per visitor."],
+  ["storage_mb", "File storage (MB)", "1 GB = 1000 MB."], ["data_storage_mb", "Data storage (MB)", "Contacts, evidence, form responses and website pages. New collections stop when it is full."], ["submissions_month", "Form submissions per month", "-1 = unlimited (recommended). Spam is blocked by a limit of 10 per 10 minutes per visitor."],
 ];
 
 /** Root: edit website plans. Changes apply at once to every account on the plan. -1 = unlimited. */

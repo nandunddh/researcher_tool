@@ -1341,7 +1341,7 @@ async def library_list(request: Request):
 def _require_root(request: Request) -> dict:
     user = _require_authenticated_user(request)
     if not user.get("is_admin"):
-        raise HTTPException(status_code=403, detail="Only the root administrator can manage the design library.")
+        raise HTTPException(status_code=403, detail="Only the root administrator can do this.")
     return user
 
 
@@ -1927,6 +1927,60 @@ def _send_quietly(to: str, subject: str, text: str, html: str) -> None:
         send_mail(to, subject, text, html)
     except Exception as exc:
         print(f"[MAIL] Not sent: {type(exc).__name__}")
+
+
+# ---------- Book a demo ----------
+_demo_limit = FormRateLimit(limit=5, seconds=900)
+INTEREST_LABELS = {"collect": "Collecting researcher contacts", "studio": "Event websites (SciStudio)", "both": "Both", "custom": "A custom plan"}
+
+
+@app.post("/api/public/demo")
+async def public_demo_request(request: Request):
+    """Public: someone asks for a demo. Saved for root, emailed to the team, and confirmed to the visitor."""
+    import demo_requests
+    client = getattr(request, "client", None)
+    if not _demo_limit.allow(client.host if client else "unknown"):
+        raise HTTPException(status_code=429, detail="You've sent several requests in a short time. Please try again in a few minutes.")
+    if int(request.headers.get("content-length") or 0) > 16_000:
+        raise HTTPException(status_code=413, detail="This request is too long.")
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Please fill in the form.")
+    values, problem = demo_requests.clean(payload)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    request_id = demo_requests.save(values)
+    team = os.environ.get("SCIPROSPECT_DEMO_EMAIL", "").strip()
+    lines = [f"Name: {values['name']}", f"Email: {values['email']}", f"Organization: {values['organization'] or '-'}",
+             f"Interested in: {INTEREST_LABELS[values['interest']]}", f"Preferred times: {values['times'] or '-'}", "", values["message"] or "(no message)"]
+    if team:
+        threading.Thread(target=_send_quietly, daemon=True, args=(team, f"Demo request #{request_id}: {values['name']}", "\n".join(lines),
+            "<p>" + "<br>".join(html_escape(line) for line in lines) + "</p>")).start()
+    threading.Thread(target=_send_quietly, daemon=True, args=(values["email"], "We received your demo request",
+        f"Hi {values['name']},\n\nThank you for your interest in SciProspect. We will email you within one working day to arrange a time.\n\nThe SciProspect team",
+        f"<p>Hi {html_escape(values['name'])},</p><p>Thank you for your interest in SciProspect. We will email you within one working day to arrange a time.</p><p>The SciProspect team</p>")).start()
+    return {"status": "ok", "message": "Thank you! We will email you within one working day to arrange your demo."}
+
+
+@app.get("/api/admin/demo-requests")
+async def admin_demo_requests(request: Request):
+    import demo_requests
+    _require_root(request)
+    return {"requests": demo_requests.list_all()}
+
+
+@app.patch("/api/admin/demo-requests/{request_id}")
+async def admin_demo_request_status(request_id: int, request: Request):
+    import demo_requests
+    _require_root(request)
+    body = await request.json()
+    status = body.get("status") if isinstance(body, dict) else None
+    if status not in demo_requests.STATUSES:
+        raise HTTPException(status_code=400, detail="Choose new, contacted or done.")
+    if not demo_requests.set_status(request_id, status):
+        raise HTTPException(status_code=404, detail="Request not found.")
+    return {"status": "ok"}
 
 
 UPLOAD_MAX_BYTES = 20 * 1024 * 1024
