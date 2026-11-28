@@ -6,7 +6,7 @@ import { Icon } from "@/components/icon";
 import { ClientShell } from "./shell";
 import { TeamPanel, type Member } from "./team-panel";
 import { share, usedOf } from "@/lib/plans";
-import { EmptyState, LaunchCard, LaunchGrid, SectionTitle, Welcome } from "@/features/workspace/dashboard-parts";
+import { EmptyState, LaunchCard, LaunchGrid, SectionTitle, TopActions, Welcome } from "@/features/workspace/dashboard-parts";
 
 type Conference = {
   conference_id: string;
@@ -52,7 +52,8 @@ export function ClientDashboard() {
   useEffect(() => { void load(); }, []);
 
   return (
-    <ClientShell title="Client Dashboard" clientName={data?.client_name}>
+    <ClientShell title="Client Dashboard" clientName={data?.client_name}
+      actions={data ? <TopActions upgrade={data.tier === "trial" || data.status !== "active"} /> : undefined}>
       {error && (
         <p className="alert" role="alert">
           {error}
@@ -71,7 +72,6 @@ export function ClientDashboard() {
               { text: data.status === "active" ? `${data.days_left} left` : data.status, tone: data.status === "active" ? undefined : "red" },
               { text: data.scistudio_access ? "SciStudio on" : "SciStudio off" },
             ]}
-            upgrade={data.tier === "trial" || data.status !== "active"}
             stats={[
               { label: "Contacts today",
                 value: data.daily_limit < 0 ? "Unlimited" : `${(data.used_today || 0).toLocaleString()} / ${data.daily_limit.toLocaleString()}`,

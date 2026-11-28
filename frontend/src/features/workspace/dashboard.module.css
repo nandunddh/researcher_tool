@@ -8,11 +8,6 @@
 .welcome h2 { margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -.02em; color: #fff; }
 .welcome p { margin: 0; font-size: 14px; color: rgba(255, 255, 255, .75); }
 .welcomeTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
-.welcomeLinks { display: flex; gap: 10px; flex-wrap: wrap; }
-.welcomeGhost { display: inline-flex; align-items: center; gap: 8px; padding: 12px 18px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, .25);
-  color: #fff; font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; transition: border-color .2s, background .2s; }
-.welcomeGhost:hover { border-color: #fff; background: rgba(255, 255, 255, .06); }
-.welcomeGhost:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
 .tile { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 14px 16px; border-radius: 14px;
   background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .12); backdrop-filter: blur(6px); }
@@ -21,15 +16,11 @@
 .tileHint { font-size: 12px; color: rgba(255, 255, 255, .62); }
 .tileBar { height: 5px; margin-top: 8px; border-radius: 5px; background: rgba(255, 255, 255, .14); overflow: hidden; }
 .tileBar i { display: block; height: 100%; border-radius: 5px; background: #c8ff4d; transition: width .6s ease; }
-.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 999px; font-size: 12px; font-weight: 700;
   background: rgba(255, 255, 255, .1); border: 1px solid rgba(255, 255, 255, .16); color: #fff; }
 .chip[data-tone=lime] { background: #c8ff4d; border-color: #c8ff4d; color: #0a0a0a; }
 .chip[data-tone=red] { background: rgba(248, 113, 113, .18); border-color: rgba(248, 113, 113, .5); color: #fecaca; }
-.welcomeCta { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 999px; background: #c8ff4d; color: #0a0a0a;
-  font-weight: 700; font-size: 14px; text-decoration: none; white-space: nowrap; transition: transform .15s, box-shadow .2s; }
-.welcomeCta:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgba(200, 255, 77, .25); }
-.welcomeCta:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
 
 .sectionTitle { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin: 6px 0 12px; }
@@ -59,7 +50,19 @@
 @media (max-width: 640px) {
   .welcome { padding: 22px; }
   .welcome h2 { font-size: 22px; }
-  .welcomeLinks, .welcomeCta, .welcomeGhost { width: 100%; justify-content: center; }
+  .chips { justify-content: flex-start; }
   .tiles { grid-template-columns: 1fr 1fr; }
 }
-@media (prefers-reduced-motion: reduce) { .launchCard, .tileBar i, .welcomeCta, .welcomeGhost { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .launchCard, .tileBar i, .topUpgrade, .topAccount { transition: none; } }
+
+/* Top-bar buttons beside sign-out (white header). */
+.topUpgrade, .topAccount { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 16px; border-radius: 999px; font-size: 14px; font-weight: 700; text-decoration: none; white-space: nowrap; transition: transform .15s, border-color .15s, background .15s; }
+.topUpgrade { background: #c8ff4d; color: #0a0a0a; }
+.topUpgrade:hover { transform: translateY(-1px); background: #bdf53a; }
+.topAccount { border: 1px solid #dbe1ee; background: #fff; color: #1f2a44; font-weight: 600; }
+.topAccount:hover { border-color: #4f46e5; color: #4f46e5; background: #f6f5ff; }
+.topUpgrade:focus-visible, .topAccount:focus-visible { outline: 2px solid #4f46e5; outline-offset: 3px; }
+/* Tiles: 4 across on wide screens, 2 x 2 otherwise, so a figure is never left alone on a row. */
+.tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.tiles:has(> :nth-child(3):last-child) { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+@media (max-width: 1280px) { .tiles, .tiles:has(> :nth-child(3):last-child) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

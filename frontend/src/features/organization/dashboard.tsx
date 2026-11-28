@@ -9,7 +9,7 @@ import { PasswordInput } from "@/components/password-input";
 import { Icon } from "@/components/icon";
 import { OrgShell } from "./shell";
 import { share } from "@/lib/plans";
-import { LaunchCard, LaunchGrid, SectionTitle, Welcome } from "@/features/workspace/dashboard-parts";
+import { LaunchCard, LaunchGrid, SectionTitle, TopActions, Welcome } from "@/features/workspace/dashboard-parts";
 
 type Member = {
   member_id: string;
@@ -197,7 +197,8 @@ export function OrgDashboard() {
   }
 
   return (
-    <OrgShell title="Organization Dashboard" orgName={data?.org_name}>
+    <OrgShell title="Organization Dashboard" orgName={data?.org_name}
+      actions={data ? <TopActions upgrade={data.tier === "trial" || data.status !== "active"} /> : undefined}>
       {error && (
         <p className="alert" role="alert">
           {error}
@@ -216,7 +217,6 @@ export function OrgDashboard() {
               { text: data.status === "active" ? `${data.days_left} left` : data.status, tone: data.status === "active" ? undefined : "red" },
               { text: data.scistudio_access ? "SciStudio on" : "SciStudio off" },
             ]}
-            upgrade={data.tier === "trial" || data.status !== "active"}
             stats={[
               { label: "Team seats", value: `${data.members.length} / ${data.seat_limit}`,
                 hint: data.seat_limit - data.members.length > 0 ? `${data.seat_limit - data.members.length} seats free` : "All seats in use",

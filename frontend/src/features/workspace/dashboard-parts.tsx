@@ -6,9 +6,19 @@ export type Tone = "violet" | "blue" | "teal" | "green" | "amber";
 
 export type WelcomeStat = { label: string; value: ReactNode; hint?: string; progress?: number | null };
 
-/** Top banner: greeting, plan chips, upgrade button (trial or expired) and the account's key figures as compact tiles. */
-export function Welcome({ name, subtitle, chips, stats, upgrade }: {
-  name: string; subtitle: string; chips: { text: string; tone?: "lime" | "red" }[]; stats: WelcomeStat[]; upgrade?: boolean;
+/** Top-bar buttons beside sign-out: Upgrade while on a trial or expired, and Account details. */
+export function TopActions({ upgrade }: { upgrade: boolean }) {
+  return (
+    <>
+      {upgrade && <a className={s.topUpgrade} href="/billing"><Icon name="bolt" size={15} /> Upgrade plan</a>}
+      <a className={s.topAccount} href="/account"><Icon name="user" size={15} /> Account</a>
+    </>
+  );
+}
+
+/** Top banner: greeting with the plan chips beside it, and the account's key figures as compact tiles. */
+export function Welcome({ name, subtitle, chips, stats }: {
+  name: string; subtitle: string; chips: { text: string; tone?: "lime" | "red" }[]; stats: WelcomeStat[];
 }) {
   const first = name.trim().split(/\s+/)[0] || name;
   return (
@@ -17,12 +27,8 @@ export function Welcome({ name, subtitle, chips, stats, upgrade }: {
         <div>
           <h2>Welcome back, {first}</h2>
           <p>{subtitle}</p>
-          <div className={s.chips}>{chips.map((c) => <span key={c.text} className={s.chip} data-tone={c.tone}>{c.text}</span>)}</div>
         </div>
-        <div className={s.welcomeLinks}>
-          {upgrade && <a className={s.welcomeCta} href="/billing"><Icon name="bolt" size={16} /> Upgrade plan</a>}
-          <a className={s.welcomeGhost} href="/account"><Icon name="user" size={16} /> Account details</a>
-        </div>
+        <div className={s.chips}>{chips.map((c) => <span key={c.text} className={s.chip} data-tone={c.tone}>{c.text}</span>)}</div>
       </div>
       <div className={s.tiles}>
         {stats.map((t) => (

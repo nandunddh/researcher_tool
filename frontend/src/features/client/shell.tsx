@@ -7,10 +7,13 @@ export function ClientShell({
   title,
   clientName,
   path = "/client/dashboard",
+  actions,
   children,
 }: {
   title: string;
   clientName?: string;
+  /** Buttons shown in the top bar, left of sign-out (e.g. Upgrade, Account). */
+  actions?: ReactNode;
   path?: string;
   children: ReactNode;
 }) {
@@ -28,7 +31,7 @@ export function ClientShell({
               <small>{clientName || "Solo Researcher Workspace"}</small>
             </div>
           </div>
-          <SignOut />
+          <div className="header-actions">{actions}<SignOut /></div>
         </header>
         <main className="admin-main">{children}</main>
       </div>

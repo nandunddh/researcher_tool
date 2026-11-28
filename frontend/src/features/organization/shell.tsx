@@ -7,10 +7,13 @@ export function OrgShell({
   title,
   orgName,
   path = "/organization/dashboard",
+  actions,
   children,
 }: {
   title: string;
   orgName?: string;
+  /** Buttons shown in the top bar, left of sign-out (e.g. Upgrade, Account). */
+  actions?: ReactNode;
   path?: string;
   children: ReactNode;
 }) {
@@ -28,7 +31,7 @@ export function OrgShell({
               <small>{orgName || "Organization Workspace"}</small>
             </div>
           </div>
-          <SignOut />
+          <div className="header-actions">{actions}<SignOut /></div>
         </header>
         <main className="admin-main">{children}</main>
       </div>
