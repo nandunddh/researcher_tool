@@ -27,6 +27,7 @@ Migrations only add columns, so older code keeps working with the newer database
    On the server also set `SCIPROSPECT_APP_URL=https://your-domain.com`.
    Customers' own domains point at the host in `SCIPROSPECT_APP_URL` (a CNAME). For root domains, where a CNAME is not allowed, also set `SCIPROSPECT_SERVER_IP=<the server's public IPv4 address>` so the Domain dialog offers an A record too.
    To receive "Book a demo" requests by email, set `SCIPROSPECT_DEMO_EMAIL=<your sales or team address>` (they are always listed in Root → Demo requests; sending needs the SMTP settings).
+   To protect the Book a demo form with Cloudflare Turnstile: in the Cloudflare dashboard open Turnstile, add a widget for your domain (and `localhost` if you want it locally), then set `SCIPROSPECT_TURNSTILE_SITE_KEY=<site key>` and `SCIPROSPECT_TURNSTILE_SECRET_KEY=<secret key>` in `backend/.env` and restart the backend. Without both keys the form works without the check.
    Add `OPENALEX_API_KEY=<your key>` too (free at openalex.org/settings/api, $1 a day included). Without it every collection shares a tiny no-key budget.
    Also add `SCIPROSPECT_SCHEDULER=on` there: it turns on scheduled collector searches. Leave it off on your PC, because your PC shares the same database and would run production jobs.
 4. **Services:**

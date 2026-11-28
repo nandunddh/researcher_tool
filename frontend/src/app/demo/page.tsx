@@ -6,6 +6,17 @@ export const metadata: Metadata = {
   description: "See SciProspect with your own research topic and event in a 30-minute call with our team.",
 };
 
-export default function Page() {
-  return <BookDemo />;
+/** The Cloudflare Turnstile site key, or "" when the check is off (local development). */
+async function captchaKey(): Promise<string> {
+  try {
+    const origin = process.env.FASTAPI_ORIGIN || "http://127.0.0.1:8000";
+    const response = await fetch(origin + "/api/public/captcha", { cache: "no-store" });
+    return response.ok ? String((await response.json()).site_key || "") : "";
+  } catch {
+    return "";  // the server will still ask for the check if it is on; the form then explains
+  }
+}
+
+export default async function Page() {
+  return <BookDemo captchaSiteKey={await captchaKey()} />;
 }

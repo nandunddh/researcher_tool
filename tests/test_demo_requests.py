@@ -13,6 +13,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 import app as web_app  # noqa: E402
+
+
+async def _inline(fn, *args):
+    """Runs the background-thread helper inline, because these tests replace threading.Thread."""
+    return fn(*args)
 import demo_requests  # noqa: E402
 
 
@@ -63,7 +68,8 @@ class RouteTests(unittest.TestCase):
                 pass
 
         with patch.object(demo_requests, "save", side_effect=lambda v: saved.append(v) or 42), \
-             patch.object(web_app.threading, "Thread", Thread), patch.dict(os.environ, {"SCIPROSPECT_DEMO_EMAIL": team}):
+             patch.object(web_app.threading, "Thread", Thread), patch.dict(os.environ, {"SCIPROSPECT_DEMO_EMAIL": team}), \
+             patch.object(web_app, "run_in_threadpool", _inline):
             out = asyncio.run(web_app.public_demo_request(_Req(payload)))
         return out, saved, threads
 

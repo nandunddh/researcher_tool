@@ -21,6 +21,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
+from starlette.concurrency import run_in_threadpool
 
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -1492,7 +1493,6 @@ async def builder_domain_set(site_id: str, request: Request):
 
 @app.post("/api/builder/sites/{site_id}/domain/verify")
 async def builder_domain_verify(site_id: str, request: Request):
-    from starlette.concurrency import run_in_threadpool
     import custom_domains
     _, plan = _domain_site(request, site_id, "manage")
     try:
@@ -1950,6 +1950,9 @@ async def public_demo_request(request: Request):
     values, problem = demo_requests.clean(payload)
     if problem:
         raise HTTPException(status_code=400, detail=problem)
+    import captcha
+    if not await run_in_threadpool(captcha.verify, payload.get("captcha"), client.host if client else None):
+        raise HTTPException(status_code=400, detail="Please complete the check that you are a person, then send again.")
     request_id = demo_requests.save(values)
     team = os.environ.get("SCIPROSPECT_DEMO_EMAIL", "").strip()
     lines = [f"Name: {values['name']}", f"Email: {values['email']}", f"Organization: {values['organization'] or '-'}",
@@ -1961,6 +1964,13 @@ async def public_demo_request(request: Request):
         f"Hi {values['name']},\n\nThank you for your interest in SciProspect. We will email you within one working day to arrange a time.\n\nThe SciProspect team",
         f"<p>Hi {html_escape(values['name'])},</p><p>Thank you for your interest in SciProspect. We will email you within one working day to arrange a time.</p><p>The SciProspect team</p>")).start()
     return {"status": "ok", "message": "Thank you! We will email you within one working day to arrange your demo."}
+
+
+@app.get("/api/public/captcha")
+async def public_captcha():
+    """The Turnstile site key for public forms, or "" when the check is switched off."""
+    import captcha
+    return {"site_key": captcha.site_key() if captcha.enabled() else ""}
 
 
 @app.get("/api/admin/demo-requests")
