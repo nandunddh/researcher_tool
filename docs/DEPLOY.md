@@ -10,8 +10,11 @@ two `.service` files if it is elsewhere.
 bash ~/researcher_tool/deploy/update.sh
 ```
 
-It pulls `main`, installs Python and Node packages, builds the frontend, restarts both services
-(database migrations run automatically when the backend starts) and checks that both answer. Logs:
+It pulls `main`, installs Python packages, builds the frontend, restarts both services
+(database migrations run automatically when the backend starts) and checks that both answer.
+The live site stays up during the build: the new build goes into `frontend/.next-build` and replaces `frontend/.next` (a folder
+rename) only after it succeeds, then a restart of a few seconds. A failed build changes nothing, and if the new build does not answer
+the previous one is put back. Node packages are reinstalled only when `package-lock.json` changed (that deploy can show errors for a minute). Logs:
 `sudo journalctl -u sciprospect-backend -n 80` and `sudo journalctl -u sciprospect-frontend -n 80`.
 
 **Rollback:** `git -C ~/researcher_tool log --oneline -5`, then

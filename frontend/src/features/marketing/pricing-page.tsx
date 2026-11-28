@@ -21,7 +21,7 @@ export function PricingPage({ plans, signedInHref }: { plans: PublicPlan[]; sign
               <h2>Simple plans that grow with you</h2>
               <p>Start with a 7-day free trial for one account. Collect up to 1,000 contacts a day.</p>
             </div>
-            <Pricing plans={plans} signedIn={!!signedInHref} compareHref="#comparison" />
+            <Pricing plans={plans} signedIn={!!signedInHref} compareHref="#comparison" reveal={false} />
           </div>
         </section>
         <PricingCompare plans={plans} />

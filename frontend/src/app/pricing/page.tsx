@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { session } from "@/lib/session";
 import type { PublicPlan } from "@/lib/plans";
 import { PricingPage } from "@/features/marketing/pricing-page";
+import { siteUrl } from "@/lib/site-url";
+import { jsonLd, pricingStructuredData } from "@/lib/structured-data";
 
 export const metadata: Metadata = {
   title: "Pricing · SciProspect",
@@ -21,5 +23,9 @@ async function loadPlans(): Promise<PublicPlan[]> {
 
 export default async function Page() {
   const current = await session();
-  return <PricingPage plans={await loadPlans()} signedInHref={current ? "/dashboard" : null} />;
+  const [plans, base] = await Promise.all([loadPlans(), siteUrl()]);
+  return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(pricingStructuredData(base, plans)) }} />
+    <PricingPage plans={plans} signedInHref={current ? "/dashboard" : null} />
+  </>;
 }

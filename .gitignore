@@ -44,6 +44,10 @@ sessions.json
 # Next.js frontend and local runtime logs
 frontend/node_modules/
 frontend/.next/
+frontend/.next-build/
+frontend/.next-old/
+frontend/node_modules-old/
+frontend/.deployed-lock-hash
 frontend/out/
 frontend/*.tsbuildinfo
 frontend/.env.local

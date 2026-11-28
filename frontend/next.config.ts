@@ -9,8 +9,13 @@ function commit(): string {
   try { return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); } catch { return ""; }
 }
 
+// deploy/update.sh builds into .next-build while the live site keeps serving .next, then swaps the folders.
+const distDir = process.env.NEXT_DIST_DIR || ".next";
+if (!/^\.next[\w-]*$/.test(distDir)) throw new Error("NEXT_DIST_DIR must be a simple .next* folder name.");
+
 const config: NextConfig = {
   output: "standalone",
+  distDir,
   poweredByHeader: false,
   env: { NEXT_PUBLIC_APP_VERSION: pkg.version, NEXT_PUBLIC_APP_COMMIT: commit() },
   // Workspace pages moved from /{account type}/... to one address for everyone; old links and bookmarks keep working.

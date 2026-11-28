@@ -3,8 +3,10 @@ import { useState } from "react";
 import { INTERVAL_KEY, cardLines, priceFor, usd, yearlySaving, type Interval, type PublicPlan } from "@/lib/plans";
 import s from "./landing.module.css";
 
-/** The pricing section: a card-free 7-day trial, then Basic / Pro / Ultra (monthly or annual) and a contact-sales Custom plan. */
-export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[]; signedIn: boolean; compareHref?: string }) {
+/** The pricing section: a card-free 7-day trial, then Basic / Pro / Ultra (monthly or annual) and a contact-sales Custom plan.
+ *  reveal: fade the cards in on scroll (home page). On /pricing they are the main content, so they show at once. */
+export function Pricing({ plans, signedIn, compareHref, reveal = true }: { plans: PublicPlan[]; signedIn: boolean; compareHref?: string; reveal?: boolean }) {
+  const fade = reveal ? "" : undefined;
   const [interval, setInterval] = useState<Interval>("month");
   const trial = plans.find(p => p.kind === "trial");
   const paid = plans.filter(p => p.kind === "paid");
@@ -20,7 +22,7 @@ export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[];
   return (
     <>
       {trial && !signedIn && (
-        <div className={s.trialBand} data-reveal="">
+        <div className={s.trialBand} data-reveal={fade}>
           <div>
             <strong>Start your 7-day free trial</strong>
             <p>One account, one user, up to {trial.limits.daily_contacts?.toLocaleString("en-US")} new research contacts a day. No card needed. To continue after the 7 days, choose a plan.</p>
@@ -41,7 +43,7 @@ export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[];
         {paid.map((p, i) => {
           const price = priceFor(p, interval);
           return (
-            <article key={p.id} className={s.plan} data-popular={p.id === popular || undefined} data-reveal="" style={{ "--d": `${i * .1}s` } as React.CSSProperties}>
+            <article key={p.id} className={s.plan} data-popular={p.id === popular || undefined} data-reveal={fade} style={{ "--d": `${i * .1}s` } as React.CSSProperties}>
               {p.id === popular && <span className={s.popular}>Most popular</span>}
               <h3>{p.name}</h3>
               <div className={s.price}>{usd(price)}<small> / {interval === "year" ? "year" : "month"}</small></div>
@@ -52,7 +54,7 @@ export function Pricing({ plans, signedIn, compareHref }: { plans: PublicPlan[];
           );
         })}
         {custom && (
-          <article className={s.plan} data-reveal="" style={{ "--d": `${paid.length * .1}s` } as React.CSSProperties}>
+          <article className={s.plan} data-reveal={fade} style={{ "--d": `${paid.length * .1}s` } as React.CSSProperties}>
             <h3>{custom.name}</h3>
             <div className={`${s.price} ${s.priceWords}`}>Let&apos;s talk</div>
             <p className={s.priceNote}>Priced by quote</p>
